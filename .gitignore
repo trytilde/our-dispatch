@@ -13,7 +13,7 @@ test-results/
 .vercel/
 .openbot-deploy/
 .openbot/
-sandbox/secrets.yaml
+configuration/sandbox/secrets.yaml
 *.log
 apps/web/src/routeTree.gen.ts
 packages/contracts/src/gen/

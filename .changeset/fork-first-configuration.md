@@ -1,5 +1,4 @@
 ---
-"@openbot/agent-sdk": minor
 "@openbot/box-host": minor
 "@openbot/config": minor
 "@openbot/contracts": minor
@@ -12,4 +11,4 @@
 "@openbot/web": minor
 ---
 
-Add fork-owned configuration for agents, runtime skills, sandbox setup, and provider integrations, with an interactive terminal CLI for setup and operation.
+Add one fork-owned `configuration/` tree for Vercel AI SDK-compatible agent endpoints, runtime skills, sandbox setup, and provider integrations, with an interactive terminal CLI for setup and operation.

@@ -2,10 +2,10 @@ import { describe, expect, it } from "vitest";
 import { repositoryDigest, validateConfig, type OpenBotConfig } from "./index.js";
 
 const config: OpenBotConfig = {
-  providers: { ai: "openai", agents: "tilde-agents", chat: "tilde-chatkit", skills: "tilde-skills", sandbox: "auto", environment: "auto", sourceControl: "github", deployment: "vercel" },
-  skills: { directory: "skills", registryName: "OpenBot" },
-  agents: { directory: "agents", routePrefix: "/api/agents" },
-  sandbox: { assetsDirectory: "sandbox/assets", bootstrap: "sandbox/bootstrap.sh", secretsManifest: "sandbox/secrets.example.yaml" },
+  providers: { directory: "configuration/providers", ai: "openai", agents: "tilde-agents", chat: "tilde-chatkit", skills: "tilde-skills", sandbox: "auto", environment: "auto", sourceControl: "github", deployment: "vercel" },
+  skills: { directory: "configuration/skills", registryName: "OpenBot" },
+  agents: { directory: "configuration/agents", routePrefix: "/api/agents" },
+  sandbox: { assetsDirectory: "configuration/sandbox/assets", bootstrap: "configuration/sandbox/bootstrap.sh", secretsManifest: "configuration/sandbox/secrets.example.yaml" },
   publishing: { mode: "pull-request", deploymentBranch: "main" },
 };
 

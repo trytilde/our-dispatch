@@ -4,5 +4,5 @@
     "jsx": "react-jsx",
     "noEmit": true
   },
-  "include": ["./*.ts", "./*.tsx", "../openbot.config.ts", "../agents/**/*.ts", "../providers/**/*.ts"]
+  "include": ["./*.ts", "./*.tsx", "../openbot.config.ts", "../configuration/agents/**/*.ts", "../configuration/providers/**/*.ts"]
 }

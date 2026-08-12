@@ -34,17 +34,21 @@ Deployment validates and builds the fork, provisions or reuses its resources, de
 
 ```text
 openbot.config.ts       provider selection and repository paths
-agents/<id>.ts          one code-owned agent and endpoint per file
+configuration/agents/<id>.ts
+                        one Vercel AI SDK-compatible agent endpoint per file
 configuration/skills/<name>/SKILL.md
                         runtime skills registered by the selected skill provider
-providers/<id>/         fork-owned provider plugin implementations
-sandbox/assets/         files copied to /workspace on every sandbox start
-sandbox/bootstrap.sh    idempotent script run after those files are copied
+configuration/providers/<id>/
+                        fork-owned provider plugin implementations
+configuration/sandbox/assets/
+                        files copied to /workspace on every sandbox start
+configuration/sandbox/bootstrap.sh
+                        idempotent script run after those files are copied
 ```
 
-Agent modules own their prompts and execution logic. They are served at `/api/agents/<id>`. Skills are reconciled into the configured Tilde registry. Removed agents remain orphaned by default; `pnpm openbot sync --prune --yes` explicitly disables them remotely.
+Agent route modules export `POST` using Tilde `chatKitEndpoint` and the Vercel AI SDK. OpenBot serves each module at `/api/agents/<id>`. Skills are reconciled into the configured Tilde registry. Removed agents remain orphaned by default; `pnpm openbot sync --prune --yes` explicitly disables them remotely.
 
-Only sandbox-specific secrets declared in `sandbox/secrets.example.yaml` are injected. Set them as `OPENBOT_SANDBOX_SECRET_<NAME>` or, for local development only, in ignored `sandbox/secrets.yaml`. Provider and control-plane credentials are never implicitly copied into a sandbox. SOPS portability is intentionally deferred from this first version.
+Only sandbox-specific secrets declared in `configuration/sandbox/secrets.example.yaml` are injected. Set them as `OPENBOT_SANDBOX_SECRET_<NAME>` or, for local development only, in ignored `configuration/sandbox/secrets.yaml`. Provider and control-plane credentials are never implicitly copied into a sandbox. SOPS portability is intentionally deferred from this first version.
 
 ## Common commands
 

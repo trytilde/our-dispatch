@@ -1,6 +1,6 @@
 # Custom providers
 
-Add fork-owned provider plugins at `providers/<id>/index.ts`. Export a plugin
+Add fork-owned provider plugins at `configuration/providers/<id>/index.ts`. Export a plugin
 created with `defineProviderPlugin` from `@openbot/provider-sdk`, then select
 its registered provider ID in `openbot.config.ts`.
 

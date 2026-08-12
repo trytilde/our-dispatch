@@ -2,7 +2,7 @@
 
 ## In brief
 
-- Fork owns agents, runtime skills, sandbox seed, provider plugins.
+- Fork owns one `configuration/` tree: agents, runtime skills, sandbox seed, provider plugins.
 - Core owns contracts and lifecycle. No layer system.
 - Runtime agent creation opens PR. No direct production mutation.
 
@@ -12,7 +12,7 @@ OpenBot must be simple to fork and customize while keeping upstream core changes
 
 ## Decision
 
-`openbot.config.ts` selects providers and repository-relative paths. Fork-owned behavior lives in `agents/`, `configuration/skills/`, `sandbox/`, and `providers/`. Build-time discovery federates agent endpoints; lease-protected deployment reconciliation registers agents and skills. Runtime creation produces a source-control pull request that must merge and deploy normally.
+`openbot.config.ts` selects providers and paths within one fork-owned `configuration/` tree. Agent modules under `configuration/agents/` are Web-standard route modules: they export `POST`, construct Tilde `chatKitEndpoint` directly, and return Vercel AI SDK responses. OpenBot does not define a second agent SDK or execution wrapper. Build-time discovery federates these endpoints; lease-protected deployment reconciliation registers agents and skills. Runtime creation produces a source-control pull request that must merge and deploy normally.
 
 OpenBot stores only reconciliation mappings, digests, leases, and source-publication progress as Control State. Tilde remains authoritative for registered agents, skills, conversations, tools, and memory; credentials remain in `EnvProvider`.
 

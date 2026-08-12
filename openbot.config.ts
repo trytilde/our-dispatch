@@ -2,6 +2,7 @@ import { defineConfig } from "@openbot/config";
 
 export default defineConfig({
   providers: {
+    directory: "configuration/providers",
     ai: "openai",
     agents: "tilde-agents",
     chat: "tilde-chatkit",
@@ -17,13 +18,13 @@ export default defineConfig({
     registryDescription: "Skills committed with this OpenBot fork.",
   },
   agents: {
-    directory: "agents",
+    directory: "configuration/agents",
     routePrefix: "/api/agents",
   },
   sandbox: {
-    assetsDirectory: "sandbox/assets",
-    bootstrap: "sandbox/bootstrap.sh",
-    secretsManifest: "sandbox/secrets.example.yaml",
+    assetsDirectory: "configuration/sandbox/assets",
+    bootstrap: "configuration/sandbox/bootstrap.sh",
+    secretsManifest: "configuration/sandbox/secrets.example.yaml",
   },
   publishing: {
     mode: "pull-request",

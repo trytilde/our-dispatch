@@ -12,7 +12,7 @@ export async function discoverRepositoryFiles(base = root): Promise<string[]> {
   const candidates = [
     "openbot.config.ts",
     repositoryConfig.agents.directory,
-    "providers",
+    repositoryConfig.providers.directory,
     repositoryConfig.skills.directory,
     repositoryConfig.sandbox.assetsDirectory,
     repositoryConfig.sandbox.bootstrap,
@@ -37,13 +37,14 @@ async function walk(path: string, base: string, files: string[]): Promise<void> 
   files.push(relative(base, path).split(sep).join("/"));
 }
 
-export function generatedSource(files: readonly string[], agentsDirectory = repositoryConfig.agents.directory): string {
+export function generatedSource(files: readonly string[], agentsDirectory = repositoryConfig.agents.directory, providersDirectory = repositoryConfig.providers.directory): string {
   const agentPattern = new RegExp(`^${escapeRegex(agentsDirectory.replace(/\/$/, ""))}/[^/]+\\.[cm]?[jt]s$`);
   const agentFiles = files.filter((path) => agentPattern.test(path) && !path.includes(".test."));
-  const providerFiles = files.filter((path) => /^providers\/[^/]+\/index\.[cm]?[jt]s$/.test(path));
+  const providerPattern = new RegExp(`^${escapeRegex(providersDirectory.replace(/\/$/, ""))}/[^/]+/index\\.[cm]?[jt]s$`);
+  const providerFiles = files.filter((path) => providerPattern.test(path));
   const imports = [
     'import config from "../../../../openbot.config.js";',
-    ...agentFiles.map((path, index) => `import agent${index} from ${JSON.stringify(`../../../../${path.replace(/\.[^.]+$/, ".js")}`)};`),
+    ...agentFiles.map((path, index) => `import * as agent${index} from ${JSON.stringify(`../../../../${path.replace(/\.[^.]+$/, ".js")}`)};`),
     ...providerFiles.map((path, index) => `import provider${index} from ${JSON.stringify(`../../../../${path.replace(/\.[^.]+$/, ".js")}`)};`),
   ];
   return [

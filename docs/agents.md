@@ -1,6 +1,6 @@
 # Agents
 
-Each `agents/<id>.ts` default-exports `defineAgent(...)`; its ID must match the filename. The module owns its system prompt additions, model call, tools, response, Tilde registration options, and skill selection. OpenBot mounts every discovered module at the configured `/api/agents/<id>` prefix.
+Each `configuration/agents/<id>.ts` is a Web-standard route module that exports `POST(request)`. Build the handler with Tilde `chatKitEndpoint` and return a Vercel AI SDK response, matching the official TryTilde examples. The filename is the agent ID; optional `displayName`, `description`, and `registration` exports provide reconciliation metadata without wrapping execution in an OpenBot SDK. OpenBot mounts every discovered module at the configured `/api/agents/<id>` prefix.
 
 ```bash
 pnpm openbot agent create --id analyst --name "Analyst"

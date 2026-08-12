@@ -41,6 +41,7 @@ pnpm --filter @openbot/db test
 - `apps/desktop`: Electron main/preload shell and packaged local server.
 - `apps/box-host`: capability-protected ConnectRPC service inside sandboxes.
 - `packages/contracts`: protobuf source and generated Connect types.
+- `configuration`: fork-owned Vercel AI SDK agent endpoints, runtime skills, sandbox seed, and provider plugins.
 - `packages/provider-sdk`: stable provider interfaces and shared errors.
 - `packages/providers`: OpenAI, Tilde, environment, Microsandbox, and Vercel adapters.
 - `packages/db`: Drizzle over local SQLite or remote libSQL/Turso.

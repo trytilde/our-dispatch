@@ -50,7 +50,7 @@ async function interactiveCommand(): Promise<string> {
 }
 
 async function setup(rest: readonly string[]): Promise<void> {
-  const directories = [config.agents.directory, "providers", config.skills.directory, config.sandbox.assetsDirectory];
+  const directories = [config.agents.directory, config.providers.directory, config.skills.directory, config.sandbox.assetsDirectory];
   await withProgress("Preparing repository directories", () => Promise.all(directories.map((directory) => mkdir(resolve(directory), { recursive: true }))));
   const result = { directories, next: "Configure .env, then run `pnpm openbot doctor` and `pnpm openbot dev`." };
   if (wantsJson(rest)) return printJson(result);

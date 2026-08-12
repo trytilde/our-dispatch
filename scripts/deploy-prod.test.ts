@@ -103,6 +103,14 @@ describe("deploy-prod", () => {
     expect(source).toContain("process.env.OPENBOT_TILDE_API_KEY");
   });
 
+  it("reconciles agent credentials before the final deployment", () => {
+    const source = readFileSync(new URL("./deploy-prod.ts", import.meta.url), "utf8");
+    const reconcile = source.indexOf('step("reconcile"');
+    const finalDeployment = source.indexOf('step("deploy_final"');
+    expect(reconcile).toBeGreaterThan(-1);
+    expect(reconcile).toBeLessThan(finalDeployment);
+  });
+
   it("rejects failed and incomplete Tilde imports without echoing response payloads", () => {
     expect(() => parseTildeImportSummary({
       import_id: "import-2",

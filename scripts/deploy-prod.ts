@@ -402,16 +402,16 @@ async function main(): Promise<void> {
     await setVercelEnvironment("OPENBOT_VERCEL_SANDBOX_SNAPSHOT_ID", state.snapshotId, env);
   });
 
-  await step("deploy_final", async () => {
-    state.deploymentUrl = await deployVercel(env);
-    state.publicOrigin = await productionOrigin(state.deploymentUrl, projectName, env);
-  });
-
   await step("reconcile", async () => {
-    if (!state.publicOrigin) throw new Error("Final deployment origin is missing");
+    if (!state.publicOrigin) throw new Error("Deployment origin is missing");
     const cookie = await unlock(state.publicOrigin, setupCode);
     const response = await fetch(`${state.publicOrigin}/api/admin/reconcile`, { method: "POST", headers: { cookie } });
     if (!response.ok) throw new Error(`Repository reconciliation failed (${response.status}): ${await response.text()}`);
+  });
+
+  await step("deploy_final", async () => {
+    state.deploymentUrl = await deployVercel(env);
+    state.publicOrigin = await productionOrigin(state.deploymentUrl, projectName, env);
   });
 
   await step("smoke", async () => {

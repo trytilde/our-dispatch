@@ -14,9 +14,9 @@ describe("GitHubSourceControlProvider", () => {
       return Response.json({ ok: true });
     }));
     const provider = new GitHubSourceControlProvider({ repository: "acme/openbot", token: "secret-token" });
-    const result = await provider.publishPullRequest({ branch: "openbot/agent-scout", baseBranch: "main", title: "Add scout", body: "Generated", files: [{ path: "agents/scout.ts", content: "export default {};" }] }, { requestId: "test" });
+    const result = await provider.publishPullRequest({ branch: "openbot/agent-scout", baseBranch: "main", title: "Add scout", body: "Generated", files: [{ path: "configuration/agents/scout.ts", content: "export const POST = () => Response.json({});" }] }, { requestId: "test" });
     expect(result).toMatchObject({ id: "42", branch: "openbot/agent-scout", status: "open" });
     expect(calls.map(({ method }) => method)).toEqual(["GET", "POST", "PUT", "POST"]);
-    expect(calls[2]?.body).toContain(Buffer.from("export default {};").toString("base64"));
+    expect(calls[2]?.body).toContain(Buffer.from("export const POST = () => Response.json({});").toString("base64"));
   });
 });

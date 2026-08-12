@@ -1,9 +1,9 @@
 import { createHash } from "node:crypto";
-import type { AgentDefinition } from "@openbot/agent-sdk";
 import type { ProviderPlugin } from "@openbot/provider-sdk";
 
 export interface OpenBotConfig {
   providers: {
+    directory: string;
     ai: string;
     agents: string;
     chat: string;
@@ -22,7 +22,6 @@ export interface OpenBotConfig {
 
 export interface RepositoryManifest {
   config: OpenBotConfig;
-  agents: readonly AgentDefinition[];
   providerPlugins: readonly ProviderPlugin[];
   files: Readonly<Record<string, string>>;
   digest: string;
@@ -42,7 +41,7 @@ export function repositoryDigest(files: Readonly<Record<string, string>>): strin
 
 export function validateConfig(config: OpenBotConfig): string[] {
   const errors: string[] = [];
-  const paths = [config.skills.directory, config.agents.directory, config.sandbox.assetsDirectory, config.sandbox.bootstrap, config.sandbox.secretsManifest];
+  const paths = [config.providers.directory, config.skills.directory, config.agents.directory, config.sandbox.assetsDirectory, config.sandbox.bootstrap, config.sandbox.secretsManifest];
   for (const path of paths) {
     if (!path || path.startsWith("/") || path.split(/[\\/]/).includes("..")) errors.push(`Configuration path must stay inside the repository: ${path}`);
   }
