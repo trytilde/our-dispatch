@@ -1,3 +1,4 @@
+import { Button, Shimmer } from "@tryopenbot/ui";
 import { type ReactNode, useEffect, useState } from "react";
 
 type Session = { authenticated: true; user: { subject: string; email?: string } };
@@ -17,26 +18,34 @@ export function AuthGate({ children }: { children: ReactNode }) {
 
   if (session === undefined)
     return (
-      <main className="grid min-h-screen place-items-center text-sm text-neutral-500">
-        Checking access…
+      <main className="grid min-h-screen place-items-center bg-page">
+        <Shimmer className="text-[13px]">Checking access…</Shimmer>
       </main>
     );
   if (!session)
     return (
-      <main className="grid min-h-screen place-items-center bg-neutral-50 p-6">
-        <section className="w-full max-w-sm rounded-2xl border border-neutral-200 bg-white p-8 text-center shadow-sm">
-          <h1 className="text-2xl font-semibold text-neutral-950">Sign in to OpenBot</h1>
-          <p className="mt-3 text-sm leading-6 text-neutral-600">
+      <main className="grid min-h-screen place-items-center bg-page p-6">
+        <section
+          className="w-full max-w-sm rounded-window bg-surface p-8 text-center shadow-card"
+          style={{ animation: "fade-up 400ms cubic-bezier(0.23,1,0.32,1) both" }}
+        >
+          <span
+            aria-hidden
+            className="mx-auto flex size-12 items-center justify-center rounded-full
+              bg-field text-[22px] text-ink shadow-hairline"
+          >
+            ✣
+          </span>
+          <h1 className="mt-5 text-[21px] font-semibold leading-snug tracking-[-0.02em] text-ink">
+            Sign in to OpenBot
+          </h1>
+          <p className="mt-2 text-[13px] leading-relaxed text-ink-2">
             Use a Tilde account that belongs to this OpenBot deployment&apos;s team.
           </p>
-          {error ? <p className="mt-3 text-sm text-red-600">{error}</p> : null}
-          <button
-            className="mt-6 w-full rounded-lg bg-neutral-950 px-4 py-2.5 text-sm font-medium text-white hover:bg-neutral-800"
-            type="button"
-            onClick={() => void signIn()}
-          >
+          {error ? <p className="mt-3 text-[12.5px] text-red">{error}</p> : null}
+          <Button className="mt-6 w-full" onClick={() => void signIn()}>
             Continue with Tilde
-          </button>
+          </Button>
         </section>
       </main>
     );

@@ -1,6 +1,9 @@
 import { useEffect, useState } from "react";
-import { MarkdownText } from "./markdown-components.js";
-
+import {
+  Reasoning,
+  ReasoningContent,
+  ReasoningTrigger,
+} from "./components/ai-elements/reasoning.js";
 export { MarkdownText } from "./markdown-components.js";
 
 export interface MessagePart {
@@ -104,10 +107,10 @@ export function ConnectionCard({ connection }: { connection: ConnectionView }) {
 
 export function ReasoningCard({ state = "", text }: { state?: string | null; text: string }) {
   return (
-    <details className="reasoning-part" open={state === "streaming"}>
-      <summary>{state === "streaming" ? "Thinking…" : "Reasoning"}</summary>
-      <MarkdownText text={text} />
-    </details>
+    <Reasoning className="reasoning-part" isStreaming={state === "streaming"}>
+      <ReasoningTrigger />
+      <ReasoningContent>{text}</ReasoningContent>
+    </Reasoning>
   );
 }
 

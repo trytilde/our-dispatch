@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { AgentAvatar } from "./agent-avatar.js";
+import { Suggestion, Suggestions } from "./components/ai-elements/suggestion.js";
 import { ClockIcon, ComputerIcon, ListIcon, MoreIcon, ReplyIcon } from "./workspace-icons.js";
 
 export interface ChatHeaderProps {
@@ -89,13 +90,11 @@ export function EmptyConversation({
       <div className="openbot-glyph">✣</div>
       <h1>{title}</h1>
       <p>{description}</p>
-      <div className="suggestions">
+      <Suggestions className="suggestions">
         {suggestions.map((suggestion) => (
-          <button key={suggestion} onClick={() => onSelectSuggestion(suggestion)}>
-            {suggestion}
-          </button>
+          <Suggestion key={suggestion} onClick={onSelectSuggestion} suggestion={suggestion} />
         ))}
-      </div>
+      </Suggestions>
     </div>
   );
 }

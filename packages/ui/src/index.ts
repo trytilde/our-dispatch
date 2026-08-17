@@ -1,10 +1,79 @@
 export { default as ApprovalCard } from "./beautiful-ui/upstream/approval-card.js";
-export { default as BeautifulChat } from "./beautiful-ui/upstream/chat.js";
+export { default as BeautifulChatComposer } from "./beautiful-ui/upstream/chat-composer.js";
+export { default as BeautifulCodeBlock } from "./beautiful-ui/upstream/code-block.js";
 export { default as BeautifulSidebarNav } from "./beautiful-ui/upstream/sidebar-nav.js";
+export { default as ContextCards } from "./beautiful-ui/upstream/context-cards.js";
+export { default as DiffTable } from "./beautiful-ui/upstream/diff-table.js";
+export { default as FilterTable } from "./beautiful-ui/upstream/filter-table.js";
+export { default as FineTuneCard } from "./beautiful-ui/upstream/fine-tune-card.js";
+export { default as Flowchart } from "./beautiful-ui/upstream/flowchart.js";
+export { default as LoadingState } from "./beautiful-ui/upstream/loading-state.js";
+export { default as PromptBar } from "./beautiful-ui/upstream/prompt-bar.js";
+export { default as RecommendationCard } from "./beautiful-ui/upstream/recommendation-card.js";
+export { default as RecordsTable } from "./beautiful-ui/upstream/records-table.js";
+export { default as SearchList } from "./beautiful-ui/upstream/search-list.js";
 export { default as StreamingText } from "./beautiful-ui/upstream/streaming-text.js";
 export { default as TaskRows } from "./beautiful-ui/upstream/task-rows.js";
-export { default as Thinking } from "./beautiful-ui/upstream/thinking.js";
+export { default as ThinkingState } from "./beautiful-ui/upstream/thinking-state.js";
 export { default as ToolChips } from "./beautiful-ui/upstream/tool-chips.js";
+export {
+  Button,
+  type ButtonProps,
+  type ButtonSize,
+  type ButtonVariant,
+} from "./beautiful-ui/atoms/button.js";
+export { default as GlideMenu, type GlideMenuProps } from "./beautiful-ui/atoms/glide-menu.js";
+export {
+  Conversation,
+  ConversationContent,
+  ConversationEmptyState,
+  ConversationScrollButton,
+} from "./components/ai-elements/conversation.js";
+export {
+  Message,
+  MessageContent as AiMessageContent,
+  MessageResponse,
+} from "./components/ai-elements/message.js";
+export {
+  Reasoning,
+  ReasoningContent,
+  ReasoningTrigger,
+} from "./components/ai-elements/reasoning.js";
+export { Suggestion, Suggestions } from "./components/ai-elements/suggestion.js";
+export {
+  Tool,
+  ToolContent,
+  ToolHeader,
+  ToolInput,
+  ToolOutput,
+} from "./components/ai-elements/tool.js";
+export {
+  CommandDialog,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+  CommandSeparator,
+} from "./components/ui/command.js";
+export {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogTitle,
+  DialogTrigger,
+} from "./components/ui/dialog.js";
+export {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "./components/ui/dropdown-menu.js";
+export { cn } from "./lib/utils.js";
+export { Shimmer, type ShimmerProps } from "./beautiful-ui/atoms/shimmer.js";
+export { StreamText, type StreamTextProps } from "./beautiful-ui/atoms/stream-text.js";
 export { AgentWorkspacePanel, type AgentWorkspacePanelProps } from "./agent-workspace-panel.js";
 export {
   type AsyncTask,

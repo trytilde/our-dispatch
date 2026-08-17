@@ -1,6 +1,20 @@
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect } from "react";
 import { AgentAvatar } from "./agent-avatar.js";
-import { SearchIcon } from "./workspace-icons.js";
+import GlideMenu from "./beautiful-ui/atoms/glide-menu.js";
+import {
+  CommandDialog,
+  CommandEmpty,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "./components/ui/command.js";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "./components/ui/dropdown-menu.js";
 
 export interface SidebarAgent {
   id: string;
@@ -19,7 +33,10 @@ export interface AgentListItemProps {
 export function AgentListItem({ agent, selected, onSelect }: AgentListItemProps) {
   return (
     <button
-      className={selected ? "agent-row active" : "agent-row"}
+      data-menu-row
+      className={`group relative z-10 flex w-full items-center gap-2.5 rounded-[8px] px-2 py-[7px] text-left
+        transition-[background-color,color,transform] duration-150 active:scale-[0.98]
+        ${selected ? "bg-hover-2/60" : ""}`}
       aria-current={selected ? "page" : undefined}
       data-selected={selected || undefined}
       data-unread={agent.unread || undefined}
@@ -27,20 +44,48 @@ export function AgentListItem({ agent, selected, onSelect }: AgentListItemProps)
       title={agent.name}
       type="button"
     >
-      <AgentAvatar id={agent.id} />
-      <span className={agent.unread ? "agent-row-body has-marker" : "agent-row-body"}>
-        <span className="agent-row-title">
-          <strong>{agent.name}</strong>
+      <span
+        className="flex shrink-0 transition-transform duration-200 ease-out-strong
+          group-hover:scale-105 group-active:scale-95"
+        style={{ animation: "pop-in 250ms cubic-bezier(0.23,1,0.32,1) both" }}
+      >
+        <AgentAvatar id={agent.id} />
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="flex items-baseline justify-between gap-2">
+          <strong
+            className={`truncate text-[13px] leading-tight ${
+              agent.unread ? "font-semibold text-ink" : "font-medium text-ink"
+            }`}
+          >
+            {agent.name}
+          </strong>
           {agent.updatedAt ? (
-            <time dateTime={agent.updatedAt}>{relativeTime(agent.updatedAt)}</time>
+            <time
+              dateTime={agent.updatedAt}
+              className="shrink-0 text-[11px] leading-tight text-ink-3 tabular-nums"
+            >
+              {relativeTime(agent.updatedAt)}
+            </time>
           ) : null}
         </span>
-        {agent.lastMessage ? <small>{agent.lastMessage}</small> : null}
+        {agent.lastMessage ? (
+          <small
+            className={`block truncate text-[12px] leading-snug ${
+              agent.unread ? "text-ink-2" : "text-ink-3"
+            }`}
+          >
+            {agent.lastMessage}
+          </small>
+        ) : null}
       </span>
       {agent.unread ? (
-        <span aria-label="Unread activity" className="agent-row-marker" role="status">
-          <i />
-        </span>
+        <span
+          aria-label="Unread activity"
+          role="status"
+          className="size-2 shrink-0 rounded-full bg-accent"
+          style={{ animation: "pop-in 250ms cubic-bezier(0.23,1,0.32,1) both" }}
+        />
       ) : null}
     </button>
   );
@@ -49,6 +94,7 @@ export function AgentListItem({ agent, selected, onSelect }: AgentListItemProps)
 export interface AgentSearchDialogProps {
   agents: readonly SidebarAgent[];
   loading: boolean;
+  open: boolean;
   value: string;
   onChange: (value: string) => void;
   onClose: () => void;
@@ -58,60 +104,53 @@ export interface AgentSearchDialogProps {
 export function AgentSearchDialog({
   agents,
   loading,
+  open,
   value,
   onChange,
   onClose,
   onSelect,
 }: AgentSearchDialogProps) {
   return (
-    <div className="sidebar-search-overlay" onMouseDown={onClose} role="presentation">
-      <section
-        aria-label="Search agents"
-        aria-modal="true"
-        className="sidebar-search-dialog"
-        onKeyDown={(event) => {
-          if (event.key === "Escape") onClose();
-        }}
-        onMouseDown={(event) => event.stopPropagation()}
-        role="dialog"
-      >
-        <label>
-          <SearchIcon />
-          <input
-            aria-label="Search agents"
-            autoFocus
-            onChange={(event) => onChange(event.target.value)}
-            placeholder="Search agents"
-            value={value}
-          />
-        </label>
-        <div className="sidebar-search-results">
-          {agents.map((agent) => (
-            <button
-              key={agent.id}
-              onClick={() => {
-                onClose();
-                onSelect(agent.id);
-              }}
-              type="button"
-            >
-              <AgentAvatar id={agent.id} />
-              <span>
-                <strong>{agent.name}</strong>
-                {agent.lastMessage ? <small>{agent.lastMessage}</small> : null}
-              </span>
-            </button>
-          ))}
-          {!loading && agents.length === 0 ? <p>No agents found</p> : null}
-        </div>
-      </section>
-    </div>
+    <CommandDialog
+      title="Search agents"
+      open={open}
+      onOpenChange={(next) => {
+        if (!next) onClose();
+      }}
+      commandProps={{ shouldFilter: false }}
+    >
+      <CommandInput autoFocus placeholder="Search agents" value={value} onValueChange={onChange} />
+      <CommandList>
+        {!loading ? <CommandEmpty>No agents found</CommandEmpty> : null}
+        {agents.map((agent) => (
+          <CommandItem
+            key={agent.id}
+            value={`${agent.name} ${agent.id}`}
+            onSelect={() => {
+              onClose();
+              onSelect(agent.id);
+            }}
+          >
+            <AgentAvatar id={agent.id} />
+            <span className="min-w-0 flex-1">
+              <strong className="block truncate text-[13px] font-medium leading-tight text-ink">
+                {agent.name}
+              </strong>
+              {agent.lastMessage ? (
+                <small className="block truncate text-[12px] leading-snug text-ink-3">
+                  {agent.lastMessage}
+                </small>
+              ) : null}
+            </span>
+          </CommandItem>
+        ))}
+      </CommandList>
+    </CommandDialog>
   );
 }
 
 export interface WorkspaceAccountProps {
   name?: string;
-  defaultOpen?: boolean;
 }
 
 const accountMenuItems = [
@@ -121,70 +160,42 @@ const accountMenuItems = [
   { icon: "feedback", label: "Send Feedback" },
 ] as const;
 
-export function WorkspaceAccount({
-  name = "Daniel Adams",
-  defaultOpen = false,
-}: WorkspaceAccountProps) {
-  const [open, setOpen] = useState(defaultOpen);
-  const containerRef = useRef<HTMLDivElement>(null);
-  const buttonRef = useRef<HTMLButtonElement>(null);
-  const menuId = useId();
-
-  useEffect(() => {
-    if (!open) return;
-
-    const closeOnOutsidePointer = (event: PointerEvent) => {
-      if (!containerRef.current?.contains(event.target as Node)) setOpen(false);
-    };
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key !== "Escape") return;
-      setOpen(false);
-      buttonRef.current?.focus();
-    };
-
-    document.addEventListener("pointerdown", closeOnOutsidePointer);
-    document.addEventListener("keydown", closeOnEscape);
-    return () => {
-      document.removeEventListener("pointerdown", closeOnOutsidePointer);
-      document.removeEventListener("keydown", closeOnEscape);
-    };
-  }, [open]);
-
+export function WorkspaceAccount({ name = "Daniel Adams" }: WorkspaceAccountProps) {
   return (
-    <div className="rail-account" ref={containerRef}>
-      {open ? (
-        <div aria-label="Account" className="account-menu" id={menuId} role="menu">
-          <div className="account-menu-section">
-            {accountMenuItems.map((item) => (
-              <button key={item.label} onClick={() => setOpen(false)} role="menuitem" type="button">
-                <AccountMenuIcon name={item.icon} />
-                <span>{item.label}</span>
-              </button>
-            ))}
-          </div>
-          <div className="account-menu-section">
-            <button onClick={() => setOpen(false)} role="menuitem" type="button">
-              <AccountMenuIcon name="logout" />
-              <span>Log out</span>
-            </button>
-          </div>
-        </div>
-      ) : null}
-      <button
-        aria-controls={open ? menuId : undefined}
-        aria-expanded={open}
-        aria-haspopup="menu"
-        aria-label={`Open account menu for ${name}`}
-        className="rail-footer"
-        onClick={() => setOpen((current) => !current)}
-        ref={buttonRef}
-        type="button"
-      >
-        <span aria-hidden="true" className="footer-avatar">
-          {name.charAt(0).toUpperCase()}
-        </span>
-        <span className="account-name">{name}</span>
-      </button>
+    <div className="mt-auto border-t border-line p-2">
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <button
+            aria-label={`Open account menu for ${name}`}
+            className="flex w-full items-center gap-2.5 rounded-control p-1.5 text-left
+              transition-[background-color,transform] duration-100 hover:bg-hover active:scale-[0.98]
+              data-[state=open]:bg-hover"
+            type="button"
+          >
+            <span
+              aria-hidden="true"
+              className="flex size-7 shrink-0 items-center justify-center rounded-full
+                bg-field text-[12px] font-semibold text-ink shadow-hairline"
+            >
+              {name.charAt(0).toUpperCase()}
+            </span>
+            <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-ink">{name}</span>
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent side="top" align="start" className="w-[220px]">
+          {accountMenuItems.map((item) => (
+            <DropdownMenuItem key={item.label}>
+              <AccountMenuIcon name={item.icon} />
+              <span>{item.label}</span>
+            </DropdownMenuItem>
+          ))}
+          <DropdownMenuSeparator />
+          <DropdownMenuItem>
+            <AccountMenuIcon name="logout" />
+            <span>Log out</span>
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
     </div>
   );
 }
@@ -201,13 +212,37 @@ function AccountMenuIcon({ name }: { name: (typeof accountMenuItems)[number]["ic
   }[name];
 
   return (
-    <svg aria-hidden="true" viewBox="0 0 16 16">
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 16 16"
+      className="size-4 shrink-0 fill-none stroke-ink-2 stroke-[1.3]"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
       <path d={path} />
     </svg>
   );
 }
 
-function relativeTime(value: string): string {
+export { GlideMenu as SidebarGlideMenu };
+
+/**
+ * Registers the global Cmd/Ctrl+K shortcut for the agent search palette.
+ */
+export function useSearchShortcut(onOpen: () => void): void {
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key.toLowerCase() === "k" && (event.metaKey || event.ctrlKey)) {
+        event.preventDefault();
+        onOpen();
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [onOpen]);
+}
+
+export function relativeTime(value: string): string {
   const date = new Date(value);
   if (!Number.isFinite(date.valueOf())) return "";
   const now = new Date();

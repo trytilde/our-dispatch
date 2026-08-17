@@ -67,6 +67,7 @@ export const AgentSearch: Story = {
       onChange={noop}
       onClose={noop}
       onSelect={noop}
+      open
       value=""
     />
   ),
@@ -97,7 +98,7 @@ export const AccountMenu: Story = {
         width: 280,
       }}
     >
-      <WorkspaceAccount defaultOpen />
+      <WorkspaceAccount />
     </div>
   ),
 };

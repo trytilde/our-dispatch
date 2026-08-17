@@ -1,6 +1,5 @@
 import { Children, useEffect, useRef, useState, type ReactNode } from "react";
-import ReactMarkdown, { type Components } from "react-markdown";
-import remarkGfm from "remark-gfm";
+import { Streamdown, type Components } from "streamdown";
 
 export interface CodeBlockProps {
   children: string;
@@ -199,9 +198,9 @@ export function MarkdownText({ text }: { text: string }) {
   if (!text) return null;
   return (
     <div className="markdown ui-markdown">
-      <ReactMarkdown components={markdownComponents} remarkPlugins={[remarkGfm]}>
+      <Streamdown components={markdownComponents} controls={false}>
         {text}
-      </ReactMarkdown>
+      </Streamdown>
     </div>
   );
 }
