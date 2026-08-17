@@ -23,13 +23,16 @@
     "access": "public"
   },
   "scripts": {
-    "build": "tsgo --noEmit && tsdown --config ../../tsdown.package.config.ts && node ../../scripts/copy-package-assets.mjs",
-    "lint": "tsgo --noEmit",
+    "artifact:check": "tsgo --noEmit",
+    "build": "vp run artifact:check && tsdown --config ../../tsdown.node.config.ts && node ../../scripts/copy-package-assets.mjs",
+    "check": "vp check",
+    "lint": "vp lint",
     "prepack": "pnpm build",
     "test": "vitest run",
-    "typecheck": "tsgo --noEmit"
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@tryopenbot/platform-integrations": "workspace:*",
     "@tryopenbot/runtime-provider": "workspace:*",
     "@tryopenbot/utilities": "workspace:*",
     "tsdown": "0.22.14",

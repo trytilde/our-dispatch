@@ -1,0 +1,4 @@
+interface:
+  display_name: "Edit OpenBot Configuration"
+  short_description: "Edit fork-owned OpenBot configuration safely"
+  default_prompt: "Use $edit-openbot-configuration to update this fork configuration and its agent template safely."

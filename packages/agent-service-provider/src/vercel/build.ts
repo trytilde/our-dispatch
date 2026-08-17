@@ -1,12 +1,16 @@
 import { createHash } from "node:crypto";
 import { mkdir, readFile, readdir, rm } from "node:fs/promises";
-import { dirname, relative, resolve } from "node:path";
+import { relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { build } from "tsdown";
 import { materializeFileTemplate } from "@tryopenbot/utilities";
 import type { DeploymentContext, DeploymentResult } from "@tryopenbot/runtime-provider";
 import { bundleOptions } from "../build.js";
-import { discoverAgents, globalInstrumentationPath, type AgentSource } from "../discovery.js";
+import {
+  authoredAgentPaths,
+  discoverAgents,
+  globalInstrumentationPath,
+  type AgentSource,
+} from "../discovery.js";
 
 export const agentVercelArtifact = ".openbot-deploy/vercel/agents";
 const agentTemplate = fileURLToPath(new URL("./assets/agent-entry.ts.hbs", import.meta.url));
@@ -25,6 +29,7 @@ export const vercelProjectTemplate = fileURLToPath(
 export async function buildVercelAgentService(
   context: DeploymentContext,
 ): Promise<DeploymentResult> {
+  const { build } = await import("tsdown");
   const agents = await discoverAgents(context.repositoryRoot);
   const root = resolve(context.repositoryRoot, agentVercelArtifact);
   const output = resolve(root, ".vercel/output");
@@ -105,7 +110,7 @@ export async function buildVercelAgentService(
 
 async function digestAgent(agent: AgentSource, sharedDigest: string): Promise<string> {
   const hash = createHash("sha256").update(agent.slug).update(sharedDigest);
-  for (const file of await authoredAgentFiles(agent.directory))
+  for (const file of await authoredAgentPaths(agent))
     hash.update(relative(agent.directory, file)).update(await readFile(file));
   return hash.digest("hex");
 }
@@ -137,30 +142,13 @@ async function sourceFiles(directory: string): Promise<string[]> {
     throw error;
   }
   const nested = await Promise.all(
-    entries.map((entry) =>
+    entries.map(async (entry) =>
       entry.isDirectory()
-        ? sourceFiles(resolve(directory, entry.name))
+        ? await sourceFiles(resolve(directory, entry.name))
         : [resolve(directory, entry.name)],
     ),
   );
   return nested.flat().filter((file) => /(?:\.tsx?|package\.json)$/.test(file));
-}
-async function authoredAgentFiles(directory: string): Promise<string[]> {
-  let entries;
-  try {
-    entries = await readdir(directory, { withFileTypes: true });
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "ENOENT") return [];
-    throw error;
-  }
-  const nested = await Promise.all(
-    entries.map((entry) => {
-      if (entry.name === "sandbox") return [];
-      const path = resolve(directory, entry.name);
-      return entry.isDirectory() ? authoredAgentFiles(path) : entry.isFile() ? [path] : [];
-    }),
-  );
-  return nested.flat().sort();
 }
 async function readOptional(path: string): Promise<string | undefined> {
   try {

@@ -1,6 +1,10 @@
 import arg from "arg";
+import { formatAgentLifecycleProgress, reconcileAgentResources } from "../agent-lifecycle.js";
 import { scaffoldAgent, type ScaffoldedAgent } from "../agent-scaffold.js";
+import { loadLocalEnvironment } from "../environment.js";
+import { setEnvironmentValue } from "../initialization.js";
 import { repositoryRoot } from "../paths.js";
+import { loadDevelopmentConfiguration } from "./dev.js";
 import { inkPrompts } from "./init.js";
 
 export interface NewAgentRunResult {
@@ -17,5 +21,28 @@ export async function runNewAgent(args: readonly string[] = []): Promise<NewAgen
     );
   }
   const name = suppliedName || (await inkPrompts.input("Agent name", { required: true }));
-  return { agent: await scaffoldAgent(repositoryRoot, name), json: parsed["--json"] ?? false };
+  const agent = await scaffoldAgent(repositoryRoot, name);
+  await setEnvironmentValue(
+    repositoryRoot,
+    `AGENT_${agent.id.replaceAll("-", "_").toUpperCase()}_NAME`,
+    agent.name,
+    `Display name for the ${agent.id} agent.`,
+  );
+  const environment = await loadLocalEnvironment({
+    prompts: process.stdin.isTTY && process.stdout.isTTY ? inkPrompts : undefined,
+  });
+  const configuration = await loadDevelopmentConfiguration(environment);
+  await reconcileAgentResources({
+    repositoryRoot,
+    environment,
+    providers: configuration.providers,
+    devMode: true,
+    report: parsed["--json"]
+      ? undefined
+      : (event) => {
+          const line = formatAgentLifecycleProgress(event);
+          if (line) console.log(line);
+        },
+  });
+  return { agent, json: parsed["--json"] ?? false };
 }

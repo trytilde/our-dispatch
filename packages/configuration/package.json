@@ -11,6 +11,11 @@
       "types": "./src/index.ts",
       "development": "./src/index.ts",
       "import": "./dist/index.js"
+    },
+    "./instrumentation": {
+      "types": "./src/instrumentation.ts",
+      "development": "./src/instrumentation.ts",
+      "import": "./dist/instrumentation.js"
     }
   },
   "publishConfig": {
@@ -18,24 +23,30 @@
       ".": {
         "types": "./dist/index.d.ts",
         "import": "./dist/index.js"
+      },
+      "./instrumentation": {
+        "types": "./dist/instrumentation.d.ts",
+        "import": "./dist/instrumentation.js"
       }
     },
     "access": "public"
   },
   "scripts": {
-    "build": "tsc --noEmit && tsdown --config ../../tsdown.package.config.ts && node ../../scripts/copy-package-assets.mjs",
-    "lint": "tsc --noEmit",
+    "build": "tsc --noEmit && tsdown --config ../../tsdown.node.config.ts && node ../../scripts/copy-package-assets.mjs",
+    "check": "vp check",
+    "lint": "vp lint",
     "prepack": "pnpm build",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@tryopenbot/agent-provider": "workspace:*",
+    "@tryopenbot/agent-service-provider": "workspace:*",
+    "@tryopenbot/auth-provider": "workspace:*",
     "@tryopenbot/computer-provider": "workspace:*",
-    "@tryopenbot/inference-model-provider": "workspace:*",
-    "@tryopenbot/runtime-provider": "workspace:*",
-    "@tryopenbot/skills-provider": "workspace:*",
-    "@tryopenbot/tools-provider": "workspace:*"
+    "@tryopenbot/control-service-provider": "workspace:*",
+    "@tryopenbot/inference-provider": "workspace:*",
+    "@tryopenbot/runtime-provider": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "24.3.0",

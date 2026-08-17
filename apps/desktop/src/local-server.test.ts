@@ -19,7 +19,9 @@ describe("Electron renderer server", () => {
         "set-cookie",
         "openbot_session=example; HttpOnly; Secure; SameSite=Strict",
       );
-      response.end(`${request.url}:${request.headers.cookie ?? "none"}`);
+      response.end(
+        `${request.url}:${request.headers.cookie ?? "none"}:${request.headers.authorization ?? "none"}`,
+      );
     });
     await new Promise<void>((resolvePromise) => upstream.listen(0, "127.0.0.1", resolvePromise));
     const address = upstream.address();
@@ -27,6 +29,7 @@ describe("Electron renderer server", () => {
     const renderer: RendererServer = await startRendererServer(
       staticRoot,
       `http://127.0.0.1:${address.port}`,
+      { accessToken: async () => "desktop-token" },
     );
     cleanups.push(async () => renderer.close());
     cleanups.push(
@@ -40,10 +43,14 @@ describe("Electron renderer server", () => {
     const proxied = await fetch(`${renderer.origin}/healthz`, {
       headers: { cookie: "client=value" },
     });
-    expect(await proxied.text()).toBe("/healthz:client=value");
+    expect(await proxied.text()).toBe("/healthz:client=value:Bearer desktop-token");
 
     const frontendRoute = await fetch(`${renderer.origin}/api/setup/unlock`);
-    expect(await frontendRoute.text()).toBe("<main>OpenBot renderer</main>");
+    expect(await frontendRoute.text()).toBe("/api/setup/unlock:none:Bearer desktop-token");
+    const chatRoute = await fetch(`${renderer.origin}/api/chat/mission-control/sidebar`);
+    expect(await chatRoute.text()).toBe(
+      "/api/chat/mission-control/sidebar:none:Bearer desktop-token",
+    );
     expect(proxied.headers.get("set-cookie")).toContain("HttpOnly");
     expect(proxied.headers.get("set-cookie")).not.toContain("Secure");
   });

@@ -9,17 +9,20 @@ const providerAssetDirectory = fileURLToPath(new URL("./assets/", import.meta.ur
 export const computerImageAssets = {
   bootstrap: resolve(providerAssetDirectory, "bootstrap.sh.hbs"),
   containerfile: resolve(providerAssetDirectory, "Containerfile.hbs"),
-  developmentEnvironment: resolve(providerAssetDirectory, "development-environment.sh.hbs"),
+  developmentProfile: resolve(providerAssetDirectory, "development-profile.sh.hbs"),
   developmentSetup: resolve(providerAssetDirectory, "development-setup.sh.hbs"),
   marker: resolve(providerAssetDirectory, "marker.hbs"),
   start: resolve(providerAssetDirectory, "start.sh.hbs"),
 } as const;
 
 const sourcePaths = [
-  "package.json",
   "pnpm-lock.yaml",
   "pnpm-workspace.yaml",
   "tsconfig.base.json",
+  "tsconfig.browser.json",
+  "tsconfig.node.json",
+  "tsdown.browser.config.ts",
+  "tsdown.node.config.ts",
   "apps/computer-service/package.json",
   "apps/computer-service/src",
   "apps/computer-service/tsconfig.json",
@@ -31,6 +34,11 @@ const sourcePaths = [
   "packages/utilities/src",
   "packages/utilities/tsconfig.json",
 ] as const;
+
+/** Exact repository inputs whose changes invalidate the shared Computer image. */
+export function computerImageWatchPaths(repositoryRoot: string): string[] {
+  return [...sourcePaths.map((path) => resolve(repositoryRoot, path)), providerAssetDirectory];
+}
 
 export interface MaterializedComputerImageContext {
   contextDirectory: string;
@@ -73,6 +81,10 @@ export async function materializeComputerImageContext(
     materializeFileTemplate(
       computerImageAssets.developmentSetup,
       resolve(assetDestination, "development-setup.sh"),
+    ),
+    materializeFileTemplate(
+      computerImageAssets.developmentProfile,
+      resolve(assetDestination, "development-profile.sh"),
     ),
     materializeFileTemplate(computerImageAssets.start, resolve(assetDestination, "start.sh")),
   ]);

@@ -1,3 +1,5 @@
+import { workspaceSourceInputOptions } from "@tryopenbot/utilities";
+
 export function bundleOptions(
   cwd: string,
   entry: string,
@@ -14,7 +16,11 @@ export function bundleOptions(
     outDir,
     clean: false,
     minify,
-    sourcemap: false,
-    outputOptions: { entryFileNames: filename },
+    sourcemap: true,
+    inputOptions: workspaceSourceInputOptions(),
+    outputOptions: {
+      entryFileNames: filename,
+      sourcemapExcludeSources: true,
+    },
   };
 }

@@ -32,8 +32,9 @@
     "access": "public"
   },
   "scripts": {
-    "build": "tsc --noEmit && tsdown --config ../../tsdown.package.config.ts && node ../../scripts/copy-package-assets.mjs",
-    "lint": "tsc --noEmit",
+    "build": "tsc --noEmit && tsdown --config ../../tsdown.node.config.ts && node ../../scripts/copy-package-assets.mjs",
+    "check": "vp check",
+    "lint": "vp lint",
     "prepack": "pnpm build",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"
@@ -42,6 +43,8 @@
     "@connectrpc/connect": "2.1.2",
     "@connectrpc/connect-node": "2.1.2",
     "@tryopenbot/computer-service-proto": "workspace:*",
+    "@tryopenbot/computer-tools": "workspace:*",
+    "@tryopenbot/platform-integrations": "workspace:*",
     "@tryopenbot/runtime-provider": "workspace:*",
     "@tryopenbot/utilities": "workspace:*",
     "@vercel/sandbox": "3.0.0",

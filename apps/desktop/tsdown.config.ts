@@ -6,7 +6,10 @@ export default defineConfig({
   target: "node24",
   outDir: "dist",
   clean: true,
-  sourcemap: false,
+  sourcemap: true,
   deps: { neverBundle: ["electron"] },
-  outputOptions: { entryFileNames: "[name].cjs" },
+  outputOptions: {
+    entryFileNames: "[name].cjs",
+    sourcemapExcludeSources: true,
+  },
 });

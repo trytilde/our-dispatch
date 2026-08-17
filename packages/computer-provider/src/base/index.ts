@@ -1,22 +1,26 @@
 import { createHash, randomBytes } from "node:crypto";
 import { execFile, spawn } from "node:child_process";
 import { basename, posix } from "node:path";
+import { setTimeout as delay } from "node:timers/promises";
 import { promisify } from "node:util";
+import { Code, ConnectError, createClient } from "@connectrpc/connect";
+import { createConnectTransport } from "@connectrpc/connect-node";
+import { ComputerService } from "@tryopenbot/computer-service-proto";
 import {
   ComputerProviderError,
-  asRegisteredComputerTool,
   type BuiltComputerImage,
   type ComputerCallContext,
   type ComputerAgentWorkspace,
   type ComputerExecRequest,
+  type ComputerExecResult,
+  type ComputerHandle,
+  type ComputerInput,
   type ComputerSeedFile,
   type ComputerImageSpec,
-  type ComputerPromptContext,
   type ComputerProvider,
-  type ComputerPromptPart,
+  type ComputerSpec,
+  type ComputerVncEndpoint,
   type PublishedComputerImage,
-  type RegisteredComputerTool,
-  type RegisterComputerToolsContext,
   type DeployAgentWorkspacesRequest,
   type DeployDevelopmentSandboxRequest,
 } from "../core/index.js";
@@ -27,23 +31,18 @@ import type {
   DeploymentResult,
   ProviderInitialization,
 } from "@tryopenbot/runtime-provider";
-import { sandboxDeploymentEnvironment } from "@tryopenbot/runtime-provider";
+import { persistEnvironment } from "@tryopenbot/runtime-provider";
 import { renderFileTemplatePath } from "@tryopenbot/utilities";
-import { computerImageAssets, materializeComputerImageContext } from "./assets.js";
-import { developmentSandboxSourceFiles, shellEnvironmentExports } from "./development.js";
-import { computerServiceApiKey } from "../capability.js";
 import {
-  createAwaitShellTool,
-  createBashTool,
-  createCopyFromComputerTool,
-  createCopyToComputerTool,
-  createGlobTool,
-  createGrepTool,
-  createReadFileTool,
-  createScreenshotTool,
-  createWriteFileTool,
-  type ComputerToolOptions,
-} from "../tools/index.js";
+  computerImageAssets,
+  computerImageWatchPaths,
+  materializeComputerImageContext,
+} from "./assets.js";
+import {
+  developmentSandboxConfigurationFiles,
+  developmentSandboxSourceFiles,
+} from "./development.js";
+import { computerServiceApiKey, scopedCapability } from "../capability.js";
 
 const execute = promisify(execFile);
 
@@ -93,27 +92,31 @@ export abstract class BaseComputerProvider implements ComputerProvider {
                   "Use an untagged OCI repository that the deployment environment can push to.",
                 input: "text",
                 required: true,
-                destination: { kind: "environment", key: "OPENBOT_COMPUTER_IMAGE_REPOSITORY" },
+                destination: { kind: "environment", key: "COMPUTER_IMAGE_REPOSITORY" },
               },
             ],
           };
     this.buildable = {
       check: async (context) => {
+        const delegate = this.lifecycleDelegate(context);
+        if (delegate?.buildable) return delegate.buildable.check(context);
         await this.imageRepository(context, "build");
         await runDocker(
           ["version", "--format", "{{.Server.Version}}"],
-          deploymentCallContext("check"),
+          deploymentCallContext("check", context),
         );
         if (this.#imageLifecycle.buildxPlatform)
-          await runDocker(["buildx", "version"], deploymentCallContext("check"));
+          await runDocker(["buildx", "version"], deploymentCallContext("check", context));
       },
       build: async (context) => {
+        const delegate = this.lifecycleDelegate(context);
+        if (delegate?.buildable) return delegate.buildable.build(context);
         const materialized = await materializeComputerImageContext(
           context.repositoryRoot,
           this.providerId,
         );
         const spec = await this.#imageSpec(context, materialized, "build");
-        const image = await this.buildImage(spec, deploymentCallContext("build"));
+        const image = await this.buildImage(spec, deploymentCallContext("build", context));
         return {
           outputs: {
             [this.#outputName("CONTEXT")]: materialized.contextDirectory,
@@ -123,9 +126,16 @@ export abstract class BaseComputerProvider implements ComputerProvider {
           },
         };
       },
+      watchPaths: async (context) => {
+        const delegate = this.lifecycleDelegate(context);
+        if (delegate?.buildable?.watchPaths) return delegate.buildable.watchPaths(context);
+        return computerImageWatchPaths(context.repositoryRoot);
+      },
     };
     this.deployable = {
       plan: async (context) => {
+        const delegate = this.lifecycleDelegate(context);
+        if (delegate?.deployable) return delegate.deployable.plan(context);
         const repository = await this.imageRepository(context, "plan");
         return this.#imageLifecycle.publish
           ? {
@@ -141,6 +151,8 @@ export abstract class BaseComputerProvider implements ComputerProvider {
             };
       },
       deploy: async (context) => {
+        const delegate = this.lifecycleDelegate(context);
+        if (delegate?.deployable) return delegate.deployable.deploy(context);
         const spec = await this.#imageSpec(
           context,
           {
@@ -155,256 +167,124 @@ export abstract class BaseComputerProvider implements ComputerProvider {
           sourceDigest: spec.sourceDigest,
         };
         if (this.#imageLifecycle.publish)
-          await this.authenticateImageRepository(context, spec, deploymentCallContext("deploy"));
-        const image = this.#imageLifecycle.publish
-          ? await this.publishImage(built, spec, deploymentCallContext("deploy"))
+          await this.authenticateImageRepository(
+            context,
+            spec,
+            deploymentCallContext("deploy", context),
+          );
+        const selectedImage = this.#imageLifecycle.publish
+          ? await this.publishImage(built, spec, deploymentCallContext("deploy", context))
           : { ...built, reference: built.localReference, publishedAt: new Date() };
-        return {
-          outputs: { [this.#outputName("REFERENCE")]: image.reference },
-          environmentVariables: { [this.deployedImageEnvironmentVariable]: image.reference },
-        };
+        const image = await this.prepareDeployedImage(
+          selectedImage,
+          spec,
+          deploymentCallContext("deploy", context),
+        );
+        await persistEnvironment(
+          context,
+          this.deployedImageEnvironmentVariable,
+          image.reference,
+          `Deployed ${this.providerId} computer image.`,
+        );
+        return { outputs: { [this.#outputName("REFERENCE")]: image.reference } };
       },
     };
   }
 
-  abstract create(
-    ...args: Parameters<ComputerProvider["create"]>
-  ): ReturnType<ComputerProvider["create"]>;
-  abstract get(...args: Parameters<ComputerProvider["get"]>): ReturnType<ComputerProvider["get"]>;
-  abstract wake(
-    ...args: Parameters<ComputerProvider["wake"]>
-  ): ReturnType<ComputerProvider["wake"]>;
-  abstract sleep(
-    ...args: Parameters<ComputerProvider["sleep"]>
-  ): ReturnType<ComputerProvider["sleep"]>;
-  abstract delete(
-    ...args: Parameters<ComputerProvider["delete"]>
-  ): ReturnType<ComputerProvider["delete"]>;
-  abstract exec(
-    ...args: Parameters<ComputerProvider["exec"]>
-  ): ReturnType<ComputerProvider["exec"]>;
-  abstract readFile(
-    ...args: Parameters<ComputerProvider["readFile"]>
-  ): ReturnType<ComputerProvider["readFile"]>;
-  abstract writeFile(
-    ...args: Parameters<ComputerProvider["writeFile"]>
-  ): ReturnType<ComputerProvider["writeFile"]>;
-  abstract screenshot(
-    ...args: Parameters<ComputerProvider["screenshot"]>
-  ): ReturnType<ComputerProvider["screenshot"]>;
-  abstract input(
-    ...args: Parameters<ComputerProvider["input"]>
-  ): ReturnType<ComputerProvider["input"]>;
-  abstract vnc(...args: Parameters<ComputerProvider["vnc"]>): ReturnType<ComputerProvider["vnc"]>;
-
-  injectPromptPart(
-    _context: ComputerPromptContext,
-    _callContext: ComputerCallContext,
-  ): ComputerPromptPart {
-    return {
-      id: `computer:${this.providerId}`,
-      priority: 50,
-      cache: "session",
-      content: [
-        "OpenBot computer:",
-        "- The computer is one shared, resumable Linux machine and filesystem for this installation's agents.",
-        "- Your default directory is /workspace/<agent-id>; sibling agent directories are visible and are not a security boundary.",
-        "- Inspect before changing, use explicit paths, and verify consequential actions.",
-        "- Prefer command and file tools for precise work; use desktop input only when the workflow is graphical.",
-        "- Control-plane credentials are not available inside the computer.",
-      ].join("\n"),
-    };
+  /** Provider-owned development substitution, such as Vercel Sandbox -> Microsandbox. */
+  protected lifecycleDelegate(_context: DeploymentContext): ComputerProvider | undefined {
+    return undefined;
   }
 
-  registerTools(context: RegisterComputerToolsContext): readonly RegisteredComputerTool[] {
-    const options: ComputerToolOptions = {
-      agentId: context.agentId,
-      baseUrl: () => this.computerServiceUrl(context.computerId),
-      apiKey: () => computerServiceApiKey(),
-    };
-    return [
-      asRegisteredComputerTool(
-        "bash",
-        {
-          name: "Bash",
-          description: "Run a Bash command from the agent's directory on the shared computer.",
-          input_schema: {
-            type: "object",
-            properties: {
-              command: { type: "string" },
-              cwd: { type: "string" },
-              timeout_ms: { type: "integer", minimum: 1, maximum: 1_200_000 },
-              background: { type: "boolean" },
-            },
-            required: ["command"],
-            additionalProperties: false,
-          },
-        },
-        createBashTool(options),
-      ),
-      asRegisteredComputerTool(
-        "await_shell",
-        {
-          name: "Await shell",
-          description: "Wait for a background Bash job.",
-          input_schema: {
-            type: "object",
-            properties: {
-              job_id: { type: "string", format: "uuid" },
-              timeout_ms: { type: "integer", minimum: 0, maximum: 120_000 },
-            },
-            required: ["job_id"],
-            additionalProperties: false,
-          },
-        },
-        createAwaitShellTool(options),
-      ),
-      asRegisteredComputerTool(
-        "copy_from_computer",
-        {
-          name: "Copy from computer",
-          description: "Copy a binary file from the shared computer as base64 data.",
-          input_schema: {
-            type: "object",
-            properties: { path: { type: "string" } },
-            required: ["path"],
-            additionalProperties: false,
-          },
-        },
-        createCopyFromComputerTool(options),
-      ),
-      asRegisteredComputerTool(
-        "copy_to_computer",
-        {
-          name: "Copy to computer",
-          description: "Copy base64-encoded binary data into a file on the shared computer.",
-          input_schema: {
-            type: "object",
-            properties: { path: { type: "string" }, content_base64: { type: "string" } },
-            required: ["path", "content_base64"],
-            additionalProperties: false,
-          },
-        },
-        createCopyToComputerTool(options),
-      ),
-      asRegisteredComputerTool(
-        "read_file",
-        {
-          name: "Read file",
-          description: "Read a UTF-8 file from the shared computer.",
-          input_schema: {
-            type: "object",
-            properties: { path: { type: "string" } },
-            required: ["path"],
-            additionalProperties: false,
-          },
-        },
-        createReadFileTool(options),
-      ),
-      asRegisteredComputerTool(
-        "write_file",
-        {
-          name: "Write file",
-          description: "Write UTF-8 text to the shared computer.",
-          input_schema: {
-            type: "object",
-            properties: { path: { type: "string" }, content: { type: "string" } },
-            required: ["path", "content"],
-            additionalProperties: false,
-          },
-        },
-        createWriteFileTool(options),
-      ),
-      asRegisteredComputerTool(
-        "glob",
-        {
-          name: "Glob",
-          description: "List files matching a glob on the shared computer.",
-          input_schema: {
-            type: "object",
-            properties: { pattern: { type: "string" }, path: { type: "string" } },
-            required: ["pattern"],
-            additionalProperties: false,
-          },
-        },
-        createGlobTool(options),
-      ),
-      asRegisteredComputerTool(
-        "grep",
-        {
-          name: "Grep",
-          description: "Search file contents on the shared computer.",
-          input_schema: {
-            type: "object",
-            properties: {
-              pattern: { type: "string" },
-              path: { type: "string" },
-              glob: { type: "string" },
-            },
-            required: ["pattern"],
-            additionalProperties: false,
-          },
-        },
-        createGrepTool(options),
-      ),
-      asRegisteredComputerTool(
-        "screenshot",
-        {
-          name: "Screenshot",
-          description: "Capture the current shared computer desktop as PNG.",
-          input_schema: { type: "object", properties: {}, additionalProperties: false },
-        },
-        createScreenshotTool(options),
-      ),
-    ] as readonly RegisteredComputerTool[];
+  abstract create(spec: ComputerSpec, context: ComputerCallContext): Promise<ComputerHandle>;
+  abstract get(id: string, context: ComputerCallContext): Promise<ComputerHandle>;
+  abstract wake(id: string, context: ComputerCallContext): Promise<ComputerHandle>;
+  abstract sleep(id: string, context: ComputerCallContext): Promise<ComputerHandle>;
+  abstract delete(id: string, context: ComputerCallContext): Promise<void>;
+  abstract exec(
+    id: string,
+    request: ComputerExecRequest,
+    context: ComputerCallContext,
+  ): Promise<ComputerExecResult>;
+  abstract readFile(id: string, path: string, context: ComputerCallContext): Promise<Uint8Array>;
+  abstract writeFile(
+    id: string,
+    path: string,
+    content: Uint8Array,
+    context: ComputerCallContext,
+  ): Promise<void>;
+  abstract screenshot(id: string, context: ComputerCallContext): Promise<Uint8Array>;
+  abstract input(id: string, input: ComputerInput, context: ComputerCallContext): Promise<void>;
+  abstract vnc(id: string, context: ComputerCallContext): Promise<ComputerVncEndpoint>;
+
+  async previewAgentDesktop(
+    agentId: string,
+    context: ComputerCallContext,
+  ): Promise<ComputerVncEndpoint> {
+    const computerId = context.environment?.COMPUTER_ID?.trim() || process.env.COMPUTER_ID?.trim();
+    if (!computerId)
+      throw new ComputerProviderError(
+        "invalid_configuration",
+        "COMPUTER_ID is required to open an agent desktop",
+      );
+    await this.ensureAgentDesktop(computerId, agentId, context);
+    return await this.vnc(computerId, { ...context, agentId });
   }
 
   async deployAgentWorkspaces(
     request: DeployAgentWorkspacesRequest,
     context: DeploymentContext,
   ): Promise<DeploymentResult> {
-    const call: ComputerCallContext = { requestId: "computer:deploy-agent-workspaces" };
-    const serviceApiKey = computerServiceApiKey(
-      context.inputs.secrets().OPENBOT_COMPUTER_SERVICE_API_KEY ??
-        context.environment.OPENBOT_COMPUTER_SERVICE_API_KEY,
-    );
+    const delegate = this.lifecycleDelegate(context);
+    if (delegate) return delegate.deployAgentWorkspaces(request, context);
+    const call: ComputerCallContext = {
+      requestId: "computer:deploy-agent-workspaces",
+      environment: context.environment,
+    };
+    const serviceApiKey = computerServiceApiKey(context.environment.COMPUTER_SERVICE_API_KEY);
+    const image = context.environment[this.deployedImageEnvironmentVariable];
+    const spec: ComputerSpec = {
+      id: request.computerId,
+      ...(image ? { image } : {}),
+      environment: { COMPUTER_SERVICE_API_KEY: serviceApiKey },
+    };
     let computer;
     try {
       computer = await this.get(request.computerId, call);
     } catch (error) {
       if (!(error instanceof ComputerProviderError) || error.code !== "not_found") throw error;
-      const image =
-        context.inputs.environmentVariables()[this.deployedImageEnvironmentVariable] ??
-        context.environment[this.deployedImageEnvironmentVariable];
-      computer = await this.create(
-        {
-          id: request.computerId,
-          ...(image ? { image } : {}),
-          environment: { OPENBOT_COMPUTER_SERVICE_API_KEY: serviceApiKey },
-        },
-        call,
-      );
+      computer = await this.create(spec, call);
+    }
+    if (context.devMode && image && computer.image !== image) {
+      await this.delete(computer.id, call);
+      computer = await this.create(spec, call);
     }
     if (computer.state === "sleeping") await this.wake(computer.id, call);
     for (const workspace of request.workspaces)
       await this.#registerAgentWorkspace(computer.id, workspace, call);
-    return {
-      outputs: { "computer.id": computer.id },
-      environmentVariables: {
-        OPENBOT_COMPUTER_ID: computer.id,
-        OPENBOT_COMPUTER_SERVICE_URL: await this.computerServiceUrl(computer.id),
-      },
-    };
+    for (const workspace of request.workspaces)
+      await this.ensureAgentDesktop(computer.id, workspace.agentId, call);
+    await persistEnvironment(context, "COMPUTER_ID", computer.id, "OpenBot computer ID.");
+    await persistEnvironment(
+      context,
+      "COMPUTER_SERVICE_URL",
+      await this.computerServiceUrl(computer.id),
+      "OpenBot computer service URL.",
+    );
+    return { outputs: { "computer.id": computer.id } };
   }
 
   async deployDevelopmentSandbox(
     request: DeployDevelopmentSandboxRequest,
     context: DeploymentContext,
   ) {
-    const call: ComputerCallContext = { requestId: "computer:deploy-development-sandbox" };
-    const image =
-      context.inputs.environmentVariables()[this.deployedImageEnvironmentVariable] ??
-      context.environment[this.deployedImageEnvironmentVariable];
+    const delegate = this.lifecycleDelegate(context);
+    if (delegate) return delegate.deployDevelopmentSandbox(request, context);
+    const call: ComputerCallContext = {
+      requestId: "computer:deploy-development-sandbox",
+      environment: context.environment,
+    };
+    const image = context.environment[this.deployedImageEnvironmentVariable];
     let computer;
     try {
       computer = await this.get(request.computerId, call);
@@ -423,6 +303,7 @@ export abstract class BaseComputerProvider implements ComputerProvider {
 
     const stateRoot = "/workspace/.openbot/development";
     const sourceRoot = "/workspace/openbot";
+    const ageKeyFile = `${stateRoot}/sops-age-key.txt`;
     const sourceMarker = `${stateRoot}/source-initialized`;
     let result = await this.exec(
       computer.id,
@@ -433,6 +314,12 @@ export abstract class BaseComputerProvider implements ComputerProvider {
       throw new ComputerProviderError(
         "provider_unavailable",
         `Could not prepare the development sandbox: ${result.stderr}`,
+      );
+    result = await this.exec(computer.id, { command: "chmod", args: ["0700", stateRoot] }, call);
+    if (result.exitCode !== 0)
+      throw new ComputerProviderError(
+        "provider_unavailable",
+        `Could not protect the development sandbox state: ${result.stderr}`,
       );
 
     result = await this.exec(computer.id, { command: "test", args: ["-f", sourceMarker] }, call);
@@ -450,30 +337,43 @@ export abstract class BaseComputerProvider implements ComputerProvider {
       );
     }
 
-    const environment = sandboxDeploymentEnvironment(context.inputs);
-    if (!environment.SOPS_AGE_KEY)
-      throw new ComputerProviderError(
-        "invalid_configuration",
-        "The trusted development sandbox requires the sandbox SOPS age identity",
-      );
-    const environmentFile = `${stateRoot}/environment.sh`;
-    const renderedEnvironment = await renderFileTemplatePath(
-      computerImageAssets.developmentEnvironment,
-      {
-        ENVIRONMENT_EXPORTS: shellEnvironmentExports(environment),
-      },
-    );
-    await this.writeFile(
+    await this.#writeComputerFiles(
       computer.id,
-      environmentFile,
-      new TextEncoder().encode(renderedEnvironment),
+      await developmentSandboxConfigurationFiles(context.repositoryRoot),
       call,
     );
     result = await this.exec(
       computer.id,
-      { command: "chmod", args: ["0600", environmentFile] },
+      {
+        command: "chmod",
+        args: [
+          "0600",
+          `${sourceRoot}/configuration/.env`,
+          `${sourceRoot}/configuration/.sops.yaml`,
+          `${sourceRoot}/configuration/secrets.enc.yaml`,
+        ],
+      },
       call,
     );
+    if (result.exitCode !== 0)
+      throw new ComputerProviderError(
+        "provider_unavailable",
+        `Could not protect the development sandbox configuration: ${result.stderr}`,
+      );
+
+    const ageIdentity = context.environment.SOPS_AGE_KEY;
+    if (!ageIdentity)
+      throw new ComputerProviderError(
+        "invalid_configuration",
+        "The trusted development sandbox requires the sandbox SOPS age identity",
+      );
+    await this.writeFile(
+      computer.id,
+      ageKeyFile,
+      new TextEncoder().encode(`${ageIdentity.trim()}\n`),
+      call,
+    );
+    result = await this.exec(computer.id, { command: "chmod", args: ["0400", ageKeyFile] }, call);
     if (result.exitCode !== 0)
       throw new ComputerProviderError(
         "provider_unavailable",
@@ -484,7 +384,7 @@ export abstract class BaseComputerProvider implements ComputerProvider {
       computer.id,
       {
         command: "/usr/local/bin/setup-openbot-development",
-        args: [environmentFile, sourceRoot],
+        args: [sourceRoot, ageKeyFile],
         timeoutMs: 1_200_000,
       },
       call,
@@ -494,17 +394,20 @@ export abstract class BaseComputerProvider implements ComputerProvider {
         "provider_unavailable",
         `Could not initialize the development sandbox: ${result.stderr}`,
       );
-    return {
-      outputs: { "development-sandbox.computer-id": computer.id },
-      environmentVariables: { OPENBOT_DEVELOPMENT_SANDBOX_ID: computer.id },
-    };
+    await persistEnvironment(
+      context,
+      "DEVELOPMENT_SANDBOX_ID",
+      computer.id,
+      "Trusted development sandbox ID.",
+    );
+    return { outputs: { "development-sandbox.computer-id": computer.id } };
   }
 
   async #registerAgentWorkspace(
     computerId: string,
     workspace: ComputerAgentWorkspace,
     context: ComputerCallContext,
-  ): Promise<void> {
+  ) {
     if (workspace.files.length === 0) return;
     const root = agentWorkspaceRoot(workspace.agentId);
     const marker = `${root}/.openbot-agent`;
@@ -537,6 +440,43 @@ export abstract class BaseComputerProvider implements ComputerProvider {
       marker,
       new TextEncoder().encode(await renderMarker(workspace.agentId)),
       context,
+    );
+  }
+
+  protected async ensureAgentDesktop(
+    computerId: string,
+    agentId: string,
+    context: ComputerCallContext,
+  ): Promise<{ display: string; vncPort: number }> {
+    const service = createClient(
+      ComputerService,
+      createConnectTransport({
+        baseUrl: await this.computerServiceUrl(computerId),
+        httpVersion: "1.1",
+      }),
+    );
+    const request = {
+      agentId,
+      capability: scopedCapability(
+        "vnc",
+        computerId,
+        agentId,
+        computerServiceApiKey(context.environment?.COMPUTER_SERVICE_API_KEY),
+      ),
+    };
+    const options = {
+      headers: {
+        authorization: `Bearer ${computerServiceApiKey(context.environment?.COMPUTER_SERVICE_API_KEY)}`,
+      },
+      ...(context.signal ? { signal: context.signal } : {}),
+    };
+    return await retryComputerServiceStartup(
+      async () =>
+        (await service.ensureDesktop(request, options)) as unknown as {
+          display: string;
+          vncPort: number;
+        },
+      context.signal,
     );
   }
 
@@ -624,7 +564,7 @@ export abstract class BaseComputerProvider implements ComputerProvider {
     _phase: "build" | "plan" | "deploy",
   ): Promise<string> {
     const repository =
-      this.#imageDeployment.repository ?? context.environment.OPENBOT_COMPUTER_IMAGE_REPOSITORY;
+      this.#imageDeployment.repository ?? context.environment.COMPUTER_IMAGE_REPOSITORY;
     const selected =
       repository?.trim() ||
       (!this.#imageLifecycle.publish
@@ -633,7 +573,7 @@ export abstract class BaseComputerProvider implements ComputerProvider {
     if (!selected)
       throw new ComputerProviderError(
         "invalid_configuration",
-        "OPENBOT_COMPUTER_IMAGE_REPOSITORY is required to build and deploy computer images",
+        "COMPUTER_IMAGE_REPOSITORY is required to build and deploy computer images",
       );
     if (selected.includes("://") || /\s/.test(selected))
       throw new ComputerProviderError(
@@ -667,6 +607,18 @@ export abstract class BaseComputerProvider implements ComputerProvider {
     return runDockerWithInput(args, input, context);
   }
 
+  protected runDocker(args: readonly string[], context: ComputerCallContext): Promise<void> {
+    return runDocker([...args], context);
+  }
+
+  protected async prepareDeployedImage(
+    image: PublishedComputerImage,
+    _spec: ComputerImageSpec,
+    _context: ComputerCallContext,
+  ): Promise<PublishedComputerImage> {
+    return image;
+  }
+
   async #imageSpec(
     context: DeploymentContext,
     materialized: { contextDirectory: string; dockerfilePath: string; sourceDigest: string },
@@ -683,7 +635,27 @@ export abstract class BaseComputerProvider implements ComputerProvider {
   }
 
   #outputName(suffix: string): string {
-    return `OPENBOT_${this.providerId.replace(/[^a-zA-Z0-9]/g, "_").toUpperCase()}_IMAGE_${suffix}`;
+    return `${this.providerId.replace(/[^a-zA-Z0-9]/g, "_").toUpperCase()}_IMAGE_${suffix}`;
+  }
+}
+
+export async function retryComputerServiceStartup<T>(
+  operation: () => Promise<T>,
+  signal?: AbortSignal,
+  options: { attempts?: number; delayMs?: number } = {},
+): Promise<T> {
+  const attempts = options.attempts ?? 60;
+  const delayMs = options.delayMs ?? 250;
+  for (let attempt = 1; ; attempt += 1) {
+    try {
+      return await operation();
+    } catch (error) {
+      if (signal?.aborted) throw error;
+      const failure = ConnectError.from(error);
+      const retryable = [Code.Aborted, Code.Unavailable, Code.Unknown].includes(failure.code);
+      if (attempt >= attempts || !retryable) throw error;
+      await delay(delayMs, undefined, signal ? { signal } : undefined);
+    }
   }
 }
 
@@ -756,8 +728,8 @@ export function scopeComputerExecRequest(
     cwd: request.cwd ? logicalComputerPath(request.cwd, root) : root,
     environment: {
       HOME: root,
-      OPENBOT_AGENT_ID: agentId,
-      OPENBOT_COMPUTER_WORKSPACE: root,
+      AGENT_ID: agentId,
+      COMPUTER_WORKSPACE: root,
       ...request.environment,
     },
     timeoutMs: request.timeoutMs,
@@ -795,19 +767,7 @@ function workspaceRelativePath(path: string): string {
 }
 
 async function runDocker(args: string[], context: ComputerCallContext): Promise<void> {
-  try {
-    await execute("docker", args, {
-      signal: context.signal,
-      timeout: deadlineTimeout(context),
-      maxBuffer: 16 * 1024 * 1024,
-    });
-  } catch (error) {
-    const failure = error as Error & { stderr?: string };
-    throw new ComputerProviderError(
-      "provider_unavailable",
-      `Computer image command failed: ${failure.stderr?.trim() || failure.message}`,
-    );
-  }
+  await runDockerProcess(args, undefined, context);
 }
 
 async function runDockerWithInput(
@@ -815,37 +775,92 @@ async function runDockerWithInput(
   input: string,
   context: ComputerCallContext,
 ): Promise<void> {
+  await runDockerProcess(args, input, context);
+}
+
+async function runDockerProcess(
+  args: readonly string[],
+  input: string | undefined,
+  context: ComputerCallContext,
+): Promise<void> {
   await new Promise<void>((resolvePromise, reject) => {
+    const timeout = deadlineTimeout(context);
     const child = spawn("docker", [...args], { stdio: ["pipe", "pipe", "pipe"] });
     let stderr = "";
-    child.stderr.setEncoding("utf8");
-    child.stderr.on("data", (chunk: string) => {
-      stderr += chunk;
-    });
+    let settled = false;
+    let timedOut = false;
     const abort = () => child.kill("SIGTERM");
-    context.signal?.addEventListener("abort", abort, { once: true });
-    child.once("error", reject);
-    child.once("close", (code) => {
+    const timer =
+      timeout === undefined
+        ? undefined
+        : setTimeout(() => {
+            timedOut = true;
+            abort();
+          }, timeout);
+    const settle = (result: () => void) => {
+      if (settled) return;
+      settled = true;
+      if (timer) clearTimeout(timer);
       context.signal?.removeEventListener("abort", abort);
-      if (context.signal?.aborted) {
-        reject(context.signal.reason ?? new Error("Docker command was aborted"));
-        return;
-      }
-      if (code === 0) resolvePromise();
-      else
+      result();
+    };
+    const report = (stream: "stdout" | "stderr", chunk: Buffer | string) => {
+      const output = chunk.toString();
+      if (stream === "stderr") stderr = `${stderr}${output}`.slice(-16 * 1024 * 1024);
+      context.report?.({
+        event: "provider.command.output",
+        details: { providerId: "computer", command: "docker", stream, output },
+      });
+    };
+    child.stdout.on("data", (chunk: Buffer) => report("stdout", chunk));
+    child.stderr.on("data", (chunk: Buffer) => report("stderr", chunk));
+    context.signal?.addEventListener("abort", abort, { once: true });
+    child.once("error", (error) =>
+      settle(() =>
         reject(
           new ComputerProviderError(
             "provider_unavailable",
-            `docker ${args.join(" ")} failed${stderr.trim() ? `: ${stderr.trim()}` : ""}`,
+            `Computer image command failed: ${error.message}`,
+          ),
+        ),
+      ),
+    );
+    child.once("close", (code) => {
+      if (context.signal?.aborted) {
+        settle(() => reject(context.signal?.reason ?? new Error("Docker command was aborted")));
+        return;
+      }
+      if (timedOut) {
+        settle(() =>
+          reject(
+            new ComputerProviderError(
+              "deadline_exceeded",
+              `docker ${args.join(" ")} failed after reaching its deadline${stderr.trim() ? `: ${stderr.trim()}` : ""}`,
+            ),
+          ),
+        );
+        return;
+      }
+      if (code === 0) settle(resolvePromise);
+      else
+        settle(() =>
+          reject(
+            new ComputerProviderError(
+              "provider_unavailable",
+              `docker ${args.join(" ")} failed${stderr.trim() ? `: ${stderr.trim()}` : ""}`,
+            ),
           ),
         );
     });
-    child.stdin.end(input);
+    child.stdin.end(input ?? undefined);
   });
 }
 
-function deploymentCallContext(phase: string): ComputerCallContext {
-  return { requestId: `computer-image:${phase}` };
+function deploymentCallContext(
+  phase: string,
+  context: Pick<DeploymentContext, "report">,
+): ComputerCallContext {
+  return { requestId: `computer-image:${phase}`, report: context.report };
 }
 
 function deadlineTimeout(context: ComputerCallContext): number | undefined {

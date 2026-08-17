@@ -11,7 +11,7 @@
     "changeset:status": "changeset status",
     "changeset:version": "changeset version",
     "check": "XDG_CACHE_HOME=.cache vp run contracts:generate && XDG_CACHE_HOME=.cache vp check",
-    "contracts:generate": "XDG_CACHE_HOME=.cache vp run --filter @tryopenbot/control-service-proto generate && XDG_CACHE_HOME=.cache vp run --filter @tryopenbot/computer-service-proto generate",
+    "contracts:generate": "XDG_CACHE_HOME=.cache vp run --filter @tryopenbot/computer-service-proto generate",
     "dev": "vp run --filter openbot dev",
     "deploy:prod": "vp run --filter openbot deploy --",
     "format": "vp fmt",
@@ -26,7 +26,6 @@
     "verify:cli": "repository_root=${npm_package_json%/package.json}; cd /tmp && \"$repository_root/cli/dist/index.js\" --help >/dev/null 2>&1"
   },
   "devDependencies": {
-    "@ai-sdk/openai": "3.0.94",
     "@changesets/changelog-github": "0.5.2",
     "@changesets/cli": "2.29.7",
     "@connectrpc/connect": "2.1.2",
@@ -36,13 +35,13 @@
     "@tryopenbot/agent-service-provider": "workspace:*",
     "@tryopenbot/computer-provider": "workspace:*",
     "@tryopenbot/computer-service-proto": "workspace:*",
+    "@tryopenbot/computer-tools": "workspace:*",
     "@tryopenbot/configuration": "workspace:*",
-    "@tryopenbot/control-service-proto": "workspace:*",
     "@tryopenbot/control-service-provider": "workspace:*",
-    "@tryopenbot/inference-model-provider": "workspace:*",
+    "@tryopenbot/inference-provider": "workspace:*",
+    "@tryopenbot/platform-integrations": "workspace:*",
     "@tryopenbot/runtime-provider": "workspace:*",
-    "@tryopenbot/skills-provider": "workspace:*",
-    "@tryopenbot/tools-provider": "workspace:*",
+    "@trytilde/api-client": "github:trytilde/harness-sdk#c9b64d691486e6d57ff69cd0eb0214ceb6d1c13d&path:packages/api-client",
     "@trytilde/cli": "0.1.0",
     "@trytilde/harness-sdk": "0.1.2",
     "@trytilde/harness-sdk-vercel-ai-node": "0.2.0",
@@ -64,17 +63,5 @@
   "engines": {
     "node": "24.x"
   },
-  "packageManager": "pnpm@10.33.1",
-  "pnpm": {
-    "packageExtensions": {
-      "@trytilde/api-client@*": {
-        "dependencies": {
-          "@types/node": "24.3.0",
-          "typescript": "5.9.3",
-          "vite": "8.0.16",
-          "vite-plugin-dts": "4.5.4"
-        }
-      }
-    }
-  }
+  "packageManager": "pnpm@10.33.1"
 }

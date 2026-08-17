@@ -8,12 +8,13 @@ import { agentCommand, agentVisiblePath } from "./agent.js";
 import { BackgroundExecRegistry } from "./background-exec.js";
 import { validComputerServiceApiKey } from "./capability.js";
 import { applyLifecycleBundle, lifecycleDigest, runLifecycle } from "./lifecycle.js";
+import { ensureAgentDesktop } from "./desktop.js";
 
 const execute = promisify(execFile);
 const backgroundExec = new BackgroundExecRegistry();
 
 function authorized(context: HandlerContext): void {
-  const token = process.env.OPENBOT_COMPUTER_SERVICE_API_KEY;
+  const token = process.env.COMPUTER_SERVICE_API_KEY;
   if (!token || token.length < 32)
     throw new ConnectError("Computer service API key is not configured", Code.Unavailable);
   if (!validComputerServiceApiKey(context.requestHeader.get("authorization"), token))
@@ -24,7 +25,7 @@ async function vncReady(): Promise<boolean> {
   return new Promise((resolve) => {
     const socket = createConnection({
       host: "127.0.0.1",
-      port: Number(process.env.OPENBOT_COMPUTER_VNC_PORT ?? 5901),
+      port: Number(process.env.COMPUTER_NOVNC_PORT ?? 6080),
     });
     const finish = (ready: boolean) => {
       socket.destroy();
@@ -129,9 +130,10 @@ export function registerComputerService(router: ConnectRouter): void {
     },
     async screenshot(request, context) {
       authorized(context);
+      const desktop = await ensureAgentDesktop(request.agentId, undefined, context.signal);
       const scoped = agentCommand(request.agentId, "import", [
         "-display",
-        process.env.DISPLAY ?? ":1",
+        desktop.display,
         "-window",
         "root",
         "png:-",
@@ -140,12 +142,13 @@ export function registerComputerService(router: ConnectRouter): void {
     },
     async input(request, context) {
       authorized(context);
+      const desktop = await ensureAgentDesktop(request.agentId, undefined, context.signal);
       const scoped = agentCommand(
         request.agentId,
         "xdotool",
         parseInput(request.action, request.payloadJson),
         {
-          environment: { DISPLAY: process.env.DISPLAY ?? ":1" },
+          environment: { DISPLAY: desktop.display },
         },
       );
       await execute(scoped.command, scoped.arguments, {
@@ -155,9 +158,18 @@ export function registerComputerService(router: ConnectRouter): void {
       });
       return { accepted: true };
     },
+    async ensureDesktop(request, context) {
+      authorized(context);
+      const desktop = await ensureAgentDesktop(
+        request.agentId,
+        request.capability || undefined,
+        context.signal,
+      );
+      return { display: desktop.display, vncPort: desktop.vncPort };
+    },
     async listPorts(_request, context) {
       authorized(context);
-      const ports = (process.env.OPENBOT_COMPUTER_EXPOSED_PORTS ?? "6080,4101")
+      const ports = (process.env.COMPUTER_EXPOSED_PORTS ?? "6080,4101")
         .split(",")
         .map(Number)
         .filter((port) => Number.isSafeInteger(port) && port > 0 && port <= 65_535);
@@ -165,12 +177,20 @@ export function registerComputerService(router: ConnectRouter): void {
     },
     async *tunnelVnc(request, context) {
       authorized(context);
+      const iterator = request[Symbol.asyncIterator]();
+      const first = await iterator.next();
+      if (first.done) return;
+      const agentId = first.value.agentId;
+      const desktop = await ensureAgentDesktop(agentId, undefined, context.signal);
       const socket = createConnection({
         host: "127.0.0.1",
-        port: Number(process.env.OPENBOT_COMPUTER_VNC_PORT ?? 5901),
+        port: desktop.vncPort,
       });
       const writer = (async () => {
-        for await (const frame of request) {
+        if (first.value.data.length > 0) socket.write(first.value.data);
+        for await (const frame of { [Symbol.asyncIterator]: () => iterator }) {
+          if (frame.agentId !== agentId)
+            throw new ConnectError("A VNC tunnel cannot change agent_id", Code.InvalidArgument);
           if (!socket.write(frame.data))
             await new Promise<void>((resolve) => socket.once("drain", resolve));
         }
@@ -245,15 +265,26 @@ function parseInput(action: string, raw: string): string[] {
   }
   if (action === "mouse_move")
     return ["mousemove", "--sync", integer(payload.x), integer(payload.y)];
-  if (action === "click") return ["click", String(payload.button ?? 1)];
+  if (action === "click") return ["click", integer(payload.button ?? 1, "Input button")];
   if (action === "type")
-    return ["type", "--delay", String(payload.delayMs ?? 10), String(payload.text ?? "")];
-  if (action === "key") return ["key", String(payload.key ?? "")];
+    return [
+      "type",
+      "--delay",
+      integer(payload.delayMs ?? 10, "Input delay"),
+      text(payload.text ?? "", "Input text"),
+    ];
+  if (action === "key") return ["key", text(payload.key ?? "", "Input key")];
   throw new ConnectError(`Unsupported input action: ${action}`, Code.InvalidArgument);
 }
 
-function integer(value: unknown): string {
+function integer(value: unknown, label = "Input coordinates"): string {
   if (typeof value !== "number" || !Number.isSafeInteger(value))
-    throw new ConnectError("Input coordinates must be integers", Code.InvalidArgument);
+    throw new ConnectError(`${label} must be an integer`, Code.InvalidArgument);
   return String(value);
+}
+
+function text(value: unknown, label: string): string {
+  if (typeof value !== "string")
+    throw new ConnectError(`${label} must be a string`, Code.InvalidArgument);
+  return value;
 }

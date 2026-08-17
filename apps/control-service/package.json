@@ -23,17 +23,20 @@
     "access": "public"
   },
   "scripts": {
-    "build": "tsgo --noEmit && tsdown",
+    "artifact:check": "tsgo --noEmit",
+    "build": "vp run artifact:check && tsdown",
+    "check": "vp check",
     "dev": "tsx watch src/index.ts",
     "lint": "vp lint",
     "prepack": "pnpm build",
     "start": "tsx src/index.ts",
     "test": "vp test run",
-    "typecheck": "tsgo --noEmit"
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@connectrpc/connect": "2.1.2",
     "@hono/node-server": "1.19.1",
+    "@tryopenbot/auth-provider": "workspace:*",
+    "@tryopenbot/computer-provider": "workspace:*",
     "hono": "4.13.1"
   },
   "devDependencies": {

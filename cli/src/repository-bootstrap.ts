@@ -6,6 +6,19 @@ import type { InitializationCommandRunner, InitializationPrompts } from "./initi
 const canonicalRepository = "trytilde/openbot";
 const canonicalRepositoryUrl = "https://github.com/trytilde/openbot.git";
 
+export const repositoryVisibilityChoices = [
+  {
+    value: "private",
+    label: "Private",
+    description: "Create an independent private mirror of OpenBot.",
+  },
+  {
+    value: "public",
+    label: "Public",
+    description: "Create a public GitHub fork of OpenBot.",
+  },
+] as const;
+
 export interface RepositoryBootstrapOptions {
   destination: string;
   prompts: InitializationPrompts;
@@ -43,18 +56,7 @@ export async function bootstrapOpenBotRepository(
   const [repositoryOwner, name] = ownedRepository.split("/") as [string, string];
   const visibility = await options.prompts.select(
     "GitHub repository visibility",
-    [
-      {
-        value: "private",
-        label: "Private",
-        description: "Create an independent private mirror of OpenBot.",
-      },
-      {
-        value: "public",
-        label: "Public",
-        description: "Create a public GitHub fork of OpenBot.",
-      },
-    ],
+    repositoryVisibilityChoices,
     { id: "repository-visibility" },
   );
 

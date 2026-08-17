@@ -9,6 +9,7 @@ export default defineConfig({
   outDir: "dist",
   clean: true,
   minify: false,
-  sourcemap: false,
+  sourcemap: true,
   dts: false,
+  outputOptions: { sourcemapExcludeSources: true },
 });

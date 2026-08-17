@@ -19,11 +19,16 @@ OpenBot also needs equivalent local production behavior without making developme
 
 ## Decision
 
-`control-service-provider` owns the control server and web artifact. `agent-service-provider` discovers each `configuration/agents/<id>/agent.ts`, validates its authored TypeScript tree with the native TypeScript compiler, and emits an independent bundle for each agent. Both packages implement `Buildable` and `Deployable` for local and Vercel targets.
+`control-service-provider` owns the control server and web artifact. `agent-service-provider` discovers the primary `configuration/agent/agent.ts` and every `configuration/agent/subagents/<id>/agent.ts`, validates each authored TypeScript tree with the native TypeScript compiler, and emits an independent bundle for each agent. Both packages implement `Buildable` and `Deployable` for local and Vercel targets.
 
 Vercel receives prebuilt Build Output API artifacts. The control project contains its Hono function and static web assets. The agent project contains one `.func` per agent plus its health function. Changed agent builds execute concurrently through tsdown's Rolldown/Oxc pipeline; content digests reuse unchanged function directories and conservatively invalidate on shared package or lockfile changes. A single agent-service deployment publishes the complete function set, so endpoints are isolated at execution but deployment and rollback remain atomic.
 
 Local builds emit two Node artifacts. Deployment installs `openbot-control` and `openbot-agents` user services through systemd on Linux or launchd on macOS. Control defaults to port 4100 and agents to 4101. `openbot dev` mounts agent routes before the control/web fallback in one watched Hono server on port 4100.
+
+During development both local and Vercel service deployables stop after their
+checks and leave startup to that watched process. The Computer image has a
+separate provider-owned watch loop because changing a container base image
+requires rebuilding and replacing Microsandbox rather than restarting Hono.
 
 The deploy coordinator runs all selected `check()` and `build()` methods before any provider deploy lifecycle. Build outputs feed planning and deployment. `--service agents` avoids control compilation and deployment; `--service control` does the inverse. `--skip-deploy` is a safe build-only exit. Providers without `Buildable` remain deployable, and providers without `Deployable` remain buildable.
 
@@ -31,7 +36,7 @@ Native `@typescript/native-preview` is deliberately limited to artifact checks w
 
 ```mermaid
 flowchart LR
-  C["configuration/agents/id/agent.ts"] --> B["Parallel tsdown builds"]
+  C["configuration/agent + subagents/id/agent.ts"] --> B["Parallel tsdown builds"]
   B --> A1["Agent function A"]
   B --> A2["Agent function B"]
   A1 --> AP["Agent service project"]
@@ -56,3 +61,5 @@ flowchart LR
 - 2026-08-13T12:27:55+02:00: Made each directory-owned `agent.ts` the independent build entrypoint and included the full authored agent tree in invalidation.
 - 2026-08-13T16:09:00+02:00: Reconciled this artifact decision with ADR-0004: Vite+ replaces Turbo for orchestration while `tsgo` and tsdown/Rolldown remain the service artifact compiler path.
 - 2026-08-13T16:27:00+02:00: Split agent-runtime provider construction from the full composition module so independently bundled agent entrypoints cannot retain control/agent deployment compilers or their native bindings.
+- 2026-08-14T17:18:21+02:00: Made development run provider checks without service artifact deployment, retained one control/agent HMR process, and added a separate watched Microsandbox image rebuild/restart loop.
+- 2026-08-16T15:08:39+02:00: Routed `/api/*` to the deployed control Function so the same Tilde REST/SSE bridge is available in Vercel, local production, development, and packaged desktop runs; removed the obsolete owner `/rpc` route.

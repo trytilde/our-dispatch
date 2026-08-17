@@ -11,6 +11,7 @@
   },
   "scripts": {
     "build": "vp build",
+    "check": "vp check",
     "dev": "vp dev --host 127.0.0.1 --port 4173",
     "lint": "vp lint",
     "prepack": "pnpm build",

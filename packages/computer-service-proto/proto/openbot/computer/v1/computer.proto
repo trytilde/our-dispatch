@@ -12,6 +12,7 @@ service ComputerService {
   rpc WriteFile(WriteFileRequest) returns (WriteFileResponse);
   rpc Screenshot(ScreenshotRequest) returns (ScreenshotResponse);
   rpc Input(InputRequest) returns (InputResponse);
+  rpc EnsureDesktop(EnsureDesktopRequest) returns (EnsureDesktopResponse);
   rpc ListPorts(ListPortsRequest) returns (ListPortsResponse);
   rpc TunnelVnc(stream TunnelVncRequest) returns (stream TunnelVncResponse);
 }
@@ -121,6 +122,17 @@ message InputRequest {
 }
 
 message InputResponse { bool accepted = 1; }
+
+message EnsureDesktopRequest {
+  string agent_id = 1;
+  string capability = 2;
+}
+
+message EnsureDesktopResponse {
+  string display = 1;
+  uint32 vnc_port = 2;
+}
+
 message ListPortsRequest {}
 
 message Port {
@@ -130,5 +142,8 @@ message Port {
 
 message ListPortsResponse { repeated Port ports = 1; }
 
-message TunnelVncRequest { bytes data = 1; }
+message TunnelVncRequest {
+  bytes data = 1;
+  string agent_id = 2;
+}
 message TunnelVncResponse { bytes data = 1; }

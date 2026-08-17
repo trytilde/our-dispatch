@@ -1,12 +1,28 @@
 import { app, BrowserWindow, ipcMain, shell } from "electron";
 import { join } from "node:path";
 import { startRendererServer, type RendererServer } from "./local-server.js";
+import { DesktopAuth } from "./auth.js";
 
 if (process.platform === "win32")
   throw new Error("OpenBot Desktop currently supports macOS and Linux");
 
 let window: BrowserWindow | undefined;
 let rendererServer: RendererServer | undefined;
+let desktopAuth: DesktopAuth | undefined;
+const pendingProtocolUrls: string[] = [];
+
+if (!app.requestSingleInstanceLock()) app.quit();
+app.setAsDefaultProtocolClient("openbot");
+app.on("open-url", (event, url) => {
+  event.preventDefault();
+  void handleProtocolUrl(url);
+});
+app.on("second-instance", (_event, argv) => {
+  const url = argv.find((value) => value.startsWith("openbot://"));
+  if (url) void handleProtocolUrl(url);
+  window?.show();
+  window?.focus();
+});
 
 async function createWindow(): Promise<void> {
   window = new BrowserWindow({
@@ -34,15 +50,15 @@ async function createWindow(): Promise<void> {
     if (current && new URL(url).origin !== new URL(current).origin) event.preventDefault();
   });
 
-  const developmentUrl = process.env.OPENBOT_DESKTOP_DEV_URL;
-  if (developmentUrl) await window.loadURL(developmentUrl);
-  else {
-    rendererServer ??= await startRendererServer(
-      join(process.resourcesPath, "web"),
-      process.env.OPENBOT_CONTROL_ORIGIN || "http://127.0.0.1:4100",
-    );
-    await window.loadURL(rendererServer.origin);
-  }
+  rendererServer ??= await startRendererServer(
+    join(process.resourcesPath, "web"),
+    process.env.CONTROL_ORIGIN || "http://127.0.0.1:4100",
+    {
+      accessToken: async () => await desktopAuth?.accessToken(),
+      ...(process.env.DESKTOP_DEV_URL ? { webOrigin: process.env.DESKTOP_DEV_URL } : {}),
+    },
+  );
+  await window.loadURL(rendererServer.origin);
 }
 
 async function main(): Promise<void> {
@@ -55,6 +71,12 @@ async function main(): Promise<void> {
   });
 
   await app.whenReady();
+  desktopAuth = new DesktopAuth(join(app.getPath("userData"), "auth.enc"));
+  await desktopAuth.load();
+  ipcMain.handle("openbot:auth-status", () => desktopAuth!.status());
+  ipcMain.handle("openbot:sign-in", () => desktopAuth!.signIn());
+  ipcMain.handle("openbot:sign-out", () => desktopAuth!.signOut());
+  for (const url of pendingProtocolUrls.splice(0)) await desktopAuth.handleCallback(url);
   await createWindow();
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) void createWindow();
@@ -65,6 +87,16 @@ async function main(): Promise<void> {
   app.on("before-quit", () => {
     void rendererServer?.close();
   });
+}
+
+async function handleProtocolUrl(url: string): Promise<void> {
+  if (!desktopAuth) {
+    pendingProtocolUrls.push(url);
+    return;
+  }
+  await desktopAuth.handleCallback(url);
+  window?.show();
+  window?.focus();
 }
 
 void main().catch((error: unknown) => {

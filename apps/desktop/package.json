@@ -18,7 +18,9 @@
     "access": "public"
   },
   "scripts": {
-    "build": "tsgo --noEmit && tsdown",
+    "artifact:check": "tsgo --noEmit",
+    "build": "vp run artifact:check && tsdown",
+    "check": "vp check",
     "dev": "vp run build && electron .",
     "lint": "vp lint",
     "package": "vp run --filter @tryopenbot/web build && vp run build && node scripts/package-current.mjs",
@@ -26,7 +28,7 @@
     "package:mac": "vp run --filter @tryopenbot/web build && vp run build && electron-builder --mac",
     "prepack": "pnpm build",
     "test": "vp test run --passWithNoTests",
-    "typecheck": "tsgo --noEmit"
+    "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
     "@types/node": "24.3.0",
@@ -41,6 +43,14 @@
   "build": {
     "appId": "dev.openbot.desktop",
     "productName": "OpenBot",
+    "protocols": [
+      {
+        "name": "OpenBot",
+        "schemes": [
+          "openbot"
+        ]
+      }
+    ],
     "executableName": "openbot",
     "icon": "build/icon.png",
     "directories": {

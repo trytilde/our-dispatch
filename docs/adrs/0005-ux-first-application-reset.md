@@ -6,7 +6,7 @@
 
 - Design the user experience first, then add the control API it requires.
 - Keep the deployed application healthy while functionality is rebuilt.
-- Do not wire domain providers into the server until a UX/API need exists.
+- Keep protocol-native HTTP surfaces in Hono and avoid speculative owner RPC contracts.
 - Remove the setup-code gate and legacy universal provider packages.
 - Vercel CDN serves static files. Hono serves the same build everywhere else.
 
@@ -16,7 +16,7 @@ The application had accumulated server, RPC, provider, deployment, and setup beh
 
 ## Decision
 
-Reset the application layer to a static UX shell and a bare Hono server. The server exposes `/healthz`, federates generated Connect handlers under `/rpc`, and leaves APIs that have not been designed unimplemented. `control-service-proto` remains empty until the UX identifies a required owner-facing operation.
+Reset the application layer to a static UX shell and a bare Hono server. The server exposes `/healthz` and protocol-native Hono routes only when the UX requires them. The owner workspace consumes Tilde ChatKit through an allowlisted same-origin `/api/chat/*` REST/SSE bridge rather than introducing a second generated owner contract. The internal Computer service retains its independent generated ConnectRPC contract.
 
 Build the web app once into `apps/web/dist`. The Vercel control provider copies that output into its prebuilt `.vercel/output/static` artifact so production static assets use the CDN. Keep static-file and SPA fallback handling in Hono as the portable default for local and non-Vercel Node.js hosts. Vercel routing configuration must not duplicate the application route table.
 
@@ -31,9 +31,9 @@ introduced from a concrete UX/API requirement rather than retained speculatively
 flowchart LR
   U["Web UI"] --> V["Vercel CDN"]
   U --> S["Hono static fallback"]
-  U --> C["control-service-proto"]
-  C --> H["Hono and Connect federation"]
-  H --> P["domain packages, only when required"]
+  U --> H["Hono control service"]
+  H --> T["Tilde REST and SSE"]
+  H --> P["domain lifecycles, only when required"]
 ```
 
 ## Consequences
@@ -47,3 +47,4 @@ flowchart LR
 ## Updates
 
 - 2026-08-13T12:09:51+02:00: Removed the unused legacy contracts and control database packages; active protobuf generation now covers only control and computer service protos.
+- 2026-08-16T15:08:39+02:00: Removed the owner-facing control proto and Connect federation after the workspace adopted Tilde's native REST/SSE contract. Protobuf generation now covers only the internal Computer service.

@@ -14,22 +14,41 @@ afterEach(async () =>
 );
 
 describe("control service providers", () => {
+  it("depends on shared Vercel setup but owns only its control project question", () => {
+    const provider = new VercelControlServiceProvider();
+    expect(provider.platforms.map(({ id }) => id)).toEqual(["vercel"]);
+    expect(provider.initialization.questions.map(({ id }) => id)).toEqual([
+      "vercel-control-project",
+    ]);
+    expect(
+      provider.baseUrl({
+        devMode: false,
+        environment: { VERCEL_CONTROL_PROJECT: "control" },
+      }),
+    ).toEqual(new URL("https://control.vercel.app"));
+  });
+
   it("bundles provider-owned Vercel assets into a prebuilt artifact", async () => {
     const root = await temporaryRoot();
     await mkdir(join(root, "apps/web/dist"), { recursive: true });
     await mkdir(join(root, "apps/control-service/src"), { recursive: true });
+    await mkdir(join(root, "configuration"), { recursive: true });
     await writeFile(
       join(root, "apps/web/dist/index.html"),
       "<!doctype html><title>OpenBot</title>",
     );
     await writeFile(
       join(root, "apps/control-service/src/app.ts"),
-      "export default { fetch: () => Response.json({ service: 'openbot-control' }) };\n",
+      "export function createApp() { return { fetch: () => Response.json({ service: 'openbot-control' }) }; }\n",
+    );
+    await writeFile(
+      join(root, "configuration/index.ts"),
+      `import { VercelControlServiceProvider } from ${JSON.stringify(join(process.cwd(), "src/index.ts"))};\nexport default { providers: { controlService: new VercelControlServiceProvider() } };\n`,
     );
     const run = vi.fn<CommandRunner["run"]>(async () => ({ stdout: "", stderr: "" }));
     const result = await buildVercelControlService(
       {
-        target: "production",
+        devMode: false,
         repositoryRoot: root,
         environment: {},
         inputs: new DeploymentOutputs(),
@@ -39,12 +58,20 @@ describe("control service providers", () => {
     );
     const artifact = result.outputs?.["control-service.artifact"];
     expect(artifact).toBe(join(root, ".openbot-deploy/vercel/control"));
-    expect(
-      JSON.parse(await readFile(join(artifact!, ".vercel/output/config.json"), "utf8")),
-    ).toMatchObject({ version: 3 });
-    expect(
-      await readFile(join(artifact!, ".vercel/output/functions/control.func/index.mjs"), "utf8"),
-    ).toContain("openbot-control");
+    const outputConfiguration = JSON.parse(
+      await readFile(join(artifact!, ".vercel/output/config.json"), "utf8"),
+    ) as { version: number; routes: Array<{ src?: string; dest?: string }> };
+    expect(outputConfiguration).toMatchObject({ version: 3 });
+    expect(outputConfiguration.routes).toContainEqual({ src: "/api(?:/.*)?", dest: "/control" });
+    expect(outputConfiguration.routes).not.toContainEqual(
+      expect.objectContaining({ src: expect.stringContaining("/rpc") }),
+    );
+    const functionSource = await readFile(
+      join(artifact!, ".vercel/output/functions/control.func/index.mjs"),
+      "utf8",
+    );
+    expect(functionSource).toContain("openbot-control");
+    expect(functionSource).not.toContain("Cannot find native binding");
     expect(await readFile(join(artifact!, ".vercel/output/static/index.html"), "utf8")).toContain(
       "OpenBot",
     );
@@ -65,13 +92,12 @@ describe("control service providers", () => {
     await deployProviders(
       [{ id: "control", role: "runtime", provider: { deployable: provider } }],
       {
-        target: "production",
+        devMode: false,
         dryRun: false,
         repositoryRoot: repository,
-        environment: { OPENBOT_PORT: "4100" },
+        environment: { PORT: "4100", API_KEY: "private-value" },
         initialInputs: {
           outputs: { "control-service.artifact": "/tmp/control.mjs" },
-          secrets: { API_KEY: "private-value" },
         },
       },
     );
@@ -111,10 +137,13 @@ describe("control service providers", () => {
     await deployProviders(
       [{ id: "control", role: "runtime", provider: { deployable: provider } }],
       {
-        target: "preview",
+        devMode: false,
         dryRun: false,
         repositoryRoot: root,
-        environment: { OPENBOT_VERCEL_CONTROL_PROJECT: "openbot-control" },
+        environment: {
+          VERCEL_CONTROL_PROJECT: "openbot-control",
+          VERCEL_TOKEN: "deployment-token",
+        },
         initialInputs: { outputs: { "control-service.artifact": artifact } },
       },
     );
@@ -127,6 +156,7 @@ describe("control service providers", () => {
         artifact,
         "--project",
         "openbot-control",
+        "--prod",
       ]),
       expect.anything(),
     );
@@ -142,9 +172,9 @@ describe("control service providers", () => {
     });
     const provider = new VercelControlServiceProvider({ runner: { run }, request: healthy() });
     await provider.configure({
-      target: "preview",
+      devMode: false,
       repositoryRoot: "/repo",
-      environment: { OPENBOT_VERCEL_CONTROL_PROJECT: "openbot-control" },
+      environment: { VERCEL_CONTROL_PROJECT: "openbot-control" },
       inputs: new DeploymentOutputs(),
       report: () => undefined,
     });
@@ -153,6 +183,28 @@ describe("control service providers", () => {
       expect.arrayContaining(["project", "add", "openbot-control"]),
       expect.anything(),
     );
+  });
+
+  it("keeps Vercel remote operations out of development", async () => {
+    const run = vi.fn<CommandRunner["run"]>(async () => ({ stdout: "", stderr: "" }));
+    const request = healthy();
+    const provider = new VercelControlServiceProvider({ runner: { run }, request });
+    const development = {
+      devMode: true,
+      repositoryRoot: "/repository",
+      environment: {},
+      inputs: new DeploymentOutputs(),
+      report: vi.fn(),
+    } as const;
+
+    await expect(provider.build(development)).resolves.toBeUndefined();
+    await expect(provider.configure(development)).resolves.toEqual({});
+    await expect(provider.deploy(development)).resolves.toEqual({});
+    await expect(provider.plan(development)).resolves.toMatchObject({
+      summary: expect.stringContaining("development"),
+    });
+    expect(run).not.toHaveBeenCalled();
+    expect(request).not.toHaveBeenCalled();
   });
 
   it("keeps launchd secrets in the private environment file", async () => {
@@ -169,13 +221,12 @@ describe("control service providers", () => {
     await deployProviders(
       [{ id: "control", role: "runtime", provider: { deployable: provider } }],
       {
-        target: "production",
+        devMode: false,
         dryRun: false,
         repositoryRoot: root,
-        environment: { OPENBOT_PORT: "4100" },
+        environment: { PORT: "4100", API_KEY: "private-value" },
         initialInputs: {
           outputs: { "control-service.artifact": "/tmp/control.mjs" },
-          secrets: { API_KEY: "private-value" },
         },
       },
     );

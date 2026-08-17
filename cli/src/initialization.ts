@@ -3,45 +3,51 @@ import { spawn } from "node:child_process";
 import { chmod, mkdir, mkdtemp, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, resolve } from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
+import { fileURLToPath } from "node:url";
 import { parse as parseDotenv } from "dotenv";
 import { parse as parseYaml, stringify as stringifyYaml } from "yaml";
 import {
   LocalAgentServiceProvider,
   VercelAgentServiceProvider,
 } from "@tryopenbot/agent-service-provider";
-import type { OpenBotConfiguration } from "@tryopenbot/configuration";
+import { TildeAuthProvider } from "@tryopenbot/auth-provider";
+import { tildeAgentProviderInitialization } from "@tryopenbot/agent-provider";
+import type {
+  OpenBotConfiguration,
+  SopsOwnerIdentityConfiguration,
+  UserConfiguration,
+} from "@tryopenbot/configuration";
 import {
   MicrosandboxComputerProvider,
   VercelSandboxComputerProvider,
 } from "@tryopenbot/computer-provider";
 import {
+  collectProviderInitializations,
+  initializeProviders,
+  type InitializableProvider,
+  type ProviderInitializationQuestion,
+} from "@tryopenbot/runtime-provider";
+import { VercelInferenceProvider } from "@tryopenbot/inference-provider";
+import { tildePlatform } from "@tryopenbot/platform-integrations";
+import {
   LocalControlServiceProvider,
   VercelControlServiceProvider,
 } from "@tryopenbot/control-service-provider";
 import { materializeFileTemplate, renderFileTemplatePath } from "@tryopenbot/utilities";
-import type {
-  DeploymentResult,
-  InitializableProvider,
-  ProviderInitializationQuestion,
-} from "@tryopenbot/runtime-provider";
-import { scaffoldAgent } from "./agent-scaffold.js";
+import { scaffoldAgentTemplates, scaffoldPrimaryAgent } from "./agent-scaffold.js";
+import { loadConfigurationModule } from "./configuration-loader.js";
 
 export const SANDBOX_SOPS_AGE_KEY = "SOPS_AGE_KEY";
+const COMPUTER_SERVICE_SECRET = "COMPUTER_SERVICE_API_KEY";
+const COMPUTER_SERVICE_ENVIRONMENT = "COMPUTER_SERVICE_API_KEY";
+const SECRETS_SOPS_AGE_SECRET = "SECRETS_SOPS_AGE_KEY";
 const upstreamConfigurationIgnore = "*\n!.gitignore\n";
-
 const configurationAssets = {
   instrumentation: fileURLToPath(
     new URL("./assets/agents/instrumentation.ts.hbs", import.meta.url),
   ),
   local: fileURLToPath(new URL("./assets/configuration/local.ts.hbs", import.meta.url)),
-  localRuntime: fileURLToPath(
-    new URL("./assets/configuration/local-runtime-providers.ts.hbs", import.meta.url),
-  ),
   vercel: fileURLToPath(new URL("./assets/configuration/vercel.ts.hbs", import.meta.url)),
-  vercelRuntime: fileURLToPath(
-    new URL("./assets/configuration/vercel-runtime-providers.ts.hbs", import.meta.url),
-  ),
 } as const;
 const fileTemplates = {
   document: fileURLToPath(new URL("./assets/files/document.hbs", import.meta.url)),
@@ -58,11 +64,17 @@ export interface InitializationPrompts {
   select(
     prompt: string,
     choices: readonly SelectChoice[],
-    options?: { id?: string },
+    options?: { id?: string; initialValue?: string },
   ): Promise<string>;
   input(
     prompt: string,
-    options?: { id?: string; description?: string; secret?: boolean; required?: boolean },
+    options?: {
+      id?: string;
+      description?: string;
+      secret?: boolean;
+      required?: boolean;
+      initialValue?: string;
+    },
   ): Promise<string>;
 }
 
@@ -89,6 +101,10 @@ export interface InitializationOptions {
   prompts: InitializationPrompts;
   runner?: InitializationCommandRunner;
   platform?: NodeJS.Platform;
+  environment?: NodeJS.ProcessEnv;
+  interactive?: boolean;
+  userConfigurationPath?: string;
+  request?: typeof fetch;
 }
 
 interface AgeIdentity {
@@ -98,20 +114,25 @@ interface AgeIdentity {
 
 type SopsCreationRule = Record<string, string | readonly string[]>;
 
-interface StoredIdentityMetadata {
-  version: 1;
-  ownerIdentity?:
-    | { kind: "onepassword"; reference: string }
-    | { kind: "native-keychain"; platform: "darwin" | "linux" }
-    | { kind: "aws-profile"; profile: string };
+interface DescribedValue {
+  description: string;
+  value: string;
 }
 
 interface OwnerIdentity {
   creationRule: SopsCreationRule;
-  metadata?: StoredIdentityMetadata["ownerIdentity"];
+  metadata: SopsOwnerIdentityConfiguration;
 }
 
-const identityChoices: readonly SelectChoice[] = [
+interface ExistingInitializationState {
+  creationRule: SopsCreationRule;
+  encryptionEnvironment: NodeJS.ProcessEnv;
+  environmentValues: Record<string, string>;
+  secretValues: Record<string, DescribedValue>;
+  providerEnvironment: NodeJS.ProcessEnv;
+}
+
+export const ownerIdentityChoices: readonly SelectChoice[] = [
   {
     value: "vault-transit",
     label: "HashiCorp Vault Transit",
@@ -144,6 +165,19 @@ const identityChoices: readonly SelectChoice[] = [
   },
 ];
 
+export const runtimeChoices: readonly SelectChoice[] = [
+  {
+    value: "local",
+    label: "Local",
+    description: "Run OpenBot as user services on this computer.",
+  },
+  {
+    value: "vercel",
+    label: "Vercel",
+    description: "Deploy control and agent services as separate Vercel projects.",
+  },
+];
+
 export async function initializeOpenBot(options: InitializationOptions): Promise<void> {
   await assertOpenBotRepositoryRoot(options.repositoryRoot);
   const runner = options.runner ?? processCommandRunner;
@@ -151,23 +185,33 @@ export async function initializeOpenBot(options: InitializationOptions): Promise
   const environmentPath = resolve(configurationDirectory, ".env");
   const sopsConfigPath = resolve(configurationDirectory, ".sops.yaml");
   const secretsPath = resolve(configurationDirectory, "secrets.enc.yaml");
-  const identityPath = resolve(configurationDirectory, "sops.identity.json");
   const configurationPath = resolve(configurationDirectory, "index.ts");
   const configurationIgnorePath = resolve(configurationDirectory, ".gitignore");
+
+  const existingMarkers = await Promise.all(
+    [secretsPath, sopsConfigPath].map((path) => exists(path)),
+  );
+  if (existingMarkers.some(Boolean)) {
+    if (!existingMarkers.every(Boolean))
+      throw new Error(
+        "OpenBot has an incomplete SOPS configuration; preserve or remove it before retrying init",
+      );
+    await reconfigureOpenBot(options, runner, {
+      configurationPath,
+      environmentPath,
+      secretsPath,
+      sopsConfigPath,
+    });
+    return;
+  }
 
   await mkdir(configurationDirectory, { recursive: true, mode: 0o700 });
   await assertUpstreamConfigurationIgnore(configurationIgnorePath);
   await createBlankEnvironment(environmentPath);
-  if (await exists(secretsPath)) throw new Error("OpenBot configuration is already initialized");
-  if ((await exists(sopsConfigPath)) || (await exists(identityPath)))
-    throw new Error(
-      "OpenBot has an incomplete SOPS configuration; preserve or remove it before retrying init",
-    );
-
   const sandboxIdentity = generateAgeIdentity();
   const ownerKind = await options.prompts.select(
     "How should owners decrypt OpenBot secrets?",
-    identityChoices,
+    ownerIdentityChoices,
     { id: "owner-identity" },
   );
   const owner = await configureOwnerIdentity(ownerKind, options, runner);
@@ -175,46 +219,63 @@ export async function initializeOpenBot(options: InitializationOptions): Promise
     runner,
     owner.metadata,
     options.repositoryRoot,
-    process.env,
+    options.environment ?? process.env,
   );
   await assertSopsEncryptionWorks(
     runner,
-    owner.creationRule,
+    { ...owner.creationRule, encrypted_regex: "^value$" },
     options.repositoryRoot,
     ownerEncryptionEnvironment,
   );
+  await storeUserOwnerIdentity(owner.metadata, options.environment ?? process.env, {
+    path: options.userConfigurationPath,
+  });
 
   const selectedProviders = await initializationProviders(configurationPath, options.prompts);
-  const initializations = selectedProviders.flatMap((provider) =>
-    provider.initialization ? [provider.initialization] : [],
-  );
+  const initializations = collectProviderInitializations(selectedProviders);
 
-  const environmentValues: Record<string, string> = {};
-  const secretValues: Record<string, string> = {};
-  const deploymentSecretValues: Record<string, string> = {};
+  const environmentValues: Record<string, DescribedValue> = {};
+  const secretValues: Record<string, DescribedValue> = {};
   for (const question of uniqueInitializationQuestions(
     initializations.flatMap((initialization) => initialization.questions),
   )) {
     const value = await askProviderQuestion(options.prompts, question);
     if (!value) continue;
-    if (question.destination.kind === "secret") secretValues[question.destination.key] = value;
-    else if (question.destination.kind === "deployment-secret")
-      deploymentSecretValues[question.destination.key] = value;
-    else environmentValues[question.destination.key] = value;
+    const described = {
+      description: question.description ?? question.prompt,
+      value,
+    };
+    if (question.destination.kind === "environment")
+      environmentValues[question.destination.key] = described;
+    else secretValues[question.destination.key] = described;
   }
-  secretValues.OPENBOT_COMPUTER_SERVICE_API_KEY ??= randomBytes(32).toString("base64url");
+  await runInitializationProvisioning(selectedProviders, options.repositoryRoot, {
+    baseEnvironment: options.environment ?? process.env,
+    environmentValues,
+    request: options.request,
+    secretValues,
+  });
+  secretValues[COMPUTER_SERVICE_SECRET] ??= {
+    description: "Shared bearer key for computer-service RPC authentication.",
+    value: randomBytes(32).toString("base64url"),
+  };
+  secretValues[SECRETS_SOPS_AGE_SECRET] = {
+    description: "Age identity used by the trusted deployment sandbox to decrypt secrets.",
+    value: sandboxIdentity.identity,
+  };
+  environmentValues.AGENT_HELLO_WORLD_NAME = {
+    description: "Display name for the hello-world agent.",
+    value: "Hello World",
+  };
 
   const ownerAge = owner.creationRule.age;
   const creationRule: SopsCreationRule = {
     ...owner.creationRule,
     path_regex: "configuration/secrets\\.enc\\.yaml$",
+    encrypted_regex: "^value$",
     age: [sandboxIdentity.recipient, ...(Array.isArray(ownerAge) ? ownerAge : [])],
   };
-  const plaintext = stringifyYaml({
-    openbot: { sandbox: { sops_age_key: sandboxIdentity.identity } },
-    deployment_secrets: deploymentSecretValues,
-    secrets: secretValues,
-  });
+  const plaintext = stringifyYaml(secretValues);
   const encryptArguments = [
     "encrypt",
     ...sopsEncryptionArguments(creationRule),
@@ -247,25 +308,194 @@ export async function initializeOpenBot(options: InitializationOptions): Promise
     0o600,
   );
   await writeFileAtomically(secretsPath, await renderDocument(encrypted.stdout), 0o600);
-  await writeFileAtomically(
-    identityPath,
-    await renderDocument(
-      JSON.stringify(
-        { version: 1, ownerIdentity: owner.metadata } satisfies StoredIdentityMetadata,
-        null,
-        2,
-      ),
-    ),
-    0o600,
-  );
   await updateEnvironmentFile(environmentPath, environmentValues);
   await createConfiguration(
     resolve(configurationDirectory, "instrumentation.ts"),
     configurationAssets.instrumentation,
   );
-  await scaffoldAgent(options.repositoryRoot, "Hello World", { existing: "preserve" });
+  await scaffoldAgentTemplates(options.repositoryRoot);
+  await scaffoldPrimaryAgent(options.repositoryRoot, "Hello World", { existing: "preserve" });
   await rm(configurationIgnorePath, { force: true });
   await runner.run("vp", ["install"], { cwd: options.repositoryRoot });
+}
+
+export async function isInitializedOpenBotRepository(repositoryRoot: string): Promise<boolean> {
+  try {
+    await assertOpenBotRepositoryRoot(repositoryRoot);
+  } catch {
+    return false;
+  }
+  const configurationDirectory = resolve(repositoryRoot, "configuration");
+  const markers = await Promise.all(
+    [".sops.yaml", "secrets.enc.yaml"].map((name) => exists(resolve(configurationDirectory, name))),
+  );
+  return markers.every(Boolean);
+}
+
+async function reconfigureOpenBot(
+  options: InitializationOptions,
+  runner: InitializationCommandRunner,
+  paths: {
+    configurationPath: string;
+    environmentPath: string;
+    secretsPath: string;
+    sopsConfigPath: string;
+  },
+): Promise<void> {
+  const state = await loadExistingInitializationState(options, runner, paths);
+  const providers = await initializationProviders(
+    paths.configurationPath,
+    options.prompts,
+    state.providerEnvironment,
+  );
+  const questions = uniqueInitializationQuestions(
+    collectProviderInitializations(providers).flatMap((initialization) => initialization.questions),
+  );
+  const environmentValues: Record<string, DescribedValue> = {};
+  const removedEnvironmentNames = new Set<string>();
+
+  for (const question of questions) {
+    const secretName = repositorySecretName(question.destination.key);
+    const initialValue =
+      question.destination.kind === "environment"
+        ? state.environmentValues[question.destination.key]
+        : state.secretValues[secretName]?.value;
+    const value = await askProviderQuestion(options.prompts, question, initialValue);
+    if (question.destination.kind === "environment") {
+      if (value) {
+        environmentValues[question.destination.key] = {
+          description: question.description ?? question.prompt,
+          value,
+        };
+      } else {
+        removedEnvironmentNames.add(question.destination.key);
+      }
+      continue;
+    }
+    if (value) {
+      state.secretValues[secretName] = {
+        description: question.description ?? question.prompt,
+        value,
+      };
+    } else {
+      delete state.secretValues[secretName];
+    }
+  }
+
+  await runInitializationProvisioning(providers, options.repositoryRoot, {
+    baseEnvironment: options.environment ?? process.env,
+    environmentValues: {
+      ...Object.fromEntries(
+        Object.entries(state.environmentValues).map(([name, value]) => [
+          name,
+          { description: "Existing OpenBot environment value.", value },
+        ]),
+      ),
+      ...environmentValues,
+    },
+    secretValues: state.secretValues,
+    environmentUpdates: environmentValues,
+    request: options.request,
+  });
+
+  const encrypted = await encryptSecretsDocument(
+    runner,
+    options.repositoryRoot,
+    state.creationRule,
+    state.encryptionEnvironment,
+    state.secretValues,
+  );
+  await reconcileEnvironmentFile(paths.environmentPath, environmentValues, removedEnvironmentNames);
+  await writeFileAtomically(paths.secretsPath, await renderDocument(encrypted), 0o600);
+  await scaffoldAgentTemplates(options.repositoryRoot);
+  await scaffoldPrimaryAgent(options.repositoryRoot, "Hello World", { existing: "preserve" });
+  await runner.run("vp", ["install"], { cwd: options.repositoryRoot });
+}
+
+async function loadExistingInitializationState(
+  options: InitializationOptions,
+  runner: InitializationCommandRunner,
+  paths: { environmentPath: string; secretsPath: string; sopsConfigPath: string },
+): Promise<ExistingInitializationState> {
+  const environmentValues = await readEnvironmentFile(paths.environmentPath);
+  const encryptionEnvironment = await sopsCommandEnvironment(options.repositoryRoot, runner, {
+    environment: options.environment ?? process.env,
+    platform: options.platform ?? process.platform,
+    prompts: options.interactive === false ? undefined : options.prompts,
+    userConfigurationPath: options.userConfigurationPath,
+  });
+  const decrypted = await runner.run(
+    "sops",
+    ["decrypt", "--input-type", "yaml", "--output-type", "yaml", paths.secretsPath],
+    { cwd: options.repositoryRoot, environment: encryptionEnvironment },
+  );
+  const secretValues = parseDescribedSecretsDocument(parseYaml(decrypted.stdout) as unknown);
+  const sopsConfiguration = parseYaml(await readFile(paths.sopsConfigPath, "utf8")) as
+    | { creation_rules?: unknown }
+    | undefined;
+  const creationRule = Array.isArray(sopsConfiguration?.creation_rules)
+    ? sopsConfiguration.creation_rules[0]
+    : undefined;
+  if (!creationRule || typeof creationRule !== "object" || Array.isArray(creationRule))
+    throw new Error("configuration/.sops.yaml does not contain an OpenBot creation rule");
+
+  const resolvedSecrets: Record<string, string> = {};
+  for (const [name, described] of Object.entries(secretValues)) {
+    if (name === SECRETS_SOPS_AGE_SECRET) continue;
+    resolvedSecrets[runtimeSecretName(name)] = described.value;
+  }
+  return {
+    creationRule: creationRule as SopsCreationRule,
+    encryptionEnvironment,
+    environmentValues,
+    secretValues,
+    providerEnvironment: {
+      ...(options.environment ?? process.env),
+      ...environmentValues,
+      ...resolvedSecrets,
+    },
+  };
+}
+
+async function encryptSecretsDocument(
+  runner: InitializationCommandRunner,
+  repositoryRoot: string,
+  creationRule: SopsCreationRule,
+  environment: NodeJS.ProcessEnv,
+  values: Readonly<Record<string, DescribedValue>>,
+): Promise<string> {
+  const arguments_ = [
+    "encrypt",
+    ...sopsEncryptionArguments(creationRule),
+    "--filename-override",
+    "configuration/secrets.enc.yaml",
+    "--input-type",
+    "yaml",
+    "--output-type",
+    "yaml",
+  ];
+  const input = stringifyYaml(values);
+  const encrypted = runner.runWithInputFile
+    ? await runner.runWithInputFile("sops", arguments_, {
+        cwd: repositoryRoot,
+        environment,
+        input,
+      })
+    : await runner.run("sops", arguments_, { cwd: repositoryRoot, environment, input });
+  const encryptedDocument = parseYaml(encrypted.stdout) as
+    | ({ sops?: unknown } & Record<string, unknown>)
+    | undefined;
+  if (!encryptedDocument?.sops) throw new Error("SOPS returned an invalid encrypted configuration");
+  for (const [name, described] of Object.entries(values)) {
+    const encryptedEntry = encryptedDocument[name];
+    const encryptedValue =
+      encryptedEntry && typeof encryptedEntry === "object" && !Array.isArray(encryptedEntry)
+        ? (encryptedEntry as Record<string, unknown>).value
+        : undefined;
+    if (typeof encryptedValue !== "string" || encryptedValue === described.value)
+      throw new Error("SOPS returned plaintext in the encrypted configuration");
+  }
+  return encrypted.stdout;
 }
 
 async function assertOpenBotRepositoryRoot(repositoryRoot: string): Promise<void> {
@@ -295,25 +525,29 @@ export async function loadDeploymentConfiguration(
     runner?: InitializationCommandRunner;
     environment?: NodeJS.ProcessEnv;
     platform?: NodeJS.Platform;
+    prompts?: InitializationPrompts;
+    userConfigurationPath?: string;
   } = {},
-): Promise<{ environment: NodeJS.ProcessEnv; inputs: DeploymentResult }> {
+): Promise<{ environment: NodeJS.ProcessEnv; configuration: NodeJS.ProcessEnv }> {
   const runner = options.runner ?? processCommandRunner;
   const configurationDirectory = resolve(repositoryRoot, "configuration");
   const environmentPath = resolve(configurationDirectory, ".env");
   const secretsPath = resolve(configurationDirectory, "secrets.enc.yaml");
   const staticEnvironment = await readEnvironmentFile(environmentPath);
-  if (!(await exists(secretsPath)))
+  if (!(await exists(secretsPath))) {
+    const configuration = { ...staticEnvironment };
     return {
-      environment: { ...(options.environment ?? process.env), ...staticEnvironment },
-      inputs: { environmentVariables: staticEnvironment },
+      environment: { ...(options.environment ?? process.env), ...configuration },
+      configuration,
     };
+  }
 
-  const commandEnvironment = await sopsCommandEnvironment(
-    repositoryRoot,
-    runner,
-    options.environment ?? process.env,
-    options.platform ?? process.platform,
-  );
+  const commandEnvironment = await sopsCommandEnvironment(repositoryRoot, runner, {
+    environment: options.environment ?? process.env,
+    platform: options.platform ?? process.platform,
+    prompts: options.prompts,
+    userConfigurationPath: options.userConfigurationPath,
+  });
   const decrypted = await runner.run(
     "sops",
     ["decrypt", "--input-type", "yaml", "--output-type", "yaml", secretsPath],
@@ -324,24 +558,16 @@ export async function loadDeploymentConfiguration(
   );
   const document = parseYaml(decrypted.stdout) as unknown;
   const parsed = parseSecretsDocument(document);
-  const deploymentEnvironment = {
-    ...(options.environment ?? process.env),
+  const configuration = {
     ...staticEnvironment,
     ...parsed.secrets,
-    ...parsed.deploymentSecrets,
   };
-  delete deploymentEnvironment.SOPS_AGE_KEY;
-  delete deploymentEnvironment.SOPS_AGE_KEY_FILE;
-  delete deploymentEnvironment.SOPS_AGE_KEY_CMD;
-  return {
-    environment: deploymentEnvironment,
-    inputs: {
-      environmentVariables: staticEnvironment,
-      secrets: parsed.secrets,
-      deploymentSecrets: parsed.deploymentSecrets,
-      sandboxSecrets: { [SANDBOX_SOPS_AGE_KEY]: parsed.sandboxAgeIdentity },
-    },
+  const deploymentEnvironment = {
+    ...(options.environment ?? process.env),
+    ...configuration,
+    [SANDBOX_SOPS_AGE_KEY]: parsed.sandboxAgeIdentity,
   };
+  return { environment: deploymentEnvironment, configuration };
 }
 
 export async function setEncryptedSecret(
@@ -352,36 +578,61 @@ export async function setEncryptedSecret(
     runner?: InitializationCommandRunner;
     environment?: NodeJS.ProcessEnv;
     platform?: NodeJS.Platform;
-  } = {},
+    prompts?: InitializationPrompts;
+    userConfigurationPath?: string;
+    description: string;
+  },
 ): Promise<void> {
   validateSecretName(name);
   if (!value) throw new Error("Secret value must not be empty");
+  const description = requireDescription(options.description);
   const runner = options.runner ?? processCommandRunner;
-  const help = await runner.run("sops", ["set", "--help"], {
-    cwd: repositoryRoot,
+  const environment = await sopsCommandEnvironment(repositoryRoot, runner, {
     environment: options.environment ?? process.env,
+    platform: options.platform ?? process.platform,
+    prompts: options.prompts,
+    userConfigurationPath: options.userConfigurationPath,
   });
-  if (!help.stdout.includes("--value-stdin") && !help.stderr.includes("--value-stdin")) {
-    throw new Error(
-      "The installed SOPS does not support secure stdin values; install a current SOPS release",
-    );
-  }
-  const environment = await sopsCommandEnvironment(
-    repositoryRoot,
-    runner,
-    options.environment ?? process.env,
-    options.platform ?? process.platform,
-  );
-  await runner.run(
+  const secretsPath = resolve(repositoryRoot, "configuration/secrets.enc.yaml");
+  const decrypted = await runner.run(
     "sops",
-    [
-      "set",
-      "--value-stdin",
-      resolve(repositoryRoot, "configuration/secrets.enc.yaml"),
-      `["secrets"][${JSON.stringify(name)}]`,
-    ],
-    { cwd: repositoryRoot, environment, input: JSON.stringify(value) },
+    ["decrypt", "--input-type", "yaml", "--output-type", "yaml", secretsPath],
+    {
+      cwd: repositoryRoot,
+      environment,
+    },
   );
+  const values = parseDescribedSecretsDocument(parseYaml(decrypted.stdout) as unknown);
+  values[repositorySecretName(name)] = { description, value };
+  const encrypted = await encryptSecretsDocument(
+    runner,
+    repositoryRoot,
+    await readSopsCreationRule(repositoryRoot),
+    environment,
+    values,
+  );
+  await writeFileAtomically(secretsPath, await renderDocument(encrypted), 0o600);
+}
+
+export async function setEnvironmentValue(
+  repositoryRoot: string,
+  name: string,
+  value: string,
+  description: string,
+): Promise<void> {
+  validateSecretName(name);
+  if (!value) throw new Error("Environment value must not be empty");
+  await updateEnvironmentFile(resolve(repositoryRoot, "configuration/.env"), {
+    [name]: { description: requireDescription(description), value },
+  });
+}
+
+export async function unsetEnvironmentValue(repositoryRoot: string, name: string): Promise<void> {
+  validateSecretName(name);
+  const path = resolve(repositoryRoot, "configuration/.env");
+  const contents = await readFile(path, "utf8");
+  const pattern = new RegExp(`(?:^# [^\\n]*\\n)?^${name}=.*(?:\\n|$)`, "m");
+  await writeFileAtomically(path, contents.replace(pattern, ""), 0o600);
 }
 
 export async function unsetEncryptedSecret(
@@ -391,22 +642,24 @@ export async function unsetEncryptedSecret(
     runner?: InitializationCommandRunner;
     environment?: NodeJS.ProcessEnv;
     platform?: NodeJS.Platform;
+    prompts?: InitializationPrompts;
+    userConfigurationPath?: string;
   } = {},
 ): Promise<void> {
   validateSecretName(name);
   const runner = options.runner ?? processCommandRunner;
-  const environment = await sopsCommandEnvironment(
-    repositoryRoot,
-    runner,
-    options.environment ?? process.env,
-    options.platform ?? process.platform,
-  );
+  const environment = await sopsCommandEnvironment(repositoryRoot, runner, {
+    environment: options.environment ?? process.env,
+    platform: options.platform ?? process.platform,
+    prompts: options.prompts,
+    userConfigurationPath: options.userConfigurationPath,
+  });
   await runner.run(
     "sops",
     [
       "unset",
       resolve(repositoryRoot, "configuration/secrets.enc.yaml"),
-      `["secrets"][${JSON.stringify(name)}]`,
+      `[${JSON.stringify(repositorySecretName(name))}]`,
     ],
     { cwd: repositoryRoot, environment },
   );
@@ -441,7 +694,7 @@ async function configureOwnerIdentity(
       );
       return {
         creationRule: { kms: [arn] },
-        ...(profile ? { metadata: { kind: "aws-profile" as const, profile } } : {}),
+        metadata: { kind: "aws-profile", ...(profile ? { profile } : {}) },
       };
     }
     case "gcp-kms":
@@ -454,6 +707,7 @@ async function configureOwnerIdentity(
             }),
           ],
         },
+        metadata: { kind: "gcp-kms" },
       };
     case "azure-key-vault":
       return {
@@ -465,6 +719,7 @@ async function configureOwnerIdentity(
             }),
           ],
         },
+        metadata: { kind: "azure-key-vault" },
       };
     case "vault-transit":
       return {
@@ -476,6 +731,7 @@ async function configureOwnerIdentity(
             }),
           ],
         },
+        metadata: { kind: "vault-transit" },
       };
     case "onepassword": {
       const vault = await options.prompts.input("1Password vault", {
@@ -512,6 +768,7 @@ async function configureOwnerIdentity(
 async function askProviderQuestion(
   prompts: InitializationPrompts,
   question: ProviderInitializationQuestion,
+  initialValue?: string,
 ): Promise<string> {
   if (!/^[a-z][a-z0-9-]*$/.test(question.id))
     throw new Error(`Invalid provider initialization question id: ${question.id}`);
@@ -519,14 +776,19 @@ async function askProviderQuestion(
     throw new Error(`Invalid provider initialization destination: ${question.destination.key}`);
   if (question.input === "select" && !question.choices?.length)
     throw new Error(`Select question ${question.id} must define choices`);
+  const offeredValue = initialValue ?? question.defaultValue;
   const value =
     question.input === "select"
-      ? await prompts.select(question.prompt, question.choices ?? [], { id: question.id })
+      ? await prompts.select(question.prompt, question.choices ?? [], {
+          id: question.id,
+          initialValue: offeredValue,
+        })
       : await prompts.input(question.prompt, {
           id: question.id,
           description: question.description,
           secret: question.input === "secret",
           required: question.required,
+          initialValue: offeredValue,
         });
   if (value && question.validation && !new RegExp(question.validation.pattern).test(value))
     throw new Error(question.validation.message);
@@ -587,20 +849,160 @@ async function storeInNativeKeychain(
 
 async function loadStoredOwnerMetadata(
   repositoryRoot: string,
-): Promise<StoredIdentityMetadata["ownerIdentity"]> {
-  const path = resolve(repositoryRoot, "configuration/sops.identity.json");
+  environment: NodeJS.ProcessEnv,
+  prompts: InitializationPrompts | undefined,
+  platform: NodeJS.Platform,
+  userConfigurationPath?: string,
+): Promise<SopsOwnerIdentityConfiguration> {
+  const path = resolveUserConfigurationPath(environment, userConfigurationPath);
+  const configuration = await readUserConfiguration(path);
+  if (configuration?.sops?.ownerIdentity) return configuration.sops.ownerIdentity;
+
+  const creationRule = await readSopsCreationRule(repositoryRoot);
+  let ownerIdentity: SopsOwnerIdentityConfiguration;
+  if (creationRule.kms) {
+    if (!prompts) throw missingUserSopsConfigurationError(path);
+    const profile = await prompts.input(
+      "AWS profile for SOPS (leave blank to use the default credential chain)",
+      { id: "aws-profile" },
+    );
+    ownerIdentity = { kind: "aws-profile", ...(profile ? { profile } : {}) };
+  } else if (creationRule.gcp_kms) {
+    ownerIdentity = { kind: "gcp-kms" };
+  } else if (creationRule.azure_keyvault) {
+    ownerIdentity = { kind: "azure-key-vault" };
+  } else if (creationRule.hc_vault_transit_uri) {
+    ownerIdentity = { kind: "vault-transit" };
+  } else if (creationRule.age) {
+    if (!prompts) throw missingUserSopsConfigurationError(path);
+    const kind = await prompts.select(
+      "Where is this repository's existing SOPS owner age identity stored?",
+      [
+        {
+          value: "onepassword",
+          label: "1Password",
+          description: "Load the existing identity from a 1Password secret reference.",
+        },
+        {
+          value: "native-age",
+          label: "Native keychain",
+          description: "Load the existing identity from this computer's keychain.",
+        },
+      ],
+      { id: "existing-owner-identity" },
+    );
+    if (kind === "onepassword") {
+      const reference = await prompts.input("1Password secret reference", {
+        id: "onepassword-reference",
+        description: "For example: op://Engineering/OpenBot owner identity/password",
+        required: true,
+      });
+      ownerIdentity = { kind: "onepassword", reference };
+    } else {
+      if (platform !== "darwin" && platform !== "linux")
+        throw new Error(`Native keychain age identities are not supported on ${platform}`);
+      ownerIdentity = { kind: "native-keychain", platform };
+    }
+  } else {
+    throw new Error("configuration/.sops.yaml does not contain a supported owner identity");
+  }
+
+  await storeUserOwnerIdentity(ownerIdentity, environment, { path });
+  return ownerIdentity;
+}
+
+async function readSopsCreationRule(repositoryRoot: string): Promise<SopsCreationRule> {
+  const path = resolve(repositoryRoot, "configuration/.sops.yaml");
+  const document = parseYaml(await readFile(path, "utf8")) as
+    | { creation_rules?: unknown }
+    | undefined;
+  const rule = Array.isArray(document?.creation_rules) ? document.creation_rules[0] : undefined;
+  if (!rule || typeof rule !== "object" || Array.isArray(rule))
+    throw new Error("configuration/.sops.yaml does not contain an OpenBot creation rule");
+  return rule as SopsCreationRule;
+}
+
+function resolveUserConfigurationPath(
+  environment: NodeJS.ProcessEnv,
+  explicitPath?: string,
+): string {
+  if (explicitPath) return resolve(explicitPath);
+  const home = environment.HOME?.trim() || environment.USERPROFILE?.trim();
+  if (!home) throw new Error("Cannot locate ~/.openbot/config.json because HOME is not configured");
+  return resolve(home, ".openbot/config.json");
+}
+
+async function readUserConfiguration(path: string): Promise<UserConfiguration | undefined> {
   if (!(await exists(path))) return undefined;
-  const metadata = JSON.parse(await readFile(path, "utf8")) as StoredIdentityMetadata;
-  return metadata.ownerIdentity;
+  let value: unknown;
+  try {
+    value = JSON.parse(await readFile(path, "utf8"));
+  } catch (error) {
+    throw new Error(`OpenBot user configuration is invalid JSON: ${path}`, { cause: error });
+  }
+  if (!value || typeof value !== "object" || Array.isArray(value))
+    throw new Error(`OpenBot user configuration must be a JSON object: ${path}`);
+  const configuration = value as Partial<UserConfiguration>;
+  if (
+    configuration.version !== 1 ||
+    (configuration.sops !== undefined &&
+      (typeof configuration.sops !== "object" || Array.isArray(configuration.sops)))
+  )
+    throw new Error(`OpenBot user configuration has an unsupported schema: ${path}`);
+  if (
+    configuration.sops?.ownerIdentity !== undefined &&
+    !isSopsOwnerIdentityConfiguration(configuration.sops.ownerIdentity)
+  )
+    throw new Error(`OpenBot user SOPS configuration is invalid: ${path}`);
+  return configuration as UserConfiguration;
+}
+
+function isSopsOwnerIdentityConfiguration(value: unknown): value is SopsOwnerIdentityConfiguration {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const identity = value as Record<string, unknown>;
+  switch (identity.kind) {
+    case "onepassword":
+      return typeof identity.reference === "string" && Boolean(identity.reference.trim());
+    case "native-keychain":
+      return identity.platform === "darwin" || identity.platform === "linux";
+    case "aws-profile":
+      return identity.profile === undefined || typeof identity.profile === "string";
+    case "gcp-kms":
+    case "azure-key-vault":
+    case "vault-transit":
+      return true;
+    default:
+      return false;
+  }
+}
+
+async function storeUserOwnerIdentity(
+  ownerIdentity: SopsOwnerIdentityConfiguration,
+  environment: NodeJS.ProcessEnv,
+  options: { path?: string } = {},
+): Promise<void> {
+  const path = resolveUserConfigurationPath(environment, options.path);
+  const existing = (await readUserConfiguration(path)) ?? { version: 1, sops: {} };
+  const configuration: UserConfiguration = {
+    ...existing,
+    version: 1,
+    sops: { ...existing.sops, ownerIdentity },
+  };
+  await writeFileAtomically(path, `${JSON.stringify(configuration, null, 2)}\n`, 0o600);
+}
+
+function missingUserSopsConfigurationError(path: string): Error {
+  return new Error(
+    `SOPS owner configuration is missing from ${path}. Run openbot init in an interactive terminal to configure the existing owner identity; non-interactive commands cannot choose it safely.`,
+  );
 }
 
 async function loadStoredOwnerIdentity(
   repositoryRoot: string,
   runner: InitializationCommandRunner,
   platform: NodeJS.Platform,
-  metadata: Exclude<StoredIdentityMetadata["ownerIdentity"], { kind: "aws-profile" }> | undefined,
+  metadata: SopsOwnerIdentityConfiguration,
 ): Promise<string | undefined> {
-  if (!metadata) return undefined;
   if (metadata.kind === "onepassword") {
     return (
       await runner.run("op", ["read", "--no-newline", metadata.reference], {
@@ -608,6 +1010,7 @@ async function loadStoredOwnerIdentity(
       })
     ).stdout.trim();
   }
+  if (metadata.kind !== "native-keychain") return undefined;
   if (metadata.platform !== platform)
     throw new Error(
       `The configured SOPS identity belongs to ${metadata.platform}, not ${platform}`,
@@ -633,20 +1036,37 @@ async function loadStoredOwnerIdentity(
 async function sopsCommandEnvironment(
   repositoryRoot: string,
   runner: InitializationCommandRunner,
-  environment: NodeJS.ProcessEnv,
-  platform: NodeJS.Platform,
+  options: {
+    environment: NodeJS.ProcessEnv;
+    platform: NodeJS.Platform;
+    prompts?: InitializationPrompts;
+    userConfigurationPath?: string;
+  },
 ): Promise<NodeJS.ProcessEnv> {
-  const metadata = await loadStoredOwnerMetadata(repositoryRoot);
+  const hasAgeIdentity = Boolean(
+    options.environment.SOPS_AGE_KEY ||
+    options.environment.SOPS_AGE_KEY_FILE ||
+    options.environment.SOPS_AGE_KEY_CMD,
+  );
+  const creationRule = await readSopsCreationRule(repositoryRoot);
+  if (hasAgeIdentity && !creationRule.kms) return { ...options.environment };
+  const metadata = await loadStoredOwnerMetadata(
+    repositoryRoot,
+    options.environment,
+    options.prompts,
+    options.platform,
+    options.userConfigurationPath,
+  );
   const commandEnvironment =
-    metadata?.kind === "aws-profile"
-      ? await awsProfileEnvironment(runner, metadata.profile, repositoryRoot, environment)
-      : { ...environment };
+    metadata.kind === "aws-profile" && metadata.profile
+      ? await awsProfileEnvironment(runner, metadata.profile, repositoryRoot, options.environment)
+      : { ...options.environment };
   if (!commandEnvironment.SOPS_AGE_KEY) {
     const ownerIdentity = await loadStoredOwnerIdentity(
       repositoryRoot,
       runner,
-      platform,
-      metadata?.kind === "aws-profile" ? undefined : metadata,
+      options.platform,
+      metadata,
     );
     if (ownerIdentity) commandEnvironment.SOPS_AGE_KEY = ownerIdentity;
   }
@@ -660,33 +1080,46 @@ function validateSecretName(name: string): void {
 function parseSecretsDocument(value: unknown): {
   sandboxAgeIdentity: string;
   secrets: Record<string, string>;
-  deploymentSecrets: Record<string, string>;
 } {
+  const describedSecrets = parseDescribedSecretsDocument(value);
+  const secrets: Record<string, string> = {};
+  let sandboxAgeIdentity: string | undefined;
+  for (const [storedName, described] of Object.entries(describedSecrets)) {
+    if (storedName === SECRETS_SOPS_AGE_SECRET) {
+      if (!described.value.startsWith("AGE-SECRET-KEY-1"))
+        throw new Error(`${SECRETS_SOPS_AGE_SECRET} is not a valid age identity`);
+      sandboxAgeIdentity = described.value;
+    } else {
+      secrets[runtimeSecretName(storedName)] = described.value;
+    }
+  }
+  if (!sandboxAgeIdentity)
+    throw new Error(`Encrypted configuration is missing ${SECRETS_SOPS_AGE_SECRET}`);
+  return { sandboxAgeIdentity, secrets };
+}
+
+function parseDescribedSecretsDocument(value: unknown): Record<string, DescribedValue> {
   if (!value || typeof value !== "object" || Array.isArray(value))
     throw new Error("Invalid encrypted OpenBot secrets document");
   const root = value as Record<string, unknown>;
-  const openbot = root.openbot as Record<string, unknown> | undefined;
-  const sandbox = openbot?.sandbox as Record<string, unknown> | undefined;
-  if (
-    typeof sandbox?.sops_age_key !== "string" ||
-    !sandbox.sops_age_key.startsWith("AGE-SECRET-KEY-1")
-  ) {
-    throw new Error("Encrypted configuration is missing openbot.sandbox.sops_age_key");
-  }
-  const secrets = parseSecretMapping(root.secrets, "secret");
-  const deploymentSecrets = parseSecretMapping(root.deployment_secrets, "deployment secret");
-  return { sandboxAgeIdentity: sandbox.sops_age_key, secrets, deploymentSecrets };
-}
-
-function parseSecretMapping(value: unknown, kind: string): Record<string, string> {
-  const mapping = value ?? {};
-  if (!mapping || typeof mapping !== "object" || Array.isArray(mapping))
-    throw new Error(`Encrypted configuration ${kind}s must be a mapping`);
-  const result: Record<string, string> = {};
-  for (const [name, secret] of Object.entries(mapping as Record<string, unknown>)) {
-    if (!/^[A-Z][A-Z0-9_]*$/.test(name) || typeof secret !== "string" || !secret)
-      throw new Error(`Invalid encrypted ${kind}: ${name}`);
-    result[name] = secret;
+  const result: Record<string, DescribedValue> = {};
+  for (const [storedName, entry] of Object.entries(root)) {
+    if (storedName === "sops") continue;
+    validateSecretName(storedName);
+    if (!entry || typeof entry !== "object" || Array.isArray(entry))
+      throw new Error(`Encrypted secret ${storedName} must contain description and value`);
+    const described = entry as Record<string, unknown>;
+    if (
+      typeof described.description !== "string" ||
+      !described.description.trim() ||
+      typeof described.value !== "string" ||
+      !described.value
+    )
+      throw new Error(`Invalid encrypted secret: ${storedName}`);
+    result[storedName] = {
+      description: described.description,
+      value: described.value,
+    };
   }
   return result;
 }
@@ -698,6 +1131,7 @@ function sopsEncryptionArguments(rule: SopsCreationRule): string[] {
     gcp_kms: "--gcp-kms",
     azure_keyvault: "--azure-kv",
     hc_vault_transit_uri: "--hc-vault-transit",
+    encrypted_regex: "--encrypted-regex",
   };
   const arguments_: string[] = [];
   for (const [name, value] of Object.entries(rule)) {
@@ -710,11 +1144,11 @@ function sopsEncryptionArguments(rule: SopsCreationRule): string[] {
 
 async function sopsEncryptionEnvironment(
   runner: InitializationCommandRunner,
-  metadata: StoredIdentityMetadata["ownerIdentity"],
+  metadata: SopsOwnerIdentityConfiguration,
   cwd: string,
   environment: NodeJS.ProcessEnv,
 ): Promise<NodeJS.ProcessEnv> {
-  if (metadata?.kind !== "aws-profile") return environment;
+  if (metadata.kind !== "aws-profile" || !metadata.profile) return environment;
   return awsProfileEnvironment(runner, metadata.profile, cwd, environment);
 }
 
@@ -752,10 +1186,14 @@ async function awsProfileEnvironment(
 
   const commandEnvironment: NodeJS.ProcessEnv = {
     ...environment,
-    AWS_PROFILE: profile,
     AWS_ACCESS_KEY_ID: values.AccessKeyId,
     AWS_SECRET_ACCESS_KEY: values.SecretAccessKey,
   };
+  // Static credentials must be the only selected AWS source. Some AWS SDKs,
+  // including the version embedded in older SOPS releases, prefer a named SSO
+  // profile even when fresher exported credentials are present.
+  delete commandEnvironment.AWS_PROFILE;
+  delete commandEnvironment.AWS_DEFAULT_PROFILE;
   delete commandEnvironment.AWS_SESSION_TOKEN;
   delete commandEnvironment.AWS_SECURITY_TOKEN;
   if (typeof values.SessionToken === "string")
@@ -769,7 +1207,10 @@ async function assertSopsEncryptionWorks(
   cwd: string,
   environment: NodeJS.ProcessEnv,
 ): Promise<void> {
-  const proof = `openbot_sops_test: ${randomBytes(16).toString("hex")}\n`;
+  const proofValue = randomBytes(16).toString("hex");
+  const proof = stringifyYaml({
+    SOPS_TEST: { description: "SOPS encryption test.", value: proofValue },
+  });
   const arguments_ = [
     "encrypt",
     ...sopsEncryptionArguments(creationRule),
@@ -798,7 +1239,7 @@ async function assertSopsEncryptionWorks(
     );
   }
   const encryptedDocument = parseYaml(encrypted.stdout) as { sops?: unknown } | undefined;
-  if (!encryptedDocument?.sops || encrypted.stdout.includes(proof.trim()))
+  if (!encryptedDocument?.sops || encrypted.stdout.includes(proofValue))
     throw new Error("SOPS encryption test failed: SOPS returned an invalid encrypted document");
 }
 
@@ -834,60 +1275,118 @@ async function createConfiguration(path: string, asset: string): Promise<void> {
 async function initializationProviders(
   path: string,
   prompts: InitializationPrompts,
+  environment?: NodeJS.ProcessEnv,
 ): Promise<readonly InitializableProvider[]> {
   if (await exists(path)) {
-    const module = (await import(pathToFileURL(path).href)) as { default?: OpenBotConfiguration };
+    const module = await importConfiguredOpenBot(
+      path,
+      initializationDiscoveryEnvironment(environment ?? process.env),
+    );
     if (!module.default)
       throw new Error("configuration/index.ts must export the OpenBot configuration as default");
-    return configuredProviders(module.default);
+    return configuredInitializationProviders(module.default);
   }
-  const runtime = await prompts.select(
-    "Where do you want to deploy OpenBot?",
-    [
-      {
-        value: "local",
-        label: "Local",
-        description: "Run OpenBot as user services on this computer.",
-      },
-      {
-        value: "vercel",
-        label: "Vercel",
-        description: "Deploy control and agent services as separate Vercel projects.",
-      },
-    ],
-    { id: "runtime" },
-  );
+  const runtime = await prompts.select("Where do you want to deploy OpenBot?", runtimeChoices, {
+    id: "runtime",
+  });
   if (runtime === "local") {
     await createConfiguration(path, configurationAssets.local);
-    await createConfiguration(
-      resolve(dirname(path), "runtime-providers.ts"),
-      configurationAssets.localRuntime,
-    );
-    return applicationInitializationProviders(
-      new LocalControlServiceProvider(),
-      new LocalAgentServiceProvider(),
-      new MicrosandboxComputerProvider(),
-    );
+    return builtInRuntimeInitializationProviders(runtime);
   }
   if (runtime === "vercel") {
     await createConfiguration(path, configurationAssets.vercel);
-    await createConfiguration(
-      resolve(dirname(path), "runtime-providers.ts"),
-      configurationAssets.vercelRuntime,
-    );
-    return applicationInitializationProviders(
-      new VercelControlServiceProvider(),
-      new VercelAgentServiceProvider(),
-      new VercelSandboxComputerProvider(),
-    );
+    return builtInRuntimeInitializationProviders(runtime);
   }
   throw new Error(`Unsupported runtime provider: ${runtime}`);
+}
+
+function initializationDiscoveryEnvironment(environment: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+  const result = { ...environment };
+  const providers = [
+    ...builtInRuntimeInitializationProviders("local"),
+    ...builtInRuntimeInitializationProviders("vercel"),
+  ];
+  for (const initialization of collectProviderInitializations(providers)) {
+    for (const question of initialization.questions) {
+      result[question.destination.key] ??= `openbot-initialization-${question.id}`;
+    }
+  }
+  return result;
+}
+
+async function importConfiguredOpenBot(
+  path: string,
+  environment: NodeJS.ProcessEnv,
+): Promise<{ default?: OpenBotConfiguration }> {
+  return loadConfigurationModule(path, environment);
+}
+
+export function builtInRuntimeInitializationProviders(
+  runtime: "local" | "vercel",
+): readonly InitializableProvider[] {
+  return runtime === "local"
+    ? applicationInitializationProviders(
+        new LocalControlServiceProvider(),
+        new LocalAgentServiceProvider(),
+        new MicrosandboxComputerProvider(),
+      )
+    : applicationInitializationProviders(
+        new VercelControlServiceProvider(),
+        new VercelAgentServiceProvider(),
+        new VercelSandboxComputerProvider(),
+      );
 }
 
 function applicationInitializationProviders(
   ...runtimeProviders: InitializableProvider[]
 ): InitializableProvider[] {
-  return runtimeProviders;
+  return [
+    ...runtimeProviders,
+    new TildeAuthProvider(tildePlatform),
+    {
+      platforms: [tildePlatform],
+      initialization: tildeAgentProviderInitialization,
+    },
+    new VercelInferenceProvider(),
+  ];
+}
+
+async function runInitializationProvisioning(
+  providers: readonly InitializableProvider[],
+  repositoryRoot: string,
+  values: {
+    baseEnvironment: NodeJS.ProcessEnv;
+    environmentValues: Record<string, DescribedValue>;
+    secretValues: Record<string, DescribedValue>;
+    environmentUpdates?: Record<string, DescribedValue>;
+    request?: typeof fetch;
+  },
+): Promise<void> {
+  const environment = {
+    ...values.baseEnvironment,
+    ...Object.fromEntries(
+      Object.entries(values.environmentValues).map(([name, described]) => [name, described.value]),
+    ),
+    ...Object.fromEntries(
+      Object.entries(values.secretValues).map(([name, described]) => [
+        runtimeSecretName(name),
+        described.value,
+      ]),
+    ),
+  };
+  await initializeProviders(providers, {
+    repositoryRoot,
+    environment,
+    request: values.request,
+    async setEnvironment(name, value, description) {
+      (values.environmentUpdates ?? values.environmentValues)[name] = { description, value };
+      environment[name] = value;
+    },
+    async setSecret(name, value, description) {
+      values.secretValues[repositorySecretName(name)] = { description, value };
+      environment[name] = value;
+    },
+  });
 }
 
 function uniqueInitializationQuestions(
@@ -909,35 +1408,94 @@ function uniqueInitializationQuestions(
 
 function configuredProviders(configuration: OpenBotConfiguration): InitializableProvider[] {
   const providers: Array<InitializableProvider | undefined> = [
+    configuration.providers.auth,
     configuration.providers.controlService,
     configuration.providers.agentService,
     configuration.providers.agent,
     configuration.providers.computer,
-    configuration.providers.inferenceModel,
-    configuration.providers.skills,
-    configuration.providers.tools,
+    configuration.providers.inference,
   ];
   return providers.filter((provider): provider is InitializableProvider => provider !== undefined);
 }
 
+function configuredInitializationProviders(
+  configuration: OpenBotConfiguration,
+): InitializableProvider[] {
+  return configuredProviders(configuration).map(compatibleInitializationProvider);
+}
+
+function compatibleInitializationProvider(provider: InitializableProvider): InitializableProvider {
+  if (provider.platforms?.length) return provider;
+
+  switch (constructorName(provider)) {
+    case "VercelControlServiceProvider":
+      return new VercelControlServiceProvider();
+    case "VercelAgentServiceProvider":
+      return new VercelAgentServiceProvider();
+    case "VercelSandboxComputerProvider":
+      return new VercelSandboxComputerProvider();
+    case "TildeAgentProvider":
+      return { platforms: [tildePlatform] };
+    default:
+      return provider;
+  }
+}
+
+function constructorName(value: unknown): string | undefined {
+  if (!value || typeof value !== "object") return undefined;
+  const provider = value as InitializableProvider;
+  return provider.constructor?.name;
+}
+
 async function updateEnvironmentFile(
   path: string,
-  values: Readonly<Record<string, string>>,
+  values: Readonly<Record<string, DescribedValue>>,
 ): Promise<void> {
   let contents = await readFile(path, "utf8");
-  for (const [name, value] of Object.entries(values)) {
+  for (const [name, described] of Object.entries(values)) {
     const line = (
       await renderFileTemplatePath(fileTemplates.environmentEntry, {
         NAME: name,
-        VALUE: JSON.stringify(value),
+        DESCRIPTION: described.description,
+        VALUE: JSON.stringify(described.value),
       })
     ).trimEnd();
-    const pattern = new RegExp(`^${name}=.*$`, "m");
+    const pattern = new RegExp(`(?:^# [^\\n]*\\n)?^${name}=.*$`, "m");
     contents = pattern.test(contents)
       ? contents.replace(pattern, line)
       : `${contents}${contents && !contents.endsWith("\n") ? "\n" : ""}${line}\n`;
   }
   await writeFileAtomically(path, contents, 0o600);
+}
+
+async function reconcileEnvironmentFile(
+  path: string,
+  values: Readonly<Record<string, DescribedValue>>,
+  removedNames: ReadonlySet<string>,
+): Promise<void> {
+  let contents = await readFile(path, "utf8");
+  for (const name of removedNames) {
+    validateSecretName(name);
+    const pattern = new RegExp(`(?:^# [^\\n]*\\n)?^${name}=.*(?:\\n|$)`, "m");
+    contents = contents.replace(pattern, "");
+  }
+  await writeFileAtomically(path, contents, 0o600);
+  await updateEnvironmentFile(path, values);
+}
+
+function repositorySecretName(name: string): string {
+  return name === COMPUTER_SERVICE_ENVIRONMENT ? COMPUTER_SERVICE_SECRET : name;
+}
+
+function runtimeSecretName(name: string): string {
+  return name === COMPUTER_SERVICE_SECRET ? COMPUTER_SERVICE_ENVIRONMENT : name;
+}
+
+function requireDescription(description: string): string {
+  const selected = description.trim();
+  if (!selected) throw new Error("Description must not be empty");
+  if (/\r|\n/.test(selected)) throw new Error("Description must be a single line");
+  return selected;
 }
 
 async function renderDocument(contents: string): Promise<string> {

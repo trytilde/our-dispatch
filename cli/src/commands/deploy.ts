@@ -1,9 +1,7 @@
 import { resolve } from "node:path";
-import { pathToFileURL } from "node:url";
 import arg from "arg";
-import { AgentProviderError, type AgentProvider } from "@tryopenbot/agent-provider";
 import type { OpenBotConfiguration } from "@tryopenbot/configuration";
-import { discoverAgents, discoverAgentWorkspaces } from "@tryopenbot/agent-service-provider";
+import { discoverAgentWorkspaces } from "@tryopenbot/agent-service-provider";
 import {
   buildProviders,
   deployProviders,
@@ -11,8 +9,11 @@ import {
   type DeploymentEvent,
   type DeploymentParticipant,
 } from "@tryopenbot/runtime-provider";
-import { loadDeploymentConfiguration, setEncryptedSecret } from "../initialization.js";
+import { reconcileAgentResources, repositoryDeploymentPersistence } from "../agent-lifecycle.js";
+import { loadDeploymentConfiguration } from "../initialization.js";
+import { loadConfigurationModule } from "../configuration-loader.js";
 import { repositoryRoot } from "../paths.js";
+import { inkPrompts } from "./init.js";
 
 export interface DeployOptions {
   yes: boolean;
@@ -69,27 +70,29 @@ export async function runProductionDeploy(argv: readonly string[]): Promise<void
 
   const deploymentConfiguration = await loadDeploymentConfiguration(repositoryRoot, {
     environment: process.env,
+    prompts: process.stdin.isTTY && process.stdout.isTTY ? inkPrompts : undefined,
   });
   Object.assign(process.env, deploymentConfiguration.environment);
   const configuration = await loadRepositoryConfiguration();
   const agentService = configuration.providers.agentService;
   const controlService = configuration.providers.controlService;
+  const auth = configuration.providers.auth;
   const computer = configuration.providers.computer;
   const deployAgents = options.service === "all" || options.service === "agents";
-  const computerId =
-    deploymentConfiguration.environment.OPENBOT_COMPUTER_ID?.trim() || "openbot-computer";
+  const computerId = deploymentConfiguration.environment.COMPUTER_ID?.trim() || "openbot-computer";
   const developmentSandboxId =
-    deploymentConfiguration.environment.OPENBOT_DEVELOPMENT_SANDBOX_ID?.trim() ||
-    "openbot-development";
+    deploymentConfiguration.environment.DEVELOPMENT_SANDBOX_ID?.trim() || "openbot-development";
   const participants: DeploymentParticipant[] = [
     ...(options.service === "all" && computer ? [{ id: "computer", provider: computer }] : []),
     ...(deployAgents && computer
       ? [
           {
             id: "agent-workspaces",
+            implementation: computer,
+            providerType: "Computer Provider",
             provider: {
               deployable: {
-                plan: async () => ({
+                plan: async (_context: DeploymentContext) => ({
                   summary: "Seed populated agent directories on the shared computer",
                   steps: ["Copy seeds to /workspace/<agent-id>", "Skip directories already seeded"],
                 }),
@@ -107,26 +110,12 @@ export async function runProductionDeploy(argv: readonly string[]): Promise<void
         ]
       : []),
     ...(deployAgents
-      ? [{ id: "agent-service", provider: { buildable: agentService, deployable: agentService } }]
-      : []),
-    ...(deployAgents
       ? [
           {
-            id: "agent-registration",
-            provider: {
-              deployable: {
-                plan: async () => ({
-                  summary: "Register configured agent entrypoints",
-                  steps: [
-                    "Create missing provider agents",
-                    "Update stable endpoint URLs",
-                    "Persist newly issued endpoint credentials in SOPS",
-                  ],
-                }),
-                deploy: async (context: DeploymentContext) =>
-                  configureAgentRegistrations(configuration.providers.agent, context),
-              },
-            },
+            id: "agent-service",
+            implementation: agentService,
+            providerType: "Agent Service Provider",
+            provider: { buildable: agentService, deployable: agentService },
           },
         ]
       : []),
@@ -135,9 +124,11 @@ export async function runProductionDeploy(argv: readonly string[]): Promise<void
           {
             id: "development-sandbox",
             role: "sandbox" as const,
+            implementation: computer,
+            providerType: "Computer Provider",
             provider: {
               deployable: {
-                plan: async () => ({
+                plan: async (_context: DeploymentContext) => ({
                   summary: "Seed or resume the trusted OpenBot development sandbox",
                   steps: [
                     "Preserve its mutable source tree",
@@ -157,17 +148,34 @@ export async function runProductionDeploy(argv: readonly string[]): Promise<void
           {
             id: "control-service",
             role: "runtime" as const,
+            implementation: controlService,
+            providerType: "Control Service Provider",
             provider: { buildable: controlService, deployable: controlService },
           },
         ]
       : []),
+    ...(options.service === "all" || options.service === "control"
+      ? [
+          {
+            id: "auth",
+            implementation: auth,
+            providerType: "Auth Provider",
+            provider: auth,
+          },
+        ]
+      : []),
   ];
+  const persistence = repositoryDeploymentPersistence({
+    repositoryRoot,
+    environment: deploymentConfiguration.environment,
+  });
   const runOptions = {
-    target: "production",
+    devMode: false,
     dryRun: options.dryRun,
     repositoryRoot,
     environment: deploymentConfiguration.environment,
-    initialInputs: deploymentConfiguration.inputs,
+    configuration: deploymentConfiguration.configuration,
+    persistence,
     report,
   } as const;
   const built = await buildProviders(participants, runOptions);
@@ -175,61 +183,24 @@ export async function runProductionDeploy(argv: readonly string[]): Promise<void
     report({ event: "build.complete", details: { deploySkipped: true } });
     return;
   }
-  await deployProviders(participants, { ...runOptions, initialInputs: built.result() });
-}
-
-export async function configureAgentRegistrations(
-  agentProvider: AgentProvider,
-  context: DeploymentContext,
-  persistSecret: (name: string, value: string) => Promise<void> = (name, value) =>
-    setEncryptedSecret(context.repositoryRoot, name, value, { environment: context.environment }),
-) {
-  const origin = context.inputs.require("agent-service.origin");
-  const secrets: Record<string, string> = {};
-  for (const agent of await discoverAgents(context.repositoryRoot)) {
-    const prefix = agent.slug.replaceAll("-", "_").toUpperCase();
-    const apiKeyName = `OPENBOT_AGENT_${prefix}_API_KEY`;
-    const webhookKeyName = `OPENBOT_AGENT_${prefix}_WEBHOOK_SIGNING_KEY`;
-    const endpointUrl = new URL(`/api/agents/${agent.slug}`, `${origin}/`);
-    try {
-      await agentProvider.getAgent(agent.slug, { requestId: `deploy:agent:${agent.slug}` });
-      if (!context.inputs.secrets()[apiKeyName] || !context.inputs.secrets()[webhookKeyName]) {
-        throw new Error(
-          `Agent ${agent.slug} already exists but its endpoint credentials are missing from encrypted configuration`,
-        );
-      }
-      await agentProvider.updateAgent(
-        agent.slug,
-        { displayName: agent.slug, endpointUrl, enabled: true },
-        { requestId: `deploy:agent:${agent.slug}:update` },
-      );
-    } catch (error) {
-      if (!(error instanceof AgentProviderError) || error.code !== "not_found") throw error;
-      const registered = await agentProvider.registerAgent(
-        {
-          id: agent.slug,
-          displayName: agent.slug,
-          endpointUrl,
-          streaming: true,
-          timeoutMs: 300_000,
-        },
-        {
-          requestId: `deploy:agent:${agent.slug}:register`,
-          idempotencyKey: `openbot-agent:${agent.slug}`,
-        },
-      );
-      secrets[apiKeyName] = registered.credentials.apiKey;
-      secrets[webhookKeyName] = registered.credentials.webhookSigningKey;
-      await persistSecret(apiKeyName, registered.credentials.apiKey);
-      await persistSecret(webhookKeyName, registered.credentials.webhookSigningKey);
-    }
-  }
-  return Object.keys(secrets).length ? { secrets } : undefined;
+  if (deployAgents && !options.dryRun)
+    await reconcileAgentResources({
+      repositoryRoot,
+      environment: deploymentConfiguration.environment,
+      configuration: deploymentConfiguration.configuration,
+      providers: configuration.providers,
+      devMode: false,
+      report,
+    });
+  await deployProviders(participants, {
+    ...runOptions,
+    initialInputs: built.result(),
+  });
 }
 
 async function loadRepositoryConfiguration(): Promise<OpenBotConfiguration> {
   const path = resolve(repositoryRoot, "configuration/index.ts");
-  const module = (await import(pathToFileURL(path).href)) as { default?: OpenBotConfiguration };
+  const module = await loadConfigurationModule<{ default?: OpenBotConfiguration }>(path);
   if (!module.default)
     throw new Error("configuration/index.ts must export the OpenBot configuration as default");
   return module.default;

@@ -1,7 +1,16 @@
 import type { Sandbox as VercelSandbox } from "@vercel/sandbox";
+import { VercelPlatform, vercelPlatform } from "@tryopenbot/platform-integrations";
+import {
+  resolveVercelProjectCredentials,
+  resolveVercelRegistryIdentity,
+  VercelPlatformError,
+  type VercelProjectCredentials,
+  type VercelRegistryIdentity,
+} from "@tryopenbot/platform-integrations/vercel/registry";
 import {
   ComputerProviderError,
   type ComputerCallContext,
+  type ComputerProvider,
   type ComputerExecRequest,
   type ComputerHandle,
   type ComputerImageSpec,
@@ -17,36 +26,52 @@ import {
   type ComputerImageDeploymentConfig,
 } from "../base/index.js";
 import { computerServiceApiKey, scopedCapability } from "../capability.js";
+import { MicrosandboxComputerProvider } from "../microsandbox/index.js";
 
-interface VercelSandboxComputerProviderOptions extends ComputerImageDeploymentConfig {
+export interface VercelSandboxComputerProviderOptions extends ComputerImageDeploymentConfig {
+  platform?: VercelPlatform;
   request?: typeof fetch;
-}
-
-interface VercelRegistryIdentity {
-  repository: string;
-  username: string;
+  /** Local implementation used whenever the lifecycle runs in development mode. */
+  developmentProvider?: ComputerProvider;
 }
 
 export class VercelSandboxComputerProvider extends BaseComputerProvider {
+  readonly platform: VercelPlatform;
+  readonly platforms: readonly VercelPlatform[];
   protected readonly providerId = "vercel-sandbox";
-  protected readonly deployedImageEnvironmentVariable = "OPENBOT_VERCEL_COMPUTER_IMAGE";
+  protected readonly deployedImageEnvironmentVariable = "VERCEL_COMPUTER_IMAGE";
 
   readonly #instances = new Map<string, VercelSandbox>();
   readonly #handles = new Map<string, ComputerHandle>();
   readonly #specs = new Map<string, ComputerSpec>();
   readonly #configuredRepository: string | undefined;
   readonly #request: typeof fetch;
+  readonly #developmentProvider: ComputerProvider;
   #registryIdentity: Promise<VercelRegistryIdentity> | undefined;
+  #sandboxCredentials: Promise<VercelProjectCredentials> | undefined;
 
   constructor(options: VercelSandboxComputerProviderOptions = {}) {
-    const { request, ...imageDeployment } = options;
+    const { platform, request, developmentProvider, ...imageDeployment } = options;
     super(imageDeployment, {
       publish: true,
       buildxPlatform: "linux/amd64",
       managedRepository: true,
     });
+    this.platform = platform ?? vercelPlatform;
+    this.platforms = [this.platform];
     this.#configuredRepository = imageDeployment.repository;
     this.#request = request ?? fetch;
+    this.#developmentProvider = developmentProvider ?? new MicrosandboxComputerProvider();
+  }
+
+  protected override lifecycleDelegate(context: DeploymentContext): ComputerProvider | undefined {
+    return context.devMode ? this.#developmentProvider : undefined;
+  }
+
+  override async previewAgentDesktop(agentId: string, context: ComputerCallContext) {
+    if (context.devMode)
+      return await this.#developmentProvider.previewAgentDesktop(agentId, context);
+    return await super.previewAgentDesktop(agentId, context);
   }
 
   protected async imageRepository(
@@ -65,7 +90,7 @@ export class VercelSandboxComputerProvider extends BaseComputerProvider {
     callContext: ComputerCallContext,
   ): Promise<void> {
     if (this.#configuredRepository) return;
-    const token = context.inputs.deploymentSecrets().VERCEL_TOKEN;
+    const token = context.environment.VERCEL_TOKEN;
     if (!token)
       throw new ComputerProviderError(
         "invalid_configuration",
@@ -80,7 +105,30 @@ export class VercelSandboxComputerProvider extends BaseComputerProvider {
   }
 
   #vercelRegistryIdentity(context: DeploymentContext): Promise<VercelRegistryIdentity> {
-    return (this.#registryIdentity ??= resolveVercelRegistryIdentity(context, this.#request));
+    return (this.#registryIdentity ??= resolveVercelRegistryIdentity({
+      token: context.environment.VERCEL_TOKEN,
+      project: context.environment.VERCEL_AGENT_PROJECT,
+      teamId: context.environment.VERCEL_TEAM_ID,
+      request: this.#request,
+    }).catch((error: unknown) => {
+      if (error instanceof VercelPlatformError)
+        throw new ComputerProviderError(error.code, error.message);
+      throw error;
+    }));
+  }
+
+  #vercelSandboxCredentials(context?: ComputerCallContext): Promise<VercelProjectCredentials> {
+    const environment = context?.environment ?? process.env;
+    return (this.#sandboxCredentials ??= resolveVercelProjectCredentials({
+      token: environment.VERCEL_TOKEN,
+      project: environment.VERCEL_AGENT_PROJECT,
+      teamId: environment.VERCEL_TEAM_ID,
+      request: this.#request,
+    }).catch((error: unknown) => {
+      if (error instanceof VercelPlatformError)
+        throw new ComputerProviderError(error.code, error.message);
+      throw error;
+    }));
   }
 
   async create(spec: ComputerSpec, context: ComputerCallContext): Promise<ComputerHandle> {
@@ -88,13 +136,14 @@ export class VercelSandboxComputerProvider extends BaseComputerProvider {
     if (this.#handles.has(id))
       throw new ComputerProviderError("invalid_configuration", `Computer ${id} already exists`);
     const { Sandbox } = await import("@vercel/sandbox");
-    const image = spec.image ?? process.env.OPENBOT_VERCEL_COMPUTER_IMAGE;
+    const image = spec.image ?? process.env.VERCEL_COMPUTER_IMAGE;
     if (!image)
       throw new ComputerProviderError(
         "invalid_configuration",
-        "Deploy the Vercel computer provider or set OPENBOT_VERCEL_COMPUTER_IMAGE before creating a computer",
+        "Deploy the Vercel computer provider or set VERCEL_COMPUTER_IMAGE before creating a computer",
       );
     const sandbox = await Sandbox.create({
+      ...(await this.#vercelSandboxCredentials(context)),
       name: id,
       image,
       ports: [6080, 4101],
@@ -125,10 +174,10 @@ export class VercelSandboxComputerProvider extends BaseComputerProvider {
     return handle;
   }
 
-  async get(id: string, _context: ComputerCallContext): Promise<ComputerHandle> {
+  async get(id: string, context: ComputerCallContext): Promise<ComputerHandle> {
     const handle = this.#handles.get(id);
     if (handle) return handle;
-    const sandbox = await this.#attach(id);
+    const sandbox = await this.#attach(id, context);
     const state =
       sandbox.status === "running" || sandbox.status === "pending"
         ? "running"
@@ -149,7 +198,7 @@ export class VercelSandboxComputerProvider extends BaseComputerProvider {
   async wake(id: string, context: ComputerCallContext): Promise<ComputerHandle> {
     const current = await this.get(id, context);
     if (current.state === "running") return current;
-    const sandbox = await this.#attach(id);
+    const sandbox = await this.#attach(id, context);
     const spec = this.#specs.get(id) ?? {};
     await runSpecLifecycle(sandbox, spec, "wake", context);
     await startComputer(sandbox, id, spec, context);
@@ -160,7 +209,7 @@ export class VercelSandboxComputerProvider extends BaseComputerProvider {
 
   async sleep(id: string, context: ComputerCallContext): Promise<ComputerHandle> {
     const current = await this.get(id, context);
-    const sandbox = await this.#attach(id);
+    const sandbox = await this.#attach(id, context);
     await sandbox.stop();
     this.#instances.delete(id);
     const sleeping = { ...current, state: "sleeping" as const };
@@ -170,7 +219,7 @@ export class VercelSandboxComputerProvider extends BaseComputerProvider {
 
   async delete(id: string, context: ComputerCallContext): Promise<void> {
     await this.get(id, context);
-    const sandbox = await this.#attach(id);
+    const sandbox = await this.#attach(id, context);
     await sandbox.delete();
     this.#instances.delete(id);
     this.#handles.delete(id);
@@ -180,7 +229,7 @@ export class VercelSandboxComputerProvider extends BaseComputerProvider {
   async exec(id: string, request: ComputerExecRequest, context: ComputerCallContext) {
     const scoped = scopeComputerExecRequest(request, context.agentId);
     const output = await (
-      await this.#attach(id)
+      await this.#attach(id, context)
     ).runCommand({
       cmd: scoped.command,
       args: [...(scoped.args ?? [])],
@@ -198,7 +247,7 @@ export class VercelSandboxComputerProvider extends BaseComputerProvider {
 
   async readFile(id: string, path: string, _context: ComputerCallContext): Promise<Uint8Array> {
     const content = await (
-      await this.#attach(id)
+      await this.#attach(id, _context)
     ).readFileToBuffer({ path: computerWorkspacePath(path, _context.agentId) });
     if (!content)
       throw new ComputerProviderError("not_found", `Computer file ${path} was not found`);
@@ -212,18 +261,24 @@ export class VercelSandboxComputerProvider extends BaseComputerProvider {
     _context: ComputerCallContext,
   ): Promise<void> {
     await (
-      await this.#attach(id)
+      await this.#attach(id, _context)
     ).writeFiles([
       { path: computerWorkspacePath(path, _context.agentId), content: Buffer.from(content) },
     ]);
   }
 
   async screenshot(id: string, context: ComputerCallContext): Promise<Uint8Array> {
+    if (!context.agentId)
+      throw new ComputerProviderError(
+        "invalid_configuration",
+        "agentId is required for screenshots",
+      );
+    const desktop = await this.ensureAgentDesktop(id, context.agentId, context);
     const result = await this.exec(
       id,
       {
         command: "import",
-        args: ["-display", ":1", "-window", "root", "/tmp/openbot-screenshot.png"],
+        args: ["-display", desktop.display, "-window", "root", "/tmp/openbot-screenshot.png"],
       },
       context,
     );
@@ -233,7 +288,7 @@ export class VercelSandboxComputerProvider extends BaseComputerProvider {
         `Screenshot failed: ${result.stderr}`,
       );
     const content = await (
-      await this.#attach(id)
+      await this.#attach(id, context)
     ).readFileToBuffer({ path: "/tmp/openbot-screenshot.png" });
     if (!content)
       throw new ComputerProviderError("provider_unavailable", "Screenshot output was not created");
@@ -241,9 +296,16 @@ export class VercelSandboxComputerProvider extends BaseComputerProvider {
   }
 
   async input(id: string, input: ComputerInput, context: ComputerCallContext): Promise<void> {
+    if (!context.agentId)
+      throw new ComputerProviderError("invalid_configuration", "agentId is required for input");
+    const desktop = await this.ensureAgentDesktop(id, context.agentId, context);
     const result = await this.exec(
       id,
-      { command: "xdotool", args: inputArguments(input), environment: { DISPLAY: ":1" } },
+      {
+        command: "xdotool",
+        args: inputArguments(input),
+        environment: { DISPLAY: desktop.display },
+      },
       context,
     );
     if (result.exitCode !== 0)
@@ -254,12 +316,12 @@ export class VercelSandboxComputerProvider extends BaseComputerProvider {
   }
 
   async vnc(id: string, context: ComputerCallContext) {
-    const sandbox = await this.#attach(id);
+    const sandbox = await this.#attach(id, context);
     await this.get(id, context);
     const url = new URL("/vnc.html", sandbox.domain(6080));
     url.searchParams.set("autoconnect", "1");
     url.searchParams.set("resize", "remote");
-    url.searchParams.set("token", scopedCapability("vnc", id));
+    url.searchParams.set("token", scopedCapability("vnc", id, context.agentId));
     return { url, expiresAt: sandbox.expiresAt ?? new Date(Date.now() + 45 * 60 * 1000) };
   }
 
@@ -268,12 +330,15 @@ export class VercelSandboxComputerProvider extends BaseComputerProvider {
     return new URL("/rpc", sandbox.domain(4101)).toString().replace(/\/$/, "");
   }
 
-  async #attach(id: string): Promise<VercelSandbox> {
+  async #attach(id: string, context?: ComputerCallContext): Promise<VercelSandbox> {
     const current = this.#instances.get(id);
     if (current) return current;
     try {
       const { Sandbox } = await import("@vercel/sandbox");
-      const sandbox = await Sandbox.get({ name: id });
+      const sandbox = await Sandbox.get({
+        ...(await this.#vercelSandboxCredentials(context)),
+        name: id,
+      });
       this.#instances.set(id, sandbox);
       return sandbox;
     } catch (error) {
@@ -285,61 +350,14 @@ export class VercelSandboxComputerProvider extends BaseComputerProvider {
   }
 }
 
-async function resolveVercelRegistryIdentity(
-  context: DeploymentContext,
-  request: typeof fetch = fetch,
-): Promise<VercelRegistryIdentity> {
-  const token = context.inputs.deploymentSecrets().VERCEL_TOKEN;
-  if (!token)
-    throw new ComputerProviderError(
-      "invalid_configuration",
-      "VERCEL_TOKEN is required to resolve the Vercel Container Registry",
-    );
-  const project = context.environment.OPENBOT_VERCEL_AGENT_PROJECT?.trim();
-  if (!project)
-    throw new ComputerProviderError(
-      "invalid_configuration",
-      "OPENBOT_VERCEL_AGENT_PROJECT is required to resolve the Vercel Container Registry",
-    );
-  const team = context.environment.VERCEL_TEAM_ID?.trim();
-  const url = team
-    ? `https://api.vercel.com/v2/teams/${encodeURIComponent(team)}`
-    : "https://api.vercel.com/v2/user";
-  const response = await request(url, { headers: { Authorization: `Bearer ${token}` } });
-  if (!response.ok)
-    throw new ComputerProviderError(
-      "provider_unavailable",
-      `Could not resolve the Vercel registry scope (${response.status})`,
-    );
-  const body = (await response.json()) as {
-    id?: unknown;
-    slug?: unknown;
-    username?: unknown;
-    user?: { id?: unknown; username?: unknown };
-  };
-  const account = body.user ?? body;
-  const slug = team ? body.slug : account.username;
-  const username = team ? body.id : account.id;
-  if (typeof slug !== "string" || !slug || typeof username !== "string" || !username)
-    throw new ComputerProviderError(
-      "provider_unavailable",
-      "Vercel did not return the account identity required for its Container Registry",
-    );
-  return {
-    repository: `vcr.vercel.com/${slug}/${project}/openbot-computer`,
-    username,
-  };
-}
-
 function computerEnvironment(id: string, spec: ComputerSpec): Record<string, string> {
   return {
-    CUA_DRIVER_SOCKET: "/tmp/openbot-cua-driver.sock",
     DISPLAY: ":1",
-    OPENBOT_COMPUTER_SERVICE_API_KEY: computerServiceApiKey(),
-    OPENBOT_COMPUTER_EXPOSED_PORTS: "6080,4101",
-    OPENBOT_COMPUTER_SERVICE_PORT: "4101",
-    OPENBOT_COMPUTER_WORKSPACE: "/workspace",
-    OPENBOT_VNC_CAPABILITY: scopedCapability("vnc", id),
+    COMPUTER_SERVICE_API_KEY: computerServiceApiKey(),
+    COMPUTER_ID: id,
+    COMPUTER_EXPOSED_PORTS: "6080,4101",
+    COMPUTER_SERVICE_PORT: "4101",
+    COMPUTER_WORKSPACE: "/workspace",
     ...spec.environment,
   };
 }
@@ -382,14 +400,20 @@ async function startComputer(
   spec: ComputerSpec,
   context: ComputerCallContext,
 ): Promise<void> {
-  await sandbox.runCommand({
-    cmd: "bash",
-    args: ["/usr/local/bin/start-openbot-computer"],
-    detached: true,
-    sudo: true,
-    env: computerEnvironment(id, spec),
-    signal: context.signal,
-  });
+  try {
+    await sandbox.runCommand({
+      cmd: "bash",
+      args: ["/usr/local/bin/start-openbot-computer"],
+      detached: true,
+      env: computerEnvironment(id, spec),
+      signal: context.signal,
+    });
+  } catch (error) {
+    throw new ComputerProviderError(
+      "provider_unavailable",
+      `Could not start /usr/local/bin/start-openbot-computer in Vercel Sandbox: ${error instanceof Error ? error.message : "unknown error"}`,
+    );
+  }
 }
 
 function inputArguments(input: ComputerInput): string[] {

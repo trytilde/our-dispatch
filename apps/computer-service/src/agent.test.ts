@@ -14,11 +14,11 @@ describe("agent computer execution", () => {
       cwd: "/workspace/hello-world/project",
       environment: {
         HOME: "/workspace/hello-world",
-        OPENBOT_AGENT_ID: "hello-world",
-        OPENBOT_COMPUTER_WORKSPACE: "/workspace/hello-world",
+        AGENT_ID: "hello-world",
+        COMPUTER_WORKSPACE: "/workspace/hello-world",
       },
     });
-    expect(command.environment).not.toHaveProperty("OPENBOT_COMPUTER_SERVICE_API_KEY");
+    expect(command.environment).not.toHaveProperty("COMPUTER_SERVICE_API_KEY");
   });
 
   it("rejects invalid agent ids while allowing the visible computer filesystem", () => {

@@ -13,15 +13,18 @@
     "access": "public"
   },
   "scripts": {
-    "build": "tsgo --noEmit && tsdown",
+    "artifact:check": "tsgo --noEmit",
+    "build": "vp run artifact:check && tsdown",
+    "check": "vp check",
     "dev": "tsx watch src/index.ts",
-    "lint": "tsgo --noEmit",
+    "lint": "vp lint",
     "prepack": "pnpm build",
     "start": "tsx src/index.ts",
     "test": "vitest run",
-    "typecheck": "tsgo --noEmit"
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@bufbuild/protobuf": "2.7.0",
     "@connectrpc/connect": "2.1.2",
     "@connectrpc/connect-node": "2.1.2",
     "@tryopenbot/computer-service-proto": "workspace:*",

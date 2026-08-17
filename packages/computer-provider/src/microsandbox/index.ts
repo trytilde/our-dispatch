@@ -1,11 +1,15 @@
 import { createServer } from "node:net";
+import { rm } from "node:fs/promises";
+import { resolve } from "node:path";
 import {
   ComputerProviderError,
   type ComputerCallContext,
   type ComputerExecRequest,
   type ComputerHandle,
   type ComputerInput,
+  type ComputerImageSpec,
   type ComputerSpec,
+  type PublishedComputerImage,
 } from "../core/index.js";
 import {
   BaseComputerProvider,
@@ -22,7 +26,7 @@ type MicroSandbox = Awaited<
 
 export class MicrosandboxComputerProvider extends BaseComputerProvider {
   protected readonly providerId = "microsandbox";
-  protected readonly deployedImageEnvironmentVariable = "OPENBOT_MICROSANDBOX_COMPUTER_IMAGE";
+  protected readonly deployedImageEnvironmentVariable = "MICROSANDBOX_COMPUTER_IMAGE";
 
   readonly #instances = new Map<string, MicroSandbox>();
   readonly #handles = new Map<string, ComputerHandle>();
@@ -32,6 +36,29 @@ export class MicrosandboxComputerProvider extends BaseComputerProvider {
 
   constructor(imageDeployment: ComputerImageDeploymentConfig = {}) {
     super(imageDeployment, { publish: false });
+  }
+
+  protected override async prepareDeployedImage(
+    image: PublishedComputerImage,
+    spec: ComputerImageSpec,
+    context: ComputerCallContext,
+  ): Promise<PublishedComputerImage> {
+    const archive = resolve(
+      spec.contextDirectory,
+      `.openbot-microsandbox-${image.sourceDigest.slice("sha256:".length, "sha256:".length + 12)}.tar`,
+    );
+    try {
+      await this.runDocker(["save", "--output", archive, image.localReference], context);
+      await this.loadImageArchive(archive, image.reference);
+      return image;
+    } finally {
+      await rm(archive, { force: true });
+    }
+  }
+
+  protected async loadImageArchive(path: string, reference: string): Promise<void> {
+    const { Image } = await import("microsandbox");
+    await Image.load(path, { tag: reference });
   }
 
   async create(spec: ComputerSpec, context: ComputerCallContext): Promise<ComputerHandle> {
@@ -49,6 +76,12 @@ export class MicrosandboxComputerProvider extends BaseComputerProvider {
       const { Sandbox } = await import("microsandbox");
       const stored = await Sandbox.get(id);
       if (stored.status === "running") this.#instances.set(id, await stored.connect());
+      const config = stored.config();
+      const desktopPort = publishedHostPort(config, 6080);
+      const servicePort = publishedHostPort(config, 4101);
+      const image = configuredImageReference(config);
+      if (desktopPort) this.#desktopPorts.set(id, desktopPort);
+      if (servicePort) this.#servicePorts.set(id, servicePort);
       const discovered: ComputerHandle = {
         id,
         providerId: this.providerId,
@@ -59,6 +92,7 @@ export class MicrosandboxComputerProvider extends BaseComputerProvider {
               ? "failed"
               : "sleeping",
         createdAt: stored.createdAt ?? new Date(),
+        ...(image ? { image } : {}),
       };
       this.#handles.set(id, discovered);
       return discovered;
@@ -108,6 +142,10 @@ export class MicrosandboxComputerProvider extends BaseComputerProvider {
       .get(id)
       ?.stop()
       .catch(() => undefined);
+    const { Sandbox } = await import("microsandbox");
+    const stored = await Sandbox.get(id);
+    if (stored.status === "running") await stored.stop();
+    await stored.remove();
     this.#instances.delete(id);
     this.#handles.delete(id);
     this.#specs.delete(id);
@@ -148,10 +186,19 @@ export class MicrosandboxComputerProvider extends BaseComputerProvider {
   }
 
   async screenshot(id: string, context: ComputerCallContext): Promise<Uint8Array> {
+    if (!context.agentId)
+      throw new ComputerProviderError(
+        "invalid_configuration",
+        "agentId is required for screenshots",
+      );
+    const desktop = await this.ensureAgentDesktop(id, context.agentId, context);
     const screenshotPath = "/tmp/openbot-tool-screenshot.png";
     const result = await this.exec(
       id,
-      { command: "import", args: ["-display", ":1", "-window", "root", screenshotPath] },
+      {
+        command: "import",
+        args: ["-display", desktop.display, "-window", "root", screenshotPath],
+      },
       { ...context, agentId: undefined },
     );
     if (result.exitCode !== 0)
@@ -163,9 +210,16 @@ export class MicrosandboxComputerProvider extends BaseComputerProvider {
   }
 
   async input(id: string, input: ComputerInput, context: ComputerCallContext): Promise<void> {
+    if (!context.agentId)
+      throw new ComputerProviderError("invalid_configuration", "agentId is required for input");
+    const desktop = await this.ensureAgentDesktop(id, context.agentId, context);
     const result = await this.exec(
       id,
-      { command: "xdotool", args: inputArguments(input), environment: { DISPLAY: ":1" } },
+      {
+        command: "xdotool",
+        args: inputArguments(input),
+        environment: { DISPLAY: desktop.display },
+      },
       context,
     );
     if (result.exitCode !== 0)
@@ -182,19 +236,19 @@ export class MicrosandboxComputerProvider extends BaseComputerProvider {
     const url = new URL(`http://127.0.0.1:${port}/vnc.html`);
     url.searchParams.set("autoconnect", "1");
     url.searchParams.set("resize", "remote");
-    url.searchParams.set("token", scopedCapability("vnc", id));
+    url.searchParams.set("token", scopedCapability("vnc", id, context.agentId));
     return { url, expiresAt: new Date(Date.now() + 86_400_000) };
   }
 
   protected async computerServiceUrl(id: string): Promise<string> {
     await this.get(id, { requestId: "computer-service-url" });
-    const configured = process.env.OPENBOT_MICROSANDBOX_COMPUTER_SERVICE_URL?.trim();
+    const configured = process.env.MICROSANDBOX_COMPUTER_SERVICE_URL?.trim();
     if (configured) return configured;
     const port = this.#servicePorts.get(id);
     if (!port)
       throw new ComputerProviderError(
         "invalid_configuration",
-        "The Microsandbox computer-service port is unknown; set OPENBOT_MICROSANDBOX_COMPUTER_SERVICE_URL when attaching to an existing computer",
+        "The Microsandbox computer-service port is unknown; set MICROSANDBOX_COMPUTER_SERVICE_URL when attaching to an existing computer",
       );
     return `http://127.0.0.1:${port}/rpc`;
   }
@@ -208,15 +262,16 @@ export class MicrosandboxComputerProvider extends BaseComputerProvider {
     const { Sandbox } = await import("microsandbox");
     const desktopPort = this.#desktopPorts.get(id) ?? (await availablePort(6080));
     const servicePort = await availablePort(4101);
-    const image = spec.image ?? process.env.OPENBOT_MICROSANDBOX_COMPUTER_IMAGE;
+    const image = spec.image ?? process.env.MICROSANDBOX_COMPUTER_IMAGE;
     if (!image)
       throw new ComputerProviderError(
         "invalid_configuration",
-        "Deploy the Microsandbox computer provider or set OPENBOT_MICROSANDBOX_COMPUTER_IMAGE before creating a computer",
+        "Deploy the Microsandbox computer provider or set MICROSANDBOX_COMPUTER_IMAGE before creating a computer",
       );
 
     const sandbox = await Sandbox.builder(id)
       .image(image)
+      .pullPolicy("never")
       .cpus(2)
       .memory(4096)
       .rootDisk(12_288)
@@ -226,13 +281,12 @@ export class MicrosandboxComputerProvider extends BaseComputerProvider {
         mount.namedWith("openbot-computer", "ensure-exists", "dir", undefined, 8192),
       )
       .envs({
-        CUA_DRIVER_SOCKET: "/tmp/openbot-cua-driver.sock",
         DISPLAY: ":1",
-        OPENBOT_COMPUTER_SERVICE_API_KEY: computerServiceApiKey(),
-        OPENBOT_COMPUTER_EXPOSED_PORTS: "6080,4101",
-        OPENBOT_COMPUTER_SERVICE_PORT: "4101",
-        OPENBOT_COMPUTER_WORKSPACE: "/workspace",
-        OPENBOT_VNC_CAPABILITY: scopedCapability("vnc", id),
+        COMPUTER_SERVICE_API_KEY: computerServiceApiKey(),
+        COMPUTER_ID: id,
+        COMPUTER_EXPOSED_PORTS: "6080,4101",
+        COMPUTER_SERVICE_PORT: "4101",
+        COMPUTER_WORKSPACE: "/workspace",
         ...spec.environment,
       })
       .detached(true)
@@ -282,6 +336,37 @@ export class MicrosandboxComputerProvider extends BaseComputerProvider {
       throw new ComputerProviderError("not_found", `Computer ${id} is sleeping or not attached`);
     return sandbox;
   }
+}
+
+export function publishedHostPort(config: Record<string, unknown>, guestPort: number): number {
+  const network = config.network;
+  if (!network || typeof network !== "object") return 0;
+  const ports = (network as { ports?: unknown }).ports;
+  if (!Array.isArray(ports)) return 0;
+  for (const candidate of ports) {
+    if (!candidate || typeof candidate !== "object") continue;
+    const port = candidate as { guestPort?: unknown; hostPort?: unknown };
+    if (
+      port.guestPort === guestPort &&
+      typeof port.hostPort === "number" &&
+      Number.isSafeInteger(port.hostPort) &&
+      port.hostPort > 0 &&
+      port.hostPort <= 65_535
+    )
+      return port.hostPort;
+  }
+  return 0;
+}
+
+export function configuredImageReference(config: Record<string, unknown>): string {
+  if (typeof config.image === "string") return config.image;
+  if (!config.image || typeof config.image !== "object") return "";
+  const image = config.image as { Oci?: unknown; oci?: unknown; reference?: unknown };
+  if (typeof image.reference === "string") return image.reference;
+  const oci = image.Oci ?? image.oci;
+  if (!oci || typeof oci !== "object") return "";
+  const reference = (oci as { reference?: unknown }).reference;
+  return typeof reference === "string" ? reference : "";
 }
 
 async function seedComputer(sandbox: MicroSandbox, spec: ComputerSpec): Promise<void> {

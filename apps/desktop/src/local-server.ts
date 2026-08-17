@@ -7,6 +7,11 @@ export interface RendererServer {
   close(): Promise<void>;
 }
 
+export interface RendererServerOptions {
+  accessToken?: () => Promise<string | undefined>;
+  webOrigin?: string;
+}
+
 const contentTypes: Record<string, string> = {
   ".css": "text/css; charset=utf-8",
   ".html": "text/html; charset=utf-8",
@@ -21,11 +26,12 @@ const contentTypes: Record<string, string> = {
 export async function startRendererServer(
   staticRoot: string,
   controlOrigin: string,
+  options: RendererServerOptions = {},
 ): Promise<RendererServer> {
   const normalizedRoot = resolve(staticRoot);
   const upstreamOrigin = new URL(controlOrigin).origin;
   const server = createServer((request, response) => {
-    void handleRequest(request, response, normalizedRoot, upstreamOrigin).catch(
+    void handleRequest(request, response, normalizedRoot, upstreamOrigin, options).catch(
       (error: unknown) => {
         if (response.headersSent) response.destroy(error instanceof Error ? error : undefined);
         else {
@@ -53,10 +59,24 @@ async function handleRequest(
   response: ServerResponse,
   staticRoot: string,
   controlOrigin: string,
+  options: RendererServerOptions,
 ): Promise<void> {
   const url = new URL(request.url ?? "/", "http://openbot.local");
   if (isControlPath(url.pathname)) {
-    await proxyRequest(request, response, new URL(`${url.pathname}${url.search}`, controlOrigin));
+    await proxyRequest(
+      request,
+      response,
+      new URL(`${url.pathname}${url.search}`, controlOrigin),
+      await options.accessToken?.(),
+    );
+    return;
+  }
+  if (options.webOrigin) {
+    await proxyRequest(
+      request,
+      response,
+      new URL(`${url.pathname}${url.search}`, options.webOrigin),
+    );
     return;
   }
   if (request.method !== "GET" && request.method !== "HEAD") {
@@ -94,13 +114,14 @@ async function handleRequest(
 }
 
 function isControlPath(pathname: string): boolean {
-  return pathname === "/healthz" || pathname === "/rpc" || pathname.startsWith("/rpc/");
+  return pathname === "/healthz" || pathname.startsWith("/api/") || pathname.startsWith("/auth/");
 }
 
 async function proxyRequest(
   request: IncomingMessage,
   response: ServerResponse,
   upstream: URL,
+  accessToken?: string,
 ): Promise<void> {
   const headers = new Headers();
   for (const [name, value] of Object.entries(request.headers)) {
@@ -108,6 +129,7 @@ async function proxyRequest(
     headers.set(name, Array.isArray(value) ? value.join(", ") : value);
   }
   headers.set("accept-encoding", "identity");
+  if (accessToken) headers.set("authorization", `Bearer ${accessToken}`);
   const body =
     request.method === "GET" || request.method === "HEAD"
       ? undefined

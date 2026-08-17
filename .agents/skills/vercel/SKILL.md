@@ -39,7 +39,7 @@ The deployment coordinator prepares the Vercel project and stable origin, allows
 
 ### Preview
 
-Use the deployment coordinator and Vercel service provider with a preview target so the provider builds the prebuilt artifact and materializes its project configuration. Do not add a repository-root `vercel.json` or bypass the service provider with a raw source deployment. Use the linked project and explicit team scope already established for the checkout. Do not import production Tilde state or overwrite production environment variables for a preview. Inspect the resulting deployment and verify the changed user flow when credentials and authorization permit.
+Use the deployment coordinator and Vercel service provider with a preview target so the provider builds the prebuilt artifact and materializes its project configuration. Do not add a repository-root `vercel.json` or bypass the service provider with a raw source deployment. Use the linked project and explicit team scope already established for the checkout. Do not reconcile production Tilde resources or overwrite production environment variables for a preview. Inspect the resulting deployment and verify the changed user flow when credentials and authorization permit.
 
 ## Preserve OpenBot's Vercel contract
 

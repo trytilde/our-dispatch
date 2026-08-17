@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+
+# OpenBot trusted development sandbox environment.
+openbot_source_root="${OPENBOT_SOURCE_ROOT:-/workspace/openbot}"
+openbot_age_key_file="${OPENBOT_AGE_KEY_FILE:-/workspace/.openbot/development/sops-age-key.txt}"
+
+if [[ -r "$openbot_source_root/configuration/.env" ]]; then
+  set -a
+  # shellcheck disable=SC1091
+  source "$openbot_source_root/configuration/.env"
+  set +a
+fi
+
+if [[ -r "$openbot_age_key_file" && -r "$openbot_source_root/configuration/secrets.enc.yaml" ]]; then
+  export SOPS_AGE_KEY_FILE="$openbot_age_key_file"
+  eval "$(
+    sops decrypt --output-type json "$openbot_source_root/configuration/secrets.enc.yaml" \
+      | jq -r 'to_entries[] | select(.key != "SECRETS_SOPS_AGE_KEY") | "export \(.key)=\(.value.value | @sh)"'
+  )"
+fi
+
+unset openbot_source_root openbot_age_key_file

@@ -1,12 +1,16 @@
 import { createHash } from "node:crypto";
-import { readFile, readdir } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { build } from "tsdown";
 import { materializeFileTemplate } from "@tryopenbot/utilities";
 import type { DeploymentContext, DeploymentResult } from "@tryopenbot/runtime-provider";
 import { bundleOptions } from "../build.js";
-import { discoverAgents, globalInstrumentationPath, type AgentSource } from "../discovery.js";
+import {
+  authoredAgentPaths,
+  discoverAgents,
+  globalInstrumentationPath,
+  type AgentSource,
+} from "../discovery.js";
 
 export const agentLocalArtifact = ".openbot-deploy/agent-service/server.js";
 const serverTemplate = fileURLToPath(new URL("./assets/server.ts.hbs", import.meta.url));
@@ -14,6 +18,7 @@ const serverTemplate = fileURLToPath(new URL("./assets/server.ts.hbs", import.me
 export async function buildLocalAgentService(
   context: DeploymentContext,
 ): Promise<DeploymentResult> {
+  const { build } = await import("tsdown");
   const agents = await discoverAgents(context.repositoryRoot);
   const generated = resolve(
     context.repositoryRoot,
@@ -54,20 +59,8 @@ async function digestAgents(agents: readonly AgentSource[]): Promise<string> {
   const hash = createHash("sha256");
   for (const agent of agents) {
     hash.update(agent.slug);
-    for (const file of await authoredAgentFiles(agent.directory))
+    for (const file of await authoredAgentPaths(agent))
       hash.update(file).update(await readFile(file));
   }
   return hash.digest("hex");
-}
-
-async function authoredAgentFiles(directory: string): Promise<string[]> {
-  const entries = await readdir(directory, { withFileTypes: true });
-  const nested = await Promise.all(
-    entries.map((entry) => {
-      if (entry.name === "sandbox") return [];
-      const path = resolve(directory, entry.name);
-      return entry.isDirectory() ? authoredAgentFiles(path) : entry.isFile() ? [path] : [];
-    }),
-  );
-  return nested.flat().sort();
 }

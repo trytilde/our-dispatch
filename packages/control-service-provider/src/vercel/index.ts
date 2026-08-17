@@ -7,6 +7,15 @@ import type {
   InitializableProvider,
   ProviderInitialization,
 } from "@tryopenbot/runtime-provider";
+import { isDevelopmentLifecycle, persistEnvironment } from "@tryopenbot/runtime-provider";
+import { VercelPlatform, vercelPlatform } from "@tryopenbot/platform-integrations";
+import {
+  ensureVercelProject,
+  installVercelEnvironment,
+  requiredVercelProject,
+  vercelDeploymentUrl,
+  vercelScopeArguments,
+} from "@tryopenbot/platform-integrations/vercel/deployment";
 import { resolve } from "node:path";
 import { materializeFileTemplate } from "@tryopenbot/utilities";
 import { checkControlService } from "../check.js";
@@ -18,63 +27,79 @@ import {
 } from "./build.js";
 
 export interface VercelControlServiceProviderOptions {
+  platform?: VercelPlatform;
   runner?: CommandRunner;
   request?: typeof fetch;
 }
 
 export class VercelControlServiceProvider implements Buildable, Deployable, InitializableProvider {
+  readonly platform: VercelPlatform;
+  readonly platforms: readonly VercelPlatform[];
   readonly initialization: ProviderInitialization = {
     id: "vercel-control",
     label: "Vercel control service",
     questions: [
       {
-        id: "vercel-token",
-        prompt: "Vercel token",
-        input: "secret",
-        required: true,
-        destination: { kind: "deployment-secret", key: "VERCEL_TOKEN" },
-      },
-      {
         id: "vercel-control-project",
         prompt: "Vercel project for the control service",
+        description:
+          "Name of the Vercel project that will host the OpenBot control service and web application.",
         input: "text",
         required: true,
-        destination: { kind: "environment", key: "OPENBOT_VERCEL_CONTROL_PROJECT" },
+        destination: { kind: "environment", key: "VERCEL_CONTROL_PROJECT" },
       },
     ],
   };
   readonly #runner: CommandRunner;
   readonly #request: typeof fetch;
   constructor(options: VercelControlServiceProviderOptions = {}) {
+    this.platform = options.platform ?? vercelPlatform;
+    this.platforms = [this.platform];
     this.#runner = options.runner ?? processRunner;
     this.#request = options.request ?? fetch;
   }
   check(context: DeploymentContext) {
     return checkControlService(context, this.#runner);
   }
-  build(context: DeploymentContext) {
+  async build(context: DeploymentContext) {
+    if (isDevelopmentLifecycle(context)) return;
     return buildVercelControlService(context, this.#runner);
   }
   async plan(context: DeploymentContext): Promise<DeploymentPlan> {
+    if (isDevelopmentLifecycle(context))
+      return {
+        summary: "Use the watched local control service in development",
+        steps: ["Skip Vercel project configuration and deployment"],
+      };
     return {
       summary: "Deploy the independently built control service and web UI to Vercel",
       steps: [`Upload ${controlVercelArtifact} as a prebuilt deployment`, "Smoke-test /healthz"],
     };
   }
+  baseUrl(context: Pick<DeploymentContext, "devMode" | "environment">): URL {
+    if (context.devMode) {
+      return new URL(
+        context.environment.PUBLIC_ORIGIN ??
+          `http://127.0.0.1:${context.environment.PORT ?? "4100"}`,
+      );
+    }
+    const project = requiredVercelProject(context.environment, "VERCEL_CONTROL_PROJECT");
+    return new URL(`https://${project}.vercel.app`);
+  }
   async configure(context: DeploymentContext): Promise<DeploymentResult> {
-    const project = requiredProject(context.environment);
+    if (isDevelopmentLifecycle(context)) return {};
+    const project = requiredVercelProject(context.environment, "VERCEL_CONTROL_PROJECT");
     await ensureVercelProject(this.#runner, context, project);
-    const origin = `https://${project}.vercel.app`;
-    return {
-      outputs: { "control-service.origin": origin, "runtime.origin": origin },
-      environmentVariables: { OPENBOT_PUBLIC_ORIGIN: origin },
-    };
+    const origin = this.baseUrl(context).toString().replace(/\/$/, "");
+    await persistEnvironment(context, "PUBLIC_ORIGIN", origin, "OpenBot public origin.");
+    return { outputs: { "control-service.origin": origin, "runtime.origin": origin } };
   }
   async deploy(context: DeploymentContext): Promise<DeploymentResult> {
-    const project = requiredProject(context.environment);
+    if (isDevelopmentLifecycle(context)) return {};
+    const project = requiredVercelProject(context.environment, "VERCEL_CONTROL_PROJECT");
     const root = context.inputs.require("control-service.artifact");
     await materializeFileTemplate(vercelProjectTemplate, resolve(root, "vercel.json"));
-    await installRuntimeVariables(this.#runner, context, project);
+    await installVercelEnvironment(context, project, this.#request);
     const args = [
       "exec",
       "vercel",
@@ -86,95 +111,34 @@ export class VercelControlServiceProvider implements Buildable, Deployable, Init
       root,
       "--project",
       project,
-      ...scopeArgs(context.environment),
+      ...vercelScopeArguments(context.environment),
     ];
-    if (context.target === "production") args.push("--prod");
+    args.push("--prod");
     const result = await this.#runner.run("pnpm", args, {
       cwd: context.repositoryRoot,
       environment: context.environment,
     });
-    const url = deploymentUrl(`${result.stdout}\n${result.stderr}`);
-    const response = await this.#request(`${url}/healthz`, { signal: AbortSignal.timeout(30_000) });
-    if (!response.ok || ((await response.json()) as { ok?: unknown }).ok !== true)
-      throw new Error("Control service health smoke failed");
+    const url = vercelDeploymentUrl(`${result.stdout}\n${result.stderr}`);
+    const healthUrl = `${url}/healthz`;
+    const response = await this.#request(healthUrl, { signal: AbortSignal.timeout(30_000) });
+    const body = await response.text();
+    if (!response.ok || !healthyResponse(body))
+      throw new Error(
+        `Control service health smoke failed: ${healthUrl} returned ${response.status}${body ? `: ${body.slice(0, 500)}` : ""}`,
+      );
     return { outputs: { "control-service.deployment-url": url, "runtime.deployment-url": url } };
   }
 }
 
-async function installRuntimeVariables(
-  runner: CommandRunner,
-  context: DeploymentContext,
-  project: string,
-): Promise<void> {
-  const target = context.target === "production" ? "production" : "preview";
-  const variables = new Map(
-    Object.entries(context.inputs.environmentVariables()).map(([name, value]) => [
-      name,
-      { value, sensitive: false },
-    ]),
-  );
-  for (const [name, value] of Object.entries(context.inputs.secrets()))
-    variables.set(name, { value, sensitive: true });
-  for (const [name, variable] of variables)
-    await runner.run(
-      "pnpm",
-      [
-        "exec",
-        "vercel",
-        "env",
-        "add",
-        name,
-        target,
-        "--force",
-        "--yes",
-        variable.sensitive ? "--sensitive" : "--no-sensitive",
-        "--project",
-        project,
-        ...scopeArgs(context.environment),
-      ],
-      { cwd: context.repositoryRoot, environment: context.environment, input: variable.value },
-    );
+function healthyResponse(body: string): boolean {
+  try {
+    return (JSON.parse(body) as { ok?: unknown }).ok === true;
+  } catch {
+    return false;
+  }
 }
 
-function requiredProject(environment: NodeJS.ProcessEnv): string {
-  const project = environment.OPENBOT_VERCEL_CONTROL_PROJECT?.trim();
-  if (!project) throw new Error("OPENBOT_VERCEL_CONTROL_PROJECT is required");
-  return project;
-}
-function scopeArgs(environment: NodeJS.ProcessEnv): string[] {
-  return environment.VERCEL_TEAM_ID ? ["--scope", environment.VERCEL_TEAM_ID] : [];
-}
-export async function ensureVercelProject(
-  runner: CommandRunner,
-  context: DeploymentContext,
-  project: string,
-): Promise<void> {
-  const scope = scopeArgs(context.environment);
-  try {
-    await runner.run("pnpm", ["exec", "vercel", "project", "inspect", project, ...scope], {
-      cwd: context.repositoryRoot,
-      environment: context.environment,
-    });
-  } catch {
-    await runner.run("pnpm", ["exec", "vercel", "project", "add", project, ...scope], {
-      cwd: context.repositoryRoot,
-      environment: context.environment,
-    });
-  }
-}
-export function deploymentUrl(output: string): string {
-  for (const line of output.split("\n").reverse()) {
-    try {
-      const parsed = JSON.parse(line) as { url?: unknown; deploymentUrl?: unknown };
-      const value = typeof parsed.url === "string" ? parsed.url : parsed.deploymentUrl;
-      if (typeof value === "string") return normalize(value);
-    } catch {
-      const match = line.match(/https:\/\/[^\s]+/);
-      if (match) return normalize(match[0]);
-    }
-  }
-  throw new Error("Vercel did not return a deployment URL");
-}
-function normalize(value: string): string {
-  return (value.startsWith("http") ? value : `https://${value}`).replace(/\/$/, "");
-}
+export {
+  ensureVercelProject,
+  vercelDeploymentUrl as deploymentUrl,
+} from "@tryopenbot/platform-integrations/vercel/deployment";

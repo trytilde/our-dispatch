@@ -12,7 +12,7 @@ Use when the user asks to open, publish, prepare, or update a PR for the current
 1. Inspect branch, remotes, worktree, stashes, and existing PRs.
 2. Review the full diff against the actual default branch. Preserve unrelated user changes.
 3. Run `pre-commit-checks` and fix in-scope failures.
-4. Review protobuf, `tilde.state.yaml`, environment, deployment, package README, public documentation, and Changesets impact.
+4. Review protobuf, Tilde API reconciliation, environment, deployment, package README, public documentation, and Changesets impact.
 5. Run the architecture and ADR gate. Resolve any user decision before publishing.
 6. Use a Conventional Commits title and intentional file selection; commit the validated implementation.
 7. Push the branch and open or update the draft PR so its stable PR number is known.
@@ -57,18 +57,18 @@ Record exact commands and failures. Do not claim checks that did not run.
 Review whether the diff changes:
 
 - protobuf compatibility or public HTTP routes
-- `tilde.state.yaml` resource identity or variables
+- Tilde resource identity, reconciliation, or persisted variables
 - Vercel routing, environment names, or deploy checkpoints
 - provider contracts or one-time credential handling
 
-Classify each changed field as portable configuration, secret material, control state, or ephemeral runtime state. Secrets must never enter protobuf state, `tilde.state.yaml`, logs, or PR text. Ask the user only when a real product or migration choice remains unresolved.
+Classify each changed field as repository configuration, secret material, control state, or ephemeral runtime state. Secrets must never enter protobuf state, logs, or PR text. Ask the user only when a real product or migration choice remains unresolved.
 
 ## Configuration Ownership Gate
 
 Determine the PR's base repository from the existing or newly opened GitHub PR, not from `origin`: a contributor may push from a personal fork while targeting `trytilde/openbot`.
 
 - PR targets `trytilde/openbot`: the final tracked `configuration/` tree must contain exactly `configuration/.gitignore`, whose contents are `*` followed by `!.gitignore`. Block any agent, provider, SOPS, environment, secret, update-note, or other fork-owned configuration content from the contribution. `configuration/.env` and root environment or SOPS files are always forbidden.
-- PR targets any fork: successful init must have removed the upstream `configuration/.gitignore` sentinel. Require the fork's generated `configuration/index.ts`, `runtime-providers.ts`, instrumentation, encrypted SOPS files, agent trees, and intentional custom providers to be tracked. Keep `configuration/.env` ignored and untracked. Treat an empty configuration tree or a restored sentinel as blocking because the fork would not contain its behavior.
+- PR targets any fork: successful init must have removed the upstream `configuration/.gitignore` sentinel. Require the fork's generated `configuration/index.ts`, instrumentation, encrypted SOPS files, agent trees, and intentional custom providers to be tracked. Keep `configuration/.env` ignored and untracked. Treat an empty configuration tree or a restored sentinel as blocking because the fork would not contain its behavior.
 
 After the draft PR exists, verify the target and tracked state again. Suggested checks:
 
@@ -110,7 +110,7 @@ Use the checked-in `.github/pull_request_template.md` when present and complete 
 - outcome and reason
 - key implementation choices
 - checks actually run
-- migration, contract, Tilde state, deployment, and security impact
+- migration, contract, Tilde reconciliation, deployment, and security impact
 - ADR review result and links to any new or governing ADRs
 - screenshots for user-visible changes when captured
 - known limitations or follow-ups
@@ -144,7 +144,7 @@ Use this sequence:
 1. Finish initial validation and commit the implementation, tests, ADRs, READMEs, and ordinary documentation.
 2. Push the branch and open the draft PR before generating the update record.
 3. Read the stable PR number from GitHub; never guess or use a local sequence.
-4. Analyze the full PR diff, commit history, review discussion, and all threads in the coding agent's database on the current machine. Inspect every locally available thread, not only the current chat or task, then retain only evidence relevant to this PR.
+4. Analyze the full PR diff, commit history, review discussion, and all threads in the coding agent's database on the current machine. Inspect every locally available thread, not only the current chat or task. Retain implementation evidence relevant to this PR in the update record. Preserve actionable but out-of-scope OpenBot feature planning in the PR body or a PR comment using the exact `<FOLLOW UP>` block syntax from `CONTEXT.md`; link an existing issue when one exists, group only work with the same owner and trigger, and include concrete acceptance proof. Do not copy unrelated planning into the repository update record.
 5. Create `docs/updates/<pr-number>.md`, commit it, and push it to the same draft PR.
 6. After every later code, test, documentation, rebase, conflict-resolution, or accepted-review change, regenerate the same record from all evidence and push its update before declaring the PR current.
 

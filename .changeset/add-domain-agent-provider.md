@@ -1,7 +1,6 @@
 ---
 "@tryopenbot/agent-provider": minor
 "@tryopenbot/configuration": minor
-"@tryopenbot/control-service-proto": minor
 "@tryopenbot/desktop": minor
 "@tryopenbot/control-service": minor
 "@tryopenbot/ui": minor

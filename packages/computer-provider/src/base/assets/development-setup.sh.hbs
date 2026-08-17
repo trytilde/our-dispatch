@@ -1,18 +1,31 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-environment_file="$1"
-source_directory="$2"
+source_directory="$1"
+age_key_file="$2"
+state_directory="$(dirname "$age_key_file")"
+sandbox_user="$(id -un)"
+sandbox_home="$(getent passwd "$sandbox_user" | cut -d: -f6)"
+profile_loader="$state_directory/profile.sh"
 
-# Load deployment authority only into this trusted setup process. Ordinary
-# agent computer processes never receive this file or its environment.
-set -a
-# shellcheck disable=SC1090
-source "$environment_file"
-set +a
+test -n "$sandbox_home"
+test -f "$source_directory/configuration/.env"
+test -f "$source_directory/configuration/.sops.yaml"
+test -f "$source_directory/configuration/secrets.enc.yaml"
+test -f "$age_key_file"
+
+install -m 0500 /opt/openbot/development-profile.sh "$profile_loader"
+chown "$sandbox_user:$sandbox_user" "$profile_loader" "$age_key_file"
+chmod 0400 "$age_key_file"
+
+profile_line="source $profile_loader"
+for profile in "$sandbox_home/.bashrc" "$sandbox_home/.bash_profile"; do
+  touch "$profile"
+  grep -Fqx "$profile_line" "$profile" || printf '\n%s\n' "$profile_line" >> "$profile"
+  chown "$sandbox_user:$sandbox_user" "$profile"
+done
 
 cd "$source_directory"
-test -f configuration/secrets.enc.yaml
-sops decrypt --output /dev/null configuration/secrets.enc.yaml
+SOPS_AGE_KEY_FILE="$age_key_file" sops decrypt --output /dev/null configuration/secrets.enc.yaml
 pnpm install --frozen-lockfile
-touch /workspace/.openbot/development/ready
+touch "$state_directory/ready"

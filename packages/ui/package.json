@@ -16,6 +16,10 @@
       "development": "./src/beautiful-ui/upstream/globals.css",
       "default": "./dist/beautiful-ui/upstream/globals.css"
     },
+    "./openbot-ui.css": {
+      "development": "./src/openbot-ui.css",
+      "default": "./dist/openbot-ui.css"
+    },
     "./beautiful-ui/*": {
       "types": "./src/beautiful-ui/upstream/*.tsx",
       "development": "./src/beautiful-ui/upstream/*.tsx",
@@ -29,6 +33,7 @@
         "import": "./dist/index.js"
       },
       "./beautiful-ui.css": "./dist/beautiful-ui/upstream/globals.css",
+      "./openbot-ui.css": "./dist/openbot-ui.css",
       "./beautiful-ui/*": {
         "types": "./dist/beautiful-ui/upstream/*.d.ts",
         "import": "./dist/beautiful-ui/upstream/*.js"
@@ -37,17 +42,28 @@
     "access": "public"
   },
   "scripts": {
-    "build": "tsc --noEmit && tsdown --config ../../tsdown.package.config.ts && node ../../scripts/copy-package-assets.mjs",
+    "build": "tsc --noEmit && tsdown --config ../../tsdown.browser.config.ts && node ../../scripts/copy-package-assets.mjs",
+    "check": "vp check",
     "lint": "vp lint",
     "prepack": "pnpm build",
+    "storybook": "storybook dev -p 6006",
+    "storybook:build": "storybook build",
     "test": "vp test run --passWithNoTests",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "react": "19.1.2"
+    "react": "19.1.2",
+    "react-markdown": "10.1.0",
+    "remark-gfm": "4.0.1"
   },
   "devDependencies": {
+    "@storybook/react-vite": "10.5.0",
+    "@tailwindcss/vite": "4.3.3",
     "@types/react": "19.1.12",
+    "@types/react-dom": "19.1.9",
+    "react-dom": "19.1.2",
+    "storybook": "10.5.0",
+    "tailwindcss": "4.3.3",
     "typescript": "5.9.2",
     "vite": "catalog:",
     "vite-plus": "catalog:"

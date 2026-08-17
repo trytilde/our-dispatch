@@ -4,6 +4,8 @@
 
 - Fork owns one `configuration/` tree: agent-scoped resources, provider composition, and provider plugins.
 - `configuration/index.ts` explicitly constructs every selected provider.
+- Agent entrypoints read runtime environment directly; no second provider composition module.
+- Agent entrypoints integrate external SDKs directly and never import provider packages.
 - Core owns contracts and lifecycle. No layer system.
 - Agents are authored directly in the fork. Runtime never generates or publishes source.
 
@@ -13,11 +15,13 @@ OpenBot must be simple to fork and customize while keeping upstream core changes
 
 ## Decision
 
-`openbot init` creates `configuration/index.ts` inside the one fork-owned `configuration/` tree. The entrypoint calls `Configuration({ providers: { ... } })` with concrete provider instances grouped by domain as `controlService`, `agentService`, `agent`, `computer`, `inferenceModel`, `skills`, and `tools`. Provider packages export implementations but no string-to-provider selector factories; changing an implementation is an explicit source change in the fork composition root.
+`openbot init` creates `configuration/index.ts` inside the one fork-owned `configuration/` tree. The entrypoint calls `Configuration({ providers: { ... } })` with concrete provider instances grouped by domain as `controlService`, `agentService`, `chat`, `agent`, `computer`, `skills`, and `tools`. Provider packages export implementations but no string-to-provider selector factories; changing an implementation is an explicit source change in the fork composition root.
 
-Repository content is always discovered from canonical paths: agents from `configuration/agents/<id>/`, their skills from `configuration/agents/<id>/skills/`, their workspace seeds from `configuration/agents/<id>/sandbox/workspace/`, and custom provider source from `configuration/providers/`. Global `configuration/skills/` and `configuration/sandbox/` directories are unsupported. These paths and the `/api/agents` route prefix are conventions, not `OpenBotConfiguration` options.
+Repository content is always discovered from canonical paths: the primary agent from `configuration/agent/`, subagents from `configuration/agent/subagents/<id>/`, skills and workspace seeds inside each owning agent, and custom provider source from `configuration/providers/`. The primary keeps the stable ID `hello-world`; subagent IDs come from their directory names. Global `configuration/skills/` and `configuration/sandbox/` directories are unsupported. These paths and the `/api/agents` route prefix are conventions, not `OpenBotConfiguration` options.
 
 Agent directories use the Eve-compatible subset recorded in ADR-0011. Their `agent.ts` default-exports a Tilde `chatKitEndpoint` request handler, while `instructions.ts`, instrumentation, libraries, authored tools, authored skills, and sandbox workspace seeds remain colocated with the agent. OpenBot does not define a second execution SDK or use Eve's loader. Build-time discovery federates these endpoints; deployment registers agent workspaces without overwriting existing persistent files.
+
+Provider composition configures OpenBot's control, provisioning, and deployment machinery; it is not an agent dependency-injection container. Authored agents instantiate their model, MCP, skill, Composio, or other vendor clients directly. `configuration/templates/agent/` owns those defaults for newly scaffolded agents.
 
 OpenBot stores only reconciliation mappings, digests, and leases as Control State. Tilde remains authoritative for registered agents, skills, conversations, tools, and memory; credentials remain in `EnvProvider`.
 
@@ -46,3 +50,6 @@ flowchart LR
 - 2026-08-13T16:21:00+02:00: Prohibited root environment and SOPS configuration. Fork values load only from `configuration/`; contributor and CI values come from the process environment and never become fork defaults.
 - 2026-08-13T16:27:00+02:00: Kept all seven roles explicit in `configuration/index.ts` while moving the five agent-runtime instances to `configuration/runtime-providers.ts`, preventing service build/deploy tooling from entering agent artifacts.
 - 2026-08-13T17:13:43+02:00: Replaced the upstream `.gitkeep` with an ignore-all `configuration/.gitignore`; successful init removes only that exact sentinel so upstream contributions stay configuration-free while forks commit their generated configuration and preserve the deletion across normal merges.
+- 2026-08-14T10:18:00+02:00: Consolidated all provider construction in `configuration/index.ts`, removed `configuration/runtime-providers.ts`, and kept generated agent entrypoints independent by reading their runtime environment directly.
+- 2026-08-14T10:28:18+02:00: Limited provider composition to OpenBot control and lifecycle concerns; authored agents now integrate external SDKs directly and keep future defaults in the agent template.
+- 2026-08-14T15:27:17+02:00: Established one full primary agent at `configuration/agent/` and equally capable full agents under `configuration/agent/subagents/<id>/`.

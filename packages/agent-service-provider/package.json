@@ -11,11 +11,6 @@
       "types": "./src/index.ts",
       "development": "./src/index.ts",
       "import": "./dist/index.js"
-    },
-    "./instrumentation": {
-      "types": "./src/instrumentation.ts",
-      "development": "./src/instrumentation.ts",
-      "import": "./dist/instrumentation.js"
     }
   },
   "publishConfig": {
@@ -23,25 +18,24 @@
       ".": {
         "types": "./dist/index.d.ts",
         "import": "./dist/index.js"
-      },
-      "./instrumentation": {
-        "types": "./dist/instrumentation.d.ts",
-        "import": "./dist/instrumentation.js"
       }
     },
     "access": "public"
   },
   "scripts": {
-    "build": "tsgo --noEmit && tsdown --config ../../tsdown.package.config.ts && node ../../scripts/copy-package-assets.mjs",
-    "lint": "tsgo --noEmit",
+    "artifact:check": "tsgo --noEmit",
+    "build": "vp run artifact:check && tsdown --config ../../tsdown.node.config.ts && node ../../scripts/copy-package-assets.mjs",
+    "check": "vp check",
+    "lint": "vp lint",
     "prepack": "pnpm build",
     "test": "vitest run",
-    "typecheck": "tsgo --noEmit"
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@hono/node-server": "1.19.1",
     "@tryopenbot/computer-provider": "workspace:*",
     "@tryopenbot/control-service-provider": "workspace:*",
+    "@tryopenbot/platform-integrations": "workspace:*",
     "@tryopenbot/runtime-provider": "workspace:*",
     "@tryopenbot/utilities": "workspace:*",
     "hono": "4.13.1",

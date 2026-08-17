@@ -1,8 +1,7 @@
 import { cp, mkdir, rm } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { resolve } from "node:path";
-import { build } from "tsdown";
-import { materializeFileTemplate } from "@tryopenbot/utilities";
+import { materializeFileTemplate, workspaceSourceInputOptions } from "@tryopenbot/utilities";
 import type { DeploymentContext, DeploymentResult } from "@tryopenbot/runtime-provider";
 import type { CommandRunner } from "../command.js";
 
@@ -22,6 +21,7 @@ export async function buildVercelControlService(
   context: DeploymentContext,
   runner: CommandRunner,
 ): Promise<DeploymentResult> {
+  const { build } = await import("tsdown");
   await runner.run("pnpm", ["--filter", "@tryopenbot/web", "build"], {
     cwd: context.repositoryRoot,
     environment: context.environment,
@@ -39,6 +39,7 @@ export async function buildVercelControlService(
     CONTROL_SOURCE: JSON.stringify(
       resolve(context.repositoryRoot, "apps/control-service/src/app.ts"),
     ),
+    CONFIGURATION_SOURCE: JSON.stringify(resolve(context.repositoryRoot, "configuration/index.ts")),
   });
   await build({
     cwd: context.repositoryRoot,
@@ -49,8 +50,12 @@ export async function buildVercelControlService(
     outDir: functionDirectory,
     clean: false,
     minify: true,
-    sourcemap: false,
-    outputOptions: { entryFileNames: "index.mjs" },
+    sourcemap: true,
+    inputOptions: workspaceSourceInputOptions(),
+    outputOptions: {
+      entryFileNames: "index.mjs",
+      sourcemapExcludeSources: true,
+    },
   });
   await Promise.all([
     cp(resolve(context.repositoryRoot, "apps/web/dist"), resolve(output, "static"), {

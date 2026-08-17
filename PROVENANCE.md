@@ -10,6 +10,11 @@ revisions on 2026-08-12:
 - `trytilde/harness-sdk` at `2f5070d`
 - `trytilde/examples` at `9d73adf`
 
+The public `trytilde/agent` authentication architecture was inspected at
+`242cc8b` on 2026-08-15. ADR-0016 uses its public deployment-registration,
+PKCE, cookie/bearer, and audience-validation behavior as an architectural
+reference; no implementation was copied.
+
 These repositories remain references, not vendored source. Their public API
 contracts must be reverified before changing pinned Tilde dependencies.
 
@@ -19,11 +24,18 @@ was synthesized from OpenBot's own deployment code and Vercel's public Agent
 Resources and product documentation as inspected on 2026-08-12. No upstream
 Vercel skill package was copied verbatim.
 
+## Clean-room behavioral references
+
+Grok Bot 0.16.0 recovered source was inspected locally on 2026-08-15 solely to
+derive high-level authentication requirements for ADR-0016: system-browser
+sign-in, main-process credential ownership, bounded renderer status, and
+account binding for durable installation data. No recovered source, private
+identifier, prompt, comment, or prose was copied into OpenBot. The inspected
+recovery manifest has SHA-256
+`8b26c94e76576c1709fc39ca33807bfabb5cac3c9b77398f956038e3a1263199`.
+
 ## Runtime artifact pins
 
-- Cua Driver `0.19.3`, release tag `cua-driver-rs-v0.19.3`. The official
-  installer supports `CUA_DRIVER_RS_VERSION`; its installer SHA-256 when
-  inspected was `52293f8683c6c41ef8df0bb17907f3bd9266314e04f7b0c8f3c4576e7ba139f7`.
 - Google Chrome stable `151.0.7922.137-1` for Linux amd64, package SHA-256
   `e6dabf044cf9cd0279cfe86efa431682c18bfc06d06339ce055aaa87ae871727`.
   Linux arm64 guests use Debian's Chromium because Google does not distribute

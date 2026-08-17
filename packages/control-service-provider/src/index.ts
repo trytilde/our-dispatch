@@ -1,6 +1,16 @@
-import type { Buildable, Deployable, InitializableProvider } from "@tryopenbot/runtime-provider";
+import type {
+  Buildable,
+  Deployable,
+  DeploymentContext,
+  InitializableProvider,
+} from "@tryopenbot/runtime-provider";
 
-export type ControlServiceProvider = Buildable & Deployable & InitializableProvider;
+export type ControlServiceProvider = Buildable &
+  Deployable &
+  InitializableProvider & {
+    /** Stable public URL used by dependent lifecycle providers. */
+    baseUrl(context: Pick<DeploymentContext, "devMode" | "environment">): URL;
+  };
 export { LocalControlServiceProvider } from "./local/index.js";
 export {
   VercelControlServiceProvider,

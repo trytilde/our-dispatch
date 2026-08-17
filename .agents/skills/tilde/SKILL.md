@@ -31,7 +31,7 @@ Tilde is a TypeScript-first platform for building and operating AI agents. It pr
 - Call `tilde_whoami` before performing workspace-scoped configuration and use the returned `team_id`.
 - Discover provider, credential source, and tool identifiers from Tilde. Never guess identifiers.
 - Keep API keys, webhook signing keys, OAuth credentials, claim tokens, and PINs out of source code, logs, chat history, and generated state.
-- Treat `tilde.state.yaml` as portable configuration, not as a secret store.
+- OpenBot does not use a Tilde state file during normal operation. Reconcile Tilde resources through typed, idempotent provider lifecycles. For one-time setup or team migration, the operator may manually export and import state with the Tilde CLI.
 - Keep webhook verification and server-side credentials in ChatKit endpoints.
 - Ask before changing or deleting existing resources when the requested scope is ambiguous.
 

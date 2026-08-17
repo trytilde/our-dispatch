@@ -1,0 +1,50 @@
+import type { CSSProperties, ReactNode, RefObject, UIEventHandler } from "react";
+
+export interface WorkspaceShellProps {
+  sidebarCollapsed: boolean;
+  computerOpen: boolean;
+  style: CSSProperties;
+  children: ReactNode;
+}
+
+export function WorkspaceShell({
+  sidebarCollapsed,
+  computerOpen,
+  style,
+  children,
+}: WorkspaceShellProps) {
+  return (
+    <main
+      className={`workspace-shell rich-chat ${sidebarCollapsed ? "sidebar-collapsed" : ""} ${computerOpen ? "workspace-open" : "workspace-closed"}`}
+      style={style}
+    >
+      {children}
+    </main>
+  );
+}
+
+export function ChatPane({ children }: { children: ReactNode }) {
+  return <section className="chat-pane">{children}</section>;
+}
+
+export interface ConversationSurfaceProps {
+  children: ReactNode;
+  scrollRef: RefObject<HTMLDivElement | null>;
+  onScroll: UIEventHandler<HTMLDivElement>;
+}
+
+export function ConversationSurface({ children, scrollRef, onScroll }: ConversationSurfaceProps) {
+  return (
+    <div className="conversation" aria-live="polite" ref={scrollRef} onScroll={onScroll}>
+      {children}
+    </div>
+  );
+}
+
+export function ScrollToLatestButton({ onClick }: { onClick: () => void }) {
+  return (
+    <button className="scroll-latest" onClick={onClick} aria-label="Scroll to latest">
+      ↓
+    </button>
+  );
+}

@@ -10,23 +10,36 @@ export interface SecretsRunResult {
 }
 
 export async function runSecrets(argv: readonly string[]): Promise<SecretsRunResult> {
-  const parsed = arg({ "--stdin": Boolean, "--json": Boolean }, { argv: [...argv] });
+  const parsed = arg(
+    { "--stdin": Boolean, "--json": Boolean, "--description": String },
+    { argv: [...argv] },
+  );
   const [operation, name, ...extra] = parsed._;
   if (!operation || !name || extra.length)
-    throw new Error("Usage: openbot secrets <set|unset> NAME [--stdin] [--json]");
+    throw new Error(
+      "Usage: openbot secrets <set|unset> NAME [--description TEXT] [--stdin] [--json]",
+    );
   if (operation === "set") {
+    const description = parsed["--description"]?.trim();
+    if (!description) throw new Error("secrets set requires --description TEXT");
     const fromStdin = parsed["--stdin"] ?? false;
     if (!fromStdin && (!process.stdin.isTTY || !process.stdout.isTTY))
       throw new Error("Non-interactive secret input requires --stdin");
     const value = fromStdin
       ? await readSecretFromStdin()
       : await inkPrompts.input(`Value for ${name}`, { secret: true, required: true });
-    await setEncryptedSecret(repositoryRoot, name, value);
+    await setEncryptedSecret(repositoryRoot, name, value, {
+      description,
+      prompts: process.stdin.isTTY && process.stdout.isTTY ? inkPrompts : undefined,
+    });
     return { json: parsed["--json"] ?? false, operation, name };
   }
   if (operation === "unset") {
-    if (parsed["--stdin"]) throw new Error("--stdin is only valid with secrets set");
-    await unsetEncryptedSecret(repositoryRoot, name);
+    if (parsed["--stdin"] || parsed["--description"])
+      throw new Error("--stdin and --description are only valid with secrets set");
+    await unsetEncryptedSecret(repositoryRoot, name, {
+      prompts: process.stdin.isTTY && process.stdout.isTTY ? inkPrompts : undefined,
+    });
     return { json: parsed["--json"] ?? false, operation, name };
   }
   throw new Error(`Unknown secrets operation: ${operation}`);

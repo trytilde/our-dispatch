@@ -1,5 +1,4 @@
 ---
-"@tryopenbot/control-service-proto": minor
 "@tryopenbot/control-service": minor
 "@tryopenbot/web": minor
 ---

@@ -7,14 +7,18 @@ export default defineConfig({
   target: "node24",
   outDir: "dist",
   clean: true,
-  sourcemap: false,
+  sourcemap: true,
   deps: {
     alwaysBundle: [
+      /@bufbuild\/protobuf/,
       /@connectrpc\//,
       /@tryopenbot\/computer-service-proto/,
       /@tryopenbot\/utilities/,
       /handlebars/,
     ],
   },
-  outputOptions: { banner: "#!/usr/bin/env node" },
+  outputOptions: {
+    banner: "#!/usr/bin/env node",
+    sourcemapExcludeSources: true,
+  },
 });

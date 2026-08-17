@@ -22,7 +22,7 @@ Read the smallest relevant set:
 - `packages/control-service-proto/proto/openbot/control/v1/control.proto`: owner-facing control contract.
 - `packages/computer-service-proto/proto/openbot/computer/v1/computer.proto`: internal computer contract.
 - `packages/<domain>-provider/src/core.ts` or `packages/<domain>-provider/src/core/index.ts`: domain provider seams; the package root only re-exports them.
-- `tilde.state.yaml`: portable Tilde resources.
+- Tilde-backed provider lifecycles: API-reconciled remote resources and persisted IDs.
 - `PROVENANCE.md`: copied-source and clean-room constraints.
 
 Read `CONTEXT.md` and relevant records under `docs/adrs/` when they exist. Create or update them only when a resolved, durable concept or decision needs a home.

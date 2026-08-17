@@ -3,7 +3,7 @@ import { dirname, extname, join, relative, resolve } from "node:path";
 
 const sourceRoot = resolve("src");
 const outputRoot = resolve("dist");
-const copiedExtensions = new Set([".css", ".hbs"]);
+const copiedExtensions = new Set([".css", ".hbs", ".svg"]);
 
 async function copyAssets(directory) {
   let entries;

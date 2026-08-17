@@ -1,0 +1,96 @@
+{
+  "name": "@tryopenbot/platform-integrations",
+  "version": "0.1.0",
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "development": "./src/index.ts",
+      "import": "./dist/index.js"
+    },
+    "./tilde/errors": {
+      "types": "./src/tilde/errors.ts",
+      "development": "./src/tilde/errors.ts",
+      "import": "./dist/tilde/errors.js"
+    },
+    "./tilde/fetch": {
+      "types": "./src/tilde/fetch.ts",
+      "development": "./src/tilde/fetch.ts",
+      "import": "./dist/tilde/fetch.js"
+    },
+    "./tilde/request": {
+      "types": "./src/tilde/request.ts",
+      "development": "./src/tilde/request.ts",
+      "import": "./dist/tilde/request.js"
+    },
+    "./vercel/deployment": {
+      "types": "./src/vercel/deployment.ts",
+      "development": "./src/vercel/deployment.ts",
+      "import": "./dist/vercel/deployment.js"
+    },
+    "./vercel/ai-gateway": {
+      "types": "./src/vercel/ai-gateway.ts",
+      "development": "./src/vercel/ai-gateway.ts",
+      "import": "./dist/vercel/ai-gateway.js"
+    },
+    "./vercel/registry": {
+      "types": "./src/vercel/registry.ts",
+      "development": "./src/vercel/registry.ts",
+      "import": "./dist/vercel/registry.js"
+    }
+  },
+  "publishConfig": {
+    "exports": {
+      ".": {
+        "types": "./dist/index.d.ts",
+        "import": "./dist/index.js"
+      },
+      "./tilde/errors": {
+        "types": "./dist/tilde/errors.d.ts",
+        "import": "./dist/tilde/errors.js"
+      },
+      "./tilde/fetch": {
+        "types": "./dist/tilde/fetch.d.ts",
+        "import": "./dist/tilde/fetch.js"
+      },
+      "./tilde/request": {
+        "types": "./dist/tilde/request.d.ts",
+        "import": "./dist/tilde/request.js"
+      },
+      "./vercel/deployment": {
+        "types": "./dist/vercel/deployment.d.ts",
+        "import": "./dist/vercel/deployment.js"
+      },
+      "./vercel/ai-gateway": {
+        "types": "./dist/vercel/ai-gateway.d.ts",
+        "import": "./dist/vercel/ai-gateway.js"
+      },
+      "./vercel/registry": {
+        "types": "./dist/vercel/registry.d.ts",
+        "import": "./dist/vercel/registry.js"
+      }
+    },
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsc --noEmit && tsdown --config ../../tsdown.node.config.ts && node ../../scripts/copy-package-assets.mjs",
+    "check": "vp check",
+    "lint": "vp lint",
+    "prepack": "pnpm build",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@tryopenbot/runtime-provider": "workspace:*",
+    "@trytilde/harness-sdk": "0.1.2"
+  },
+  "devDependencies": {
+    "@types/node": "24.3.0",
+    "typescript": "5.9.2",
+    "vitest": "3.2.4"
+  }
+}

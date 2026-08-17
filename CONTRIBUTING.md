@@ -8,7 +8,7 @@ vp run check
 vp run build
 ```
 
-Provider contracts belong in `core.ts` or `core/` inside their domain provider package; implementations belong beside them. Fork-specific integrations live in `configuration/providers/` when they are selected explicitly by `configuration/index.ts`. Agent prompts and execution belong in `configuration/agents/`, not the server router. Never commit `.env`, deployment state, or generated credentials.
+Provider contracts belong in `core.ts` or `core/` inside their domain provider package; implementations belong beside them. Fork-specific integrations live in `configuration/providers/` when they are selected explicitly by `configuration/index.ts`. Agent prompts and execution belong in the primary `configuration/agent/` tree or one of its `subagents/<id>/`, not the server router. Never commit `.env`, deployment state, or generated credentials.
 
 When contributing from a fork, separate reusable core changes from private configuration. `.agents/skills/upstream-pr` documents the repository workflow for coding agents.
 

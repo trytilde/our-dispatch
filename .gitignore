@@ -5,11 +5,13 @@ node_modules/
 dist/
 coverage/
 playwright-report/
+storybook-static/
 test-results/
 .data/
 /.env
 /.env.*
 configuration/.env
+configuration/secrets.enc.yaml
 .vercel/
 .openbot-deploy/
 .openbot/

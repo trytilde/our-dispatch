@@ -1,8 +1,17 @@
-import { access, mkdtemp, readFile, rm } from "node:fs/promises";
+import { access, copyFile, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
+import { VercelAgentServiceProvider } from "@tryopenbot/agent-service-provider";
+import { DeploymentOutputs } from "@tryopenbot/runtime-provider";
 import { afterEach, describe, expect, it } from "vite-plus/test";
-import { agentIdFromName, scaffoldAgent } from "./agent-scaffold.js";
+import {
+  agentIdFromName,
+  agentTemplateDirectory,
+  scaffoldAgent,
+  scaffoldAgentTemplates,
+  scaffoldPrimaryAgent,
+} from "./agent-scaffold.js";
 
 const temporaryDirectories: string[] = [];
 
@@ -20,16 +29,47 @@ describe("agent scaffolding", () => {
 
   it("materializes the supported agent tree with fixed-id shared computer tools", async () => {
     const root = await temporaryRepository();
+    await scaffoldAgentTemplates(root);
+    const primary = await scaffoldPrimaryAgent(root, "Hello World");
     const agent = await scaffoldAgent(root, "Research Assistant");
 
+    expect(primary).toMatchObject({ id: "hello-world", name: "Hello World" });
     expect(agent).toMatchObject({ id: "research-assistant", name: "Research Assistant" });
-    const directory = join(root, "configuration/agents/research-assistant");
-    expect(await readFile(join(directory, "agent.ts"), "utf8")).toContain(
-      "OPENBOT_AGENT_RESEARCH_ASSISTANT_API_KEY",
+    const directory = join(root, "configuration/agent/subagents/research-assistant");
+    expect(await readFile(join(root, "configuration/agent/instrumentation.ts"), "utf8")).toContain(
+      "setup",
     );
-    expect(await readFile(join(directory, "lib/identity.ts"), "utf8")).toContain(
-      '"Research Assistant"',
-    );
+    expect(
+      await readFile(join(root, "configuration/agent/sandbox/workspace/README.md"), "utf8"),
+    ).toContain("Hello World");
+    const agentSource = await readFile(join(directory, "agent.ts"), "utf8");
+    expect(agentSource).toContain("process.env.AGENT_RESEARCH_ASSISTANT_API_KEY!");
+    expect(agentSource).not.toContain("requiredEnv");
+    expect(agentSource).not.toContain("runtime-providers");
+    expect(agentSource).not.toContain("@tryopenbot/agent-provider");
+    expect(agentSource).not.toContain("@tryopenbot/tools-provider");
+    expect(agentSource).toContain("AGENT_RESEARCH_ASSISTANT_MCP_SERVER_ID");
+    expect(agentSource).toContain("tools: localTools");
+    expect(agentSource).not.toContain("AGENT_RESEARCH_ASSISTANT_SKILL_REGISTRY_ID");
+    expect(agentSource).not.toContain("function addTools");
+    expect(agentSource).not.toContain("searchSkillRegistry");
+    expect(agentSource).not.toContain("TILDE_BASE_URL");
+    expect(agentSource).toContain('model: process.env.AI_MODEL ?? "openai/gpt-5.6-sol"');
+    expect(agentSource).toContain('providerOptions: { openai: { reasoningEffort: "medium" } }');
+    expect(agentSource).not.toContain("@ai-sdk/openai");
+    expect(agentSource).not.toContain("OPENAI_API_KEY");
+    expect(agentSource).not.toContain("openai(");
+    expect(agentSource).toContain("system: instructions");
+    expect(agentSource).not.toContain("Your name is");
+    expect(agentSource).not.toContain("lib/identity");
+    const instructionsSource = await readFile(join(directory, "instructions.ts"), "utf8");
+    expect(instructionsSource).toContain("process.env.AGENT_RESEARCH_ASSISTANT_NAME!");
+    expect(instructionsSource).toContain("Your name is ${agentName}.");
+    expect(instructionsSource).toContain("Use search_skills");
+    expect(instructionsSource).toContain("dynamic tool discovery");
+    await expect(access(join(directory, "lib/identity.ts"))).rejects.toMatchObject({
+      code: "ENOENT",
+    });
     expect(await readFile(join(directory, "tools/bash.ts"), "utf8")).toContain(
       'createBashTool({ agentId: "research-assistant" })',
     );
@@ -55,6 +95,86 @@ describe("agent scaffolding", () => {
     await expect(
       scaffoldAgent(root, "Research Assistant", { existing: "preserve" }),
     ).resolves.toMatchObject({ id: "research-assistant" });
+  });
+
+  it("loads fork-owned templates and preserves owner changes when init runs again", async () => {
+    const root = await temporaryRepository();
+    const templateRoot = await scaffoldAgentTemplates(root);
+    const customTemplate = join(templateRoot, "lib/custom.ts.hbs");
+    await mkdir(join(templateRoot, "lib"), { recursive: true });
+    await writeFile(customTemplate, "export const id = {{{AGENT_ID_JSON}}};\n", "utf8");
+    await writeFile(
+      join(templateRoot, "instructions.ts.hbs"),
+      "export default `Custom instructions for {{AGENT_NAME}}`;\n",
+      "utf8",
+    );
+
+    await scaffoldAgentTemplates(root);
+    await scaffoldPrimaryAgent(root, "Hello World");
+    await scaffoldAgent(root, "Custom Agent");
+
+    expect(
+      await readFile(
+        join(root, "configuration/agent/subagents/custom-agent/lib/custom.ts"),
+        "utf8",
+      ),
+    ).toBe('export const id = "custom-agent";\n');
+    expect(
+      await readFile(
+        join(root, "configuration/agent/subagents/custom-agent/instructions.ts"),
+        "utf8",
+      ),
+    ).toContain("Custom instructions for Custom Agent");
+    expect(await readFile(customTemplate, "utf8")).toContain("AGENT_ID_JSON");
+  });
+
+  it("requires init to seed the fork-owned agent template", async () => {
+    const root = await temporaryRepository();
+    await expect(scaffoldPrimaryAgent(root, "Hello World")).rejects.toThrow(
+      `${agentTemplateDirectory} is missing; run openbot init`,
+    );
+  });
+
+  it("materializes a primary agent accepted by the real agent-service typecheck", async () => {
+    const workspaceRoot = fileURLToPath(new URL("../../", import.meta.url));
+    const root = await mkdtemp(join(workspaceRoot, ".openbot-agent-typecheck-"));
+    temporaryDirectories.push(root);
+    await Promise.all(
+      ["tsconfig.base.json", "tsconfig.node.json"].map((name) =>
+        copyFile(join(workspaceRoot, name), join(root, name)),
+      ),
+    );
+    await scaffoldAgentTemplates(root);
+    await scaffoldPrimaryAgent(root, "Hello World");
+    await mkdir(join(root, "configuration"), { recursive: true });
+    await writeFile(
+      join(root, "configuration/instrumentation.ts"),
+      "export default { setup() {} };\n",
+      "utf8",
+    );
+
+    await expect(
+      new VercelAgentServiceProvider().check({
+        devMode: true,
+        repositoryRoot: root,
+        environment: process.env,
+        inputs: new DeploymentOutputs(),
+        report: () => undefined,
+      }),
+    ).resolves.toBeUndefined();
+  });
+
+  it("rejects an incomplete fork-owned agent template", async () => {
+    const root = await temporaryRepository();
+    const templateRoot = await scaffoldAgentTemplates(root);
+    await rm(join(templateRoot, "tools/bash.ts.hbs"));
+
+    await expect(scaffoldPrimaryAgent(root, "Hello World")).rejects.toThrow(
+      `${agentTemplateDirectory}/tools/bash.ts.hbs`,
+    );
+    await expect(access(join(root, "configuration/agent"))).rejects.toMatchObject({
+      code: "ENOENT",
+    });
   });
 });
 

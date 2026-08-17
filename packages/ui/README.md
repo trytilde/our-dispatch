@@ -4,14 +4,49 @@ Shared React UI components and the vendored Beautiful UI surface used by OpenBot
 
 ## Public API
 
-The package root exports these React components:
+The package root exports the complete workspace surface:
 
-- `ApprovalCard`
-- `BeautifulChat`
-- `BeautifulSidebarNav`
-- `StreamingText`
-- `TaskRows`
-- `Thinking`
-- `ToolChips`
+- Shell and navigation: `WorkspaceShell`, `WorkspaceSidebar`, `AgentListItem`,
+  `AgentSearchDialog`, `WorkspaceAccount`, and `useWorkspaceLayout`.
+- Chat: `ChatHeader`, `ChatPane`, `ChatComposer`, `ConversationSurface`,
+  `ConversationMessage`, `EmptyConversation`, `MessageContent`,
+  `ScrollToLatestButton`, `ThinkingIndicator`, `ChatFindBar`, transcript
+  loading and error states, unread and new-message markers, message delivery
+  notices, and system-event primitives.
+- Rich content: `MarkdownText`, `JsonBlock`, `ReasoningCard`, `ToolCallCard`,
+  `ConnectionCard`, `FileCard`, `FileViewer`, `MediaViewer`, `AudioPlayer`,
+  `LinkPreviewCard`, `LinkHoverPreview`, `DiagramCard`, `CodeBlock`,
+  `DiffBlock`, `CitationLink`, and `InlinePath`.
+- Agent activity: `AgentActivity`, `ActivityQueue`, `ActivityTimeline`,
+  `AsyncTasksPanel`, and `ConversationOutlinePanel`.
+- Computer: `AgentWorkspacePanel`, `ComputerStagePlaceholder`,
+  `ComputerMonitorStrip`, `ComputerReconnectBanner`, `ComputerRebuildBanner`,
+  `ComputerRebuildDialog`, `ComputerFailureDialog`, and the remaining Computer
+  lifecycle dialogs, including `ComputerHandoffCard`.
+- Overlays: `DialogSurface`, `PermissionRequestCard`,
+  `LocalToolPermissionCard`, `LocalToolPermissionDock`, and `ThreadOverlay`.
+- Identity: `AgentAvatar` and its packaged avatar artwork.
+- Controls: `StatusBadge`, `KeyboardKey`, `InputGroup`, `SelectField`,
+  `ScrollArea`, `TextRoll`, `VoiceWaveform`, and `ModelPicker`.
+- Vendored Beautiful UI: `ApprovalCard`, `BeautifulChat`,
+  `BeautifulSidebarNav`, `StreamingText`, `TaskRows`, `Thinking`, and
+  `ToolChips`.
 
 `@tryopenbot/ui/beautiful-ui.css` exports the upstream stylesheet. `@tryopenbot/ui/beautiful-ui/*` exposes the vendored component modules for consumers that need a specific upstream file. Changes to vendored files must retain provenance in the repository notices.
+
+`@tryopenbot/ui/openbot-ui.css` exports the complete OpenBot workspace palette,
+geometry, responsive layout, component states, and motion system. Applications
+should consume the package stylesheet instead of maintaining local overrides.
+
+## Storybook
+
+Run the package-owned component catalog from the repository root:
+
+```bash
+pnpm --filter @tryopenbot/ui storybook
+```
+
+Build its static output with `pnpm --filter @tryopenbot/ui storybook:build`.
+The stories cover every public visual component that can run in isolation,
+including responsive compositions and loading, error, permission, reconnect,
+and deployment lifecycle states.

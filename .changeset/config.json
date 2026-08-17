@@ -6,20 +6,19 @@
     [
       "@tryopenbot/agent-provider",
       "@tryopenbot/agent-service-provider",
+      "@tryopenbot/auth-provider",
       "openbot",
       "@tryopenbot/computer-provider",
+      "@tryopenbot/computer-tools",
       "@tryopenbot/computer-service",
       "@tryopenbot/computer-service-proto",
       "@tryopenbot/configuration",
-      "@tryopenbot/control-service-proto",
       "@tryopenbot/desktop",
       "@tryopenbot/utilities",
-      "@tryopenbot/inference-model-provider",
+      "@tryopenbot/platform-integrations",
       "@tryopenbot/control-service-provider",
       "@tryopenbot/runtime-provider",
       "@tryopenbot/control-service",
-      "@tryopenbot/skills-provider",
-      "@tryopenbot/tools-provider",
       "@tryopenbot/ui",
       "@tryopenbot/web"
     ]

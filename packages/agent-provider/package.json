@@ -23,14 +23,17 @@
     "access": "public"
   },
   "scripts": {
-    "build": "tsc --noEmit && tsdown --config ../../tsdown.package.config.ts && node ../../scripts/copy-package-assets.mjs",
-    "lint": "tsc --noEmit",
+    "build": "tsc --noEmit && tsdown --config ../../tsdown.node.config.ts && node ../../scripts/copy-package-assets.mjs",
+    "check": "vp check",
+    "lint": "vp lint",
     "prepack": "pnpm build",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@tryopenbot/platform-integrations": "workspace:*",
     "@tryopenbot/runtime-provider": "workspace:*",
+    "@trytilde/api-client": "github:trytilde/harness-sdk#c9b64d691486e6d57ff69cd0eb0214ceb6d1c13d&path:packages/api-client",
     "@trytilde/harness-sdk": "0.1.2",
     "ai": "6.0.250"
   },

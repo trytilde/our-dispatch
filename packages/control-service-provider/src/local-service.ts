@@ -35,7 +35,7 @@ export async function installLocalService(
     const unit = await renderFileTemplatePath(systemdTemplate, {
       DESCRIPTION: options.description,
       WORKING_DIRECTORY: systemdPath(context.repositoryRoot),
-      DEPLOYMENT_ENVIRONMENT: quote(`OPENBOT_DEPLOYMENT_ENV_FILE=${environmentFile}`),
+      DEPLOYMENT_ENVIRONMENT: quote(`DEPLOYMENT_ENV_FILE=${environmentFile}`),
       ENVIRONMENT_FILE: systemdPath(environmentFile),
       COMMAND: options.command.map(quote).join(" "),
     });
@@ -109,8 +109,11 @@ export async function waitForHealth(request: typeof fetch, origin: string): Prom
 }
 
 async function renderEnvironment(context: DeploymentContext): Promise<string> {
-  const values = new Map(Object.entries(context.inputs.environmentVariables()));
-  for (const [name, value] of Object.entries(context.inputs.secrets())) values.set(name, value);
+  const values = new Map(
+    Object.entries(context.environment).filter(
+      (entry): entry is [string, string] => entry[1] !== undefined,
+    ),
+  );
   return renderFileTemplatePath(environmentTemplate, {
     entries: [...values]
       .sort(([a], [b]) => a.localeCompare(b))

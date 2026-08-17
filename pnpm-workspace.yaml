@@ -16,6 +16,13 @@ catalog:
 overrides:
   vite: "catalog:"
   vitest: "catalog:"
+packageExtensions:
+  "@trytilde/api-client@*":
+    dependencies:
+      "@types/node": "24.3.0"
+      typescript: "5.9.3"
+      vite: "8.0.16"
+      vite-plugin-dts: "4.5.4"
 peerDependencyRules:
   allowAny:
     - vite

@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState, type ReactNode } from "react";
-import { Box, Text, useApp, useInput } from "ink";
+import { Box, Text, render, useApp, useInput } from "ink";
 
 export interface RepositoryCounts {
   digest: string;
@@ -30,8 +30,10 @@ const commands = [
   ["init", "Initialize OpenBot interactively"],
   ["init --non-interactive --json", "Initialize from JSON answers on stdin"],
   ["new-agent NAME --json", "Scaffold an agent non-interactively"],
-  ["secrets set NAME --stdin --json", "Set a secret from stdin"],
+  ["secrets set NAME --description TEXT --stdin", "Set a described secret from stdin"],
   ["secrets unset NAME", "Remove an encrypted configuration secret"],
+  ["env set NAME VALUE --description TEXT", "Set a described environment value"],
+  ["env unset NAME", "Remove a configuration environment value"],
   ["dev", "Start the local OpenBot development environment"],
   ["check", "Run repository validation"],
   ["build", "Build the deployable application shell"],
@@ -148,6 +150,131 @@ export function Progress({ label }: { label: string }) {
   );
 }
 
+export interface StreamingProgressController {
+  setLabel(label: string): void;
+  write(output: string): void;
+  succeed(label?: string): void;
+  fail(label?: string): void;
+}
+
+/** Imperative bridge from provider lifecycle events into one stable Ink region. */
+export function createStreamingProgress(
+  initialLabel: string,
+  { enabled = process.stdout.isTTY, maxLines = 8 }: { enabled?: boolean; maxLines?: number } = {},
+): StreamingProgressController {
+  let label = initialLabel;
+  let lines: string[] = [];
+  let status: "running" | "succeeded" | "failed" = "running";
+  const view = () => <StreamingProgress label={label} lines={lines} status={status} />;
+  const app = enabled ? render(view()) : null;
+  if (!enabled) process.stdout.write(`${label}\n`);
+
+  const refresh = () => app?.rerender(view());
+  const finish = (nextStatus: "succeeded" | "failed", nextLabel?: string) => {
+    status = nextStatus;
+    if (nextLabel) label = nextLabel;
+    if (app) {
+      refresh();
+      app.unmount();
+    } else process.stdout.write(`${nextStatus === "succeeded" ? "✓" : "✗"} ${label}\n`);
+  };
+
+  return {
+    setLabel(nextLabel) {
+      label = nextLabel;
+      refresh();
+    },
+    write(output) {
+      const next = terminalLines(output);
+      if (!next.length) return;
+      if (!enabled) {
+        process.stdout.write(`${next.join("\n")}\n`);
+        return;
+      }
+      lines = [...lines, ...next].slice(-maxLines);
+      refresh();
+    },
+    succeed(nextLabel) {
+      finish("succeeded", nextLabel);
+    },
+    fail(nextLabel) {
+      finish("failed", nextLabel);
+    },
+  };
+}
+
+function StreamingProgress({
+  label,
+  lines,
+  status,
+}: {
+  label: string;
+  lines: readonly string[];
+  status: "running" | "succeeded" | "failed";
+}) {
+  return (
+    <Box flexDirection="column">
+      {status === "running" ? (
+        <Progress label={label} />
+      ) : (
+        <Text>
+          <Text color={status === "succeeded" ? "green" : "red"}>
+            {status === "succeeded" ? "✓" : "✗"}
+          </Text>{" "}
+          <Text bold>{label}</Text>
+        </Text>
+      )}
+      {lines.map((line, index) => (
+        <Text key={`${index}:${line}`} dimColor wrap="truncate-end">
+          {line}
+        </Text>
+      ))}
+    </Box>
+  );
+}
+
+function terminalLines(output: string): string[] {
+  return stripTerminalControlSequences(output)
+    .replaceAll("\r", "\n")
+    .split("\n")
+    .map((line) =>
+      line
+        .split("")
+        .filter((character) => {
+          const code = character.charCodeAt(0);
+          return code === 9 || (code >= 32 && code !== 127);
+        })
+        .join("")
+        .trimEnd(),
+    )
+    .filter(Boolean);
+}
+
+function stripTerminalControlSequences(output: string): string {
+  let result = "";
+  let escape = false;
+  let controlSequence = false;
+  for (const character of output) {
+    const code = character.charCodeAt(0);
+    if (code === 27) {
+      escape = true;
+      controlSequence = false;
+      continue;
+    }
+    if (escape) {
+      escape = false;
+      controlSequence = character === "[";
+      continue;
+    }
+    if (controlSequence) {
+      if (code >= 64 && code <= 126) controlSequence = false;
+      continue;
+    }
+    result += character;
+  }
+  return result;
+}
+
 export function Success({ title, children }: { title: string; children?: ReactNode }) {
   return (
     <Box flexDirection="column">
@@ -163,11 +290,28 @@ export function Success({ title, children }: { title: string; children?: ReactNo
   );
 }
 
-export function Failure({ message }: { message: string }) {
+export function Failure({
+  message,
+  stack,
+  logPath,
+}: {
+  message: string;
+  stack?: string;
+  logPath?: string;
+}) {
   return (
-    <Box borderStyle="round" borderColor="red" paddingX={1}>
-      <Text color="red">Error: </Text>
-      <Text>{message}</Text>
+    <Box flexDirection="column">
+      <Box borderStyle="round" borderColor="red" paddingX={1}>
+        <Text color="red">Error: </Text>
+        <Text>{message}</Text>
+      </Box>
+      {stack ? (
+        <Box flexDirection="column" marginTop={1}>
+          <Text bold>Stack trace</Text>
+          <Text>{stack}</Text>
+        </Box>
+      ) : null}
+      {logPath ? <Text dimColor>Full details: {logPath}</Text> : null}
     </Box>
   );
 }

@@ -6,15 +6,11 @@
 "@tryopenbot/computer-service": minor
 "@tryopenbot/computer-service-proto": minor
 "@tryopenbot/configuration": minor
-"@tryopenbot/control-service-proto": minor
 "@tryopenbot/desktop": minor
 "@tryopenbot/utilities": minor
-"@tryopenbot/inference-model-provider": minor
 "@tryopenbot/control-service-provider": minor
 "@tryopenbot/runtime-provider": minor
 "@tryopenbot/control-service": minor
-"@tryopenbot/skills-provider": minor
-"@tryopenbot/tools-provider": minor
 "@tryopenbot/ui": minor
 "@tryopenbot/web": minor
 ---

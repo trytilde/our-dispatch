@@ -32,7 +32,8 @@
     "access": "public"
   },
   "scripts": {
-    "build": "tsc --noEmit && tsdown --config ../../tsdown.package.config.ts && node ../../scripts/copy-package-assets.mjs",
+    "build": "tsc --noEmit && tsdown --config ../../tsdown.node.config.ts && node ../../scripts/copy-package-assets.mjs",
+    "check": "vp check",
     "lint": "vp lint",
     "prepack": "pnpm build",
     "test": "vp test run",
@@ -43,6 +44,7 @@
   },
   "devDependencies": {
     "@types/node": "24.3.0",
+    "tsdown": "0.22.14",
     "typescript": "5.9.2",
     "vite": "catalog:",
     "vite-plus": "catalog:"

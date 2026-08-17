@@ -1,7 +1,17 @@
-import { chatKitEndpoint, convertToAiSdkMessages, createClient } from "@trytilde/harness-sdk-vercel-ai-node";
-import { consumeStream, convertToModelMessages, stepCountIs, streamText, type ToolSet } from "ai";
-import providers from "../../runtime-providers.js";
-import { agentName } from "./lib/identity.js";
+import {
+  chatKitEndpoint,
+  convertToAiSdkMessages,
+  createChatKitAttachmentFilePartHandler,
+  createClient,
+  createMCPClient,
+} from "@trytilde/harness-sdk-vercel-ai-node";
+import {
+  consumeStream,
+  convertToModelMessages,
+  stepCountIs,
+  streamText,
+  type ToolSet,
+} from "ai";
 import instructions from "./instructions.js";
 import awaitShell from "./tools/await_shell.js";
 import bash from "./tools/bash.js";
@@ -13,58 +23,86 @@ import readFile from "./tools/read_file.js";
 import screenshot from "./tools/screenshot.js";
 import writeFile from "./tools/write_file.js";
 
-function requiredEnv(...names: string[]): string {
-  for (const name of names) {
-    const value = process.env[name]?.trim();
-    if (value) return value;
-  }
-  throw new Error(`${names.join(" or ")} is required`);
-}
+const agentApiKey = process.env.AGENT_{{AGENT_ENV_PREFIX}}_API_KEY!;
+const mcpServerId = process.env.AGENT_{{AGENT_ENV_PREFIX}}_MCP_SERVER_ID!;
 
 const client = createClient({
-  apiKey: requiredEnv("OPENBOT_AGENT_{{AGENT_ENV_PREFIX}}_API_KEY", "OPENBOT_TILDE_API_KEY"),
-  baseUrl: process.env.TILDE_BASE_URL ?? "https://api.trytilde.ai",
-  orgId: requiredEnv("OPENBOT_TILDE_ORG_ID"),
+  apiKey: agentApiKey,
+  orgId: process.env.TILDE_ORG_ID!,
   orgSubdomain: false,
-  teamId: requiredEnv("OPENBOT_TILDE_TEAM_ID"),
+  teamId: process.env.TILDE_TEAM_ID!,
 });
-function addTools(target: ToolSet, source: readonly ({ readonly name: string } & ToolSet[string])[]): void {
-  for (const providerTool of source) {
-    if (target[providerTool.name]) throw new Error(`Duplicate agent tool: ${providerTool.name}`);
-    target[providerTool.name] = providerTool;
-  }
+const localTools = {
+  await_shell: awaitShell,
+  bash,
+  copy_from_computer: copyFromComputer,
+  copy_to_computer: copyToComputer,
+  glob,
+  grep,
+  read_file: readFile,
+  screenshot,
+  write_file: writeFile,
+} satisfies ToolSet;
+let mcpTools: Promise<ToolSet> | undefined;
+
+async function managedMcpTools(): Promise<ToolSet> {
+  return (mcpTools ??= createMCPClient({
+    client,
+    serverId: mcpServerId,
+    tools: localTools,
+  }).then(async ({ mcp }) => {
+    // The Tilde wrapper preserves AI SDK tools but exposes a transport-neutral registry type.
+    const tools: Record<string, unknown> = await mcp.tools();
+    assertToolSet(tools);
+    return tools;
+  }));
+}
+
+function assertToolSet(tools: Record<string, unknown>): asserts tools is ToolSet {
+  for (const [name, definition] of Object.entries(tools))
+    if (typeof definition !== "object" || definition === null || !("inputSchema" in definition))
+      throw new TypeError(`MCP tool ${name} is not a Vercel AI SDK tool`);
+}
+
+function fetchAttachment(input: string | URL | Request, init?: RequestInit): Promise<Response> {
+  const url = new URL(input instanceof Request ? input.url : input.toString(), client.config.baseUrl);
+  if (url.origin === new URL(client.config.baseUrl).origin) return fetch(input, init);
+
+  const headers = new Headers(init?.headers);
+  headers.delete("authorization");
+  headers.delete("x-api-key");
+  headers.delete("x-tilde-org-id");
+  headers.delete("x-tilde-team-id");
+  return fetch(input, { ...init, headers });
 }
 
 export default chatKitEndpoint({
   client,
-  webhookSigningKey: requiredEnv("OPENBOT_AGENT_{{AGENT_ENV_PREFIX}}_WEBHOOK_SIGNING_KEY", "OPENBOT_TILDE_WEBHOOK_SIGNING_KEY"),
+  webhookSigningKey: process.env.AGENT_{{AGENT_ENV_PREFIX}}_WEBHOOK_SIGNING_KEY!,
   requestTimeoutMs: 285_000,
   async handler(request, context) {
-    const callContext = { requestId: context.webhookId, signal: request.signal };
-    const modelContext = { agentId: agentName, sessionId: context.sessionId, ...(context.userId ? { userId: context.userId } : {}) };
-    const tools: ToolSet = { await_shell: awaitShell, bash, copy_from_computer: copyFromComputer, copy_to_computer: copyToComputer, glob, grep, read_file: readFile, screenshot, write_file: writeFile };
-    addTools(tools, await providers.agent.registerTools?.(callContext) ?? []);
-    addTools(tools, await providers.skills.registerTools?.(callContext) ?? []);
-    addTools(tools, await providers.tools.registerTools(callContext));
-
-    const promptParts = await Promise.all([
-      providers.agent.injectPromptPart?.({ agent: { id: agentName, displayName: {{{AGENT_NAME_JSON}}} }, sessionId: context.sessionId }, callContext),
-      providers.skills.injectPromptPart?.(modelContext, callContext),
-      providers.tools.injectPromptPart(modelContext, callContext),
-      providers.inferenceModel.injectPromptPart?.(modelContext),
-      providers.computer.injectPromptPart({ agentId: agentName, sessionId: context.sessionId }, callContext),
-    ]);
-    const system = [instructions, `Your name is ${agentName}.`, ...promptParts.map((part) => typeof part === "string" ? part : part?.content).filter((part): part is string => Boolean(part))].join("\n\n");
     const history = await context.session.history();
-    const messages = await convertToAiSdkMessages({ messages: [...history.items, ...context.messages], chatkit: context.chatkit });
+    const messages = await convertToAiSdkMessages({
+      messages: [...history.items, ...context.messages],
+      chatkit: context.chatkit,
+      onUnprocessed: {
+        fileUpload: createChatKitAttachmentFilePartHandler(client, context, {
+          fetch: fetchAttachment,
+        }),
+      },
+    });
     const result = streamText({
       abortSignal: request.signal,
       messages: await convertToModelMessages(messages),
-      model: providers.inferenceModel.model(process.env.OPENBOT_OPENAI_MODEL ?? "gpt-5.4"),
+      model: process.env.AI_MODEL ?? "openai/gpt-5.6-sol",
+      providerOptions: { openai: { reasoningEffort: "medium" } },
       stopWhen: stepCountIs(12),
-      system,
-      tools,
+      system: instructions,
+      tools: await managedMcpTools(),
     });
-    return result.toUIMessageStreamResponse({ consumeSseStream: consumeStream, originalMessages: messages });
+    return result.toUIMessageStreamResponse({
+      consumeSseStream: consumeStream,
+      originalMessages: messages,
+    });
   },
 });

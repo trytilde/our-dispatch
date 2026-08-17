@@ -1,0 +1,17 @@
+import { serve } from "@hono/node-server";
+import { createApp } from {{{CONTROL_SOURCE}}};
+import configuration from {{{CONFIGURATION_SOURCE}}};
+
+const port = Number.parseInt(process.env.PORT ?? "4100", 10);
+if (!Number.isSafeInteger(port) || port < 1 || port > 65_535) {
+  throw new Error("PORT must be a valid TCP port");
+}
+
+serve({
+  fetch: createApp({
+    authProvider: configuration.providers.auth,
+    computerProvider: configuration.providers.computer,
+  }).fetch,
+  port,
+  hostname: "127.0.0.1",
+});

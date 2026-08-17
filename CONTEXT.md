@@ -16,6 +16,16 @@ _Avoid_: Tilde workspace
 The person responsible for configuring and operating an **OpenBot Installation**.
 _Avoid_: admin, user, or customer when ownership is meant
 
+**Installation Resource**:
+The OAuth protected-resource identity assigned to one **OpenBot Installation**. Its exact URI is
+the required access-token audience for that installation.
+_Avoid_: client ID or scope when the protected installation is meant
+
+**Owner Principal**:
+The verified subject, **Installation Resource**, client, scopes, roles, and entitlements available
+to an owner-facing control handler after authentication and authorization.
+_Avoid_: treating a decoded token or session cookie alone as authorization
+
 **Tilde Organization**:
 The Tilde ownership and billing boundary selected during setup.
 
@@ -39,19 +49,21 @@ _Avoid_: host, server
 OpenBot-owned installation, onboarding, computer lease, deployment progress, repository reconciliation mappings, and source-publication progress.
 _Avoid_: agent state, chat state
 
-**Portable Tilde State**:
-Secret-free declarative configuration used to create or update the Tilde resources required by an **OpenBot Installation**.
 _Avoid_: credentials, runtime state
 
 ## Relationships
 
-- An **Owner** opens an **OpenBot Installation** without a pairing-code gate.
+- An **Owner** authenticates through OIDC without a pairing-code gate.
+- Each **OpenBot Installation** has one **Installation Resource** and accepts only access tokens
+  with that exact audience.
+- Tilde login may provide SSO across installations, but each installation keeps independent access
+  tokens and host-only cookies.
 - An **OpenBot Installation** presents one **OpenBot Workspace**.
 - An **OpenBot Installation** connects to one **Tilde Organization** and **Tilde Team**.
 - A **Tilde Team** owns one or more **Tilde Agents** and their **ChatKit Sessions**.
 - An **OpenBot Installation** controls at most one active **OpenBot Computer**.
 - **Control State** belongs to OpenBot; agent and conversation state belongs to the **Tilde Team**.
-- **Portable Tilde State** describes Tilde resources but contains no secrets.
+- Tilde provider lifecycles reconcile their resources through the typed API client.
 
 ## Example dialogue
 
@@ -62,7 +74,7 @@ _Avoid_: credentials, runtime state
 
 - "workspace" can mean the **OpenBot Workspace**, a Tilde team, or the computer filesystem; use the explicit term.
 - "agent" can mean a **Tilde Agent** or the software implementing its behavior; use **Tilde Agent** for the registered runtime resource.
-- "state" can mean **Control State**, **Portable Tilde State**, or Tilde-owned runtime data; name the owner and kind.
+- "state" can mean **Control State** or Tilde-owned runtime data; name the owner and kind.
 
 ## Follow-up markers
 
@@ -79,13 +91,7 @@ Work: <specific remaining behavior and its acceptance proof>
 ```
 
 <FOLLOW UP>
-Owner: control service and web workspace
-Trigger: when the owner-facing desktop preview becomes a product requirement
-Work: design the narrow preview-only transport without exposing general computer lifecycle, file, process, input, provider URL, or credential methods to the renderer; prove the chosen route on web and Electron
-</FOLLOW UP>
-
-<FOLLOW UP>
 Owner: production deployment orchestrator
 Trigger: when computer-provider replaces the legacy production sandbox adapter
-Work: build and publish the OpenBot computer image with ensurePublishedComputerImage, persist its source digest and immutable image reference in redacted deployment state, and prove a second unchanged deployment skips both buildImage and publishImage
+Work: persist the computer-provider build lifecycle's source digest and immutable image reference in redacted deployment state, and prove a second unchanged deployment skips both image build and publication
 </FOLLOW UP>

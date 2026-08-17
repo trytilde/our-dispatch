@@ -27,8 +27,7 @@ interface BackgroundJobMetadata {
  */
 export class BackgroundExecRegistry {
   constructor(
-    readonly stateRoot = process.env.OPENBOT_BACKGROUND_JOBS_DIRECTORY ??
-      "/workspace/.openbot/jobs",
+    readonly stateRoot = process.env.BACKGROUND_JOBS_DIRECTORY ?? "/workspace/.openbot/jobs",
   ) {}
 
   async start(
@@ -44,15 +43,15 @@ export class BackgroundExecRegistry {
     const exitFile = join(directory, "exit-code");
     const timeout = timeoutMilliseconds > 0 ? [`${timeoutMilliseconds / 1_000}s`] : [];
     const script = timeout.length
-      ? 'timeout --signal=TERM "$1" "${@:2}"; code=$?; printf "%s\\n" "$code" > "$OPENBOT_JOB_EXIT_FILE"'
-      : '"$@"; code=$?; printf "%s\\n" "$code" > "$OPENBOT_JOB_EXIT_FILE"';
+      ? 'timeout --signal=TERM "$1" "${@:2}"; code=$?; printf "%s\\n" "$code" > "$JOB_EXIT_FILE"'
+      : '"$@"; code=$?; printf "%s\\n" "$code" > "$JOB_EXIT_FILE"';
     const child = spawn(
       "/bin/bash",
       ["-c", script, "--", ...timeout, command.command, ...command.arguments],
       {
         cwd: command.cwd,
         detached: true,
-        env: { ...command.environment, OPENBOT_JOB_EXIT_FILE: exitFile },
+        env: { ...command.environment, JOB_EXIT_FILE: exitFile },
         stdio: ["ignore", stdout.fd, stderr.fd],
       },
     );

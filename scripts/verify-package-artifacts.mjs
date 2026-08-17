@@ -10,7 +10,14 @@ for (const parent of ["apps", "packages"])
 
 for (const directory of workspaceDirectories) {
   const packageRoot = join(repositoryRoot, directory);
-  const manifest = JSON.parse(await readFile(join(packageRoot, "package.json"), "utf8"));
+  const manifestPath = join(packageRoot, "package.json");
+  try {
+    await access(manifestPath);
+  } catch (error) {
+    if (error.code === "ENOENT") continue;
+    throw error;
+  }
+  const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
   if (manifest.private === true) throw new Error(`${manifest.name} is still private`);
   if (manifest.publishConfig?.access !== "public")
     throw new Error(`${manifest.name} does not publish with public access`);

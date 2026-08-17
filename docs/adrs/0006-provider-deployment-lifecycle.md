@@ -29,8 +29,15 @@ The selected computer provider is a non-runtime participant. Its build phase
 creates and content-tags the shared computer image. A remote provider such as
 Vercel Sandbox pushes that image during deploy; the local Microsandbox provider
 keeps the image in Docker and contributes its local reference. Existing computers
-are intentionally not updated because their image and persistent workspace
-belong to their creation lifecycle.
+are intentionally not updated in preview or production because their image and
+persistent workspace belong to their creation lifecycle. Development is the
+exception: Vercel Sandbox delegates to Microsandbox, and a changed local image
+replaces the running Computer while retaining its ID and named workspace volume.
+
+Every hook receives the required `DeploymentContext.devMode`. Development runs
+checks, lets Tilde reconcile external resources, and makes service deployables
+no-op because one watched Hono process owns control and agent routes. Deployment
+environment selection remains separate from this lifecycle-mode flag.
 
 The local runtime implementation writes a private runtime environment file, then installs OpenBot as a user service: systemd on Linux or launchd on macOS. Service definitions contain only the environment-file path, not secret values.
 
@@ -59,3 +66,4 @@ flowchart LR
 - 2026-08-13T12:53:05+02:00: Renamed the lifecycle package to `runtime-provider` as part of eliminating separate core packages; lifecycle semantics are unchanged.
 - 2026-08-13T17:53:21+02:00: Split computer image delivery by provider: Vercel Sandbox uses Buildx and publishes to Vercel Container Registry, while local Microsandbox derives a local Docker tag from the Git remote and does not ask for or push to a registry.
 - 2026-08-13T18:34:00+02:00: Made the Vercel image repository provider-owned: service configuration creates both Vercel projects before deploy, then the computer provider derives the agent project's VCR namespace and creates its repository on the first authenticated push instead of asking during init.
+- 2026-08-14T17:18:21+02:00: Added mandatory `devMode` to every lifecycle hook, skipped Vercel remote work in development, delegated Vercel Sandbox development to Microsandbox, and added watched local image replacement.

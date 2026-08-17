@@ -1,4 +1,10 @@
-import app from {{{CONTROL_SOURCE}}};
+import { createApp } from {{{CONTROL_SOURCE}}};
+import configuration from {{{CONFIGURATION_SOURCE}}};
+
+const app = createApp({
+  authProvider: configuration.providers.auth,
+  computerProvider: configuration.providers.computer,
+});
 
 export default { fetch: app.fetch };
 export const maxDuration = 300;
