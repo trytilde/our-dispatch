@@ -494,15 +494,27 @@ export abstract class BaseComputerProvider implements ComputerProvider {
       },
       ...(context.signal ? { signal: context.signal } : {}),
     };
-    return await retryComputerServiceStartup(
-      async () =>
-        (await service.ensureDesktop(request, options)) as unknown as {
-          display: string;
-          vncPort: number;
-        },
-      context.signal,
-    );
+    const ensure = () =>
+      retryComputerServiceStartup(
+        async () =>
+          (await service.ensureDesktop(request, options)) as unknown as {
+            display: string;
+            vncPort: number;
+          },
+        context.signal,
+      );
+    try {
+      return await ensure();
+    } catch (error) {
+      // A resumed computer can report "running" while its services are down; restart them once.
+      if (!this.reviveComputerServices || !isServiceUnavailable(error)) throw error;
+      await this.reviveComputerServices(computerId, context);
+      return await ensure();
+    }
   }
+
+  /** Restart in-computer services after a resume left the instance running but unreachable. */
+  protected reviveComputerServices?(id: string, context: ComputerCallContext): Promise<void>;
 
   async #writeComputerFiles(
     computerId: string,
@@ -661,6 +673,11 @@ export abstract class BaseComputerProvider implements ComputerProvider {
   #outputName(suffix: string): string {
     return `${this.providerId.replace(/[^a-zA-Z0-9]/g, "_").toUpperCase()}_IMAGE_${suffix}`;
   }
+}
+
+export function isServiceUnavailable(error: unknown): boolean {
+  const failure = ConnectError.from(error);
+  return [Code.Aborted, Code.Unavailable, Code.Unknown].includes(failure.code);
 }
 
 export async function retryComputerServiceStartup<T>(

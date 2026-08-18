@@ -330,6 +330,15 @@ export class VercelSandboxComputerProvider extends BaseComputerProvider {
     return new URL("/rpc", sandbox.domain(4101)).toString().replace(/\/$/, "");
   }
 
+  /** Re-run the start script: resumed Vercel Sandboxes restore the filesystem, not processes. */
+  protected override async reviveComputerServices(
+    id: string,
+    context: ComputerCallContext,
+  ): Promise<void> {
+    const sandbox = await this.#attach(id, context);
+    await startComputer(sandbox, id, this.#specs.get(id) ?? { id }, context);
+  }
+
   async #attach(id: string, context?: ComputerCallContext): Promise<VercelSandbox> {
     const current = this.#instances.get(id);
     if (current) return current;
