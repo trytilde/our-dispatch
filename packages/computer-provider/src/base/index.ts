@@ -255,7 +255,9 @@ export abstract class BaseComputerProvider implements ComputerProvider {
       if (!(error instanceof ComputerProviderError) || error.code !== "not_found") throw error;
       computer = await this.create(spec, call);
     }
-    if (context.devMode && image && computer.image !== image) {
+    // A computer running an outdated image must be replaced in every mode; agent workspaces are
+    // reseeded and are explicitly not durable storage.
+    if (image && computer.image !== image) {
       await this.delete(computer.id, call);
       computer = await this.create(spec, call);
     }
