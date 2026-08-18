@@ -287,19 +287,22 @@ export abstract class BaseComputerProvider implements ComputerProvider {
       environment: context.environment,
     };
     const image = context.environment[this.deployedImageEnvironmentVariable];
+    const sandboxSpec: ComputerSpec = {
+      id: request.computerId,
+      ...(image ? { image } : {}),
+      labels: { role: "openbot-development-sandbox" },
+    };
     let computer;
     try {
       computer = await this.get(request.computerId, call);
     } catch (error) {
       if (!(error instanceof ComputerProviderError) || error.code !== "not_found") throw error;
-      computer = await this.create(
-        {
-          id: request.computerId,
-          ...(image ? { image } : {}),
-          labels: { role: "openbot-development-sandbox" },
-        },
-        call,
-      );
+      computer = await this.create(sandboxSpec, call);
+    }
+    // The development sandbox must also follow image updates; its durable state is reseeded.
+    if (image && !this.computerImageMatches(computer.id, computer.image, image)) {
+      await this.delete(computer.id, call);
+      computer = await this.create(sandboxSpec, call);
     }
     if (computer.state === "sleeping") await this.wake(computer.id, call);
 
