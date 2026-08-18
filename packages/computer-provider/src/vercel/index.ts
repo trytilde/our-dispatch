@@ -150,7 +150,12 @@ export class VercelSandboxComputerProvider extends BaseComputerProvider {
       timeout: 45 * 60 * 1000,
       persistent: true,
       keepLastSnapshots: { count: 1 },
-      tags: { application: "openbot", component: "computer", ...spec.labels },
+      tags: {
+        application: "openbot",
+        component: "computer",
+        "image-tag": imageTagOf(image),
+        ...spec.labels,
+      },
       env: computerEnvironment(id, spec),
     });
     try {
@@ -171,6 +176,7 @@ export class VercelSandboxComputerProvider extends BaseComputerProvider {
     this.#instances.set(id, sandbox);
     this.#handles.set(id, handle);
     this.#specs.set(id, spec);
+    this.#imageTags.set(id, imageTagOf(image));
     return handle;
   }
 
@@ -191,8 +197,21 @@ export class VercelSandboxComputerProvider extends BaseComputerProvider {
       createdAt: sandbox.createdAt,
       image: sandbox.image,
     };
+    const imageTag = (sandbox.tags as Record<string, string> | undefined)?.["image-tag"];
+    if (imageTag) this.#imageTags.set(id, imageTag);
     this.#handles.set(id, discovered);
     return discovered;
+  }
+
+  /** Sandboxes report images by digest; compare through the image tag stamped at creation. */
+  protected override computerImageMatches(
+    id: string,
+    currentImage: string | undefined,
+    desiredImage: string,
+  ): boolean {
+    const tag = this.#imageTags.get(id);
+    if (tag) return desiredImage.endsWith(`:${tag}`);
+    return currentImage === desiredImage;
   }
 
   async wake(id: string, context: ComputerCallContext): Promise<ComputerHandle> {
@@ -330,6 +349,8 @@ export class VercelSandboxComputerProvider extends BaseComputerProvider {
     return new URL("/rpc", sandbox.domain(4101)).toString().replace(/\/$/, "");
   }
 
+  readonly #imageTags = new Map<string, string>();
+
   /** Re-run the start script: resumed Vercel Sandboxes restore the filesystem, not processes. */
   protected override async reviveComputerServices(
     id: string,
@@ -357,6 +378,12 @@ export class VercelSandboxComputerProvider extends BaseComputerProvider {
       );
     }
   }
+}
+
+function imageTagOf(reference: string): string {
+  const tail = reference.split("/").at(-1) ?? reference;
+  const colon = tail.lastIndexOf(":");
+  return colon > 0 ? tail.slice(colon + 1) : tail;
 }
 
 function computerEnvironment(id: string, spec: ComputerSpec): Record<string, string> {

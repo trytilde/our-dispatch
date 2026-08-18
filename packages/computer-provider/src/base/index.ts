@@ -257,7 +257,7 @@ export abstract class BaseComputerProvider implements ComputerProvider {
     }
     // A computer running an outdated image must be replaced in every mode; agent workspaces are
     // reseeded and are explicitly not durable storage.
-    if (image && computer.image !== image) {
+    if (image && !this.computerImageMatches(computer.id, computer.image, image)) {
       await this.delete(computer.id, call);
       computer = await this.create(spec, call);
     }
@@ -517,6 +517,15 @@ export abstract class BaseComputerProvider implements ComputerProvider {
 
   /** Restart in-computer services after a resume left the instance running but unreachable. */
   protected reviveComputerServices?(id: string, context: ComputerCallContext): Promise<void>;
+
+  /** Whether the running computer already uses the desired image reference. */
+  protected computerImageMatches(
+    _id: string,
+    currentImage: string | undefined,
+    desiredImage: string,
+  ): boolean {
+    return currentImage === desiredImage;
+  }
 
   async #writeComputerFiles(
     computerId: string,
