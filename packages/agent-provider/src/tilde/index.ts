@@ -10,6 +10,7 @@ import {
   chatkitGetAgent,
   chatkitListChatProviders,
   chatkitRegisterHttpVercelAiSdkAgent,
+  chatkitUpdateChatProvider,
   chatkitRegisterVercelUiChatProvider,
   chatkitSetAgentStatus,
   chatkitUpdateAgent,
@@ -180,7 +181,7 @@ export class TildeAgentProvider implements AgentProvider {
         )) as JsonRecord,
       );
     }
-    await this.#ensureMissionControlChannel(agent.id);
+    await this.#ensureMissionControlChannel(slug, agent.id, context.agentKind ?? "subagent");
     await persistEnvironment(
       context,
       `${prefix}_AGENT_ID`,
@@ -211,8 +212,20 @@ export class TildeAgentProvider implements AgentProvider {
     await this.#tools.deploy(context);
   }
 
-  async #ensureMissionControlChannel(defaultAgentId: string): Promise<void> {
+  /**
+   * Tilde resolves Mission Control sessions through the channel whose default agent matches the
+   * requested agent, so every authored agent needs its own channel. The primary agent keeps the
+   * original shared channel ID.
+   */
+  async #ensureMissionControlChannel(
+    slug: string,
+    defaultAgentId: string,
+    kind: "primary" | "subagent",
+  ): Promise<void> {
+    const channelId =
+      kind === "primary" ? missionControlChannelId : `${missionControlChannelId}-${slug}`;
     let nextPageToken: string | undefined;
+    let existing: JsonRecord | undefined;
     do {
       const response = await this.#generated("list Mission Control chat channels", (signal) =>
         chatkitListChatProviders({
@@ -223,19 +236,34 @@ export class TildeAgentProvider implements AgentProvider {
         }),
       );
       const page = response as { items?: JsonRecord[]; next_page_token?: string | null };
-      if (page.items?.some((channel) => channel.id === missionControlChannelId)) return;
+      existing = page.items?.find((channel) => channel.id === channelId);
+      if (existing) break;
       nextPageToken = page.next_page_token ?? undefined;
     } while (nextPageToken);
 
-    await this.#generated("create the OpenBot Mission Control chat channel", (signal) =>
-      chatkitRegisterVercelUiChatProvider({
+    if (!existing) {
+      await this.#generated(`create the Mission Control channel for "${slug}"`, (signal) =>
+        chatkitRegisterVercelUiChatProvider({
+          client: this.#api,
+          path: { team_id: this.#teamId },
+          body: {
+            id: channelId,
+            display_name:
+              kind === "primary" ? "OpenBot Mission Control" : `OpenBot Mission Control: ${slug}`,
+            default_agent_inbox_id: defaultAgentId,
+          },
+          signal,
+        }),
+      );
+      return;
+    }
+    const configuration = jsonRecord(existing.configuration);
+    if (configuration?.default_agent_inbox_id === defaultAgentId) return;
+    await this.#generated(`repoint the Mission Control channel for "${slug}"`, (signal) =>
+      chatkitUpdateChatProvider({
         client: this.#api,
-        path: { team_id: this.#teamId },
-        body: {
-          id: missionControlChannelId,
-          display_name: "OpenBot Mission Control",
-          default_agent_inbox_id: defaultAgentId,
-        },
+        path: { team_id: this.#teamId, channel_id: channelId },
+        body: { default_agent_inbox_id: defaultAgentId },
         signal,
       }),
     );

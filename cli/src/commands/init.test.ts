@@ -133,6 +133,7 @@ describe("non-interactive initialization prompts", () => {
       "tilde-team-id",
       "openbot-deployment-name",
       "vercel-ai-gateway-api-key-name",
+      "github-app-name",
     ]);
   });
 

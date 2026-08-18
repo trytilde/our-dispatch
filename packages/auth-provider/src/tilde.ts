@@ -74,7 +74,7 @@ export class TildeAuthProvider implements AuthProvider, InitializableProvider {
   }
 
   async configure(context: DeploymentContext) {
-    const registration = await this.#register(context.environment, this.#request);
+    const registration = await this.#register(context.environment, this.#request, context.devMode);
     for (const [name, value, description] of registrationEnvironment(registration))
       await persistEnvironment(context, name, value, description);
     return {};
@@ -174,12 +174,17 @@ export class TildeAuthProvider implements AuthProvider, InitializableProvider {
   async #register(
     environment: NodeJS.ProcessEnv,
     request: typeof fetch,
+    development = false,
   ): Promise<OpenBotRegistration> {
     const connection = platformConnection(this.#platform, environment);
     const port = environment.PORT?.trim() || "4100";
+    const webPort = environment.WEB_PORT?.trim() || "4173";
     const publicOrigin = environment.PUBLIC_ORIGIN?.trim()?.replace(/\/$/, "");
     const redirectUris = [
       `http://127.0.0.1:${port}/auth/callback`,
+      ...(development
+        ? [`http://127.0.0.1:${webPort}/auth/callback`, `http://localhost:${webPort}/auth/callback`]
+        : []),
       "openbot://auth/callback",
       ...(publicOrigin ? [`${publicOrigin}/auth/callback`] : []),
     ];

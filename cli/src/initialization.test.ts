@@ -129,7 +129,7 @@ describe("OpenBot initialization", () => {
         environment: { ...process.env },
         userConfigurationPath: testUserConfigurationPath(repositoryRoot),
       });
-      expect(loaded.environment.AGENT_HELLO_WORLD_NAME).toBe("Hello World");
+      expect(loaded.environment.AGENT_FACTORY_NAME).toBe("Factory");
       expect(loaded.environment[SANDBOX_SOPS_AGE_KEY]).toMatch(/^AGE-SECRET-KEY-1/);
       const configuration = await readFile(join(repositoryRoot, "configuration/index.ts"), "utf8");
       expect(configuration).toContain("providers: {");
@@ -153,14 +153,14 @@ describe("OpenBot initialization", () => {
         await readFile(join(repositoryRoot, "configuration/agent/instructions.ts"), "utf8"),
       ).toContain("export default");
       await expect(
-        access(join(repositoryRoot, "configuration/agent/tools/hello-world.ts")),
+        access(join(repositoryRoot, "configuration/agent/tools/factory.ts")),
       ).rejects.toMatchObject({ code: "ENOENT" });
       const bashTool = await readFile(
         join(repositoryRoot, "configuration/agent/tools/bash.ts"),
         "utf8",
       );
       expect(bashTool).toContain("createBashTool");
-      expect(bashTool).toContain('agentId: "hello-world"');
+      expect(bashTool).toContain('agentId: "factory"');
       expect(
         await readFile(join(repositoryRoot, "configuration/agent/tools/read_file.ts"), "utf8"),
       ).toContain("createReadFileTool");
@@ -175,10 +175,10 @@ describe("OpenBot initialization", () => {
       ).toContain("createGrepTool");
       expect(
         await readFile(
-          join(repositoryRoot, "configuration/agent/skills/hello-world/SKILL.md"),
+          join(repositoryRoot, "configuration/agent/skills/develop-openbot/SKILL.md"),
           "utf8",
         ),
-      ).toContain("name: hello-world");
+      ).toContain("name: develop-openbot");
       expect(
         await readFile(
           join(repositoryRoot, "configuration/agent/skills/create-agent/SKILL.md"),
@@ -351,7 +351,7 @@ describe("OpenBot initialization", () => {
 
     expect(calls.at(-1)).toMatchObject({ command: "vp", args: ["install"] });
 
-    expect(promptInput).toHaveBeenCalledTimes(12);
+    expect(promptInput).toHaveBeenCalledTimes(14);
     const environment = await readFile(join(repositoryRoot, "configuration/.env"), "utf8");
     expect(environment).not.toContain("RUNTIME_PROVIDER");
     expect(environment).toContain('VERCEL_CONTROL_PROJECT="openbot-control"');

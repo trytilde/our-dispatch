@@ -6,8 +6,10 @@ import {
   initializeOpenBot,
   isInitializedOpenBotRepository,
   ownerIdentityChoices,
+  plainInitializationReporter,
   processCommandRunner,
   runtimeChoices,
+  type InitializationEventReporter,
   type InitializationPrompts,
   type SelectChoice,
 } from "../initialization.js";
@@ -16,7 +18,12 @@ import {
   bootstrapOpenBotRepository,
   repositoryVisibilityChoices,
 } from "../repository-bootstrap.js";
-import { Brand } from "../ui.js";
+import {
+  Brand,
+  createGitHubAuthorizationPanel,
+  openInBrowser,
+  type GitHubAuthorizationPanelController,
+} from "../ui.js";
 import {
   collectProviderInitializations,
   type ProviderInitializationQuestion,
@@ -70,11 +77,61 @@ export async function runInitialization(
     prompts,
     interactive: !nonInteractive,
     environment: process.env,
+    report: nonInteractive ? plainInitializationReporter : createInkInitializationReporter(),
   });
   return {
     kind: "initialized",
     json,
     mode: nonInteractive ? "non-interactive" : "interactive",
+  };
+}
+
+/** Renders GitHub authorization as a live Ink panel and opens the link in a local browser. */
+function createInkInitializationReporter(): InitializationEventReporter {
+  let panel: GitHubAuthorizationPanelController | undefined;
+  return ({ event, details = {} }) => {
+    if (event === "git.github.authorization.required") {
+      const url = typeof details.url === "string" ? details.url : undefined;
+      const hint = typeof details.hint === "string" ? details.hint : "";
+      const instructions = typeof details.instructions === "string" ? details.instructions : "";
+      if (url && !hint && !instructions) {
+        panel?.close();
+        panel = createGitHubAuthorizationPanel(url);
+        openInBrowser(url);
+        return;
+      }
+      plainInitializationReporter({ event, details });
+      return;
+    }
+    if (event === "git.github.authorization.waiting") {
+      // The authorization panel already renders the waiting state.
+      if (!panel) plainInitializationReporter({ event, details });
+      return;
+    }
+    if (event === "git.github.authorized") {
+      if (panel) {
+        panel.succeed();
+        panel = undefined;
+        return;
+      }
+      plainInitializationReporter({ event, details });
+      return;
+    }
+    if (event === "git.github.pending" && panel) {
+      const reason = typeof details.reason === "string" ? details.reason : undefined;
+      panel.timeout(
+        reason
+          ? `${reason}; openbot dev or deploy resumes authorization.`
+          : "Authorization not completed yet; openbot dev or deploy resumes it.",
+      );
+      panel = undefined;
+      return;
+    }
+    if (event === "git.github.initialize.skipped" && panel) {
+      panel.close();
+      panel = undefined;
+    }
+    plainInitializationReporter({ event, details });
   };
 }
 

@@ -380,6 +380,18 @@ export abstract class BaseComputerProvider implements ComputerProvider {
         `Could not protect the development sandbox environment: ${result.stderr}`,
       );
 
+    for (const agentId of request.agentWorkspaceIds ?? []) {
+      result = await this.exec(
+        computer.id,
+        { command: "mkdir", args: ["-p", agentWorkspaceRoot(agentId)] },
+        call,
+      );
+      if (result.exitCode !== 0)
+        throw new ComputerProviderError(
+          "provider_unavailable",
+          `Could not prepare the ${agentId} workspace in the development sandbox: ${result.stderr}`,
+        );
+    }
     result = await this.exec(
       computer.id,
       {
@@ -394,13 +406,25 @@ export abstract class BaseComputerProvider implements ComputerProvider {
         "provider_unavailable",
         `Could not initialize the development sandbox: ${result.stderr}`,
       );
+    const serviceUrl = await this.computerServiceUrl(computer.id);
     await persistEnvironment(
       context,
       "DEVELOPMENT_SANDBOX_ID",
       computer.id,
       "Trusted development sandbox ID.",
     );
-    return { outputs: { "development-sandbox.computer-id": computer.id } };
+    await persistEnvironment(
+      context,
+      "DEVELOPMENT_SANDBOX_SERVICE_URL",
+      serviceUrl,
+      "Trusted development sandbox computer service URL.",
+    );
+    return {
+      outputs: {
+        "development-sandbox.computer-id": computer.id,
+        "development-sandbox.service-url": serviceUrl,
+      },
+    };
   }
 
   async #registerAgentWorkspace(

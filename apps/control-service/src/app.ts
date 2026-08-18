@@ -7,6 +7,7 @@ import { Hono } from "hono";
 import { secureHeaders } from "hono/secure-headers";
 import type { AuthProvider } from "@tryopenbot/auth-provider";
 import type { ComputerProvider } from "@tryopenbot/computer-provider";
+import { registerAgentCreation } from "./agent-create.js";
 import { registerTildeChatProxy, type TildeChatProxyOptions } from "./chat-proxy.js";
 import { registerComputerPreview } from "./computer-preview.js";
 import { registerOwnerAuth, requireOwner } from "./auth.js";
@@ -30,15 +31,17 @@ export function createApp(options: AppOptions = {}): Hono {
   app.use("*", secureHeaders());
   app.get("/healthz", (context) => context.json({ ok: true, service: "openbot" }));
   if (options.authProvider) {
-    registerOwnerAuth(app, options.authProvider);
-    const middleware = requireOwner(options.authProvider);
+    registerOwnerAuth(app, options.authProvider, options);
+    const middleware = requireOwner(options.authProvider, options);
     app.use("/api/chat/*", middleware);
     app.use("/api/computer/*", middleware);
+    app.use("/api/agents", middleware);
   }
   registerComputerPreview(app, options.computerProvider, {
     devMode: options.devMode,
     environment: options.environment,
   });
+  registerAgentCreation(app, { environment: options.environment });
   registerTildeChatProxy(app, options.tildeChatProxy);
   if (existsSync(webRoot)) {
     const cacheHeaders = (

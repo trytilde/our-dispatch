@@ -1,6 +1,7 @@
 import { generateKeyPairSync, sign } from "node:crypto";
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 import { TildePlatform } from "@tryopenbot/platform-integrations";
+import { DeploymentOutputs } from "@tryopenbot/runtime-provider";
 import { TildeAuthProvider } from "./tilde.js";
 
 const environment = {
@@ -87,6 +88,48 @@ describe("TildeAuthProvider", () => {
       environment.OPENBOT_OIDC_AUDIENCE,
       expect.any(String),
     );
+  });
+
+  it("reconciles both local web callback hosts during development", async () => {
+    let registration: { redirect_uris?: string[]; deployment_url?: string } = {};
+    const request = vi.fn<typeof fetch>(async (_input, init) => {
+      registration = JSON.parse(typeof init?.body === "string" ? init.body : "{}");
+      return Response.json({
+        client_id: "client-one",
+        audience: "urn:tilde:openbot:client-one",
+        issuer: environment.OPENBOT_OIDC_ISSUER,
+        scope: environment.OPENBOT_OIDC_SCOPE,
+        authorization_endpoint: environment.OPENBOT_OIDC_AUTHORIZATION_ENDPOINT,
+        token_endpoint: environment.OPENBOT_OIDC_TOKEN_ENDPOINT,
+        jwks_uri: environment.OPENBOT_OIDC_JWKS_URI,
+      });
+    });
+    const developmentEnvironment = {
+      ...environment,
+      TILDE_API_KEY: "tilde-key",
+      TILDE_ORG_ID: "org-one",
+      TILDE_TEAM_ID: "team-one",
+      PUBLIC_ORIGIN: "https://our-ob-control.vercel.app",
+      PORT: "4100",
+      WEB_PORT: "4173",
+    };
+
+    await providerWith({ request, environment: developmentEnvironment }).configure({
+      devMode: true,
+      repositoryRoot: "/repo",
+      environment: developmentEnvironment,
+      inputs: new DeploymentOutputs(),
+      report: vi.fn(),
+    });
+
+    expect(registration.redirect_uris).toEqual(
+      expect.arrayContaining([
+        "http://127.0.0.1:4173/auth/callback",
+        "http://localhost:4173/auth/callback",
+        "https://our-ob-control.vercel.app/auth/callback",
+      ]),
+    );
+    expect(registration.deployment_url).toBe("https://our-ob-control.vercel.app");
   });
 
   it("refreshes cached signing keys once when a new kid appears", async () => {

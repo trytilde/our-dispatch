@@ -4,6 +4,7 @@ import type { AuthProvider } from "@tryopenbot/auth-provider";
 import type { AgentServiceProvider } from "@tryopenbot/agent-service-provider";
 import type { ComputerProvider } from "@tryopenbot/computer-provider";
 import type { ControlServiceProvider } from "@tryopenbot/control-service-provider";
+import type { GitProvider } from "@tryopenbot/git-provider";
 import type { InferenceProvider } from "@tryopenbot/inference-provider";
 
 export interface ProviderPluginManifest {
@@ -18,6 +19,7 @@ export interface OpenBotProviders {
   agent: AgentProvider;
   computer: ComputerProvider;
   inference?: InferenceProvider;
+  git?: GitProvider;
 }
 
 export interface OpenBotConfiguration {

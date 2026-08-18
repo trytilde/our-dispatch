@@ -95,3 +95,9 @@ Owner: production deployment orchestrator
 Trigger: when computer-provider replaces the legacy production sandbox adapter
 Work: persist the computer-provider build lifecycle's source digest and immutable image reference in redacted deployment state, and prove a second unchanged deployment skips both image build and publication
 </FOLLOW UP>
+
+<FOLLOW UP>
+Background SDLC automation (ADR-0017): agents or the orchestrator should open pull requests from
+the `openbot/sandbox-edits` branch and merge them once checks pass, completing the automated
+software lifecycle; the orchestrator itself should run supervised inside the development sandbox.
+</FOLLOW UP>

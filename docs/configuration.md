@@ -48,7 +48,7 @@ This composition is for OpenBot control, provisioning, and deployment. Agent fil
 
 Repository resources always use their canonical file locations:
 
-- primary agent: `configuration/agent/`, served below `/api/agents/hello-world`
+- primary agent: `configuration/agent/`, served below `/api/agents/factory`
 - subagents: `configuration/agent/subagents/<id>/`, served below `/api/agents/<id>`
 - future-agent template: `configuration/templates/agent/**/*.hbs`
 - global agent instrumentation: `configuration/instrumentation.ts`

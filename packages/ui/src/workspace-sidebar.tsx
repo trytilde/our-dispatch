@@ -7,7 +7,7 @@ import {
   WorkspaceAccount,
 } from "./sidebar-components.js";
 import GlideMenu from "./beautiful-ui/atoms/glide-menu.js";
-import { SearchIcon } from "./workspace-icons.js";
+import { PlusIcon, SearchIcon } from "./workspace-icons.js";
 
 export type WorkspaceSidebarAgent = SidebarAgent;
 
@@ -22,6 +22,8 @@ export interface WorkspaceSidebarProps {
   onSearchOpen: () => void;
   onSearchClose: () => void;
   onSelectAgent: (id: string) => void;
+  /** Starts a conversation with the factory agent about creating a new agent. */
+  onCreateAgent?: () => void;
   onLoadMore?: () => void;
   onResize: (event: ReactPointerEvent<HTMLDivElement>) => void;
 }
@@ -37,6 +39,7 @@ export function WorkspaceSidebar({
   onSearchOpen,
   onSearchClose,
   onSelectAgent,
+  onCreateAgent,
   onLoadMore,
   onResize,
 }: WorkspaceSidebarProps) {
@@ -79,6 +82,20 @@ export function WorkspaceSidebar({
             </kbd>
           </button>
         </div>
+        {onCreateAgent ? (
+          <div className="px-3 pb-1">
+            <button
+              aria-label="New agent"
+              className="flex h-8 w-full items-center gap-2 rounded-control px-2.5 text-left
+                text-[12.5px] text-ink-3 transition-[background-color] duration-150 hover:bg-hover"
+              onClick={onCreateAgent}
+              type="button"
+            >
+              <PlusIcon />
+              New agent
+            </button>
+          </div>
+        ) : null}
         <nav className="min-h-0 flex-1 overflow-y-auto px-2 py-1" aria-label="Agents">
           {loading ? <p className="px-2 py-2 text-[12.5px] text-ink-3">Loading agents…</p> : null}
           {!loading && agents.length === 0 ? (

@@ -1,0 +1,27 @@
+---
+name: self-edit
+description: Use when the owner asks you to change your own instructions, personality, skills, or tools, or asks what you can become.
+---
+
+# Edit yourself
+
+Your authored source lives in the OpenBot checkout at
+`/workspace/openbot/configuration/agent/subagents/{{AGENT_ID}}`:
+
+- `instructions.ts` — your system instructions and persona. Edit this to change
+  how you behave.
+- `skills/<name>/SKILL.md` — your managed skills (name and description
+  frontmatter are required).
+- `tools/` and `agent.ts` — your tools and endpoint wiring; change these only
+  for real capability work, not persona tweaks.
+
+Edits take effect automatically: a background process hot-reloads your
+endpoint while you edit and later verifies, publishes, and redeploys the
+project on its own. Never run git or deployment commands yourself — just edit
+the files and tell the owner the change is live.
+
+Keep your instructions concise and truthful to what the owner asked for. Read
+the current file before rewriting it, preserve parts the owner did not ask to
+change, and confirm the change by reading the file back. You also have a Tilde
+MCP server with dynamic tool discovery — use search_skills and live tool
+discovery when a task needs more than your local tools.

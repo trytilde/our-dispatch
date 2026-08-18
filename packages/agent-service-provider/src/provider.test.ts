@@ -96,7 +96,7 @@ describe("agent service artifacts", () => {
       "export BETA_PROFILE_LOADED=1\n",
     );
     expect((await discoverAgents(root)).map((agent) => [agent.slug, agent.kind])).toEqual([
-      ["hello-world", "primary"],
+      ["factory", "primary"],
       ["beta", "subagent"],
     ]);
     expect(
@@ -105,13 +105,13 @@ describe("agent service artifacts", () => {
         workspace.files.map((file) => file.path),
       ]),
     ).toEqual([
-      ["hello-world", [".profile"]],
+      ["factory", [".profile"]],
       ["beta", [".profile"]],
     ]);
     const result = await buildVercelAgentService(context(root));
     expect(result.outputs?.["agent-service.count"]).toBe("2");
     expect(result.outputs?.["agent-service.changed-count"]).toBe("2");
-    for (const slug of ["hello-world", "beta"]) {
+    for (const slug of ["factory", "beta"]) {
       const config = JSON.parse(
         await readFile(
           join(

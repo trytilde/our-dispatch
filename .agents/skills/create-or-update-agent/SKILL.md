@@ -33,7 +33,7 @@ configuration/
         └── sandbox/workspace/**
 ```
 
-- The primary path has the stable ID `hello-world`. Derive each subagent ID from its directory name using lowercase kebab-case matching `^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$`.
+- The primary path has the stable ID `factory`. Derive each subagent ID from its directory name using lowercase kebab-case matching `^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$`.
 - To create a subagent interactively, run `pnpm openbot new-agent` and enter its display name. From an agent or other non-interactive shell, run `pnpm openbot new-agent "<display name>"`. The CLI loads `configuration/templates/agent/**/*.hbs`, derives the ID, strips each `.hbs` suffix, materializes the complete full tree below `configuration/agent/subagents/`, then invokes idempotent development provisioning for every authored agent. Customize the generated files afterward. Do not hand-copy another agent directory or duplicate remote provisioning in the command.
 - Treat `configuration/templates/agent/` as fork-owned defaults for future agents. Change it when all newly created agents need different SDK imports, environment variables, tools, skills, instructions, or workspace seeds. Template edits never rewrite existing agents.
 - Never import provider packages or `configuration/index.ts` from authored agents. Integrate model, MCP, skills, Composio, and other vendor SDKs directly in agent code so provider abstractions do not constrain agent development.
@@ -71,11 +71,11 @@ Scaffold `sandbox/workspace/.profile`. Bash tools run `bash -lc` with `HOME=/wor
 
 ## Initialize examples
 
-Keep `openbot init` seeding the default Handlebars files into `configuration/templates/agent/` without overwriting fork edits, then using them to generate the full primary Hello World agent. `openbot new-agent` uses the same template for full subagents. The initial agent includes:
+Keep `openbot init` seeding the default Handlebars files into `configuration/templates/agent/` without overwriting fork edits, then using them to generate the full primary Factory agent. `openbot new-agent` uses the same template for full subagents. The initial agent includes:
 
 - `agent.ts` importing `instructions.ts`
 - an empty global and agent instrumentation hook
-- all standard computer tools, the runtime create-agent skill, and one specification-conformant example skill; do not add a redundant hello-world tool
+- all standard computer tools; factory-only skills (create-agent, test-agent, deploy-agent, develop-openbot) live in `configuration/templates/factory/` and render into the primary agent only
 - a sandbox workspace seed with `.profile`
 
 Generate source files from the fork-owned Handlebars template through `@tryopenbot/utilities`; do not embed whole generated files in TypeScript strings. The CLI's packaged assets only seed a missing template during init.

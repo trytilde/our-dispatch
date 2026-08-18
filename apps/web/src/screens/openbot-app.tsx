@@ -16,6 +16,7 @@ import {
   type ChatMessage,
   type ChatPart,
   type ChatSession,
+  createAgent,
   createSession,
   deleteAttachment,
   deleteQueuedTurn,
@@ -103,6 +104,9 @@ export function OpenBotApp() {
   const [threadRootId, setThreadRootId] = useState("");
   const [conversationOutlineOpen, setConversationOutlineOpen] = useState(false);
   const [asyncTasksOpen, setAsyncTasksOpen] = useState(false);
+  const [createAgentOpen, setCreateAgentOpen] = useState(false);
+  const [createAgentName, setCreateAgentName] = useState("");
+  const [creatingAgent, setCreatingAgent] = useState(false);
   const observerRef = useRef<AbortController | undefined>(undefined);
   const refreshTimerRef = useRef<number | undefined>(undefined);
   const conversationRef = useRef<HTMLDivElement>(null);
@@ -113,6 +117,7 @@ export function OpenBotApp() {
   const stickToBottomRef = useRef(true);
   const previousMessageIdRef = useRef("");
   const loadedAgentRef = useRef("");
+  const agentsRef = useRef<ChatAgent[]>([]);
   const [showScrollLatest, setShowScrollLatest] = useState(false);
   const layout = useWorkspaceLayout();
 
@@ -144,6 +149,7 @@ export function OpenBotApp() {
         }
       }),
     );
+    agentsRef.current = hydratedAgents;
     setAgents(hydratedAgents);
     setNextAgentToken(response.next_page_token);
     setAgentId((current) =>
@@ -325,6 +331,10 @@ export function OpenBotApp() {
       void selectSession(agent.id, latestSession);
       return;
     }
+    startBlankConversation(agent);
+  }
+
+  function startBlankConversation(agent: ChatAgent): void {
     observerRef.current?.abort();
     loadedAgentRef.current = agent.id;
     setAgentId(agent.id);
@@ -340,6 +350,37 @@ export function OpenBotApp() {
     restoredSessionRef.current = "";
     setStreamStatus("Disconnected");
     setError("");
+  }
+
+  /** Scaffold and register a new agent, then open a fresh conversation with it. */
+  async function submitCreateAgent(): Promise<void> {
+    const name = createAgentName.trim();
+    if (!name || creatingAgent) return;
+    setCreatingAgent(true);
+    setError("");
+    try {
+      const created = await createAgent(name);
+      // The registration is reconciled by the sandbox CLI; wait for the sidebar to surface it.
+      for (let attempt = 0; attempt < 10; attempt += 1) {
+        await refreshSidebar();
+        const agent = agentsRef.current.find((candidate) => candidate.id === created.id);
+        if (agent) {
+          setCreateAgentOpen(false);
+          setCreateAgentName("");
+          startBlankConversation(agent);
+          setDraft("");
+          composerInputRef.current?.focus();
+          return;
+        }
+        await new Promise((resolveDelay) => window.setTimeout(resolveDelay, 1_500));
+      }
+      setCreateAgentOpen(false);
+      setError(`Agent ${created.name} was created but has not appeared yet; refresh shortly.`);
+    } catch (reason) {
+      setError(errorMessage(reason));
+    } finally {
+      setCreatingAgent(false);
+    }
   }
 
   async function send(event: FormEvent): Promise<void> {
@@ -579,6 +620,7 @@ export function OpenBotApp() {
           const agent = agents.find((candidate) => candidate.id === id);
           if (agent) selectAgent(agent);
         }}
+        onCreateAgent={() => setCreateAgentOpen(true)}
         onLoadMore={() => void loadMoreAgents()}
         onResize={layout.beginSidebarResize}
       />
@@ -742,6 +784,43 @@ export function OpenBotApp() {
           onClose={() => setAsyncTasksOpen(false)}
           tasks={asyncTasks}
         />
+      ) : null}
+      {createAgentOpen ? (
+        <div className="create-agent-overlay" role="dialog" aria-label="New agent">
+          <form
+            className="create-agent-dialog"
+            onSubmit={(event) => {
+              event.preventDefault();
+              void submitCreateAgent();
+            }}
+          >
+            <h2>New agent</h2>
+            <p>The agent is scaffolded in your OpenBot fork and registered immediately.</p>
+            <input
+              autoFocus
+              value={createAgentName}
+              placeholder="Agent name"
+              maxLength={72}
+              disabled={creatingAgent}
+              onChange={(event) => setCreateAgentName(event.target.value)}
+            />
+            <div className="create-agent-actions">
+              <button
+                type="button"
+                disabled={creatingAgent}
+                onClick={() => {
+                  setCreateAgentOpen(false);
+                  setCreateAgentName("");
+                }}
+              >
+                Cancel
+              </button>
+              <button type="submit" disabled={creatingAgent || !createAgentName.trim()}>
+                {creatingAgent ? "Creating…" : "Create agent"}
+              </button>
+            </div>
+          </form>
+        </div>
       ) : null}
     </WorkspaceShell>
   );

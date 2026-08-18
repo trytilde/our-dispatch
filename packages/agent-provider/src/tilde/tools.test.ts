@@ -126,6 +126,89 @@ describe("TildeToolReconciler", () => {
     });
   });
 
+  it("enables brokered GitHub tools only for the primary agent", async () => {
+    const client = createClient({
+      teamId: "team-one",
+      orgId: "org-one",
+      apiKey: "secret",
+      baseUrl: "https://tilde.test",
+    });
+    let githubEnabled = false;
+    const mutations: string[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+        const request = input instanceof Request ? input : new Request(input, init);
+        const url = new URL(request.url);
+        const path = url.pathname;
+        if (request.method === "GET" && path.endsWith("/mcp-server/openbot-factory"))
+          return Response.json({
+            id: "openbot-factory",
+            name: "OpenBot factory",
+            team_id: "team-one",
+            is_dynamic_tool_discovery: true,
+            tools: [],
+          });
+        if (request.method === "GET" && path.endsWith("/mcp/tool-group"))
+          return Response.json({
+            items: [
+              {
+                id: "openbot-factory-tilde-control-plane",
+                display_name: "OpenBot factory Tilde control plane",
+                tool_group_source_type_id: "tilde_control_plane",
+              },
+            ],
+          });
+        if (request.method === "GET" && path.endsWith("/mcp/available-tool-groups"))
+          return Response.json({
+            items: [
+              { type_id: "tilde_control_plane", tools: [], credential_sources: [] },
+              {
+                type_id: "github",
+                tools: [{ type_id: "github_create_pull_request" }],
+                credential_sources: [{ type_id: "server_token_exchange" }],
+              },
+            ],
+          });
+        if (request.method === "GET" && path.endsWith("/mcp/tools"))
+          return Response.json({
+            items:
+              githubEnabled && url.searchParams.get("tool_group_instance_id") === "github-group"
+                ? [
+                    {
+                      tool_group_instance_id: "github-group",
+                      tool_source_type_id: "github_create_pull_request",
+                    },
+                  ]
+                : [],
+          });
+        if (request.method === "POST" && path.endsWith("/tool/github_create_pull_request/enable")) {
+          githubEnabled = true;
+          mutations.push("enable-github-tool");
+          return Response.json({});
+        }
+        throw new Error(`Unexpected request: ${request.method} ${path}`);
+      }),
+    );
+    const context: DeploymentContext = {
+      devMode: false,
+      repositoryRoot: "/repo",
+      environment: { GIT_GITHUB_TOOL_GROUP_ID: "github-group" },
+      inputs: new DeploymentOutputs(),
+      agentId: "factory",
+      agentPath: "/repo/configuration/agent",
+      agentKind: "primary",
+      platformIds: ["tilde"],
+      report: () => undefined,
+    };
+    const provider = new TildeToolReconciler({ client });
+    await provider.deploy(context);
+    await provider.deploy(context);
+    expect(mutations).toEqual(["enable-github-tool"]);
+    await provider.deploy({ ...context, agentKind: "subagent", agentId: "factory" });
+    expect(mutations).toEqual(["enable-github-tool"]);
+  });
+
   it("idempotently connects Vercel MCP when Vercel is the deployment platform", async () => {
     const client = createClient({
       teamId: "team-one",

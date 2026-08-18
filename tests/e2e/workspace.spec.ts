@@ -9,6 +9,13 @@ test("requires a Tilde owner session", async ({ browser }) => {
   await page.goto("/");
   await expect(page.getByRole("heading", { name: "Sign in to OpenBot" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Continue with Tilde" })).toBeVisible();
+
+  const login = await context.request.get("/auth/login", { maxRedirects: 0 });
+  expect(login.status()).toBe(302);
+  const authorization = new URL(login.headers().location!);
+  expect(authorization.searchParams.get("redirect_uri")).toBe(
+    "http://127.0.0.1:14173/auth/callback",
+  );
   await context.close();
 });
 

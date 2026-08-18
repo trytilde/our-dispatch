@@ -1,6 +1,11 @@
 {
   "$schema": "https://unpkg.com/@changesets/config@3.1.4/schema.json",
-  "changelog": ["@changesets/changelog-github", { "repo": "trytilde/openbot" }],
+  "changelog": [
+    "@changesets/changelog-github",
+    {
+      "repo": "trytilde/openbot"
+    }
+  ],
   "commit": false,
   "fixed": [
     [
@@ -20,7 +25,8 @@
       "@tryopenbot/runtime-provider",
       "@tryopenbot/control-service",
       "@tryopenbot/ui",
-      "@tryopenbot/web"
+      "@tryopenbot/web",
+      "@tryopenbot/git-provider"
     ]
   ],
   "linked": [],

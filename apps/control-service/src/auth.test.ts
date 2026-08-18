@@ -1,6 +1,8 @@
-import { describe, expect, it, vi } from "vite-plus/test";
+import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 import type { AuthProvider } from "@tryopenbot/auth-provider";
 import { createApp } from "./app.js";
+
+afterEach(() => vi.unstubAllEnvs());
 
 describe("owner authentication", () => {
   it("completes browser PKCE login and establishes host-only token cookies", async () => {
@@ -38,6 +40,25 @@ describe("owner authentication", () => {
       expect(cookie).toContain("Path=/");
       expect(cookie).not.toContain("Domain=");
     }
+  });
+
+  it("keeps the development callback on the browser origin", async () => {
+    vi.stubEnv("PUBLIC_ORIGIN", "https://our-ob-control.vercel.app");
+    const provider = stubProvider();
+    const app = createApp({ authProvider: provider, devMode: true, webRoot: "/missing" });
+
+    const login = await app.request("http://127.0.0.1:4100/auth/login", {
+      headers: {
+        "x-forwarded-host": "localhost:4173",
+        "x-forwarded-proto": "http",
+      },
+    });
+
+    expect(login.status).toBe(302);
+    expect(provider.authorizationUrl).toHaveBeenCalledWith(
+      expect.objectContaining({ redirectUri: "http://localhost:4173/auth/callback" }),
+    );
+    for (const cookie of login.headers.getSetCookie()) expect(cookie).not.toContain("Secure");
   });
 
   it("protects control routes and accepts an installation-scoped bearer token", async () => {
@@ -88,6 +109,33 @@ describe("owner authentication", () => {
       headers: { authorization: "Bearer valid-token" },
     });
     expect(bearer.status).toBe(404);
+  });
+
+  it("accepts the forwarded local browser origin for development mutations", async () => {
+    const app = createApp({
+      authProvider: stubProvider(),
+      devMode: true,
+      environment: { WEB_PORT: "4173" },
+      webRoot: "/missing",
+    });
+    const headers = {
+      cookie: "openbot_access=valid-token",
+      origin: "http://localhost:4173",
+      "x-forwarded-host": "localhost:4173",
+      "x-forwarded-proto": "http",
+    };
+
+    const accepted = await app.request("http://127.0.0.1:4100/api/computer/missing/preview", {
+      method: "POST",
+      headers,
+    });
+    expect(accepted.status).toBe(404);
+
+    const rejected = await app.request("http://127.0.0.1:4100/api/computer/missing/preview", {
+      method: "POST",
+      headers: { ...headers, origin: "https://evil.test" },
+    });
+    expect(rejected.status).toBe(403);
   });
 });
 

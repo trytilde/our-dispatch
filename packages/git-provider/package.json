@@ -1,0 +1,44 @@
+{
+  "name": "@tryopenbot/git-provider",
+  "version": "0.1.0",
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "development": "./src/index.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "publishConfig": {
+    "exports": {
+      ".": {
+        "types": "./dist/index.d.ts",
+        "import": "./dist/index.js"
+      }
+    },
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsc --noEmit && tsdown --config ../../tsdown.node.config.ts && node ../../scripts/copy-package-assets.mjs",
+    "check": "vp check",
+    "lint": "vp lint",
+    "prepack": "pnpm build",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@tryopenbot/platform-integrations": "workspace:*",
+    "@tryopenbot/runtime-provider": "workspace:*",
+    "@trytilde/api-client": "github:trytilde/harness-sdk#c9b64d691486e6d57ff69cd0eb0214ceb6d1c13d&path:packages/api-client",
+    "@trytilde/harness-sdk": "0.1.2"
+  },
+  "devDependencies": {
+    "@types/node": "24.3.0",
+    "typescript": "5.9.2",
+    "vitest": "3.2.4"
+  }
+}

@@ -83,6 +83,7 @@ The production build stages the web app in the control provider's `.vercel/outpu
 - `apps/web` owns the workspace, agent selection, conversation composer, and frontend routes.
 - `apps/control-service` owns the portable Hono application, built web UI fallback, `/healthz`, the allowlisted Tilde ChatKit REST/SSE bridge under `/api/chat/*`, and the local control-service entrypoint.
 - `packages/computer-service-proto` owns the API-key-protected internal computer API.
+- `packages/git-provider` owns brokered GitHub access: the Tilde-managed GitHub App credential and the REST and git-over-HTTPS reverse-proxy profiles used by the trusted development sandbox and the factory agent.
 - No control database is retained while the reset application has no persisted control state.
 - Each domain provider package owns both its TypeScript contract in `src/core.ts` or `src/core/index.ts` and its concrete adapters; provider contract interfaces never live in adapter modules or the package-root entrypoint, and they are not RPC surfaces.
 

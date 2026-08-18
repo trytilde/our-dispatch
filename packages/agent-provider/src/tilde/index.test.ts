@@ -61,9 +61,10 @@ describe("TildeAgentProvider", () => {
             items: channelCreated
               ? [
                   {
-                    id: "openbot-mission-control",
+                    id: "openbot-mission-control-scout",
                     provider_id: "chatkit.vercel-ui",
                     status: "enabled",
+                    configuration: { default_agent_inbox_id: "scout" },
                   },
                 ]
               : [],
@@ -72,12 +73,12 @@ describe("TildeAgentProvider", () => {
         if (request.method === "POST" && path.endsWith("/channels/vercel-ui")) {
           channelCreated = true;
           expect(await request.json()).toMatchObject({
-            id: "openbot-mission-control",
-            display_name: "OpenBot Mission Control",
+            id: "openbot-mission-control-scout",
+            display_name: "OpenBot Mission Control: scout",
             default_agent_inbox_id: "scout",
           });
           return Response.json({
-            id: "openbot-mission-control",
+            id: "openbot-mission-control-scout",
             provider_id: "chatkit.vercel-ui",
             status: "enabled",
           });

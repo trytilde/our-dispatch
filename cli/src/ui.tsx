@@ -1,3 +1,4 @@
+import { spawn } from "node:child_process";
 import React, { useEffect, useRef, useState, type ReactNode } from "react";
 import { Box, Text, render, useApp, useInput } from "ink";
 
@@ -464,4 +465,121 @@ export function SyncResult({ report }: { report: SyncReportView }) {
       </Success>
     </Box>
   );
+}
+
+const authorizationSpinnerFrames = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"] as const;
+
+export type GitHubAuthorizationStatus = "waiting" | "connected" | "pending";
+
+/** OSC 8 terminal hyperlink so supporting terminals make the URL clickable. */
+function terminalHyperlink(url: string): string {
+  return `\u001B]8;;${url}\u0007${url}\u001B]8;;\u0007`;
+}
+
+function GitHubAuthorizationView({
+  url,
+  status,
+  reason,
+}: {
+  url: string;
+  status: GitHubAuthorizationStatus;
+  reason?: string;
+}) {
+  const [tick, setTick] = useState(0);
+  useEffect(() => {
+    if (status !== "waiting") return;
+    const timer = setInterval(() => setTick((value) => value + 1), 120);
+    return () => clearInterval(timer);
+  }, [status]);
+  const frame = authorizationSpinnerFrames[tick % authorizationSpinnerFrames.length];
+  const seconds = Math.floor((tick * 120) / 1000);
+  const port = new URL(url).port;
+  return (
+    <Box borderStyle="round" borderColor="cyan" flexDirection="column" paddingX={2} paddingY={1}>
+      <Text bold color="cyan">
+        GitHub App authorization
+      </Text>
+      <Box marginTop={1} flexDirection="column">
+        <Text>Open this link in your browser to create and install the GitHub App:</Text>
+        <Text bold color="cyanBright">
+          {"  "}
+          {terminalHyperlink(url)}
+        </Text>
+        <Text dimColor>
+          {"  "}A browser opens automatically when one is available. Over SSH, forward the port
+          first: ssh -L {port}:127.0.0.1:{port} …
+        </Text>
+      </Box>
+      <Box marginTop={1}>
+        {status === "waiting" ? (
+          <Text>
+            <Text color="cyan">{frame}</Text> Waiting for GitHub… <Text dimColor>{seconds}s</Text>{" "}
+            <Text dimColor>(Ctrl+C exits; openbot dev or deploy resumes authorization)</Text>
+          </Text>
+        ) : status === "connected" ? (
+          <Text color="green">✓ GitHub App connected.</Text>
+        ) : (
+          <Text color="yellow">◌ {reason || "Authorization not completed yet"}</Text>
+        )}
+      </Box>
+    </Box>
+  );
+}
+
+export interface GitHubAuthorizationPanelController {
+  succeed(): void;
+  timeout(reason?: string): void;
+  close(): void;
+}
+
+/** Imperative bridge from git-provider authorization events into one stable Ink panel. */
+export function createGitHubAuthorizationPanel(
+  url: string,
+  { enabled = process.stdout.isTTY }: { enabled?: boolean } = {},
+): GitHubAuthorizationPanelController {
+  let status: GitHubAuthorizationStatus = "waiting";
+  let reason: string | undefined;
+  const view = () => <GitHubAuthorizationView url={url} status={status} reason={reason} />;
+  const app = enabled ? render(view()) : null;
+  if (!enabled)
+    process.stdout.write(
+      `GitHub authorization required. Open this link to create and install the GitHub App:\n  ${url}\n`,
+    );
+  let closed = false;
+  const finish = (nextStatus: GitHubAuthorizationStatus, nextReason?: string) => {
+    if (closed) return;
+    closed = true;
+    status = nextStatus;
+    reason = nextReason;
+    if (app) {
+      app.rerender(view());
+      app.unmount();
+    } else if (nextStatus === "connected") {
+      process.stdout.write("GitHub App connected.\n");
+    } else if (nextReason) {
+      process.stdout.write(`${nextReason}\n`);
+    }
+  };
+  return {
+    succeed: () => finish("connected"),
+    timeout: (nextReason) => finish("pending", nextReason),
+    close: () => finish("pending"),
+  };
+}
+
+/** Best-effort platform browser launch; failures are silent on headless machines. */
+export function openInBrowser(url: string): void {
+  const [command, ...args] =
+    process.platform === "darwin"
+      ? ["open", url]
+      : process.platform === "win32"
+        ? ["cmd", "/c", "start", "", url]
+        : ["xdg-open", url];
+  try {
+    const child = spawn(command!, args, { detached: true, stdio: "ignore" });
+    child.on("error", () => undefined);
+    child.unref();
+  } catch {
+    // Headless environments have no opener; the rendered link remains authoritative.
+  }
 }

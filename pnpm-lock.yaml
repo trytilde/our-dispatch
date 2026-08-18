@@ -165,6 +165,15 @@ importers:
 
   apps/control-service:
     dependencies:
+      '@bufbuild/protobuf':
+        specifier: 2.7.0
+        version: 2.7.0
+      '@connectrpc/connect':
+        specifier: 2.1.2
+        version: 2.1.2(@bufbuild/protobuf@2.7.0)
+      '@connectrpc/connect-node':
+        specifier: 2.1.2
+        version: 2.1.2(@bufbuild/protobuf@2.7.0)(@connectrpc/connect@2.1.2(@bufbuild/protobuf@2.7.0))
       '@hono/node-server':
         specifier: 1.19.1
         version: 1.19.1(hono@4.13.1)
@@ -174,6 +183,9 @@ importers:
       '@tryopenbot/computer-provider':
         specifier: workspace:*
         version: link:../../packages/computer-provider
+      '@tryopenbot/computer-service-proto':
+        specifier: workspace:*
+        version: link:../../packages/computer-service-proto
       hono:
         specifier: 4.13.1
         version: 4.13.1

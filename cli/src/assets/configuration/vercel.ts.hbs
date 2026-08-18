@@ -4,6 +4,7 @@ import { VercelAgentServiceProvider } from "@tryopenbot/agent-service-provider";
 import { Configuration } from "@tryopenbot/configuration";
 import { VercelControlServiceProvider } from "@tryopenbot/control-service-provider";
 import { VercelSandboxComputerProvider } from "@tryopenbot/computer-provider";
+import { GitHubGitProvider } from "@tryopenbot/git-provider";
 import { VercelInferenceProvider } from "@tryopenbot/inference-provider";
 import { TildePlatform, VercelPlatform } from "@tryopenbot/platform-integrations";
 
@@ -23,5 +24,6 @@ export default Configuration({
     agent: new TildeAgentProvider(tilde),
     computer: new VercelSandboxComputerProvider({ platform: vercel }),
     inference: new VercelInferenceProvider(vercel),
+    git: new GitHubGitProvider(tilde),
   },
 });

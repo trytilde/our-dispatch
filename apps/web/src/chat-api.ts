@@ -99,6 +99,17 @@ export interface QueuedTurn {
 export type AgentSortOrder = "updated_at" | "created_at" | "manual";
 export type SessionSortOrder = "updated_at" | "created_at";
 
+/** Scaffold and register a new authored agent inside the trusted development sandbox. */
+export async function createAgent(name: string): Promise<{ id: string; name: string }> {
+  const response = await fetch("/api/agents", {
+    method: "POST",
+    headers: { "content-type": "application/json", accept: "application/json" },
+    body: JSON.stringify({ name }),
+  });
+  if (!response.ok) throw await responseError(response);
+  return (await response.json()) as { id: string; name: string };
+}
+
 export async function getSidebar(
   query = "",
   agentSort: AgentSortOrder = "updated_at",

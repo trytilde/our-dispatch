@@ -6547,3 +6547,64 @@ button.system-event-chip {
     flex-wrap: wrap;
   }
 }
+
+.create-agent-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: grid;
+  place-items: center;
+  background: rgba(10, 10, 12, 0.42);
+}
+.create-agent-dialog {
+  width: min(420px, calc(100vw - 48px));
+  padding: 20px;
+  border: 1px solid var(--line-strong);
+  border-radius: 14px;
+  background: var(--surface);
+  box-shadow: var(--shadow-lg, 0 18px 48px rgba(0, 0, 0, 0.28));
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.create-agent-dialog h2 {
+  font-size: 15px;
+  font-weight: 650;
+}
+.create-agent-dialog p {
+  font-size: 12.5px;
+  color: var(--ink-3);
+}
+.create-agent-dialog input {
+  height: 36px;
+  padding: 0 10px;
+  border: 1px solid var(--line-strong);
+  border-radius: 9px;
+  background: var(--field);
+  color: var(--ink);
+  font-size: 13px;
+}
+.create-agent-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 4px;
+}
+.create-agent-actions button {
+  padding: 7px 14px;
+  border: 1px solid var(--line-strong);
+  border-radius: 9px;
+  background: var(--surface);
+  color: var(--ink-1, var(--ink));
+  font-size: 12.5px;
+  font-weight: 550;
+  cursor: pointer;
+}
+.create-agent-actions button[type="submit"] {
+  background: var(--ink-1, #141414);
+  color: var(--surface);
+}
+.create-agent-actions button:disabled {
+  opacity: 0.55;
+  cursor: default;
+}

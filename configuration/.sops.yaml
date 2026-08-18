@@ -1,0 +1,7 @@
+creation_rules:
+  - kms:
+      - arn:aws:kms:us-east-1:914788356809:alias/tilde-app-dev-sops
+    path_regex: configuration/secrets\.enc\.yaml$
+    encrypted_regex: ^value$
+    age:
+      - age12dv450rluvmxrny78evadx5hw57hvekxvv6u8gsepgyjh0h8fcksl638f5

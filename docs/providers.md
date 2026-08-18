@@ -18,6 +18,7 @@ Anything else belongs in the code that actually uses it.
 | `computer-provider` | Build and deploy the Computer image, provision Computers, install agent workspaces, and prepare the trusted development Computer. |
 | `control-service-provider` | Check, build, configure, and deploy the control-service artifact. |
 | `agent-service-provider` | Discover authored agents and check, build, configure, and deploy their service artifacts. |
+| `git-provider` | Reconcile hosted git access: broker the GitHub App credential through Tilde and maintain the GitHub REST and git-over-HTTPS reverse-proxy profiles consumed by the trusted development sandbox and the factory agent's tools. |
 | `runtime-provider` | Shared initialization, build, and phased deployment contracts and coordination. |
 | `platform-integrations` | Shared Tilde, Vercel, and other vendor plumbing used by multiple provider packages. It is not a domain provider. |
 
@@ -29,7 +30,7 @@ Authored-agent reconciliation discovers agents once and supplies one Agent Provi
 
 The built-in Tilde adapters use the typed API client directly. They identify resources by persisted IDs and stable OpenBot names, create missing resources, compare mutable fields, and update only drift. Authored `SKILL.md` files are keyed by repository-relative source path; removed files are removed from the agent-owned remote set and registry membership is exact. OpenBot does not import or export a Tilde state file during normal lifecycles. An operator may use the Tilde CLI manually to export a team's state and import it into another team for one-time setup or environment migration; OpenBot then resumes idempotent API reconciliation against that imported state.
 
-Every Tilde agent receives a dynamic MCP server and a team-scoped Tilde control-plane toolkit. When the selected service deployment platform is Vercel, the Agent Provider's internal tools reconciler also manages Vercel's proxied MCP connection using the configured Vercel token. Development agent endpoints use Tilde local-runtime tunnel mode; production endpoints use their public service origin. Authored local tools execute inside that agent service, so they share its tunnel instead of registering a second custom HTTP endpoint.
+Every Tilde agent receives a dynamic MCP server and a team-scoped Tilde control-plane toolkit. The primary factory agent additionally receives the brokered GitHub toolkit reconciled by the git provider; no raw GitHub token ever enters the repository or a Computer — sandboxes authenticate git through the Tilde reverse proxy. When the selected service deployment platform is Vercel, the Agent Provider's internal tools reconciler also manages Vercel's proxied MCP connection using the configured Vercel token. Development agent endpoints use Tilde local-runtime tunnel mode; production endpoints use their public service origin. Authored local tools execute inside that agent service, so they share its tunnel instead of registering a second custom HTTP endpoint.
 
 ## Authored agents do not use providers
 

@@ -33,6 +33,7 @@
     "@tryopenbot/configuration": "workspace:*",
     "@tryopenbot/control-service": "workspace:*",
     "@tryopenbot/control-service-provider": "workspace:*",
+    "@tryopenbot/git-provider": "workspace:*",
     "@tryopenbot/inference-provider": "workspace:*",
     "@tryopenbot/platform-integrations": "workspace:*",
     "@tryopenbot/runtime-provider": "workspace:*",

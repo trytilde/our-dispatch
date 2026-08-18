@@ -9,7 +9,12 @@ import {
   type DeploymentEvent,
   type DeploymentParticipant,
 } from "@tryopenbot/runtime-provider";
-import { reconcileAgentResources, repositoryDeploymentPersistence } from "../agent-lifecycle.js";
+import {
+  discoveredAgentIds,
+  persistAgentSandboxUrls,
+  reconcileAgentResources,
+  repositoryDeploymentPersistence,
+} from "../agent-lifecycle.js";
 import { loadDeploymentConfiguration } from "../initialization.js";
 import { loadConfigurationModule } from "../configuration-loader.js";
 import { repositoryRoot } from "../paths.js";
@@ -82,7 +87,18 @@ export async function runProductionDeploy(argv: readonly string[]): Promise<void
   const computerId = deploymentConfiguration.environment.COMPUTER_ID?.trim() || "openbot-computer";
   const developmentSandboxId =
     deploymentConfiguration.environment.DEVELOPMENT_SANDBOX_ID?.trim() || "openbot-development";
+  const git = configuration.providers.git;
   const participants: DeploymentParticipant[] = [
+    ...(deployAgents && git
+      ? [
+          {
+            id: "git",
+            implementation: git,
+            providerType: "Git Provider",
+            provider: git,
+          },
+        ]
+      : []),
     ...(options.service === "all" && computer ? [{ id: "computer", provider: computer }] : []),
     ...(deployAgents && computer
       ? [
@@ -136,8 +152,15 @@ export async function runProductionDeploy(argv: readonly string[]): Promise<void
                     "Verify in-sandbox decryption",
                   ],
                 }),
-                deploy: async (context: DeploymentContext) =>
-                  computer.deployDevelopmentSandbox({ computerId: developmentSandboxId }, context),
+                deploy: async (context: DeploymentContext) => {
+                  const agentIds = await discoveredAgentIds(context.repositoryRoot);
+                  const result = await computer.deployDevelopmentSandbox(
+                    { computerId: developmentSandboxId, agentWorkspaceIds: agentIds },
+                    context,
+                  );
+                  await persistAgentSandboxUrls(context, agentIds);
+                  return result;
+                },
               },
             },
           },

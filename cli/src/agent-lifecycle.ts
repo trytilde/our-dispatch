@@ -1,7 +1,12 @@
 import type { AgentProvider } from "@tryopenbot/agent-provider";
-import { discoverAgents, type AgentServiceProvider } from "@tryopenbot/agent-service-provider";
+import {
+  discoverAgents,
+  primaryAgentId,
+  type AgentServiceProvider,
+} from "@tryopenbot/agent-service-provider";
 import {
   DeploymentOutputs,
+  persistEnvironment,
   type DeploymentContext,
   type DeploymentEvent,
   type DeploymentPersistence,
@@ -15,6 +20,36 @@ import {
   unsetEncryptedSecret,
   unsetEnvironmentValue,
 } from "./initialization.js";
+
+/**
+ * Point every authored agent's computer tools at the trusted development sandbox, where the
+ * writable checkout lives so agents (including the factory) can edit their own source.
+ */
+/** Discovered agent slugs, or none when the authored tree is not scaffolded yet. */
+export async function discoveredAgentIds(repositoryRoot: string): Promise<readonly string[]> {
+  try {
+    return (await discoverAgents(repositoryRoot)).map((agent) => agent.slug);
+  } catch {
+    return [];
+  }
+}
+
+export async function persistAgentSandboxUrls(
+  context: DeploymentContext,
+  agentIds: readonly string[],
+): Promise<void> {
+  const serviceUrl = context.environment.DEVELOPMENT_SANDBOX_SERVICE_URL?.trim();
+  if (!serviceUrl) return;
+  for (const agentId of agentIds) {
+    const prefix = `AGENT_${agentId.replaceAll("-", "_").toUpperCase()}`;
+    await persistEnvironment(
+      context,
+      `${prefix}_COMPUTER_SERVICE_URL`,
+      serviceUrl,
+      `Computer service URL used by the ${agentId} agent's tools.`,
+    );
+  }
+}
 
 export interface ReconcileAgentResourcesOptions {
   repositoryRoot: string;
@@ -69,6 +104,7 @@ export async function reconcileAgentResources(
       persistence,
       agentId: source.slug,
       agentPath: source.directory,
+      agentKind: source.kind,
       agentServiceOrigin,
       platformIds: [
         ...new Set(

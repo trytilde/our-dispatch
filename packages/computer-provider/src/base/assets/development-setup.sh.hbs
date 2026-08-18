@@ -28,4 +28,33 @@ done
 cd "$source_directory"
 SOPS_AGE_KEY_FILE="$age_key_file" sops decrypt --output /dev/null configuration/secrets.enc.yaml
 pnpm install --frozen-lockfile
+
+# Attach the seeded source tree to its GitHub fork through the Tilde git reverse proxy so the
+# sandbox has an authenticated git client without holding a GitHub token.
+set +u
+# shellcheck disable=SC1090
+source "$profile_loader"
+set -u
+if [ -n "${GIT_GITHUB_GIT_PROXY_PROFILE_ID:-}" ] && [ -n "${GIT_GITHUB_REPOSITORY:-}" ]; then
+  git_proxy_url="${TILDE_BASE_URL:-https://api.trytilde.ai}/api/v1/team/${TILDE_TEAM_ID}/reverse-proxy/${GIT_GITHUB_GIT_PROXY_PROFILE_ID}"
+  git config --global url."$git_proxy_url/".insteadOf "https://github.com/"
+  git config --global --unset-all http."$git_proxy_url/".extraHeader 2>/dev/null || true
+  git config --global --add http."$git_proxy_url/".extraHeader "x-api-key: ${TILDE_API_KEY}"
+  git config --global --add http."$git_proxy_url/".extraHeader "x-tilde-org-id: ${TILDE_ORG_ID}"
+  chmod 0600 "$sandbox_home/.gitconfig"
+  if [ ! -d "$source_directory/.git" ]; then
+    git -C "$source_directory" init --initial-branch=main --quiet
+    git -C "$source_directory" config user.name "OpenBot Factory"
+    git -C "$source_directory" config user.email "factory@users.noreply.github.com"
+    git -C "$source_directory" add --all
+    git -C "$source_directory" commit --quiet --message "Seed trusted development sandbox"
+  fi
+  git -C "$source_directory" remote get-url origin >/dev/null 2>&1 \
+    || git -C "$source_directory" remote add origin "https://github.com/${GIT_GITHUB_REPOSITORY}.git"
+  git -C "$source_directory" remote get-url upstream >/dev/null 2>&1 \
+    || git -C "$source_directory" remote add upstream "https://github.com/trytilde/openbot.git"
+  # Tolerate a still-pending GitHub authorization; the next deployment retries the fetch.
+  git -C "$source_directory" fetch --quiet origin || true
+fi
+
 touch "$state_directory/ready"

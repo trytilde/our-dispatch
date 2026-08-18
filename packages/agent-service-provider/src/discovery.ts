@@ -21,7 +21,7 @@ export const requiredComputerToolFiles = [
   "write_file.ts",
 ] as const;
 
-export const primaryAgentId = "hello-world";
+export const primaryAgentId = "factory";
 export const primaryAgentDirectory = "configuration/agent";
 export const subagentDirectory = `${primaryAgentDirectory}/subagents`;
 

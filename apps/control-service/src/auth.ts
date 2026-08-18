@@ -8,13 +8,22 @@ const refreshCookie = "openbot_refresh";
 const stateCookie = "openbot_oauth_state";
 const verifierCookie = "openbot_oauth_verifier";
 
-export function registerOwnerAuth(app: Hono, provider: AuthProvider): void {
+interface OwnerAuthOptions {
+  devMode?: boolean;
+  environment?: NodeJS.ProcessEnv;
+}
+
+export function registerOwnerAuth(
+  app: Hono,
+  provider: AuthProvider,
+  options: OwnerAuthOptions = {},
+): void {
   app.get("/auth/login", (context) => {
     const state = randomBytes(24).toString("base64url");
     const verifier = randomBytes(48).toString("base64url");
-    const redirectUri = callbackUrl(context);
-    transientCookie(context, stateCookie, state);
-    transientCookie(context, verifierCookie, verifier);
+    const redirectUri = callbackUrl(context, options);
+    transientCookie(context, stateCookie, state, options);
+    transientCookie(context, verifierCookie, verifier, options);
     const url = provider.authorizationUrl({
       redirectUri,
       state,
@@ -32,21 +41,21 @@ export function registerOwnerAuth(app: Hono, provider: AuthProvider): void {
     const tokens = await provider.exchangeCode({
       code,
       codeVerifier: verifier,
-      redirectUri: callbackUrl(context),
+      redirectUri: callbackUrl(context, options),
     });
-    setTokenCookies(context, tokens);
+    setTokenCookies(context, tokens, options);
     clearCookie(context, stateCookie);
     clearCookie(context, verifierCookie);
     return context.redirect("/");
   });
   app.get("/auth/session", async (context) => {
-    const session = await authenticate(context, provider);
+    const session = await authenticate(context, provider, options);
     return session
       ? context.json({ authenticated: true, user: session })
       : context.json({ authenticated: false }, 401);
   });
   app.post("/auth/logout", (context) => {
-    if (!trustedCookieMutation(context))
+    if (!trustedCookieMutation(context, options))
       return context.json({ error: "Untrusted request origin" }, 403);
     clearCookie(context, accessCookie);
     clearCookie(context, refreshCookie);
@@ -54,25 +63,32 @@ export function registerOwnerAuth(app: Hono, provider: AuthProvider): void {
   });
 }
 
-export function requireOwner(provider: AuthProvider): MiddlewareHandler {
+export function requireOwner(
+  provider: AuthProvider,
+  options: OwnerAuthOptions = {},
+): MiddlewareHandler {
   return async (context, next) => {
-    if (!trustedCookieMutation(context))
+    if (!trustedCookieMutation(context, options))
       return context.json({ error: "Untrusted request origin" }, 403);
-    const principal = await authenticate(context, provider);
+    const principal = await authenticate(context, provider, options);
     if (!principal) return context.json({ error: "Authentication required" }, 401);
     context.set("ownerPrincipal", principal);
     await next();
   };
 }
 
-function trustedCookieMutation(context: Context): boolean {
+function trustedCookieMutation(context: Context, options: OwnerAuthOptions): boolean {
   if (["GET", "HEAD", "OPTIONS"].includes(context.req.method)) return true;
   const authorization = context.req.header("authorization");
   if (authorization?.startsWith("Bearer ") && authorization.slice(7).trim()) return true;
   const origin = context.req.header("origin");
   if (!origin) return false;
   try {
-    return new URL(origin).origin === new URL(context.req.url).origin;
+    const requestOrigin = new URL(context.req.url).origin;
+    const expectedOrigin = options.devMode
+      ? (developmentBrowserOrigin(context, options.environment ?? process.env) ?? requestOrigin)
+      : requestOrigin;
+    return new URL(origin).origin === expectedOrigin;
   } catch {
     return false;
   }
@@ -81,6 +97,7 @@ function trustedCookieMutation(context: Context): boolean {
 async function authenticate(
   context: Context,
   provider: AuthProvider,
+  options: OwnerAuthOptions,
 ): Promise<OwnerPrincipal | undefined> {
   const authorization = context.req.header("authorization");
   const bearer = authorization?.startsWith("Bearer ") ? authorization.slice(7).trim() : undefined;
@@ -97,7 +114,7 @@ async function authenticate(
   if (!refreshToken) return undefined;
   try {
     const tokens = await provider.refresh(refreshToken);
-    setTokenCookies(context, tokens);
+    setTokenCookies(context, tokens, options);
     return await provider.verify(tokens.accessToken);
   } catch {
     clearCookie(context, accessCookie);
@@ -106,36 +123,71 @@ async function authenticate(
   }
 }
 
-function callbackUrl(context: Context): string {
-  const configured = process.env.PUBLIC_ORIGIN?.trim()?.replace(/\/$/, "");
-  return `${configured || new URL(context.req.url).origin}/auth/callback`;
+function callbackUrl(context: Context, options: OwnerAuthOptions): string {
+  const requestOrigin = new URL(context.req.url).origin;
+  const environment = options.environment ?? process.env;
+  if (options.devMode)
+    return `${developmentBrowserOrigin(context, environment) ?? requestOrigin}/auth/callback`;
+  const configured = environment.PUBLIC_ORIGIN?.trim()?.replace(/\/$/, "");
+  return `${configured || requestOrigin}/auth/callback`;
 }
 
-function cookieOptions(context: Context, maxAge: number) {
+function developmentBrowserOrigin(
+  context: Context,
+  environment: NodeJS.ProcessEnv,
+): string | undefined {
+  const forwardedHost = context.req.header("x-forwarded-host")?.split(",", 1)[0]?.trim();
+  const host = forwardedHost || context.req.header("host");
+  if (!host) return undefined;
+  try {
+    const forwardedProtocol = context.req.header("x-forwarded-proto")?.split(",", 1)[0]?.trim();
+    const protocol = forwardedHost ? forwardedProtocol : "http";
+    if (protocol !== "http") return undefined;
+    const origin = new URL(`${protocol}://${host}`);
+    const expectedPort = environment.WEB_PORT?.trim() || "4173";
+    const loopback = ["localhost", "127.0.0.1", "[::1]"].includes(origin.hostname);
+    if (loopback && origin.port === expectedPort) return origin.origin;
+  } catch {
+    /* Fall back to the control-service request origin. */
+  }
+  return undefined;
+}
+
+function cookieOptions(context: Context, maxAge: number, options: OwnerAuthOptions) {
   return {
     httpOnly: true,
     maxAge,
     path: "/",
     sameSite: "Lax" as const,
-    secure: callbackUrl(context).startsWith("https://"),
+    secure: callbackUrl(context, options).startsWith("https://"),
   };
 }
 
-function transientCookie(context: Context, name: string, value: string): void {
-  setCookie(context, name, value, cookieOptions(context, 600));
+function transientCookie(
+  context: Context,
+  name: string,
+  value: string,
+  options: OwnerAuthOptions,
+): void {
+  setCookie(context, name, value, cookieOptions(context, 600, options));
 }
 
 function clearCookie(context: Context, name: string): void {
   deleteCookie(context, name, { path: "/" });
 }
 
-function setTokenCookies(context: Context, tokens: OAuthTokens): void {
-  setCookie(context, accessCookie, tokens.accessToken, cookieOptions(context, tokens.expiresIn));
+function setTokenCookies(context: Context, tokens: OAuthTokens, options: OwnerAuthOptions): void {
+  setCookie(
+    context,
+    accessCookie,
+    tokens.accessToken,
+    cookieOptions(context, tokens.expiresIn, options),
+  );
   if (tokens.refreshToken)
     setCookie(
       context,
       refreshCookie,
       tokens.refreshToken,
-      cookieOptions(context, 7 * 24 * 60 * 60),
+      cookieOptions(context, 7 * 24 * 60 * 60, options),
     );
 }

@@ -106,6 +106,8 @@ export interface DeployAgentWorkspacesRequest {
 
 export interface DeployDevelopmentSandboxRequest {
   computerId: string;
+  /** Agent workspace roots to prepare so those agents can run tools in this sandbox. */
+  agentWorkspaceIds?: readonly string[];
 }
 
 export interface ComputerImageSpec {

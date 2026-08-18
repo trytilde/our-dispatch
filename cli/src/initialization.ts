@@ -27,6 +27,7 @@ import {
   type InitializableProvider,
   type ProviderInitializationQuestion,
 } from "@tryopenbot/runtime-provider";
+import { GitHubGitProvider } from "@tryopenbot/git-provider";
 import { VercelInferenceProvider } from "@tryopenbot/inference-provider";
 import { tildePlatform } from "@tryopenbot/platform-integrations";
 import {
@@ -105,7 +106,14 @@ export interface InitializationOptions {
   interactive?: boolean;
   userConfigurationPath?: string;
   request?: typeof fetch;
+  /** Renders provider provisioning events; defaults to plain standard output lines. */
+  report?: InitializationEventReporter;
 }
+
+export type InitializationEventReporter = (event: {
+  event: string;
+  details?: Readonly<Record<string, unknown>>;
+}) => void;
 
 interface AgeIdentity {
   recipient: string;
@@ -252,6 +260,8 @@ export async function initializeOpenBot(options: InitializationOptions): Promise
   await runInitializationProvisioning(selectedProviders, options.repositoryRoot, {
     baseEnvironment: options.environment ?? process.env,
     environmentValues,
+    interactive: options.interactive !== false,
+    report: options.report,
     request: options.request,
     secretValues,
   });
@@ -263,9 +273,9 @@ export async function initializeOpenBot(options: InitializationOptions): Promise
     description: "Age identity used by the trusted deployment sandbox to decrypt secrets.",
     value: sandboxIdentity.identity,
   };
-  environmentValues.AGENT_HELLO_WORLD_NAME = {
-    description: "Display name for the hello-world agent.",
-    value: "Hello World",
+  environmentValues.AGENT_FACTORY_NAME = {
+    description: "Display name for the factory agent.",
+    value: "Factory",
   };
 
   const ownerAge = owner.creationRule.age;
@@ -314,7 +324,7 @@ export async function initializeOpenBot(options: InitializationOptions): Promise
     configurationAssets.instrumentation,
   );
   await scaffoldAgentTemplates(options.repositoryRoot);
-  await scaffoldPrimaryAgent(options.repositoryRoot, "Hello World", { existing: "preserve" });
+  await scaffoldPrimaryAgent(options.repositoryRoot, "Factory", { existing: "preserve" });
   await rm(configurationIgnorePath, { force: true });
   await runner.run("vp", ["install"], { cwd: options.repositoryRoot });
 }
@@ -395,6 +405,8 @@ async function reconfigureOpenBot(
     },
     secretValues: state.secretValues,
     environmentUpdates: environmentValues,
+    interactive: options.interactive !== false,
+    report: options.report,
     request: options.request,
   });
 
@@ -408,7 +420,7 @@ async function reconfigureOpenBot(
   await reconcileEnvironmentFile(paths.environmentPath, environmentValues, removedEnvironmentNames);
   await writeFileAtomically(paths.secretsPath, await renderDocument(encrypted), 0o600);
   await scaffoldAgentTemplates(options.repositoryRoot);
-  await scaffoldPrimaryAgent(options.repositoryRoot, "Hello World", { existing: "preserve" });
+  await scaffoldPrimaryAgent(options.repositoryRoot, "Factory", { existing: "preserve" });
   await runner.run("vp", ["install"], { cwd: options.repositoryRoot });
 }
 
@@ -1048,8 +1060,10 @@ async function sopsCommandEnvironment(
     options.environment.SOPS_AGE_KEY_FILE ||
     options.environment.SOPS_AGE_KEY_CMD,
   );
+  // An explicitly provided age identity decrypts on its own; skip owner-identity resolution
+  // even when KMS recipients exist, since SOPS needs only one successful key group.
+  if (hasAgeIdentity) return { ...options.environment };
   const creationRule = await readSopsCreationRule(repositoryRoot);
-  if (hasAgeIdentity && !creationRule.kms) return { ...options.environment };
   const metadata = await loadStoredOwnerMetadata(
     repositoryRoot,
     options.environment,
@@ -1348,6 +1362,7 @@ function applicationInitializationProviders(
       initialization: tildeAgentProviderInitialization,
     },
     new VercelInferenceProvider(),
+    new GitHubGitProvider(tildePlatform),
   ];
 }
 
@@ -1360,6 +1375,8 @@ async function runInitializationProvisioning(
     secretValues: Record<string, DescribedValue>;
     environmentUpdates?: Record<string, DescribedValue>;
     request?: typeof fetch;
+    interactive?: boolean;
+    report?: InitializationEventReporter;
   },
 ): Promise<void> {
   const environment = {
@@ -1378,6 +1395,8 @@ async function runInitializationProvisioning(
     repositoryRoot,
     environment,
     request: values.request,
+    interactive: values.interactive === true,
+    report: values.report ?? plainInitializationReporter,
     async setEnvironment(name, value, description) {
       (values.environmentUpdates ?? values.environmentValues)[name] = { description, value };
       environment[name] = value;
@@ -1387,6 +1406,38 @@ async function runInitializationProvisioning(
       environment[name] = value;
     },
   });
+}
+
+/** Plain standard-output rendering of provider provisioning events. */
+export function plainInitializationReporter({
+  event,
+  details = {},
+}: {
+  event: string;
+  details?: Readonly<Record<string, unknown>>;
+}): void {
+  if (event === "git.github.authorization.required") {
+    const url = typeof details.url === "string" ? details.url : undefined;
+    const hint = typeof details.hint === "string" ? details.hint : "";
+    const instructions = typeof details.instructions === "string" ? details.instructions : "";
+    process.stdout.write(
+      `\nGitHub authorization required. Open this link to create and install the GitHub App:\n${
+        url ? `  ${url}\n` : ""
+      }${instructions ? `${instructions}\n` : ""}${hint ? `${hint}\n` : ""}`,
+    );
+    return;
+  }
+  if (event === "git.github.authorization.waiting") {
+    process.stdout.write("Waiting for the GitHub App authorization to complete…\n");
+    return;
+  }
+  if (event === "git.github.authorized") {
+    process.stdout.write("GitHub App connected.\n");
+    return;
+  }
+  process.stdout.write(
+    `${event}${Object.keys(details).length ? ` ${JSON.stringify(details)}` : ""}\n`,
+  );
 }
 
 function uniqueInitializationQuestions(
@@ -1414,6 +1465,7 @@ function configuredProviders(configuration: OpenBotConfiguration): Initializable
     configuration.providers.agent,
     configuration.providers.computer,
     configuration.providers.inference,
+    configuration.providers.git,
   ];
   return providers.filter((provider): provider is InitializableProvider => provider !== undefined);
 }

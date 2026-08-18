@@ -30,10 +30,10 @@ describe("agent scaffolding", () => {
   it("materializes the supported agent tree with fixed-id shared computer tools", async () => {
     const root = await temporaryRepository();
     await scaffoldAgentTemplates(root);
-    const primary = await scaffoldPrimaryAgent(root, "Hello World");
+    const primary = await scaffoldPrimaryAgent(root, "Factory");
     const agent = await scaffoldAgent(root, "Research Assistant");
 
-    expect(primary).toMatchObject({ id: "hello-world", name: "Hello World" });
+    expect(primary).toMatchObject({ id: "factory", name: "Factory" });
     expect(agent).toMatchObject({ id: "research-assistant", name: "Research Assistant" });
     const directory = join(root, "configuration/agent/subagents/research-assistant");
     expect(await readFile(join(root, "configuration/agent/instrumentation.ts"), "utf8")).toContain(
@@ -41,7 +41,7 @@ describe("agent scaffolding", () => {
     );
     expect(
       await readFile(join(root, "configuration/agent/sandbox/workspace/README.md"), "utf8"),
-    ).toContain("Hello World");
+    ).toContain("Factory");
     const agentSource = await readFile(join(directory, "agent.ts"), "utf8");
     expect(agentSource).toContain("process.env.AGENT_RESEARCH_ASSISTANT_API_KEY!");
     expect(agentSource).not.toContain("requiredEnv");
@@ -71,7 +71,7 @@ describe("agent scaffolding", () => {
       code: "ENOENT",
     });
     expect(await readFile(join(directory, "tools/bash.ts"), "utf8")).toContain(
-      'createBashTool({ agentId: "research-assistant" })',
+      'createBashTool({ agentId: "research-assistant", baseUrl })',
     );
     expect(await readFile(join(directory, "tools/await_shell.ts"), "utf8")).toContain(
       "createAwaitShellTool",
@@ -85,10 +85,23 @@ describe("agent scaffolding", () => {
     expect(await readFile(join(directory, "tools/copy_to_computer.ts"), "utf8")).toContain(
       "createCopyToComputerTool",
     );
-    expect(await readFile(join(directory, "skills/create-agent/SKILL.md"), "utf8")).toContain(
-      'pnpm openbot new-agent "<display name>"',
+    expect(
+      await readFile(join(root, "configuration/agent/skills/create-agent/SKILL.md"), "utf8"),
+    ).toContain('pnpm openbot new-agent "<display name>"');
+    expect(
+      await readFile(join(root, "configuration/agent/skills/develop-openbot/SKILL.md"), "utf8"),
+    ).toContain("openbot/sandbox-edits");
+    // Factory-only skills never scaffold into subagents; subagents get self-edit instead.
+    await expect(access(join(directory, "skills/create-agent/SKILL.md"))).rejects.toMatchObject({
+      code: "ENOENT",
+    });
+    expect(await readFile(join(directory, "skills/self-edit/SKILL.md"), "utf8")).toContain(
+      "configuration/agent/subagents/research-assistant",
     );
-    await expect(access(join(directory, "tools/hello-world.ts"))).rejects.toMatchObject({
+    await expect(
+      access(join(root, "configuration/agent/skills/self-edit/SKILL.md")),
+    ).rejects.toMatchObject({ code: "ENOENT" });
+    await expect(access(join(directory, "tools/factory.ts"))).rejects.toMatchObject({
       code: "ENOENT",
     });
     await expect(scaffoldAgent(root, "Research Assistant")).rejects.toThrow("already exists");
@@ -110,7 +123,7 @@ describe("agent scaffolding", () => {
     );
 
     await scaffoldAgentTemplates(root);
-    await scaffoldPrimaryAgent(root, "Hello World");
+    await scaffoldPrimaryAgent(root, "Factory");
     await scaffoldAgent(root, "Custom Agent");
 
     expect(
@@ -130,7 +143,7 @@ describe("agent scaffolding", () => {
 
   it("requires init to seed the fork-owned agent template", async () => {
     const root = await temporaryRepository();
-    await expect(scaffoldPrimaryAgent(root, "Hello World")).rejects.toThrow(
+    await expect(scaffoldPrimaryAgent(root, "Factory")).rejects.toThrow(
       `${agentTemplateDirectory} is missing; run openbot init`,
     );
   });
@@ -145,7 +158,7 @@ describe("agent scaffolding", () => {
       ),
     );
     await scaffoldAgentTemplates(root);
-    await scaffoldPrimaryAgent(root, "Hello World");
+    await scaffoldPrimaryAgent(root, "Factory");
     await mkdir(join(root, "configuration"), { recursive: true });
     await writeFile(
       join(root, "configuration/instrumentation.ts"),
@@ -169,7 +182,7 @@ describe("agent scaffolding", () => {
     const templateRoot = await scaffoldAgentTemplates(root);
     await rm(join(templateRoot, "tools/bash.ts.hbs"));
 
-    await expect(scaffoldPrimaryAgent(root, "Hello World")).rejects.toThrow(
+    await expect(scaffoldPrimaryAgent(root, "Factory")).rejects.toThrow(
       `${agentTemplateDirectory}/tools/bash.ts.hbs`,
     );
     await expect(access(join(root, "configuration/agent"))).rejects.toMatchObject({

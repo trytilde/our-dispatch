@@ -21,7 +21,7 @@ flowchart TD
   J --> K["Write configuration/.env and encrypted secrets"]
   K --> L["Render configuration modules"]
   L --> M["Seed configuration/templates/agent if missing"]
-  M --> N["Scaffold Hello World from template"]
+  M --> N["Scaffold Factory agent from template"]
   N --> Z["Run vp install"]
   F -- "Yes" --> P["Decrypt and load stored values"]
   P --> Q["Collect platform and provider initialization metadata"]

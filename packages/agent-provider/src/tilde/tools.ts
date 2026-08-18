@@ -120,8 +120,45 @@ export class TildeToolReconciler {
       `Tilde MCP server ID for ${id}.`,
     );
     await this.#reconcileTildeControlPlane(context, id, prefix);
+    if (context.agentKind === "primary") await this.#reconcileGitHubTools(context);
     if (context.platformIds?.includes("vercel"))
       await this.#reconcileVercelMcp(context, id, prefix);
+  }
+
+  /** Enable every GitHub tool on the git-provider's brokered tool group for the primary agent. */
+  async #reconcileGitHubTools(context: DeploymentContext): Promise<void> {
+    const groupId = context.environment.GIT_GITHUB_TOOL_GROUP_ID?.trim();
+    if (!groupId) return;
+    const [{ data: catalog }, { data: enabled }] = await Promise.all([
+      listAvailableToolGroups({
+        client: this.#api,
+        path: { team_id: this.#teamId },
+        query: { page_size: 100, deployment_alias: "latest", include_global: true },
+        throwOnError: true,
+      }),
+      listTools({
+        client: this.#api,
+        path: { team_id: this.#teamId },
+        query: { page_size: 100, tool_group_instance_id: groupId, include_global: false },
+        throwOnError: true,
+      }),
+    ]);
+    const source = catalog.items.find((candidate) => candidate.type_id === "github");
+    if (!source) return;
+    const enabledIds = new Set(enabled.items.map((tool) => tool.tool_source_type_id));
+    for (const tool of source.tools) {
+      if (enabledIds.has(tool.type_id)) continue;
+      await enableTool({
+        client: this.#api,
+        path: {
+          team_id: this.#teamId,
+          tool_group_instance_id: groupId,
+          tool_source_type_id: tool.type_id,
+        },
+        body: {},
+        throwOnError: true,
+      });
+    }
   }
 
   async #reconcileTildeControlPlane(

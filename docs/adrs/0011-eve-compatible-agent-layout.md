@@ -20,7 +20,7 @@ OpenBot needs a predictable, portable authored-agent layout without inventing vo
 
 ## Decision
 
-The primary agent lives at `configuration/agent/` and keeps the stable ID `hello-world`. Additional agents live at `configuration/agent/subagents/<id>/`; their directory names are their IDs. Both use the same complete authored subset. Subagents may not contain another `subagents/` directory.
+The primary agent lives at `configuration/agent/` and keeps the stable ID `factory`. Additional agents live at `configuration/agent/subagents/<id>/`; their directory names are their IDs. Both use the same complete authored subset. Subagents may not contain another `subagents/` directory.
 
 ```text
 configuration/

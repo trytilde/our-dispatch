@@ -415,7 +415,7 @@ describe("computer image lifecycle", () => {
         report: vi.fn(),
       }),
     ).resolves.toMatchObject({
-      summary: expect.stringMatching(/locally built .*\/openbot-computer/),
+      summary: expect.stringMatching(/locally built [^\s/]+\/[^\s]+-computer computer image/),
     });
   });
 

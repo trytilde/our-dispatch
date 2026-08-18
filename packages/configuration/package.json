@@ -45,6 +45,7 @@
     "@tryopenbot/auth-provider": "workspace:*",
     "@tryopenbot/computer-provider": "workspace:*",
     "@tryopenbot/control-service-provider": "workspace:*",
+    "@tryopenbot/git-provider": "workspace:*",
     "@tryopenbot/inference-provider": "workspace:*",
     "@tryopenbot/runtime-provider": "workspace:*"
   },

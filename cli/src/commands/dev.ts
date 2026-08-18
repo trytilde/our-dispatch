@@ -1,6 +1,7 @@
 import { resolve } from "node:path";
 import type { ChildProcess } from "node:child_process";
 import type { OpenBotConfiguration } from "@tryopenbot/configuration";
+import { waitForHealth } from "@tryopenbot/control-service-provider";
 import { runLocalRuntimeTunnelCommand } from "@trytilde/cli";
 import { formatAgentLifecycleProgress, reconcileAgentResources } from "../agent-lifecycle.js";
 import { loadConfigurationModule } from "../configuration-loader.js";
@@ -62,7 +63,7 @@ export async function runDevelopment(): Promise<never> {
   console.log(`OpenBot control and agent HMR server: http://127.0.0.1:${serverPort}`);
 
   const [serverCommand, serverArguments] = developmentServerCommand();
-  const server = await runDevelopmentServer(serverCommand, serverArguments, env);
+  const server = await startTunneledAgentService(serverCommand, serverArguments, env);
   try {
     await reconcileAgentResources({
       repositoryRoot,
@@ -161,7 +162,7 @@ export function developmentTunnelOptions(
   };
 }
 
-async function runDevelopmentServer(
+export async function startTunneledAgentService(
   command: string,
   arguments_: readonly string[],
   environment: NodeJS.ProcessEnv,
@@ -170,6 +171,12 @@ async function runDevelopmentServer(
   const tunnelOptions = developmentTunnelOptions(command, arguments_, environment);
   if (!tunnelOptions) {
     const child = run(command, arguments_, serverEnvironment);
+    try {
+      await waitForHealth(fetch, `http://127.0.0.1:${environment.PORT ?? "4100"}`);
+    } catch (error) {
+      child.kill("SIGTERM");
+      throw error;
+    }
     return {
       child,
       agentServiceOrigin: `http://127.0.0.1:${environment.PORT ?? "4100"}`,
@@ -194,6 +201,13 @@ async function runDevelopmentServer(
     if (!tunnel.command.killed) tunnel.command.kill("SIGTERM");
   });
   console.log("Tilde local-runtime tunnel: connected");
+  try {
+    await waitForHealth(fetch, `http://127.0.0.1:${environment.PORT ?? "4100"}`);
+  } catch (error) {
+    tunnel.command.kill("SIGTERM");
+    tunnel.stop();
+    throw error;
+  }
   return {
     child: tunnel.command,
     agentServiceOrigin: tunnel.connector.tunnel_origin,
@@ -204,7 +218,7 @@ async function runDevelopmentServer(
   };
 }
 
-interface DevelopmentServer {
+export interface DevelopmentServer {
   child: ChildProcess;
   agentServiceOrigin: string;
   stop(): void;

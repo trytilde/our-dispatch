@@ -43,6 +43,7 @@ pnpm --filter openbot test
 - `apps/computer-service`: API-key-protected ConnectRPC service inside computers.
 - `packages/agent-provider`: aggregate external agent, authored-skill, registry, MCP, and tool-resource reconciliation lifecycle.
 - `packages/inference-provider`: inference-account initialization and credential provisioning; never an authored-agent model factory.
+- `packages/git-provider`: hosted-git access reconciliation; brokers the GitHub App credential through Tilde and maintains the GitHub REST and git-over-HTTPS reverse-proxy profiles.
 - `packages/computer-tools`: typed Vercel AI SDK tools that call computer-service; this is a runtime utility, not a provider.
 - `packages/configuration`: typed contract for the fork-owned composition root.
 - `packages/utilities`: shared utilities, including strict Handlebars rendering for generated source, configuration, service, and deployment files.

@@ -10,22 +10,34 @@ import {
 } from "@tryopenbot/agent-service-provider";
 
 const defaultAgentTemplates = [
-  ["agent.ts", "./assets/agents/hello-world/agent.ts.hbs"],
-  ["instructions.ts", "./assets/agents/hello-world/instructions.ts.hbs"],
-  ["instrumentation.ts", "./assets/agents/hello-world/instrumentation.ts.hbs"],
-  ["tools/await_shell.ts", "./assets/agents/hello-world/tools/await_shell.ts.hbs"],
-  ["tools/bash.ts", "./assets/agents/hello-world/tools/bash.ts.hbs"],
-  ["tools/copy_from_computer.ts", "./assets/agents/hello-world/tools/copy_from_computer.ts.hbs"],
-  ["tools/copy_to_computer.ts", "./assets/agents/hello-world/tools/copy_to_computer.ts.hbs"],
-  ["tools/glob.ts", "./assets/agents/hello-world/tools/glob.ts.hbs"],
-  ["tools/grep.ts", "./assets/agents/hello-world/tools/grep.ts.hbs"],
-  ["tools/read_file.ts", "./assets/agents/hello-world/tools/read_file.ts.hbs"],
-  ["tools/screenshot.ts", "./assets/agents/hello-world/tools/screenshot.ts.hbs"],
-  ["tools/write_file.ts", "./assets/agents/hello-world/tools/write_file.ts.hbs"],
-  ["skills/create-agent/SKILL.md", "./assets/agents/hello-world/skills/create-agent/SKILL.md.hbs"],
-  ["skills/hello-world/SKILL.md", "./assets/agents/hello-world/skills/hello-world/SKILL.md.hbs"],
-  ["sandbox/workspace/.profile", "./assets/agents/hello-world/sandbox/workspace/.profile.hbs"],
-  ["sandbox/workspace/README.md", "./assets/agents/hello-world/sandbox/workspace/README.md.hbs"],
+  ["agent.ts", "./assets/agents/factory/agent.ts.hbs"],
+  ["instructions.ts", "./assets/agents/factory/instructions.ts.hbs"],
+  ["instrumentation.ts", "./assets/agents/factory/instrumentation.ts.hbs"],
+  ["tools/await_shell.ts", "./assets/agents/factory/tools/await_shell.ts.hbs"],
+  ["tools/bash.ts", "./assets/agents/factory/tools/bash.ts.hbs"],
+  ["tools/copy_from_computer.ts", "./assets/agents/factory/tools/copy_from_computer.ts.hbs"],
+  ["tools/copy_to_computer.ts", "./assets/agents/factory/tools/copy_to_computer.ts.hbs"],
+  ["tools/glob.ts", "./assets/agents/factory/tools/glob.ts.hbs"],
+  ["tools/grep.ts", "./assets/agents/factory/tools/grep.ts.hbs"],
+  ["tools/read_file.ts", "./assets/agents/factory/tools/read_file.ts.hbs"],
+  ["tools/screenshot.ts", "./assets/agents/factory/tools/screenshot.ts.hbs"],
+  ["tools/write_file.ts", "./assets/agents/factory/tools/write_file.ts.hbs"],
+  ["sandbox/workspace/.profile", "./assets/agents/factory/sandbox/workspace/.profile.hbs"],
+  ["sandbox/workspace/README.md", "./assets/agents/factory/sandbox/workspace/README.md.hbs"],
+] as const;
+
+/** Rendered only into scaffolded subagents, never into the primary factory agent. */
+const subagentTemplates = [
+  ["skills/self-edit/SKILL.md", "./assets/agents/subagent/skills/self-edit/SKILL.md.hbs"],
+] as const;
+
+/** Rendered only into the primary factory agent, never into scaffolded subagents. */
+const factoryAgentTemplates = [
+  ["skills/create-agent/SKILL.md", "./assets/agents/factory/skills/create-agent/SKILL.md.hbs"],
+  [
+    "skills/develop-openbot/SKILL.md",
+    "./assets/agents/factory/skills/develop-openbot/SKILL.md.hbs",
+  ],
 ] as const;
 
 const requiredAgentTemplatePaths = [
@@ -43,6 +55,8 @@ const requiredAgentTemplatePaths = [
 ] as const;
 
 export const agentTemplateDirectory = "configuration/templates/agent";
+export const factoryTemplateDirectory = "configuration/templates/factory";
+export const subagentTemplateDirectory = "configuration/templates/subagent";
 
 export interface ScaffoldedAgent {
   id: string;
@@ -50,12 +64,27 @@ export interface ScaffoldedAgent {
   directory: string;
 }
 
-/** Seed the fork-owned agent template once without replacing owner edits. */
+/** Seed the fork-owned agent templates once without replacing owner edits. */
 export async function scaffoldAgentTemplates(repositoryRoot: string): Promise<string> {
-  const directory = resolve(repositoryRoot, agentTemplateDirectory);
+  const directory = await seedTemplateDirectory(
+    repositoryRoot,
+    agentTemplateDirectory,
+    defaultAgentTemplates,
+  );
+  await seedTemplateDirectory(repositoryRoot, factoryTemplateDirectory, factoryAgentTemplates);
+  await seedTemplateDirectory(repositoryRoot, subagentTemplateDirectory, subagentTemplates);
+  return directory;
+}
+
+async function seedTemplateDirectory(
+  repositoryRoot: string,
+  templateDirectory: string,
+  templates: readonly (readonly [string, string])[],
+): Promise<string> {
+  const directory = resolve(repositoryRoot, templateDirectory);
   if (await exists(directory)) return directory;
   try {
-    for (const [outputPath, sourcePath] of defaultAgentTemplates) {
+    for (const [outputPath, sourcePath] of templates) {
       const destination = resolve(directory, `${outputPath}.hbs`);
       await mkdir(dirname(destination), { recursive: true, mode: 0o700 });
       await copyFile(
@@ -144,6 +173,21 @@ async function materializeAgent(
         values,
         { flag: "wx", mode: 0o600 },
       );
+    }
+    const roleTemplateDirectory = resolve(
+      repositoryRoot,
+      createSubagentDirectory ? factoryTemplateDirectory : subagentTemplateDirectory,
+    );
+    if (await exists(roleTemplateDirectory)) {
+      for (const template of await walkAgentTemplates(roleTemplateDirectory)) {
+        const relativePath = relative(roleTemplateDirectory, template).replaceAll("\\", "/");
+        await materializeFileTemplate(
+          template,
+          resolve(directory, relativePath.slice(0, -".hbs".length)),
+          values,
+          { flag: "wx", mode: 0o600 },
+        );
+      }
     }
     if (createSubagentDirectory)
       await mkdir(resolve(directory, "subagents"), { recursive: true, mode: 0o700 });
