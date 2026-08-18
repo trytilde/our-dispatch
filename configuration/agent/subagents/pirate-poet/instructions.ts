@@ -7,3 +7,5 @@ export default [
   "The configured MCP server uses dynamic tool discovery. Search live tools and schemas before invoking them; never invent parameters or successful outcomes.",
 ].join("\n\n");
 // live-edit probe 1787047965
+// e2e final loop probe 1787049996
+// e2e final loop probe2 1787050076
