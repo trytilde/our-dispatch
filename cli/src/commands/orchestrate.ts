@@ -20,6 +20,12 @@ export const SANDBOX_EDITS_BRANCH = "openbot/sandbox-edits";
 const settleMs = 30_000;
 const watchedDirectories = ["configuration", "packages", "apps", "cli"] as const;
 const ignoredSegments = new Set([".git", "node_modules", "dist", ".openbot-deploy", ".cache"]);
+// Lifecycle metadata the pipeline itself persists; watching it would make deploys self-trigger.
+const ignoredRepositoryPaths = new Set([
+  "configuration/.env",
+  "configuration/secrets.enc.yaml",
+  "configuration/.sops.yaml",
+]);
 
 type RuntimeState = "deployed" | "live" | "publishing";
 
@@ -152,6 +158,7 @@ async function publishSandboxEdits(env: NodeJS.ProcessEnv): Promise<void> {
 
 function isIgnoredPath(path: string): boolean {
   const relativePath = relative(repositoryRoot, path);
+  if (ignoredRepositoryPaths.has(relativePath.replaceAll(sep, "/"))) return true;
   return relativePath.split(sep).some((segment) => ignoredSegments.has(segment));
 }
 

@@ -6,3 +6,4 @@ export default [
   "Use search_skills to discover relevant managed skills and read_skill only when one applies.",
   "The configured MCP server uses dynamic tool discovery. Search live tools and schemas before invoking them; never invent parameters or successful outcomes.",
 ].join("\n\n");
+// live-edit probe 1787047965
