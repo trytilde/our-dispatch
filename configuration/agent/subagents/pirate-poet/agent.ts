@@ -1,0 +1,105 @@
+import {
+  chatKitEndpoint,
+  convertToAiSdkMessages,
+  createChatKitAttachmentFilePartHandler,
+  createClient,
+  createMCPClient,
+} from "@trytilde/harness-sdk-vercel-ai-node";
+import { consumeStream, convertToModelMessages, stepCountIs, streamText, type ToolSet } from "ai";
+import instructions from "./instructions.js";
+import awaitShell from "./tools/await_shell.js";
+import bash from "./tools/bash.js";
+import copyFromComputer from "./tools/copy_from_computer.js";
+import copyToComputer from "./tools/copy_to_computer.js";
+import glob from "./tools/glob.js";
+import grep from "./tools/grep.js";
+import readFile from "./tools/read_file.js";
+import screenshot from "./tools/screenshot.js";
+import writeFile from "./tools/write_file.js";
+
+const agentApiKey = process.env.AGENT_PIRATE_POET_API_KEY!;
+const mcpServerId = process.env.AGENT_PIRATE_POET_MCP_SERVER_ID!;
+
+const client = createClient({
+  apiKey: agentApiKey,
+  orgId: process.env.TILDE_ORG_ID!,
+  orgSubdomain: false,
+  teamId: process.env.TILDE_TEAM_ID!,
+});
+const localTools = {
+  await_shell: awaitShell,
+  bash,
+  copy_from_computer: copyFromComputer,
+  copy_to_computer: copyToComputer,
+  glob,
+  grep,
+  read_file: readFile,
+  screenshot,
+  write_file: writeFile,
+} satisfies ToolSet;
+let mcpTools: Promise<ToolSet> | undefined;
+
+async function managedMcpTools(): Promise<ToolSet> {
+  return (mcpTools ??= createMCPClient({
+    client,
+    serverId: mcpServerId,
+    tools: localTools,
+  }).then(async ({ mcp }) => {
+    // The Tilde wrapper preserves AI SDK tools but exposes a transport-neutral registry type.
+    const tools: Record<string, unknown> = await mcp.tools();
+    assertToolSet(tools);
+    return tools;
+  }));
+}
+
+function assertToolSet(tools: Record<string, unknown>): asserts tools is ToolSet {
+  for (const [name, definition] of Object.entries(tools))
+    if (typeof definition !== "object" || definition === null || !("inputSchema" in definition))
+      throw new TypeError(`MCP tool ${name} is not a Vercel AI SDK tool`);
+}
+
+function fetchAttachment(input: string | URL | Request, init?: RequestInit): Promise<Response> {
+  const url = new URL(
+    input instanceof Request ? input.url : input.toString(),
+    client.config.baseUrl,
+  );
+  if (url.origin === new URL(client.config.baseUrl).origin) return fetch(input, init);
+
+  const headers = new Headers(init?.headers);
+  headers.delete("authorization");
+  headers.delete("x-api-key");
+  headers.delete("x-tilde-org-id");
+  headers.delete("x-tilde-team-id");
+  return fetch(input, { ...init, headers });
+}
+
+export default chatKitEndpoint({
+  client,
+  webhookSigningKey: process.env.AGENT_PIRATE_POET_WEBHOOK_SIGNING_KEY!,
+  requestTimeoutMs: 285_000,
+  async handler(request, context) {
+    const history = await context.session.history();
+    const messages = await convertToAiSdkMessages({
+      messages: [...history.items, ...context.messages],
+      chatkit: context.chatkit,
+      onUnprocessed: {
+        fileUpload: createChatKitAttachmentFilePartHandler(client, context, {
+          fetch: fetchAttachment,
+        }),
+      },
+    });
+    const result = streamText({
+      abortSignal: request.signal,
+      messages: await convertToModelMessages(messages),
+      model: process.env.AI_MODEL ?? "openai/gpt-5.6-sol",
+      providerOptions: { openai: { reasoningEffort: "medium" } },
+      stopWhen: stepCountIs(12),
+      system: instructions,
+      tools: await managedMcpTools(),
+    });
+    return result.toUIMessageStreamResponse({
+      consumeSseStream: consumeStream,
+      originalMessages: messages,
+    });
+  },
+});
