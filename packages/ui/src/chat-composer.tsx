@@ -238,7 +238,7 @@ export function ChatComposer({
         <div className="composer-actions">
           {busy ? (
             <button className="stop-button" type="button" onClick={onStop} aria-label="Stop">
-              <span aria-hidden="true" />
+              <span aria-hidden="true" className="composer-stop-glyph" />
             </button>
           ) : (
             <button

@@ -4560,12 +4560,12 @@ body.resizing-workspace .rich-chat.workspace-shell {
   background: var(--ink);
 }
 
-.rich-chat .composer .stop-button > span {
+.rich-chat .composer .stop-button > .composer-stop-glyph {
   display: block;
   width: 9px;
   height: 9px;
   border-radius: 2px;
-  background: currentColor;
+  background: #fff;
 }
 
 @media (max-width: 1150px) {

@@ -525,6 +525,19 @@ No tests or checks were run by operator instruction. Include long workspace name
 sign-in loading, Switch workspace, light/dark modes, and mobile viewport avatar placement in the
 next requested validation batch.
 
+## 21. Visible prompt stop glyph — `done (fork)`
+
+- Gave the streaming stop control's inner square a dedicated class and explicit white fill. It no
+  longer inherits the theme's page colour or broad composer `span` styling.
+- Retained the existing dark circular control while ensuring the 9px white square remains visible
+  in both light and dark modes.
+
+Cross-client decision: web and Electron share this prompt bar and receive the fix. Expo uses its
+own native composer and is unchanged.
+
+No tests or checks were run by operator instruction. Include the streaming, stopping, light-mode,
+and dark-mode prompt states in the next requested validation batch.
+
 ## Investigation log
 
 - **HAR (67 entries, 2026-08-20)**: no failed HTTP requests. The chat error is a persisted signal,
