@@ -2035,8 +2035,11 @@ a {
 }
 .chat-pane {
   min-width: 0;
+  /* Grid items default to min-height:auto, which lets the transcript row grow past the
+     viewport instead of handing its overflow to the scroll container below. */
+  min-height: 0;
   display: grid;
-  grid-template-rows: auto 1fr auto;
+  grid-template-rows: auto minmax(0, 1fr) auto;
   border-right: 1px solid var(--line);
   background: var(--surface);
 }
@@ -2053,6 +2056,7 @@ a {
   font-size: 15px;
 }
 .conversation {
+  min-height: 0;
   overflow-y: auto;
   padding: 28px clamp(24px, 5vw, 70px);
 }
@@ -2354,8 +2358,11 @@ a {
 }
 .chat-pane {
   min-width: 0;
+  /* Grid items default to min-height:auto, which lets the transcript row grow past the
+     viewport instead of handing its overflow to the scroll container below. */
+  min-height: 0;
   display: grid;
-  grid-template-rows: auto 1fr auto;
+  grid-template-rows: auto minmax(0, 1fr) auto;
   border-right: 1px solid var(--line);
   background: var(--surface);
 }
@@ -2372,6 +2379,7 @@ a {
   font-size: 15px;
 }
 .conversation {
+  min-height: 0;
   overflow-y: auto;
   padding: 28px clamp(24px, 5vw, 70px);
 }
@@ -3115,7 +3123,8 @@ body.resizing-workspace .rich-chat.workspace-shell {
   z-index: 2;
   min-width: 0;
   width: var(--workspace-width, 0px);
-  grid-template-rows: 52px minmax(0, 1fr);
+  /* The pane is the live feed alone; its controls float over it. */
+  grid-template-rows: minmax(0, 1fr);
   overflow: hidden;
   border-left: 0.5px solid var(--line);
   background: var(--surface);
@@ -3273,11 +3282,43 @@ body.resizing-workspace .rich-chat.workspace-shell {
   transition: background-color 0.12s ease;
 }
 
-.sidebar-resize-handle:hover::after,
-.workspace-resize-handle:hover::after,
+/* Only an active drag paints the rule; hovering the handle stays quiet. */
 body.resizing-workspace .sidebar-resize-handle::after,
 body.resizing-workspace .workspace-resize-handle::after {
   background: var(--accent);
+}
+
+/* Collapsed rail: search folds away entirely and every chat row becomes its avatar. */
+.sidebar-search {
+  display: grid;
+  grid-template-rows: 1fr;
+  transition:
+    grid-template-rows 0.18s ease,
+    opacity 0.12s ease;
+}
+
+.sidebar-search > * {
+  min-height: 0;
+  overflow: hidden;
+}
+
+.sidebar-collapsed .sidebar-search {
+  grid-template-rows: 0fr;
+  padding-block: 0;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.sidebar-collapsed .sidebar-agent-row {
+  justify-content: center;
+  gap: 0;
+  padding-inline: 0;
+}
+
+.sidebar-collapsed .sidebar-agent-meta,
+.sidebar-collapsed .sidebar-agent-unread {
+  display: none;
 }
 
 .sidebar-collapsed .sidebar-titlebar {
@@ -3289,55 +3330,42 @@ body.resizing-workspace .workspace-resize-handle::after {
   flex: 0 0 24px;
 }
 
-.workspace-tabs {
-  padding: 0 8px 0 12px;
-  border-bottom: 0.5px solid var(--line);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  background: var(--surface);
-}
-
-.workspace-tabs > div {
-  display: flex;
-  align-items: center;
-  gap: 3px;
-}
-
-.workspace-tabs button {
-  height: 32px;
-  padding: 0 8px;
+/* The Computer pane is the live feed itself: a floating collapse control top-right and a
+   maximize control bottom-right replace the former tab strip. */
+.computer-collapse,
+.computer-maximize {
+  position: absolute;
+  z-index: 6;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--line-strong);
   border-radius: 8px;
-  color: var(--ink-3);
-  background: transparent;
-  font-size: 12px;
+  color: var(--ink-2);
+  background: color-mix(in srgb, var(--surface) 82%, transparent);
+  font-size: 13px;
+  line-height: 1;
+  backdrop-filter: blur(6px);
   transition:
     color 0.12s ease,
     background-color 0.12s ease;
 }
 
-.workspace-tabs button:hover,
-.workspace-tabs button.active {
+.computer-collapse:hover,
+.computer-maximize:hover {
   color: var(--ink);
-  background: var(--hover);
+  background: var(--surface);
 }
 
-.workspace-tabs button > span {
-  margin-left: 6px;
-  padding: 1px 5px;
-  border-radius: 8px;
-  color: #99999e;
-  background: #ffffff12;
-  font-size: 8px;
+.computer-collapse {
+  top: 10px;
+  right: 10px;
 }
 
-.workspace-tabs .computer-actions {
-  gap: 5px;
-}
-
-.workspace-tabs .computer-actions .take-over {
-  border: 1px solid #ffffff24;
-  color: #e6e6e8;
+.computer-maximize {
+  right: 10px;
+  bottom: 10px;
 }
 
 .computer-surface {

@@ -21,7 +21,6 @@ import {
 import { useStore } from "zustand";
 import {
   AgentWorkspacePanel,
-  AgentActivity,
   ChatComposer,
   ChatHeader,
   ChatPane,
@@ -58,7 +57,6 @@ export function OpenBotApp() {
     messages,
     nextMessageToken,
     queuedTurns,
-    activity,
     loading: loadingMessages,
     submitting,
     agentBusy,
@@ -270,22 +268,6 @@ export function OpenBotApp() {
     } catch (reason) {
       openBotRuntime.actions.setError(errorMessage(reason));
     }
-  }
-
-  async function mutateQueue(operation: () => Promise<void>): Promise<void> {
-    if (!sessionId) return;
-    try {
-      await operation();
-      await openBotRuntime.actions.refreshQueue(sessionId);
-    } catch (reason) {
-      openBotRuntime.actions.setError(errorMessage(reason));
-    }
-  }
-
-  async function editQueuedTurn(turn: QueuedTurn): Promise<void> {
-    const text = queuedTurnText(turn);
-    await mutateQueue(() => openBotRuntime.client.deleteQueuedTurn(turn.id));
-    setDraft(text === "Queued agent turn" ? "" : text);
   }
 
   function handleConversationScroll(): void {
@@ -626,7 +608,6 @@ export function OpenBotApp() {
       <AgentWorkspacePanel
         agentId={agentId}
         agentName={selectedAgent?.display_name || "Agent"}
-        activityCount={activity.length}
         open={layout.workspaceOpen}
         onClose={layout.toggleWorkspace}
         onResize={layout.beginWorkspaceResize}
@@ -635,41 +616,6 @@ export function OpenBotApp() {
           title: agent.display_name,
           previewUrl: `/api/computer/${encodeURIComponent(agent.id)}/preview`,
         }))}
-        activity={
-          <AgentActivity
-            queue={queuedTurns.map((turn) => ({ id: turn.id, text: queuedTurnText(turn) }))}
-            events={activity.map((event, index) => ({
-              id: `${event.id || event.receivedAt.valueOf()}-${index}`,
-              name: humanEventName(event.type),
-              timestamp: event.receivedAt.toLocaleTimeString([], {
-                hour: "2-digit",
-                minute: "2-digit",
-                second: "2-digit",
-              }),
-              summary: eventSummary(event.data),
-            }))}
-            onMoveEarlier={(id) => {
-              const turn = queuedTurns.find((candidate) => candidate.id === id);
-              if (turn)
-                void mutateQueue(() =>
-                  openBotRuntime.client.reorderQueuedTurn(id, turn.queue_position - 1),
-                );
-            }}
-            onMoveLater={(id) => {
-              const turn = queuedTurns.find((candidate) => candidate.id === id);
-              if (turn)
-                void mutateQueue(() =>
-                  openBotRuntime.client.reorderQueuedTurn(id, turn.queue_position + 1),
-                );
-            }}
-            onRunNow={(id) => void mutateQueue(() => openBotRuntime.client.steerQueuedTurn(id))}
-            onEdit={(id) => {
-              const turn = queuedTurns.find((candidate) => candidate.id === id);
-              if (turn) void editQueuedTurn(turn);
-            }}
-            onRemove={(id) => void mutateQueue(() => openBotRuntime.client.deleteQueuedTurn(id))}
-          />
-        }
       />
       {createAgentOpen ? (
         <div
@@ -758,16 +704,6 @@ function firstString(value: Record<string, unknown>, ...keys: string[]): string 
   return "";
 }
 
-function eventSummary(value: unknown): string {
-  if (typeof value === "string") return value.slice(0, 180);
-  const data = record(value);
-  for (const key of ["summary", "message", "text", "status", "tool_name", "agent_name"]) {
-    const found = stringValue(data[key]);
-    if (found) return found.slice(0, 180);
-  }
-  return "";
-}
-
 function queuedTurnText(turn: QueuedTurn): string {
   const messages = turn.chat_request.messages;
   if (!Array.isArray(messages)) return "Queued agent turn";
@@ -783,13 +719,6 @@ function unknownText(value: unknown): string {
   if (typeof item.text === "string") return item.text;
   const nested = item.content ?? item.parts;
   return nested === undefined ? "" : unknownText(nested);
-}
-
-function humanEventName(value: string): string {
-  return value
-    .replaceAll("_", " ")
-    .replaceAll("-", " ")
-    .replace(/\b\w/g, (character) => character.toUpperCase());
 }
 
 function record(value: unknown): Record<string, unknown> {

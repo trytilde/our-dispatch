@@ -48,7 +48,7 @@ export function WorkspaceSidebar({
     <>
       <aside className="rail">
         <div className="sidebar-titlebar" />
-        <div className="px-3 pb-1">
+        <div className="sidebar-search px-3 pb-1">
           <button
             aria-label="Search"
             className="flex h-8 w-full items-center gap-2 rounded-control bg-inset px-2.5 text-left

@@ -1,4 +1,4 @@
-import { type PointerEvent as ReactPointerEvent, type ReactNode, useEffect, useState } from "react";
+import { type PointerEvent as ReactPointerEvent, useEffect, useState } from "react";
 import { ComputerStagePlaceholder } from "./computer-stage.js";
 import {
   type ComputerMonitor,
@@ -9,8 +9,6 @@ import {
 export interface AgentWorkspacePanelProps {
   agentId: string;
   agentName: string;
-  activityCount: number;
-  activity: ReactNode;
   open: boolean;
   onClose: () => void;
   onResize: (event: ReactPointerEvent<HTMLDivElement>) => void;
@@ -21,15 +19,12 @@ export interface AgentWorkspacePanelProps {
 export function AgentWorkspacePanel({
   agentId,
   agentName,
-  activityCount,
-  activity,
   open,
   onClose,
   onResize,
   monitors = [],
   onSelectMonitor,
 }: AgentWorkspacePanelProps) {
-  const [view, setView] = useState<"computer" | "activity">("computer");
   const [controlling, setControlling] = useState(false);
   const [previewKey, setPreviewKey] = useState(0);
   const [previewReady, setPreviewReady] = useState(false);
@@ -70,78 +65,22 @@ export function AgentWorkspacePanel({
         onPointerDown={onResize}
         role="separator"
       />
-      <header className="workspace-tabs">
-        <div>
-          <button
-            className={view === "computer" ? "active" : ""}
-            onClick={() => setView("computer")}
-          >
-            Computer
-          </button>
-          <button
-            className={view === "activity" ? "active" : ""}
-            onClick={() => setView("activity")}
-          >
-            Activity
-            {activityCount > 0 ? <span>{activityCount}</span> : null}
-          </button>
-        </div>
-        {view === "computer" && agentId ? (
-          <div className="computer-actions">
-            <button
-              aria-label="Reload computer preview"
-              title="Reload computer preview"
-              onClick={() => {
-                setPreviewReady(false);
-                setPreviewFailed(false);
-                setPreviewKey((value) => value + 1);
-              }}
-            >
-              ↻
-            </button>
-            <button
-              aria-label={fullscreen ? "Exit full screen" : "Enter full screen"}
-              onClick={() => setFullscreen((value) => !value)}
-              title={fullscreen ? "Exit full screen" : "Enter full screen"}
-            >
-              {fullscreen ? "↙" : "↗"}
-            </button>
-            <button
-              className={controlling ? "active" : "take-over"}
-              onClick={() => setControlling((value) => !value)}
-            >
-              {controlling ? "Release" : "Drive it yourself"}
-            </button>
-            <button
-              aria-label="Close Computer pane"
-              onClick={() => {
-                setFullscreen(false);
-                onClose();
-              }}
-              title="Close Computer pane"
-            >
-              ×
-            </button>
-          </div>
-        ) : (
-          <div className="computer-actions">
-            <button aria-label="Close Computer pane" onClick={onClose} title="Close Computer pane">
-              ×
-            </button>
-          </div>
-        )}
-      </header>
+      <button
+        aria-label="Close Computer pane"
+        className="computer-collapse"
+        onClick={() => {
+          setFullscreen(false);
+          onClose();
+        }}
+        title="Close Computer pane"
+        type="button"
+      >
+        <span aria-hidden>»</span>
+      </button>
 
-      {view === "activity" ? (
-        <div className="activity-surface">{activity}</div>
-      ) : agentId && (open || fullscreen) ? (
+      {agentId && (open || fullscreen) ? (
         <div className={controlling ? "computer-surface controlling" : "computer-surface"}>
           <ComputerReconnectBanner variant={previewFailed ? "network" : null} />
-          <div className="computer-status">
-            <span className={previewReady ? "ready" : ""} />
-            <strong>{previewAgentName}</strong>
-            <small>{previewReady ? "Preview loaded" : "Connecting to Computer…"}</small>
-          </div>
           <iframe
             key={`${previewAgentId}-${previewKey}`}
             src={previewUrl}
@@ -165,7 +104,10 @@ export function AgentWorkspacePanel({
                   /^\{\s*"error"\s*:/.test(responseText) ||
                   location.startsWith("chrome-error:");
               } catch {
-                failed = true;
+                // The preview redirects to the computer's own noVNC origin, so reading the
+                // document throws for the ordinary success case. Only same-origin error
+                // payloads are detectable here; a cross-origin document means it loaded.
+                failed = false;
               }
               setPreviewFailed(failed);
               setPreviewReady(!failed);
@@ -194,6 +136,15 @@ export function AgentWorkspacePanel({
               <strong>Click to take over</strong>
             </button>
           ) : null}
+          <button
+            aria-label={fullscreen ? "Exit full screen" : "Enter full screen"}
+            className="computer-maximize"
+            onClick={() => setFullscreen((value) => !value)}
+            title={fullscreen ? "Exit full screen" : "Enter full screen"}
+            type="button"
+          >
+            <span aria-hidden>{fullscreen ? "⤡" : "⤢"}</span>
+          </button>
           {previewReady && monitors.length > 1 ? (
             <ComputerMonitorStrip
               activeMonitorId={previewAgentId}

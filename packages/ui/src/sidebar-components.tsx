@@ -44,7 +44,7 @@ export function AgentListItem({ agent, selected, onSelect }: AgentListItemProps)
   return (
     <button
       data-menu-row
-      className={`group relative z-10 flex h-[54px] w-full items-center gap-2 rounded-[8px] px-2 text-left
+      className={`sidebar-agent-row group relative z-10 flex h-[54px] w-full items-center gap-2 rounded-[8px] px-2 text-left
         transition-[background-color,color,transform] duration-150 active:scale-[0.98]
         ${selected ? "bg-hover-2" : ""}`}
       aria-current={selected ? "page" : undefined}
@@ -62,7 +62,7 @@ export function AgentListItem({ agent, selected, onSelect }: AgentListItemProps)
       >
         <AgentAvatar emphasis={hovered} id={agent.id} state={avatarState(agent, selected)} />
       </span>
-      <span className="min-w-0 flex-1">
+      <span className="sidebar-agent-meta min-w-0 flex-1">
         <span className="flex items-baseline justify-between gap-2">
           <strong
             className={`truncate text-[13px] leading-tight ${
@@ -94,7 +94,7 @@ export function AgentListItem({ agent, selected, onSelect }: AgentListItemProps)
         <span
           aria-label="Has unread messages"
           role="status"
-          className="size-2 shrink-0 rounded-full bg-accent"
+          className="sidebar-agent-unread size-2 shrink-0 rounded-full bg-accent"
           style={{ animation: "pop-in 250ms cubic-bezier(0.23,1,0.32,1) both" }}
         />
       ) : null}
