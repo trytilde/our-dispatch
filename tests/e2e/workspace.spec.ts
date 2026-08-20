@@ -30,17 +30,15 @@ test("requires a Tilde owner session", async ({ browser }) => {
 test("loads the bare workspace without setup", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByRole("heading", { name: "What should OpenBot do?" })).toBeVisible();
-  await expect(page.locator(".rail")).toHaveCSS("width", "280px");
+  await expect(page.locator(".rail")).toHaveCSS("width", "400px");
   await expect(page.locator(".agent-workspace-pane")).toHaveCSS("width", "0px");
   await page.getByRole("button", { name: "Toggle Computer pane" }).click();
   await expect(page.locator(".agent-workspace-pane")).toHaveCSS("width", "320px");
   await expect(page.locator(".chat-pane > header")).toHaveCSS("height", "38px");
-  await page.getByRole("button", { name: "Activity" }).click();
-  await expect(page.getByText("Agent activity")).toBeVisible();
   await page.keyboard.press("Control+b");
   await expect(page.locator(".rail")).toHaveCSS("width", "88px");
   await page.keyboard.press("Control+b");
-  await expect(page.locator(".rail")).toHaveCSS("width", "280px");
+  await expect(page.locator(".rail")).toHaveCSS("width", "400px");
 
   const sidebarHandle = await page
     .getByRole("separator", { name: "Drag to resize the sidebar" })
@@ -51,7 +49,7 @@ test("loads the bare workspace without setup", async ({ page }) => {
   await page.mouse.down();
   await page.mouse.move(sidebarHandleX + 60, sidebarHandle.y + 120);
   await page.mouse.up();
-  await expect(page.locator(".rail")).toHaveCSS("width", "340px");
+  await expect(page.locator(".rail")).toHaveCSS("width", "460px");
 
   const workspaceHandle = await page
     .getByRole("separator", { name: "Resize Computer pane" })
@@ -65,12 +63,12 @@ test("loads the bare workspace without setup", async ({ page }) => {
   await expect(page.locator(".agent-workspace-pane")).toHaveCSS("width", "360px");
 
   await page.reload();
-  await expect(page.locator(".rail")).toHaveCSS("width", "340px");
+  await expect(page.locator(".rail")).toHaveCSS("width", "460px");
   await expect(page.locator(".agent-workspace-pane")).toHaveCSS("width", "360px");
   await page.keyboard.press("Control+b");
   await expect(page.locator(".rail")).toHaveCSS("width", "88px");
   await page.keyboard.press("Control+b");
-  await expect(page.locator(".rail")).toHaveCSS("width", "340px");
+  await expect(page.locator(".rail")).toHaveCSS("width", "460px");
   await page.keyboard.press("Control+Alt+b");
   await expect(page.locator(".agent-workspace-pane")).toHaveCSS("width", "0px");
   await page.keyboard.press("Control+Alt+b");
@@ -358,13 +356,8 @@ test("streams rich messages and uploads a file through Tilde ChatKit", async ({ 
   await accountButton.click();
   const accountMenu = page.getByRole("menu", { name: "Account" });
   await expect(accountMenu).toBeVisible();
-  await expect(accountMenu.getByRole("menuitem")).toHaveText([
-    "Settings",
-    "About",
-    "Help Center",
-    "Send Feedback",
-    "Log out",
-  ]);
+  // Settings and Send Feedback are sidebar rows now; the account menu keeps only Log out.
+  await expect(accountMenu.getByRole("menuitem")).toHaveText(["Log out"]);
   await expect(accountMenu.getByText("Plugins", { exact: true })).toHaveCount(0);
   await page.keyboard.press("Escape");
   await expect(accountMenu).toBeHidden();
@@ -374,14 +367,22 @@ test("streams rich messages and uploads a file through Tilde ChatKit", async ({ 
   );
   await page.keyboard.press("Control+b");
   await expect(page.locator(".rail")).toHaveCSS("width", "88px");
-  await expect(page.locator("[data-menu-row]").first()).toHaveCSS("width", "71px");
+  // Collapsed rows are square avatar tiles.
+  await expect(page.locator("[data-menu-row]").first()).toHaveCSS("width", "52px");
+  await expect(page.locator("[data-menu-row]").first()).toHaveCSS("height", "52px");
   await expect(page.locator("[data-menu-row] strong").first()).toBeHidden();
-  // The collapsed rail keeps its search control and hides only the row labels.
-  await expect(page.getByRole("button", { name: "Search", exact: true })).toBeVisible();
+  // Search is unmounted while collapsed; new agent, settings, and feedback stay as icons.
+  await expect(page.getByRole("button", { name: "Search", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "New agent" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Settings" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Send Feedback" })).toHaveAttribute(
+    "href",
+    "mailto:daniel@trytilde.ai",
+  );
   // The rail footer is the account block now; collapsing keeps it reachable.
   await expect(accountButton).toBeVisible();
   await page.keyboard.press("Control+b");
-  await expect(page.locator(".rail")).toHaveCSS("width", "280px");
+  await expect(page.locator(".rail")).toHaveCSS("width", "400px");
   await expect(page.locator("[data-menu-row] strong").first()).toBeVisible();
   await expect(page.getByText("Working session")).toHaveCount(0);
   await expect(page.getByText("Ready when you are.")).toBeVisible();
@@ -430,12 +431,6 @@ test("streams rich messages and uploads a file through Tilde ChatKit", async ({ 
   await expect(page.locator(".agent-workspace-pane")).not.toHaveClass(/fullscreen/);
   await page.getByRole("button", { name: /Click to take over/ }).click();
   await expect(page.getByRole("button", { name: "Release" })).toBeVisible();
-  await page.getByRole("button", { name: /Activity/ }).click();
-  await expect(page.locator(".activity-surface")).toHaveCSS(
-    "background-color",
-    "rgb(252, 252, 252)",
-  );
-  await expect(page.locator(".queue-panel")).toHaveCSS("background-color", "rgb(252, 252, 252)");
   await expect(
     page.locator(".message-list").getByText("Streaming preview", { exact: true }),
   ).toBeVisible();
@@ -495,7 +490,6 @@ test("streams rich messages and uploads a file through Tilde ChatKit", async ({ 
   await page.getByLabel("Reply").first().click();
   await expect(page.getByText("Replying to Hello World")).toBeVisible();
   await page.getByLabel("Cancel reply").click();
-  await expect(page.getByText("Agent Turn Status").first()).toBeVisible();
   await page.getByLabel("Agent message").first().hover();
   await page.getByLabel("More message actions").first().click({ force: true });
   await page.getByRole("menuitem", { name: "Start a thread" }).click();
@@ -603,8 +597,6 @@ test("queues another turn while the agent is busy", async ({ page }) => {
   await page.getByRole("textbox", { name: "Message", exact: true }).fill("Do this next");
   await page.getByLabel("Queue message").click();
   await page.getByRole("button", { name: "Toggle Computer pane" }).click();
-  await page.getByRole("button", { name: /Activity/ }).click();
-  await expect(page.getByText("Do this next")).toBeVisible();
   await expect(page.getByRole("button", { name: "Stop" })).toBeVisible();
 
   await page.getByRole("button", { name: "Search", exact: true }).click();

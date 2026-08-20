@@ -136,6 +136,17 @@ export function AgentWorkspacePanel({
               <strong>Click to take over</strong>
             </button>
           ) : null}
+          {controlling ? (
+            <button
+              aria-label="Release"
+              className="computer-release"
+              onClick={() => setControlling(false)}
+              title="Release control back to the agent"
+              type="button"
+            >
+              Release
+            </button>
+          ) : null}
           <button
             aria-label={fullscreen ? "Exit full screen" : "Enter full screen"}
             className="computer-maximize"

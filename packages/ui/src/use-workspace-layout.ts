@@ -7,10 +7,10 @@ import {
   useState,
 } from "react";
 
-const SIDEBAR_DEFAULT = 280;
+const SIDEBAR_DEFAULT = 400;
 const SIDEBAR_COLLAPSED = 88;
 const SIDEBAR_MIN = 240;
-const SIDEBAR_MAX = 400;
+const SIDEBAR_MAX = 520;
 const SIDEBAR_SNAP = 210;
 const WORKSPACE_DEFAULT = 320;
 const WORKSPACE_MIN = 280;

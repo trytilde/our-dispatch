@@ -21,6 +21,7 @@ import {
 import { useNavigate } from "@tanstack/react-router";
 import { useStore } from "zustand";
 import {
+  ActivityQueue,
   AgentWorkspacePanel,
   ChatComposer,
   ChatHeader,
@@ -272,6 +273,22 @@ export function OpenBotApp() {
     }
   }
 
+  async function mutateQueue(operation: () => Promise<void>): Promise<void> {
+    if (!sessionId) return;
+    try {
+      await operation();
+      await openBotRuntime.actions.refreshQueue(sessionId);
+    } catch (reason) {
+      openBotRuntime.actions.setError(errorMessage(reason));
+    }
+  }
+
+  async function editQueuedTurn(turn: QueuedTurn): Promise<void> {
+    const text = queuedTurnText(turn);
+    await mutateQueue(() => openBotRuntime.client.deleteQueuedTurn(turn.id));
+    setDraft(text === "Queued agent turn" ? "" : text);
+  }
+
   function handleConversationScroll(): void {
     const element = conversationRef.current;
     if (!element || !sessionId) return;
@@ -411,6 +428,7 @@ export function OpenBotApp() {
           if (agent) selectAgent(agent);
         }}
         onLoadMore={() => void loadMoreAgents()}
+        onCreateAgent={() => setCreateAgentOpen(true)}
         onOpenSettings={() => void navigate({ to: "/settings" })}
         onResize={layout.beginSidebarResize}
       />
@@ -421,7 +439,6 @@ export function OpenBotApp() {
           agentName={selectedAgent?.display_name || "OpenBot"}
           busy={agentBusy}
           computerOpen={layout.workspaceOpen}
-          onCreateAgent={() => setCreateAgentOpen(true)}
           onToggleComputer={layout.toggleWorkspace}
         />
 
@@ -584,7 +601,34 @@ export function OpenBotApp() {
           )}
         </ConversationSurface>
         {showScrollLatest ? <ScrollToLatestButton onClick={scrollToLatest} /> : null}
-        {threadRoot ? null : composer}
+        {threadRoot ? null : (
+          <>
+            <ActivityQueue
+              items={queuedTurns.map((turn) => ({ id: turn.id, text: queuedTurnText(turn) }))}
+              onEdit={(id) => {
+                const turn = queuedTurns.find((candidate) => candidate.id === id);
+                if (turn) void editQueuedTurn(turn);
+              }}
+              onMoveEarlier={(id) => {
+                const turn = queuedTurns.find((candidate) => candidate.id === id);
+                if (turn)
+                  void mutateQueue(() =>
+                    openBotRuntime.client.reorderQueuedTurn(id, turn.queue_position - 1),
+                  );
+              }}
+              onMoveLater={(id) => {
+                const turn = queuedTurns.find((candidate) => candidate.id === id);
+                if (turn)
+                  void mutateQueue(() =>
+                    openBotRuntime.client.reorderQueuedTurn(id, turn.queue_position + 1),
+                  );
+              }}
+              onRemove={(id) => void mutateQueue(() => openBotRuntime.client.deleteQueuedTurn(id))}
+              onRunNow={(id) => void mutateQueue(() => openBotRuntime.client.steerQueuedTurn(id))}
+            />
+            {composer}
+          </>
+        )}
         <ThreadOverlay
           footer={composer}
           onClose={() => {

@@ -1,4 +1,5 @@
 import { Buffer } from "node:buffer";
+import type { MediaUploader } from "./attachments.js";
 import { createClient } from "@connectrpc/connect";
 import { createConnectTransport } from "@connectrpc/connect-node";
 import { ComputerService } from "@tryopenbot/computer-service-proto";
@@ -12,6 +13,12 @@ export interface ComputerToolOptions {
   agentId: string;
   baseUrl?: ResolvableValue;
   apiKey?: ResolvableValue;
+  /**
+   * Uploads tool-produced media and returns a ChatKit attachment reference. Media tools return
+   * that reference instead of inline bytes, so the owner's client renders a real attachment rather
+   * than the model transcribing an image into markdown. Without it they fall back to base64.
+   */
+  uploadMedia?: MediaUploader;
 }
 
 function requiredEnvironment(name: string): string {
@@ -229,7 +236,37 @@ export function createScreenshotTool(options: ComputerToolOptions) {
       const response = await (
         await service(options)
       ).screenshot({ agentId: options.agentId }, await callOptions(options, execution.abortSignal));
-      return { media_type: "image/png", data: Buffer.from(response.png).toString("base64") };
+      return await mediaResult(options, {
+        bytes: response.png,
+        mediaType: "image/png",
+        filename: `screenshot-${options.agentId}.png`,
+      });
     },
   });
 }
+
+/**
+ * Media tools hand the owner an attachment reference when an uploader is configured. The base64
+ * fallback keeps tools usable outside a ChatKit session, where no attachment can exist.
+ */
+async function mediaResult(
+  options: ComputerToolOptions,
+  media: { bytes: Uint8Array; mediaType: string; filename: string },
+) {
+  if (!options.uploadMedia)
+    return { media_type: media.mediaType, data: Buffer.from(media.bytes).toString("base64") };
+  const uploaded = await options.uploadMedia(media);
+  return {
+    attachment_id: uploaded.attachment_id,
+    media_type: uploaded.media_type,
+    filename: uploaded.filename,
+  };
+}
+
+export {
+  createTildeMediaUploader,
+  type MediaUpload,
+  type MediaUploader,
+  type TildeAttachmentTarget,
+  type UploadedMedia,
+} from "./attachments.js";

@@ -25,13 +25,30 @@
   --color-ring: var(--accent);
 }
 
+/* Paper Mono (SIL OFL 1.1) is the workspace typeface; see THIRD_PARTY_NOTICES.md. */
+@font-face {
+  font-family: "Paper Mono";
+  src: url("./assets/fonts/paper-mono-variable.woff2") format("woff2-variations");
+  font-weight: 100 800;
+  font-style: normal;
+  font-display: swap;
+}
+
 :root {
   color-scheme: light;
-  --font-inter:
-    "SF Pro", -apple-system, BlinkMacSystemFont, "Segoe UI", ui-sans-serif, system-ui, sans-serif;
+  --font-inter: "Paper Mono", ui-monospace, "SFMono-Regular", Menlo, Monaco, monospace;
+  --font-sans-face: var(--font-inter);
   --font-mono-face:
-    ui-monospace, "SFMono-Regular", Menlo, Monaco, Consolas, "Liberation Mono", "Courier New",
-    monospace;
+    "Paper Mono", ui-monospace, "SFMono-Regular", Menlo, Monaco, Consolas, "Liberation Mono",
+    "Courier New", monospace;
+}
+
+body,
+input,
+button,
+textarea,
+select {
+  font-family: var(--font-mono-face);
 }
 
 /* ── Sand palette ──────────────────────────────────────────
@@ -44,9 +61,11 @@
   --page: #fcfcfc;
   --canvas: #f7f7f7;
   --surface: #fcfcfc;
+  /* The rail sits a step away from the page: grayer in light, lighter in dark. */
+  --rail-surface: #f4f4f4;
   --inset: #f3f3f3;
-  --hover: #77777717;
-  --hover-2: #7777772b;
+  --hover: #7777770f;
+  --hover-2: #7777771f;
   --ink: #141414;
   --ink-2: #14141499;
   --ink-3: #14141466;
@@ -85,9 +104,10 @@
   --page: #070707;
   --canvas: #111111;
   --surface: #181818;
+  --rail-surface: #202020;
   --inset: #151515;
-  --hover: #7777772c;
-  --hover-2: #77777752;
+  --hover: #7777773d;
+  --hover-2: #7777776b;
   --ink: #fcfcfc;
   --ink-2: #fcfcfc99;
   --ink-3: #fcfcfc66;
@@ -1977,7 +1997,7 @@ a {
   display: flex;
   flex-direction: column;
   gap: 25px;
-  background: var(--surface);
+  background: var(--rail-surface, var(--surface));
 }
 .rail .brand {
   padding-inline: 8px;
@@ -2284,7 +2304,7 @@ a {
   display: flex;
   flex-direction: column;
   gap: 25px;
-  background: var(--surface);
+  background: var(--rail-surface, var(--surface));
 }
 .rail .brand {
   padding-inline: 8px;
@@ -3291,12 +3311,12 @@ body.resizing-workspace .workspace-resize-handle::after {
 /* Collapsed rail: Motion unmounts the search field, and each chat row becomes a square
    avatar tile so the glide highlight reads as a square rather than a full-width bar. */
 .sidebar-collapsed .sidebar-agent-list {
-  padding-inline: 14px;
+  padding-inline: 9px;
 }
 
 .sidebar-collapsed .sidebar-agent-row {
-  width: 44px;
-  height: 44px;
+  width: 52px;
+  height: 52px;
   margin-inline: auto;
   justify-content: center;
   gap: 0;
@@ -3309,7 +3329,7 @@ body.resizing-workspace .workspace-resize-handle::after {
 }
 
 .sidebar-collapsed .sidebar-account-collapsed {
-  padding-inline: 14px;
+  padding-inline: 9px;
 }
 
 .sidebar-collapsed .sidebar-titlebar {
@@ -3355,8 +3375,31 @@ body.resizing-workspace .workspace-resize-handle::after {
 }
 
 .computer-maximize {
+  /* Sits above the monitor strip, which spans the full width of the pane's lower edge. */
+  z-index: 7;
   right: 10px;
   bottom: 10px;
+}
+
+/* Taking over the screen needs a visible way back out. */
+.computer-release {
+  position: absolute;
+  z-index: 7;
+  bottom: 10px;
+  left: 10px;
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  color: var(--ink);
+  background: color-mix(in srgb, var(--surface) 82%, transparent);
+  font-size: 12px;
+  backdrop-filter: blur(6px);
+  transition: background-color 0.12s ease;
+}
+
+.computer-release:hover {
+  background: var(--surface);
 }
 
 .computer-surface {

@@ -1,3 +1,4 @@
+import { configHeaders } from "@trytilde/harness-sdk";
 import {
   chatKitEndpoint,
   convertToAiSdkMessages,
@@ -5,6 +6,7 @@ import {
   createClient,
   createMCPClient,
 } from "@trytilde/harness-sdk-vercel-ai-node";
+import { createTildeMediaUploader } from "@tryopenbot/computer-tools";
 import { consumeStream, convertToModelMessages, stepCountIs, streamText, type ToolSet } from "ai";
 import instructions from "./instructions.js";
 import awaitShell from "./tools/await_shell.js";
@@ -26,30 +28,44 @@ const client = createClient({
   orgSubdomain: false,
   teamId: process.env.TILDE_TEAM_ID!,
 });
-const localTools = {
-  await_shell: awaitShell,
-  bash,
-  copy_from_computer: copyFromComputer,
-  copy_to_computer: copyToComputer,
-  glob,
-  grep,
-  read_file: readFile,
-  screenshot,
-  write_file: writeFile,
-} satisfies ToolSet;
-let mcpTools: Promise<ToolSet> | undefined;
+function localTools(sessionId: string): ToolSet {
+  // Media tools upload through Tilde's session-scoped attachment routes, so the tool set is bound
+  // to the turn's session rather than shared across the process.
+  const uploadMedia = createTildeMediaUploader({
+    baseUrl: client.config.baseUrl,
+    headers: () => configHeaders(client.config),
+    sessionId,
+    teamId: process.env.TILDE_TEAM_ID!,
+  });
+  return {
+    await_shell: awaitShell,
+    bash,
+    copy_from_computer: copyFromComputer,
+    copy_to_computer: copyToComputer,
+    glob,
+    grep,
+    read_file: readFile,
+    screenshot: screenshot(uploadMedia),
+    write_file: writeFile,
+  } satisfies ToolSet;
+}
 
-async function managedMcpTools(): Promise<ToolSet> {
-  return (mcpTools ??= createMCPClient({
+/**
+ * The MCP client binds its local tools at construction, so a session-bound tool set means one
+ * client per turn. `closeMcp` runs when the stream finishes.
+ */
+async function managedMcpTools(
+  sessionId: string,
+): Promise<{ tools: ToolSet; closeMcp: () => Promise<void> }> {
+  const { mcp, closeMcp } = await createMCPClient({
     client,
     serverId: mcpServerId,
-    tools: localTools,
-  }).then(async ({ mcp }) => {
-    // The Tilde wrapper preserves AI SDK tools but exposes a transport-neutral registry type.
-    const tools: Record<string, unknown> = await mcp.tools();
-    assertToolSet(tools);
-    return tools;
-  }));
+    tools: localTools(sessionId),
+  });
+  // The Tilde wrapper preserves AI SDK tools but exposes a transport-neutral registry type.
+  const tools: Record<string, unknown> = await mcp.tools();
+  assertToolSet(tools);
+  return { tools, closeMcp };
 }
 
 function assertToolSet(tools: Record<string, unknown>): asserts tools is ToolSet {
@@ -88,14 +104,16 @@ export default chatKitEndpoint({
         }),
       },
     });
+    const { tools, closeMcp } = await managedMcpTools(context.sessionId);
     const result = streamText({
       abortSignal: request.signal,
       messages: await convertToModelMessages(messages),
       model: process.env.AI_MODEL ?? "openai/gpt-5.6-sol",
+      onFinish: () => void closeMcp(),
       providerOptions: { openai: { reasoningEffort: "medium" } },
       stopWhen: stepCountIs(12),
       system: instructions,
-      tools: await managedMcpTools(),
+      tools,
     });
     return result.toUIMessageStreamResponse({
       consumeSseStream: consumeStream,

@@ -8,11 +8,14 @@ import {
   WorkspaceAccount,
 } from "./sidebar-components.js";
 import GlideMenu from "./beautiful-ui/atoms/glide-menu.js";
-import { FeedbackIcon, SearchIcon, SettingsIcon } from "./workspace-icons.js";
+import { FeedbackIcon, PlusIcon, SearchIcon, SettingsIcon } from "./workspace-icons.js";
 
 export type WorkspaceSidebarAgent = SidebarAgent;
 
 const railTransition = { duration: 0.18, ease: [0.23, 1, 0.32, 1] } as const;
+const expandedIcon = "size-4 shrink-0 fill-none stroke-current stroke-[1.3]";
+// Icons carry the collapsed rail on their own, so they sit larger there.
+const collapsedIcon = "size-5 shrink-0 fill-none stroke-current stroke-[1.4]";
 
 export interface WorkspaceSidebarProps {
   agents: readonly WorkspaceSidebarAgent[];
@@ -27,6 +30,7 @@ export interface WorkspaceSidebarProps {
   onSearchClose: () => void;
   onSelectAgent: (id: string) => void;
   onLoadMore?: () => void;
+  onCreateAgent?: () => void;
   onOpenSettings?: () => void;
   /** Address the "Send Feedback" row opens in the owner's mail client. */
   feedbackEmail?: string;
@@ -46,6 +50,7 @@ export function WorkspaceSidebar({
   onSearchClose,
   onSelectAgent,
   onLoadMore,
+  onCreateAgent,
   onOpenSettings,
   feedbackEmail = "daniel@trytilde.ai",
   onResize,
@@ -55,7 +60,20 @@ export function WorkspaceSidebar({
   return (
     <>
       <aside className="rail">
-        <div className="sidebar-titlebar" />
+        <div className="sidebar-titlebar">
+          {onCreateAgent && !collapsed ? (
+            <button
+              aria-label="New agent"
+              className="flex size-7 items-center justify-center rounded-control text-ink
+                transition-[background-color] duration-150 hover:bg-hover"
+              onClick={onCreateAgent}
+              title="New agent"
+              type="button"
+            >
+              <PlusIcon className="size-4 fill-none stroke-current stroke-[1.3]" />
+            </button>
+          ) : null}
+        </div>
         <AnimatePresence initial={false}>
           {collapsed ? null : (
             <motion.div
@@ -111,10 +129,10 @@ export function WorkspaceSidebar({
             <p className="px-2 py-2 text-[12.5px] text-ink-3">No agents are available.</p>
           ) : null}
           <GlideMenu
-            className="flex flex-col gap-px"
+            className="flex flex-col gap-1"
             highlightClassName={
               collapsed
-                ? "left-1/2 w-11 -translate-x-1/2 rounded-[10px] bg-hover"
+                ? "left-1/2 w-13 -translate-x-1/2 rounded-[12px] bg-hover"
                 : "inset-x-0 rounded-[8px] bg-hover"
             }
           >
@@ -139,7 +157,15 @@ export function WorkspaceSidebar({
             </button>
           ) : null}
         </motion.nav>
-        <div className="sidebar-utility px-2 pb-1">
+        <div className="sidebar-utility flex flex-col gap-1 px-2 pb-1">
+          {onCreateAgent && collapsed ? (
+            <SidebarUtilityRow
+              collapsed={collapsed}
+              icon={<PlusIcon className={collapsedIcon} />}
+              label="New agent"
+              onClick={onCreateAgent}
+            />
+          ) : null}
           <SidebarUtilityRow
             collapsed={collapsed}
             icon={
@@ -189,9 +215,10 @@ interface SidebarUtilityRowProps {
 
 /** Sidebar footer action shaped like a shadcn sidebar menu button: icon, label, one row. */
 function SidebarUtilityRow({ collapsed, href, icon, label, onClick }: SidebarUtilityRowProps) {
-  const className = `sidebar-utility-row flex h-8 w-full items-center rounded-control text-left
-    text-[12.5px] font-medium text-ink-2 transition-[background-color,color] duration-150
-    hover:bg-hover hover:text-ink ${collapsed ? "justify-center gap-0 px-0" : "gap-2 px-2.5"}`;
+  const className = `sidebar-utility-row flex w-full items-center rounded-control text-left
+    ${collapsed ? "h-11 justify-center" : "h-8"}
+    text-[12.5px] font-medium text-ink transition-[background-color] duration-150
+    hover:bg-hover ${collapsed ? "gap-0 px-0" : "gap-2 px-2.5"}`;
   const body = (
     <>
       {icon}
