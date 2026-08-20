@@ -3190,10 +3190,9 @@ body.resizing-workspace .rich-chat.workspace-shell {
   flex: 0 0 24px;
 }
 
-/* The Computer pane is the live feed itself: a floating collapse control top-right and a
-   maximize control bottom-right replace the former tab strip. */
-.computer-collapse,
-.computer-maximize {
+/* GrokBot-style Computer preview: the side pane is only the live desktop, with a close control.
+   Taking control promotes the same surface into a full-screen modal. */
+.computer-collapse {
   position: absolute;
   z-index: 6;
   display: grid;
@@ -3212,15 +3211,13 @@ body.resizing-workspace .rich-chat.workspace-shell {
     background-color 0.12s ease;
 }
 
-.computer-collapse svg,
-.computer-maximize svg {
+.computer-collapse svg {
   width: 15px;
   height: 15px;
   stroke-width: 1.8;
 }
 
-.computer-collapse:hover,
-.computer-maximize:hover {
+.computer-collapse:hover {
   color: var(--ink);
   background: var(--surface);
 }
@@ -3230,33 +3227,66 @@ body.resizing-workspace .rich-chat.workspace-shell {
   right: 10px;
 }
 
-.computer-maximize {
-  /* Sits above the monitor strip, which spans the full width of the pane's lower edge. */
-  z-index: 7;
-  right: 10px;
-  bottom: 10px;
+.agent-workspace-pane.fullscreen .computer-collapse {
+  display: none;
 }
 
-/* Taking over the screen needs a visible way back out. */
-.computer-release {
+.computer-fullscreen-bar {
   position: absolute;
-  z-index: 7;
-  bottom: 10px;
-  left: 50%;
-  transform: translateX(-50%);
-  height: 28px;
-  padding: 0 10px;
-  border: 1px solid var(--line-strong);
-  border-radius: 8px;
-  color: var(--ink);
-  background: color-mix(in srgb, var(--surface) 82%, transparent);
+  z-index: 8;
+  top: 12px;
+  right: 12px;
+  left: 12px;
+  min-height: 40px;
+  padding: 0 6px 0 14px;
+  border: 1px solid #ffffff21;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  color: #f7f7f8;
+  background: #17191dcc;
+  box-shadow: 0 12px 32px #0000002e;
+  backdrop-filter: blur(16px);
   font-size: 12px;
-  backdrop-filter: blur(6px);
-  transition: background-color 0.12s ease;
+  font-weight: 540;
 }
 
-.computer-release:hover {
-  background: var(--surface);
+.computer-fullscreen-bar > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.computer-fullscreen-bar > div {
+  display: flex;
+  align-items: center;
+}
+
+.computer-fullscreen-release {
+  height: 30px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: #e7e7e9;
+  background: #ffffff12;
+  font: inherit;
+  cursor: pointer;
+  transition: background-color 120ms ease;
+}
+
+.computer-fullscreen-release:hover {
+  background: #ffffff20;
+}
+
+.computer-fullscreen-release svg {
+  width: 14px;
+  height: 14px;
+  stroke-width: 1.8;
 }
 
 .computer-surface {
@@ -3266,7 +3296,7 @@ body.resizing-workspace .rich-chat.workspace-shell {
   overflow: hidden;
   border: 0;
   border-radius: 0;
-  background: #050505;
+  background: #1f2d43;
   box-shadow: none;
 }
 
@@ -3274,7 +3304,7 @@ body.resizing-workspace .rich-chat.workspace-shell {
   width: 100%;
   height: 100%;
   border: 0;
-  background: #050505;
+  background: #1f2d43;
   pointer-events: none;
 }
 
@@ -3330,23 +3360,27 @@ body.resizing-workspace .rich-chat.workspace-shell {
   place-content: center;
   gap: 6px;
   color: #a5a5aa;
-  background: #00000010;
-  opacity: 0;
-  transition: opacity 0.15s ease;
-}
-
-.computer-surface:hover .computer-shield,
-.computer-shield:focus-visible {
+  background: #00000008;
   opacity: 1;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
 }
 
-.computer-shield span,
+.computer-surface:hover .computer-shield {
+  background: #00000018;
+}
+
 .computer-shield strong {
-  padding: 5px 9px;
-  border-radius: 7px;
+  padding: 7px 11px;
+  border: 1px solid #ffffff1f;
+  border-radius: 9px;
   justify-self: center;
-  background: #0a0a0be8;
-  backdrop-filter: blur(10px);
+  background: #111318d9;
+  box-shadow: 0 8px 24px #00000038;
+  backdrop-filter: blur(14px);
+  transition:
+    background-color 120ms ease,
+    transform 120ms ease;
 }
 
 .computer-shield strong {
@@ -3356,22 +3390,46 @@ body.resizing-workspace .rich-chat.workspace-shell {
 }
 
 .computer-shield strong svg {
-  width: 13px;
-  height: 13px;
+  width: 14px;
+  height: 14px;
   stroke-width: 1.8;
 }
 
-.computer-shield span {
-  color: #6f6f74;
-  font-size: 8px;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
+.computer-shield:hover strong {
+  background: #1a1d23ed;
+  transform: translateY(-1px);
 }
 
 .computer-shield strong {
-  color: #e5e5e7;
-  font-size: 10px;
+  color: #f3f3f4;
+  font-size: 11px;
   font-weight: 540;
+}
+
+.computer-preview-hint {
+  position: absolute;
+  z-index: 4;
+  right: 12px;
+  bottom: 12px;
+  min-height: 26px;
+  padding: 0 9px;
+  border: 1px solid #ffffff1a;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #eeeeef;
+  background: #111318bd;
+  box-shadow: 0 6px 20px #00000026;
+  backdrop-filter: blur(12px);
+  font-size: 10px;
+  pointer-events: none;
+}
+
+.computer-preview-hint svg {
+  width: 12px;
+  height: 12px;
+  stroke-width: 1.8;
 }
 
 .computer-reconnect-banner-layer {

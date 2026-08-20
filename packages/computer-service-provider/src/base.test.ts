@@ -565,7 +565,16 @@ describe("computer image lifecycle", () => {
     expect(viewer).toContain('import RFB from "./core/rfb.js"');
     expect(viewer).toContain('type: "openbot:vnc"');
     expect(viewer).not.toContain("noVNC_control_bar");
-    expect(await readFile(computerImageAssets.bootstrap, "utf8")).toContain("SOPS_VERSION=3.13.3");
+    const bootstrap = await readFile(computerImageAssets.bootstrap, "utf8");
+    expect(bootstrap).toContain("SOPS_VERSION=3.13.3");
+    expect(bootstrap).toContain("pcmanfm picom");
+    expect(bootstrap).toContain("tint2");
+    expect(await readFile(computerImageAssets.desktopSession, "utf8")).toContain(
+      "desktop-wallpaper.png",
+    );
+    expect(await readFile(computerImageAssets.tint2, "utf8")).toContain(
+      "openbot-browser.desktop",
+    );
   });
 });
 

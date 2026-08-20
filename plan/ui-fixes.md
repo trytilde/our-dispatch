@@ -678,6 +678,41 @@ No tests or checks were run by operator instruction. Include multiple queued row
 Steer, delete, edit, optimistic Queuing, light/dark modes, and narrow viewports in the next
 requested validation batch.
 
+## 29. GrokBot-style Computer takeover and usable desktop — `done (fork)`
+
+- Matched the recovered GrokBot interaction boundary: the header Computer control opens a
+  non-interactive live preview that fills the right pane; its Open affordance promotes the same
+  connected VNC surface into an interactive full-screen modal.
+- Removed the separate pane maximize and return-control buttons. The full-screen surface owns a
+  compact translucent top bar with the selected agent name and an explicit Exit full screen
+  action; Escape returns to the preview too.
+- Replaced black fallback surfaces with a desktop-toned blue so startup and reconnect transitions
+  no longer flash black around the VNC canvas.
+- Kept Debian Bookworm and the stock noVNC/RFB transport, but upgraded the lightweight desktop
+  session from bare Openbox plus an auto-maximized browser to Openbox with the Arc window theme,
+  a subtle compositor, a custom Debian/Ubuntu-style wallpaper, and a centred bottom dock.
+- The dock intentionally exposes only Files and Chrome. Files opens the shared `/workspace` and
+  Chrome keeps the selected agent's persistent browser profile; Chromium remains the arm64
+  fallback behind the same launcher.
+- Added the session, wallpaper, Openbox, tint2, launcher, and desktop-entry sources as strict
+  provider-owned Handlebars assets, materialized into the Computer image rather than embedded in
+  provider TypeScript.
+
+Cross-client decision: web and Electron share the preview and takeover surface. The improved
+desktop is part of the Computer image and therefore appears behind any compatible VNC client.
+Expo still has no embedded Computer preview and is unchanged.
+
+<FOLLOW UP>
+Owner: apps/mobile
+Trigger: when Expo gains an owner Computer surface
+Work: render the shared preview URL natively and preserve explicit full-screen takeover semantics
+</FOLLOW UP>
+
+No tests, image builds, or browser checks were run by operator instruction. The next requested
+validation batch must rebuild the Computer image and cover preview opening, connection recovery,
+takeover, pointer and keyboard input, Escape/exit, wallpaper rendering, dock launchers, Files,
+Chrome profile persistence, amd64 Chrome, and arm64 Chromium.
+
 ## Investigation log
 
 - **HAR (67 entries, 2026-08-20)**: no failed HTTP requests. The chat error is a persisted signal,

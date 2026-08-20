@@ -48,7 +48,10 @@ export function AgentWorkspacePanel({
   useEffect(() => {
     if (!fullscreen) return;
     const exitFullscreen = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setFullscreen(false);
+      if (event.key === "Escape") {
+        setControlling(false);
+        setFullscreen(false);
+      }
     };
     window.addEventListener("keydown", exitFullscreen);
     return () => window.removeEventListener("keydown", exitFullscreen);
@@ -83,6 +86,9 @@ export function AgentWorkspacePanel({
       aria-hidden={!open && !fullscreen}
       className={`work-pane agent-workspace-pane ${open ? "open" : "closed"} ${fullscreen ? "fullscreen" : ""}`}
       inert={!open && !fullscreen}
+      role={fullscreen ? "dialog" : "complementary"}
+      aria-label={fullscreen ? `${previewAgentName} Computer` : "Computer preview"}
+      aria-modal={fullscreen || undefined}
     >
       <div
         aria-label="Resize Computer pane"
@@ -102,6 +108,25 @@ export function AgentWorkspacePanel({
       >
         <XIcon aria-hidden />
       </button>
+
+      {fullscreen ? (
+        <header className="computer-fullscreen-bar">
+          <span>{previewAgentName}&apos;s Computer</span>
+          <div>
+            <button
+              className="computer-fullscreen-release"
+              onClick={() => {
+                setControlling(false);
+                setFullscreen(false);
+              }}
+              type="button"
+            >
+              <Minimize2Icon aria-hidden />
+              Exit full screen
+            </button>
+          </div>
+        </header>
+      ) : null}
 
       {agentId && (open || fullscreen) ? (
         <div className={controlling ? "computer-surface controlling" : "computer-surface"}>
@@ -172,33 +197,27 @@ export function AgentWorkspacePanel({
             />
           ) : null}
           {!controlling && previewReady ? (
-            <button className="computer-shield" onClick={() => setControlling(true)}>
+            <button
+              aria-label={`Take control of ${previewAgentName}'s Computer`}
+              className="computer-shield"
+              onClick={() => {
+                setControlling(true);
+                setFullscreen(true);
+              }}
+              type="button"
+            >
               <strong>
-                <MousePointer2Icon aria-hidden />
-                Take control
+                <Maximize2Icon aria-hidden />
+                Open
               </strong>
             </button>
           ) : null}
-          {controlling ? (
-            <button
-              aria-label="Return control to the agent"
-              className="computer-release"
-              onClick={() => setControlling(false)}
-              title="Return control to the agent"
-              type="button"
-            >
-              Return control
-            </button>
+          {!fullscreen && previewReady ? (
+            <span aria-hidden="true" className="computer-preview-hint">
+              <MousePointer2Icon />
+              Take control
+            </span>
           ) : null}
-          <button
-            aria-label={fullscreen ? "Exit full screen" : "Enter full screen"}
-            className="computer-maximize"
-            onClick={() => setFullscreen((value) => !value)}
-            title={fullscreen ? "Exit full screen" : "Enter full screen"}
-            type="button"
-          >
-            {fullscreen ? <Minimize2Icon aria-hidden /> : <Maximize2Icon aria-hidden />}
-          </button>
         </div>
       ) : !agentId ? (
         <div className="computer-empty">

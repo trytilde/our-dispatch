@@ -161,32 +161,21 @@ async function startDesktop(
     ...process.env,
     AGENT_ID: agentId,
     DISPLAY: desktop.display,
+    GTK_THEME: "Arc",
     HOME: directory,
     XDG_RUNTIME_DIR: runtimeDirectory,
   };
-  const session = spawn("dbus-launch", ["--exit-with-session", "openbox-session"], {
-    detached: true,
-    env: environment,
-    stdio: "ignore",
-  });
+  const session = spawn(
+    "dbus-launch",
+    ["--exit-with-session", "/opt/openbot/desktop-session.sh"],
+    {
+      detached: true,
+      env: environment,
+      stdio: "ignore",
+    },
+  );
   session.once("error", () => undefined);
   session.unref();
-
-  const browser = await availableBrowser();
-  const browserProcess = spawn(
-    browser,
-    [
-      "--no-sandbox",
-      "--disable-dev-shm-usage",
-      "--disable-gpu",
-      `--user-data-dir=${profileDirectory}`,
-      "--start-maximized",
-      "about:blank",
-    ],
-    { detached: true, env: environment, stdio: "ignore" },
-  );
-  browserProcess.once("error", () => undefined);
-  browserProcess.unref();
 }
 
 async function installCapability(capability: string, vncPort: number): Promise<void> {
@@ -244,12 +233,6 @@ async function socketExists(display: number): Promise<boolean> {
   } catch {
     return false;
   }
-}
-
-async function availableBrowser(): Promise<string> {
-  if (await commandSucceeds("sh", ["-c", "command -v google-chrome-stable"]))
-    return "google-chrome-stable";
-  return "chromium";
 }
 
 function commandSucceeds(command: string, arguments_: string[]): Promise<boolean> {

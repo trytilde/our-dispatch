@@ -26,7 +26,7 @@ describe("agent desktops", () => {
     const desktopRoot = join(temporaryDirectory, "desktops");
     const tokenFile = join(temporaryDirectory, "novnc.tokens");
     await mkdir(binaryDirectory);
-    for (const command of ["Xvnc", "xdpyinfo", "dbus-launch", "google-chrome-stable"])
+    for (const command of ["Xvnc", "xdpyinfo", "dbus-launch"])
       await symlink("/usr/bin/true", join(binaryDirectory, command));
 
     process.env.PATH = `${binaryDirectory}:${originalEnvironment.PATH ?? ""}`;
