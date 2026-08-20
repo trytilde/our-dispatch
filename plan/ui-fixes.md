@@ -372,6 +372,16 @@ No tests or checks were run by operator instruction. The next requested validati
 workspace persistence, join failure, auth resume, active removal, cross-origin transfer, light/dark
 appearance, and the sidebar drag with no visible rule.
 
+## 12. Inline streaming indicator — `done (fork)`
+
+- Removed the rich-chat streaming indicator's inherited horizontal `auto` margin, which centred its
+  wide status block and made it appear more indented than assistant messages.
+- The indicator now uses the same assistant-row width cap, starts at the transcript edge, and keeps
+  only vertical separation from the preceding message.
+
+No tests or checks were run by operator instruction. Include active-turn streaming alignment in the
+next requested validation batch.
+
 ## Investigation log
 
 - **HAR (67 entries, 2026-08-20)**: no failed HTTP requests. The chat error is a persisted signal,

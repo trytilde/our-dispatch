@@ -3983,6 +3983,13 @@ body.resizing-workspace .rich-chat.workspace-shell {
   gap: 2px;
 }
 
+.rich-chat .thinking-inline {
+  width: fit-content;
+  max-width: min(88%, 640px, calc(100% - 82px));
+  margin: 12px 0 0;
+  align-self: flex-start;
+}
+
 .rich-chat .message {
   position: relative;
   width: fit-content;
