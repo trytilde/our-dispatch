@@ -12,6 +12,8 @@ export * from "./contracts/onboarding.js";
 export * from "./contracts/platform.js";
 export * from "./contracts/queue.js";
 export * from "./contracts/sidebar.js";
+export * from "./contracts/workspaces.js";
 export * from "./errors.js";
 export * from "./onboarding.js";
 export * from "./state/runtime.js";
+export * from "./workspaces.js";

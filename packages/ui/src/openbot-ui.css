@@ -3302,11 +3302,7 @@ body.resizing-workspace .rich-chat.workspace-shell {
   transition: background-color 0.12s ease;
 }
 
-/* Only an active drag paints the rule; hovering the handle stays quiet. */
-body.resizing-workspace .sidebar-resize-handle::after,
-body.resizing-workspace .workspace-resize-handle::after {
-  background: var(--accent);
-}
+/* Resize handles stay invisible during hover and drag; only the cursor communicates resizing. */
 
 /* Collapsed rail: Motion unmounts the search field, and each chat row becomes a square
    avatar tile so the glide highlight reads as a square rather than a full-width bar. */
@@ -6867,6 +6863,420 @@ button.system-event-chip {
 .composer-attachment-menu small {
   color: var(--ink-3);
   font-size: 11px;
+}
+
+/* Client workspaces: command-menu density with profile-like persistent identities. */
+.workspace-selector {
+  width: 100%;
+  color: var(--ink);
+  background: var(--surface);
+}
+
+.workspace-selector-heading {
+  min-height: 58px;
+  padding: 13px 15px 11px;
+  border-bottom: 0.5px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+}
+
+.workspace-selector-heading > span {
+  font-size: 13px;
+  font-weight: 580;
+}
+
+.workspace-selector-heading small,
+.workspace-selector-meta small {
+  color: var(--ink-3);
+  font-size: 11px;
+}
+
+.workspace-selector-add .workspace-selector-heading {
+  min-height: auto;
+  padding-bottom: 3px;
+  border-bottom: 0;
+}
+
+.workspace-selector-list {
+  max-height: min(480px, calc(100vh - 190px));
+  padding: 6px;
+  overflow-y: auto;
+}
+
+.workspace-selector-row {
+  position: relative;
+  width: 100%;
+  min-height: 66px;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 10px;
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  color: var(--ink);
+  background: transparent;
+  text-align: left;
+  cursor: default;
+  outline: none;
+}
+
+.workspace-selector-row:hover,
+.workspace-selector-row:focus-visible {
+  background: var(--hover);
+}
+
+.workspace-selector-row[aria-selected="true"] {
+  background: var(--hover-2);
+}
+
+.workspace-selector-avatar {
+  width: 36px;
+  height: 36px;
+  border: 0.5px solid #00000012;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 600;
+  box-shadow: inset 0 0 0 0.5px #ffffff26;
+}
+
+.workspace-selector-avatar svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+}
+
+.workspace-selector-meta {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+}
+
+.workspace-selector-meta strong {
+  max-width: 100%;
+  overflow: hidden;
+  font-size: 13px;
+  font-weight: 550;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workspace-selector-meta > small {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workspace-selector-remove {
+  height: 20px;
+  margin-top: 3px;
+  padding: 0 6px;
+  border: 0;
+  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--ink-3);
+  background: var(--hover);
+  font-size: 10px;
+}
+
+.workspace-selector-remove:hover {
+  color: var(--ink-2);
+  background: var(--hover-2);
+}
+
+.workspace-selector-remove svg {
+  width: 11px;
+  height: 11px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.4;
+}
+
+.workspace-selector-current {
+  align-self: start;
+  margin-top: 4px;
+  color: var(--ink-3);
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.workspace-selector-new .workspace-selector-avatar {
+  color: var(--ink-2);
+  background: var(--hover-2);
+  box-shadow: none;
+}
+
+.workspace-selector-add > input {
+  width: calc(100% - 24px);
+  height: 44px;
+  margin: 8px 12px;
+  padding: 0 10px;
+  border: 0.5px solid var(--line-strong);
+  border-radius: 12px;
+  color: var(--ink);
+  background: var(--field);
+  font-size: 15px;
+  outline: none;
+}
+
+.workspace-selector-add > input:focus {
+  box-shadow: inset 0 0 0 1px var(--ink-3);
+}
+
+.workspace-selector-actions {
+  padding: 2px 12px 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.workspace-selector-actions-single {
+  justify-content: flex-end;
+}
+
+.workspace-selector-actions > button {
+  height: 32px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+}
+
+.workspace-selector-back {
+  color: var(--ink-2);
+  background: transparent;
+}
+
+.workspace-selector-back svg {
+  width: 15px;
+  height: 15px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.4;
+}
+
+.workspace-selector-join {
+  color: var(--page);
+  background: var(--ink);
+}
+
+.workspace-selector-join > svg {
+  width: 14px;
+  height: 14px;
+  stroke-width: 1.6;
+}
+
+.workspace-selector-actions > button:disabled {
+  opacity: 0.5;
+}
+
+.workspace-selector-error {
+  margin: -3px 14px 10px;
+  color: var(--red);
+  font-size: 11px;
+}
+
+.workspace-selector-spinner {
+  width: 12px;
+  height: 12px;
+  border: 1.5px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: workspace-spinner 0.7s linear infinite;
+}
+
+@keyframes workspace-spinner {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.select-workspace-screen {
+  position: relative;
+  min-height: 100vh;
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+  color: var(--ink);
+  background: var(--page);
+}
+
+.select-workspace-content {
+  position: relative;
+  z-index: 2;
+  width: min(520px, calc(100vw - 32px));
+}
+
+.select-workspace-title {
+  margin-bottom: 16px;
+}
+
+.select-workspace-title h1 {
+  margin: 0;
+  font-size: 24px;
+  font-weight: 520;
+  letter-spacing: -0.035em;
+}
+
+.workspace-selector-screen {
+  background: transparent;
+}
+
+.workspace-selector-input-label {
+  display: block;
+  margin: 0 1px 4px;
+  color: var(--ink-2);
+  font-size: 12px;
+  font-weight: 520;
+}
+
+.workspace-selector-screen.workspace-selector-add > input {
+  width: 100%;
+  margin: 0;
+  background: transparent;
+}
+
+.workspace-selector-screen .workspace-selector-actions {
+  padding: 10px 0 0;
+}
+
+.workspace-selector-screen .workspace-selector-list {
+  padding: 0;
+}
+
+.workspace-constellation {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.workspace-float {
+  position: absolute;
+  width: 58px;
+  height: 58px;
+}
+
+.workspace-float-one {
+  left: 9%;
+  top: 18%;
+  transform: rotate(-8deg);
+}
+
+.workspace-float-two {
+  right: 12%;
+  top: 15%;
+  transform: rotate(7deg);
+}
+
+.workspace-float-three {
+  left: 14%;
+  bottom: 17%;
+  transform: rotate(6deg);
+}
+
+.workspace-float-four {
+  right: 8%;
+  bottom: 20%;
+  transform: rotate(-7deg);
+}
+
+.workspace-float-five {
+  right: 24%;
+  top: 35%;
+  transform: rotate(4deg);
+}
+
+.workspace-access-screen {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  color: var(--ink);
+  background: var(--page);
+}
+
+.workspace-access-screen > section {
+  width: min(360px, calc(100vw - 32px));
+  text-align: center;
+}
+
+.workspace-access-mark {
+  width: 42px;
+  height: 42px;
+  margin: 0 auto 13px;
+  border: 0.5px solid var(--line-strong);
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  color: var(--ink-2);
+  background: var(--surface);
+  box-shadow: var(--shadow-card);
+}
+
+.workspace-access-mark svg {
+  width: 19px;
+  height: 19px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.3;
+}
+
+.workspace-access-screen h1 {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 520;
+  letter-spacing: -0.03em;
+}
+
+.workspace-access-screen p {
+  margin: 6px 0 18px;
+  color: var(--ink-3);
+  font-size: 12px;
+}
+
+.workspace-access-screen > section > button {
+  width: 100%;
+  height: 36px;
+  border: 0;
+  border-radius: 9px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  color: var(--page);
+  background: var(--ink);
+  font-size: 12.5px;
+}
+
+.workspace-access-screen > section > .workspace-access-switch {
+  margin-top: 7px;
+  color: var(--ink-2);
+  background: transparent;
+}
+
+@media (max-width: 760px) {
+  .workspace-float {
+    opacity: 0.45;
+  }
+
+  .workspace-float-five {
+    display: none;
+  }
 }
 
 .rich-chat .composer textarea {

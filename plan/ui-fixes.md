@@ -336,6 +336,42 @@ changed in this pass.
 No tests or checks were run for this section by operator instruction. The next requested local
 validation must cover this section and every change made after that instruction.
 
+## 11. Client workspace selector — `done (fork)`
+
+- Removed the active-drag accent rule entirely. Sidebar and Computer resize handles now remain
+  visually transparent during hover and drag; only the column-resize cursor remains.
+- Added **Switch workspace** directly below **Send Feedback** in the sidebar utility group.
+- Added a versioned `client-runtime` workspace registry persisted under `openbot.workspaces.v1`.
+  Each entry owns a control origin, client-shell origin, derived label, stable avatar colour, and
+  creation timestamp. No token, cookie, API key, or other credential enters this registry.
+- The selector uses the command-menu footprint without search: profile-style coloured avatars,
+  control origins, compact gray Remove badges, and a final gray plus row.
+- The add state replaces the list with one large control-server URL input, Back and Join. Join shows
+  a loading state, validates public health and native auth discovery, then verifies or initiates the
+  platform auth handshake. A failed connection is never persisted.
+- Selecting another hosted workspace transfers only public registry metadata in the URL fragment
+  and reloads that installation's full shell. The destination validates itself before a pending join
+  becomes durable. Local Vite keeps the 4173 client shell associated with the 4100 control origin.
+- Removing the active workspace immediately replaces the application with the centered selector.
+  The empty state uses the same selector and a fixed, non-drifting constellation of bot avatars.
+- A saved workspace is now the web entry point and skips the old first-run agent onboarding. Expired
+  authentication gets a small workspace sign-in surface rather than replaying onboarding.
+- Simplified the no-active-workspace entry point after visual review: no leading icon, explanatory
+  subtext, divider, shaded card, or oversized URL field. It now renders a flat labelled join form
+  with a trailing chevron, omits Back when there is nothing to return to, and surrounds the form
+  with fixed bot avatars rather than generic utility glyphs on cards.
+
+Cross-client decision: the framework-neutral registry and discovery behavior are reusable by all
+clients; web and hosted Electron renderer presentation ship here. Expo keeps its existing native
+single-installation screen until the same multi-workspace list is expressed in BNA UI. Dynamic
+multi-origin switching in packaged Electron remains blocked by its main-process single-origin proxy
+and credential owner; the selector reports that limitation rather than moving tokens into renderer
+storage.
+
+No tests or checks were run by operator instruction. The next requested validation must include
+workspace persistence, join failure, auth resume, active removal, cross-origin transfer, light/dark
+appearance, and the sidebar drag with no visible rule.
+
 ## Investigation log
 
 - **HAR (67 entries, 2026-08-20)**: no failed HTTP requests. The chat error is a persisted signal,

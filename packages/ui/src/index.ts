@@ -133,7 +133,17 @@ export {
   SearchIcon,
   SendIcon,
   SettingsIcon,
+  TrashIcon,
+  WorkspaceIcon,
 } from "./workspace-icons.js";
+export {
+  SelectWorkspaceScreen,
+  WorkspaceAccessScreen,
+  WorkspaceSelector,
+  WorkspaceSelectorDialog,
+  type WorkspaceSelectorDialogProps,
+  type WorkspaceSelectorProps,
+} from "./workspace-selector.js";
 export {
   MessageContent,
   type MessageContentMessage,

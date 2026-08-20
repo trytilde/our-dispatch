@@ -100,3 +100,11 @@ flowchart TD
   their owning packages.
 - A later independently cacheable domain may justify query-core, but conversation state must retain
   one explicit reconciliation owner.
+
+## Updates
+
+- 2026-08-20T11:45:00+01:00: Modelled control-service connections as a persisted client workspace
+  registry owned by `client-runtime`. Web stores only public origins, labels, avatar colours, and the
+  active workspace on-device; browser cookies and native credentials remain installation-scoped in
+  their existing platform adapters. Switching hosted web workspaces transfers only that public
+  registry and reloads the destination installation's full application shell.

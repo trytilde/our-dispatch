@@ -43,6 +43,7 @@ import {
 } from "@tryopenbot/ui";
 import { openBotRuntime } from "../runtime.js";
 import { optimisticParts, type PendingFile, uploadAttachment } from "../web-attachments.js";
+import { useClientWorkspace } from "../workspaces.js";
 
 const suggestions = [
   "Inspect this workspace and tell me what to improve first",
@@ -87,6 +88,7 @@ export function OpenBotApp() {
   const [showScrollLatest, setShowScrollLatest] = useState(false);
   const layout = useWorkspaceLayout();
   const navigate = useNavigate();
+  const clientWorkspace = useClientWorkspace();
 
   const selectedAgent = agents.find((agent) => agent.id === agentId);
   const hasContent = Boolean(draft.trim() || files.length);
@@ -427,6 +429,7 @@ export function OpenBotApp() {
         onLoadMore={() => void loadMoreAgents()}
         onCreateAgent={() => setCreateAgentOpen(true)}
         onOpenSettings={() => void navigate({ to: "/settings" })}
+        onSwitchWorkspace={clientWorkspace.openWorkspaceSelector}
         onResize={layout.beginSidebarResize}
       />
 

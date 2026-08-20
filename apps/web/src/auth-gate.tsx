@@ -1,4 +1,9 @@
-import { Onboarding, Shimmer, type OnboardingResult } from "@tryopenbot/ui";
+import {
+  Onboarding,
+  Shimmer,
+  WorkspaceAccessScreen,
+  type OnboardingResult,
+} from "@tryopenbot/ui";
 import {
   completeOnboarding,
   loadOnboarding,
@@ -7,6 +12,7 @@ import {
 import { type ReactNode, useEffect, useState } from "react";
 import { useStore } from "zustand";
 import { openBotRuntime } from "./runtime.js";
+import { useClientWorkspace } from "./workspaces.js";
 
 // Onboarding state is owned by the client runtime per ADR-0017; the browser only
 // supplies storage. `localStorage` throws outright in some privacy modes, so every
@@ -35,10 +41,17 @@ const browserStorage: OnboardingStorage = {
   },
 };
 
-export function AuthGate({ children }: { children: ReactNode }) {
+export function AuthGate({
+  children,
+  skipOnboarding = false,
+}: {
+  children: ReactNode;
+  skipOnboarding?: boolean;
+}) {
   const auth = useStore(openBotRuntime.store, (state) => state.auth);
+  const workspace = useClientWorkspace();
   const [signingIn, setSigningIn] = useState(false);
-  const [seen, setSeen] = useState<boolean>();
+  const [seen, setSeen] = useState<boolean | undefined>(skipOnboarding ? true : undefined);
 
   // Starting the runtime here rather than deeper in the tree means the session check,
   // sidebar load, and agent selection all happen before any screen renders.
@@ -47,8 +60,9 @@ export function AuthGate({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    void loadOnboarding(browserStorage).then((state) => setSeen(state.completed));
-  }, []);
+    if (!skipOnboarding)
+      void loadOnboarding(browserStorage).then((state) => setSeen(state.completed));
+  }, [skipOnboarding]);
 
   if (auth.status === "checking" || seen === undefined)
     return (
@@ -58,6 +72,22 @@ export function AuthGate({ children }: { children: ReactNode }) {
     );
 
   const signedIn = auth.status === "authenticated";
+
+  if (!signedIn && skipOnboarding)
+    return (
+      <WorkspaceAccessScreen
+        error={auth.error}
+        signingIn={signingIn}
+        onSignIn={() => {
+          setSigningIn(true);
+          void openBotRuntime.actions
+            .signIn()
+            .catch(() => undefined)
+            .finally(() => setSigningIn(false));
+        }}
+        onSwitchWorkspace={workspace.openWorkspaceSelector}
+      />
+    );
 
   if (!signedIn || !seen)
     return (

@@ -8,7 +8,13 @@ import {
   WorkspaceAccount,
 } from "./sidebar-components.js";
 import GlideMenu from "./beautiful-ui/atoms/glide-menu.js";
-import { FeedbackIcon, PlusIcon, SearchIcon, SettingsIcon } from "./workspace-icons.js";
+import {
+  FeedbackIcon,
+  PlusIcon,
+  SearchIcon,
+  SettingsIcon,
+  WorkspaceIcon,
+} from "./workspace-icons.js";
 
 export type WorkspaceSidebarAgent = SidebarAgent;
 
@@ -32,6 +38,7 @@ export interface WorkspaceSidebarProps {
   onLoadMore?: () => void;
   onCreateAgent?: () => void;
   onOpenSettings?: () => void;
+  onSwitchWorkspace?: () => void;
   /** Address the "Send Feedback" row opens in the owner's mail client. */
   feedbackEmail?: string;
   onResize: (event: ReactPointerEvent<HTMLDivElement>) => void;
@@ -52,6 +59,7 @@ export function WorkspaceSidebar({
   onLoadMore,
   onCreateAgent,
   onOpenSettings,
+  onSwitchWorkspace,
   feedbackEmail = "daniel@trytilde.ai",
   onResize,
 }: WorkspaceSidebarProps) {
@@ -179,6 +187,12 @@ export function WorkspaceSidebar({
               <FeedbackIcon className={collapsed ? collapsedIcon : expandedIcon} />
             }
             label="Send Feedback"
+          />
+          <SidebarUtilityRow
+            collapsed={collapsed}
+            icon={<WorkspaceIcon className={collapsed ? collapsedIcon : expandedIcon} />}
+            label="Switch workspace"
+            onClick={onSwitchWorkspace}
           />
         </div>
         <WorkspaceAccount collapsed={collapsed} />
