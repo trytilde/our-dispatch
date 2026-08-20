@@ -1,4 +1,4 @@
-import { type PointerEvent as ReactPointerEvent, useEffect, useState } from "react";
+import { type PointerEvent as ReactPointerEvent, useEffect, useRef, useState } from "react";
 import { Maximize2Icon, Minimize2Icon, MousePointer2Icon, XIcon } from "lucide-react";
 import { ComputerStagePlaceholder } from "./computer-stage.js";
 import { ComputerReconnectBanner } from "./computer-components.js";
@@ -24,6 +24,7 @@ export function AgentWorkspacePanel({
   const [previewReady, setPreviewReady] = useState(false);
   const [previewFailed, setPreviewFailed] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
+  const previewFrameRef = useRef<HTMLIFrameElement>(null);
   const previewAgentId = agentId;
   const previewAgentName = agentName;
   const previewUrl = `/api/computer/${encodeURIComponent(agentId)}/preview?trace_id=${encodeURIComponent(previewTraceId)}`;
@@ -52,6 +53,30 @@ export function AgentWorkspacePanel({
     window.addEventListener("keydown", exitFullscreen);
     return () => window.removeEventListener("keydown", exitFullscreen);
   }, [fullscreen]);
+
+  useEffect(() => {
+    if (!open && !fullscreen) return;
+    const receivePreviewState = (event: MessageEvent) => {
+      if (event.source !== previewFrameRef.current?.contentWindow) return;
+      const payload = event.data as { type?: unknown; phase?: unknown; detail?: unknown };
+      if (payload?.type !== "openbot:vnc" || typeof payload.phase !== "string") return;
+      console.info("[openbot-vnc] viewer state changed", {
+        agentId: previewAgentId,
+        phase: payload.phase,
+        requestId: previewTraceId,
+      });
+      if (payload.phase === "connected") {
+        setPreviewFailed(false);
+        setPreviewReady(true);
+      } else if (payload.phase === "disconnected" || payload.phase === "failed") {
+        setControlling(false);
+        setPreviewReady(false);
+        setPreviewFailed(true);
+      }
+    };
+    window.addEventListener("message", receivePreviewState);
+    return () => window.removeEventListener("message", receivePreviewState);
+  }, [fullscreen, open, previewAgentId, previewTraceId]);
 
   return (
     <section
@@ -83,6 +108,7 @@ export function AgentWorkspacePanel({
           <ComputerReconnectBanner variant={previewFailed ? "network" : null} />
           <iframe
             key={`${previewAgentId}-${previewKey}`}
+            ref={previewFrameRef}
             src={previewUrl}
             title={`${previewAgentName} Computer`}
             allow="clipboard-read; clipboard-write"
@@ -124,7 +150,7 @@ export function AgentWorkspacePanel({
                 requestId: previewTraceId,
               });
               setPreviewFailed(failed);
-              setPreviewReady(!failed);
+              if (failed) setPreviewReady(false);
             }}
           />
           {!previewReady || previewFailed ? (

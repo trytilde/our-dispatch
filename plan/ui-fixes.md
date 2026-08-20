@@ -617,13 +617,16 @@ requested validation batch.
 - Confirmed the recovered client uses stock noVNC rather than a React VNC dependency. It embeds the
   stock page in an isolated Electron webview, hides noVNC's chrome, and owns take-control,
   fullscreen, close, reconnect, and lifecycle presentation in its application shell.
-- Kept the same stock noVNC transport but switched both Microsandbox and Vercel viewer endpoints to
-  `vnc_lite.html`, leaving OpenBot as the sole owner of viewer controls and eliminating the stock
-  settings/options chrome.
+- Kept the same stock noVNC `RFB` transport behind a provider-owned, chrome-free viewer page for
+  both Microsandbox and Vercel. OpenBot is the sole owner of viewer controls; no stock status,
+  settings, Control-Alt-Delete, or options bar remains.
 - Fixed the failed WebSocket handshake visible in the HAR: the request reached `/websockify`
   without the scoped display capability. The lightweight viewer now receives
   `websockify?token=<capability>` as its encoded connection path, matching websockify's TokenFile
   routing contract without exposing the token in diagnostics.
+- The viewer reports its actual connecting, connected, disconnected, and security-failure phases
+  to the parent pane. The loading placeholder now clears only after the RFB handshake succeeds,
+  rather than when the outer HTML document happens to load.
 - Removed the agent-as-monitor mapping that opened every agent desktop and rendered multiple
   thumbnail screens. The pane now loads only the selected agent's Computer.
 - Reworked the overlay controls around explicit Take control, Return control, full-screen/restore,

@@ -12,6 +12,7 @@ export const computerImageAssets = {
   developmentProfile: resolve(providerAssetDirectory, "development-profile.sh.hbs"),
   developmentSetup: resolve(providerAssetDirectory, "development-setup.sh.hbs"),
   marker: resolve(providerAssetDirectory, "marker.hbs"),
+  openbotVnc: resolve(providerAssetDirectory, "openbot-vnc.html.hbs"),
   start: resolve(providerAssetDirectory, "start.sh.hbs"),
 } as const;
 
@@ -88,6 +89,10 @@ export async function materializeComputerImageContext(
     materializeFileTemplate(
       computerImageAssets.developmentProfile,
       resolve(assetDestination, "development-profile.sh"),
+    ),
+    materializeFileTemplate(
+      computerImageAssets.openbotVnc,
+      resolve(assetDestination, "openbot-vnc.html"),
     ),
     materializeFileTemplate(computerImageAssets.start, resolve(assetDestination, "start.sh")),
   ]);

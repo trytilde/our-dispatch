@@ -41,6 +41,9 @@ RUN chmod 0755 /opt/openbot/bootstrap.sh /opt/openbot/development-profile.sh /us
     && corepack enable \
     && corepack prepare pnpm@10.33.1 --activate
 
+# Keep noVNC as the RFB implementation while exposing only OpenBot-owned viewer chrome.
+COPY packages/computer-service-provider/src/base/assets/openbot-vnc.html /usr/share/novnc/openbot.html
+
 # Keep service source changes above this lightweight layer so the expensive
 # browser and desktop installation remains cached during normal development.
 COPY --from=computer-service-builder /source/apps/computer-service/dist/index.js /opt/openbot/computer-service.mjs

@@ -560,6 +560,11 @@ describe("computer image lifecycle", () => {
     expect(containerfile).toContain("pnpm --filter @tryopenbot/computer-service-proto exec tsdown");
     expect(containerfile).not.toMatch(/^COPY apps\/computer-service\/dist/m);
     expect(containerfile).not.toContain("openbot-agent-exec");
+    expect(containerfile).toContain("/usr/share/novnc/openbot.html");
+    const viewer = await readFile(computerImageAssets.openbotVnc, "utf8");
+    expect(viewer).toContain('import RFB from "./core/rfb.js"');
+    expect(viewer).toContain('type: "openbot:vnc"');
+    expect(viewer).not.toContain("noVNC_control_bar");
     expect(await readFile(computerImageAssets.bootstrap, "utf8")).toContain("SOPS_VERSION=3.13.3");
   });
 });

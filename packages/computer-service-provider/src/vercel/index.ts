@@ -338,9 +338,9 @@ export class VercelSandboxComputerProvider extends BaseComputerProvider {
     const sandbox = await this.#attach(id, context);
     await this.get(id, context);
     // Keep stock noVNC as the transport while the OpenBot shell owns the viewer chrome.
-    const url = new URL("/vnc_lite.html", sandbox.domain(6080));
+    const url = new URL("/openbot.html", sandbox.domain(6080));
     const capability = scopedCapability("vnc", id, context.agentId);
-    // vnc_lite reads only its WebSocket path; carry the websockify TokenFile capability there.
+    // The chrome-free viewer reads its WebSocket path; carry the TokenFile capability there.
     url.searchParams.set("path", `websockify?token=${capability}`);
     url.searchParams.set("scale", "true");
     return { url, expiresAt: sandbox.expiresAt ?? new Date(Date.now() + 45 * 60 * 1000) };
