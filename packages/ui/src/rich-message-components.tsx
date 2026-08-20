@@ -485,6 +485,9 @@ export function JsonBlock({ label, value }: { label: string; value: unknown }) {
 
 export function safeUrl(value: string): string | undefined {
   if (value.startsWith("/")) return value;
+  // Legacy screenshot results may contain inline raster bytes. Keep this deliberately narrower
+  // than a general data: allowance: SVG and arbitrary MIME payloads remain rejected.
+  if (/^data:image\/(?:png|jpeg|gif|webp);base64,[a-z0-9+/=]+$/i.test(value)) return value;
   try {
     const url = new URL(value);
     // blob: covers optimistic local previews before the upload lands.

@@ -667,11 +667,6 @@ export function OpenBotApp() {
         open={layout.workspaceOpen && Boolean(selectedAgent)}
         onClose={layout.toggleWorkspace}
         onResize={layout.beginWorkspaceResize}
-        monitors={agents.map((agent) => ({
-          id: agent.id,
-          title: agent.display_name,
-          previewUrl: `/api/computer/${encodeURIComponent(agent.id)}/preview`,
-        }))}
       />
       {createAgentOpen ? (
         <div

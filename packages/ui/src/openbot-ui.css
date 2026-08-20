@@ -3272,6 +3272,13 @@ body.resizing-workspace .rich-chat.workspace-shell {
     background-color 0.12s ease;
 }
 
+.computer-collapse svg,
+.computer-maximize svg {
+  width: 15px;
+  height: 15px;
+  stroke-width: 1.8;
+}
+
 .computer-collapse:hover,
 .computer-maximize:hover {
   color: var(--ink);
@@ -3295,7 +3302,8 @@ body.resizing-workspace .rich-chat.workspace-shell {
   position: absolute;
   z-index: 7;
   bottom: 10px;
-  left: 10px;
+  left: 50%;
+  transform: translateX(-50%);
   height: 28px;
   padding: 0 10px;
   border: 1px solid var(--line-strong);
@@ -3399,6 +3407,18 @@ body.resizing-workspace .rich-chat.workspace-shell {
   justify-self: center;
   background: #0a0a0be8;
   backdrop-filter: blur(10px);
+}
+
+.computer-shield strong {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.computer-shield strong svg {
+  width: 13px;
+  height: 13px;
+  stroke-width: 1.8;
 }
 
 .computer-shield span {

@@ -36,4 +36,33 @@ describe("message block segmentation", () => {
       },
     ]);
   });
+
+  it("renders a legacy inline screenshot as an image instead of base64 tool JSON", () => {
+    expect(
+      splitMessageSegments([
+        {
+          type: "tool-screenshot",
+          tool_name: "screenshot",
+          state: "output-available",
+          output: {
+            media_type: "image/png",
+            data: "aGVsbG8=",
+            filename: "screenshot-factory.png",
+          },
+        },
+      ]),
+    ).toEqual([
+      {
+        kind: "files",
+        parts: [
+          {
+            type: "file",
+            media_type: "image/png",
+            filename: "screenshot-factory.png",
+            url: "data:image/png;base64,aGVsbG8=",
+          },
+        ],
+      },
+    ]);
+  });
 });

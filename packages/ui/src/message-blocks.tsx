@@ -179,17 +179,29 @@ function isToolPart(part: MessagePart): boolean {
 /** Media-producing tools return a ChatKit attachment reference, not user-facing JSON. */
 function toolAttachmentFilePart(part: MessagePart): MessagePart | undefined {
   if (!isToolPart(part)) return undefined;
-  const output = objectValue(part.output);
+  const outer = objectValue(part.output);
+  const output = Object.keys(objectValue(outer.image)).length > 0 ? objectValue(outer.image) : outer;
   const attachmentId = stringValue(output.attachment_id ?? output.attachmentId);
-  if (!attachmentId) return undefined;
   const mediaType =
     stringValue(output.media_type ?? output.mediaType) || "application/octet-stream";
+  const inlineUrl = inlineImageUrl(
+    mediaType,
+    stringValue(output.data ?? output.content_base64 ?? output.base64),
+  );
+  if (!attachmentId && !inlineUrl) return undefined;
   return {
     type: "file",
-    attachment_id: attachmentId,
+    ...(attachmentId ? { attachment_id: attachmentId } : {}),
+    ...(inlineUrl ? { url: inlineUrl } : {}),
     media_type: mediaType,
     filename: stringValue(output.filename) || defaultAttachmentName(mediaType),
   };
+}
+
+function inlineImageUrl(mediaType: string, base64: string): string | undefined {
+  if (!/^image\/(?:png|jpeg|gif|webp)$/i.test(mediaType) || !/^[a-z0-9+/=\s]+$/i.test(base64))
+    return undefined;
+  return `data:${mediaType.toLowerCase()};base64,${base64.replaceAll(/\s+/g, "")}`;
 }
 
 function defaultAttachmentName(mediaType: string): string {

@@ -1,10 +1,7 @@
 import { type PointerEvent as ReactPointerEvent, useEffect, useState } from "react";
+import { Maximize2Icon, Minimize2Icon, MousePointer2Icon, XIcon } from "lucide-react";
 import { ComputerStagePlaceholder } from "./computer-stage.js";
-import {
-  type ComputerMonitor,
-  ComputerMonitorStrip,
-  ComputerReconnectBanner,
-} from "./computer-components.js";
+import { ComputerReconnectBanner } from "./computer-components.js";
 
 export interface AgentWorkspacePanelProps {
   agentId: string;
@@ -12,8 +9,6 @@ export interface AgentWorkspacePanelProps {
   open: boolean;
   onClose: () => void;
   onResize: (event: ReactPointerEvent<HTMLDivElement>) => void;
-  monitors?: readonly ComputerMonitor[];
-  onSelectMonitor?: (monitorId: string) => void;
 }
 
 export function AgentWorkspacePanel({
@@ -22,8 +17,6 @@ export function AgentWorkspacePanel({
   open,
   onClose,
   onResize,
-  monitors = [],
-  onSelectMonitor,
 }: AgentWorkspacePanelProps) {
   const [controlling, setControlling] = useState(false);
   const [previewKey, setPreviewKey] = useState(0);
@@ -31,16 +24,11 @@ export function AgentWorkspacePanel({
   const [previewReady, setPreviewReady] = useState(false);
   const [previewFailed, setPreviewFailed] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
-  const [activeMonitorId, setActiveMonitorId] = useState(agentId);
-  const activeMonitor = monitors.find((monitor) => monitor.id === activeMonitorId);
-  const previewAgentId = activeMonitor?.id ?? agentId;
-  const previewAgentName = activeMonitor?.title ?? agentName;
-  const previewUrl =
-    activeMonitor?.previewUrl ??
-    `/api/computer/${encodeURIComponent(agentId)}/preview?trace_id=${encodeURIComponent(previewTraceId)}`;
+  const previewAgentId = agentId;
+  const previewAgentName = agentName;
+  const previewUrl = `/api/computer/${encodeURIComponent(agentId)}/preview?trace_id=${encodeURIComponent(previewTraceId)}`;
 
   useEffect(() => {
-    setActiveMonitorId(agentId);
     setControlling(false);
     setPreviewReady(false);
     setPreviewFailed(false);
@@ -87,7 +75,7 @@ export function AgentWorkspacePanel({
         title="Close Computer pane"
         type="button"
       >
-        <span aria-hidden>»</span>
+        <XIcon aria-hidden />
       </button>
 
       {agentId && (open || fullscreen) ? (
@@ -159,19 +147,21 @@ export function AgentWorkspacePanel({
           ) : null}
           {!controlling && previewReady ? (
             <button className="computer-shield" onClick={() => setControlling(true)}>
-              <span>Computer preview</span>
-              <strong>Click to take over</strong>
+              <strong>
+                <MousePointer2Icon aria-hidden />
+                Take control
+              </strong>
             </button>
           ) : null}
           {controlling ? (
             <button
-              aria-label="Release"
+              aria-label="Return control to the agent"
               className="computer-release"
               onClick={() => setControlling(false)}
-              title="Release control back to the agent"
+              title="Return control to the agent"
               type="button"
             >
-              Release
+              Return control
             </button>
           ) : null}
           <button
@@ -181,23 +171,8 @@ export function AgentWorkspacePanel({
             title={fullscreen ? "Exit full screen" : "Enter full screen"}
             type="button"
           >
-            <span aria-hidden>{fullscreen ? "⤡" : "⤢"}</span>
+            {fullscreen ? <Minimize2Icon aria-hidden /> : <Maximize2Icon aria-hidden />}
           </button>
-          {previewReady && monitors.length > 1 ? (
-            <ComputerMonitorStrip
-              activeMonitorId={previewAgentId}
-              monitors={monitors}
-              onSelect={(monitorId) => {
-                setActiveMonitorId(monitorId);
-                setControlling(false);
-                setPreviewReady(false);
-                setPreviewFailed(false);
-                setPreviewTraceId(crypto.randomUUID());
-                setPreviewKey((value) => value + 1);
-                onSelectMonitor?.(monitorId);
-              }}
-            />
-          ) : null}
         </div>
       ) : !agentId ? (
         <div className="computer-empty">

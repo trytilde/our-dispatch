@@ -590,6 +590,65 @@ No tests or checks were run by operator instruction. Include burst sends during 
 identical queued texts, attachment-only queued sends, queue SSE replacement, failed sends, and
 network request-count assertions in the next requested validation batch.
 
+## 24. Sidebar search top border — `done (fork)`
+
+- Restored the search control's explicit top hairline so the upper edge does not disappear against
+  the matching inset background in either theme.
+
+No tests or checks were run by operator instruction. Include expanded-sidebar light and dark states
+in the next requested validation batch.
+
+## 25. Stable local control connectivity — `done (fork)`
+
+- Traced the apparently false control-server error to the development Computer rebuild watcher:
+  recursive filesystem notifications repeatedly rebuilt and restarted Microsandbox despite
+  unchanged provider inputs, destabilising both the local control proxy and live Computer.
+- Added a byte-stable fingerprint over the provider's exact watched files, directories, and symlink
+  targets. Filesystem notifications now trigger a Computer replacement only when that fingerprint
+  changes, preventing rebuild-generated metadata events from feeding another rebuild.
+- Added focused regression coverage for same-content rewrites versus actual content changes.
+
+No tests or checks were run by operator instruction. Include a quiet unchanged dev session, one
+real watched-file edit, control-server continuity, and consecutive Computer previews in the next
+requested validation batch.
+
+## 26. Native single-Computer VNC surface — `done (fork)`
+
+- Confirmed the recovered client uses stock noVNC rather than a React VNC dependency. It embeds the
+  stock page in an isolated Electron webview, hides noVNC's chrome, and owns take-control,
+  fullscreen, close, reconnect, and lifecycle presentation in its application shell.
+- Kept the same stock noVNC transport but switched both Microsandbox and Vercel viewer endpoints to
+  `vnc_lite.html`, leaving OpenBot as the sole owner of viewer controls and eliminating the stock
+  settings/options chrome.
+- Fixed the failed WebSocket handshake visible in the HAR: the request reached `/websockify`
+  without the scoped display capability. The lightweight viewer now receives
+  `websockify?token=<capability>` as its encoded connection path, matching websockify's TokenFile
+  routing contract without exposing the token in diagnostics.
+- Removed the agent-as-monitor mapping that opened every agent desktop and rendered multiple
+  thumbnail screens. The pane now loads only the selected agent's Computer.
+- Reworked the overlay controls around explicit Take control, Return control, full-screen/restore,
+  and close actions with icon buttons and Escape-to-exit-fullscreen behavior.
+
+Cross-client decision: web and Electron share the Computer pane and provider endpoints. Expo does
+not currently embed the noVNC surface, so no native mobile viewer was changed.
+
+No tests or checks were run by operator instruction. Include noVNC connection, pointer/keyboard
+handoff, selected-agent isolation, reconnect, close, Escape, and full-screen states in the next
+requested validation batch.
+
+## 27. Legacy base64 screenshot promotion — `done (fork)`
+
+- Preserved the attachment-ID path for new screenshot calls while adding a compatibility renderer
+  for historical or in-flight tool results shaped as inline raster bytes.
+- Promotes PNG, JPEG, GIF, and WebP base64 screenshot output directly into the native image card,
+  full-screen preview, and download flow instead of exposing the tool-result JSON in the transcript.
+- Deliberately rejects SVG and arbitrary `data:` MIME types, keeping the compatibility surface
+  constrained to inert raster media.
+
+No tests or checks were run by operator instruction. Include legacy inline screenshots, new Tilde
+attachment screenshots, malformed base64, rejected SVG, modal preview, and download in the next
+requested validation batch.
+
 ## Investigation log
 
 - **HAR (67 entries, 2026-08-20)**: no failed HTTP requests. The chat error is a persisted signal,

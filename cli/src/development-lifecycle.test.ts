@@ -1,7 +1,13 @@
+import { mkdtemp, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import type { OpenBotConfiguration } from "@tryopenbot/configuration";
 import type { DeploymentContext, DeployableProvider } from "@tryopenbot/runtime-provider";
 import { describe, expect, it, vi } from "vite-plus/test";
-import { reconcileDevelopmentInfrastructure } from "./development-lifecycle.js";
+import {
+  developmentInputFingerprint,
+  reconcileDevelopmentInfrastructure,
+} from "./development-lifecycle.js";
 
 vi.mock("@tryopenbot/agent-service-provider", async (importOriginal) => ({
   ...(await importOriginal()),
@@ -9,6 +15,17 @@ vi.mock("@tryopenbot/agent-service-provider", async (importOriginal) => ({
 }));
 
 describe("development lifecycle", () => {
+  it("fingerprints watched inputs by content instead of filesystem notifications", async () => {
+    const root = await mkdtemp(join(tmpdir(), "openbot-computer-watch-"));
+    const source = join(root, "source.ts");
+    await writeFile(source, "export const value = 1;\n");
+    const before = await developmentInputFingerprint([source]);
+    await writeFile(source, "export const value = 1;\n");
+    expect(await developmentInputFingerprint([source])).toBe(before);
+    await writeFile(source, "export const value = 2;\n");
+    expect(await developmentInputFingerprint([source])).not.toBe(before);
+  });
+
   it("passes development mode through checks and lifecycle hooks", async () => {
     const calls: string[] = [];
     const provider = (id: string): DeployableProvider => ({

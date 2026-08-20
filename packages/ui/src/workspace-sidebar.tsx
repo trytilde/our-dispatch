@@ -94,7 +94,7 @@ export function WorkspaceSidebar({
             >
               <button
                 aria-label="Search"
-                className="flex h-8 w-full items-center gap-2 rounded-control bg-inset px-2.5 text-left
+                className="flex h-8 w-full items-center gap-2 rounded-control border-t border-line bg-inset px-2.5 text-left
               shadow-hairline transition-[background-color] duration-150 hover:bg-hover"
                 onClick={onSearchOpen}
                 onKeyDown={(event) => {
