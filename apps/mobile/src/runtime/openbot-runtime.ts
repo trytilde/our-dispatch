@@ -3,11 +3,17 @@ import {
   createOpenBotRuntime,
   type ClientInstallation,
   type OpenBotClient,
+  type OpenBotRuntime,
 } from "@tryopenbot/client-runtime";
 import { fetch as expoFetch } from "expo/fetch";
 import { createNativeAuth } from "../auth/native-auth";
 
-export function createMobileRuntime(installation: ClientInstallation) {
+export interface MobileOpenBotRuntime extends OpenBotRuntime {
+  readonly controlOrigin: string;
+  getAccessToken(): Promise<string | undefined>;
+}
+
+export function createMobileRuntime(installation: ClientInstallation): MobileOpenBotRuntime {
   let client: OpenBotClient;
   const auth = createNativeAuth(installation, () => client);
   client = createOpenBotClient({
@@ -15,5 +21,9 @@ export function createMobileRuntime(installation: ClientInstallation) {
     fetch: expoFetch,
     getAccessToken: () => auth.getAccessToken(),
   });
-  return createOpenBotRuntime({ client, auth });
+  return {
+    ...createOpenBotRuntime({ client, auth }),
+    controlOrigin: installation.control_origin,
+    getAccessToken: () => auth.getAccessToken(),
+  };
 }

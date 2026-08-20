@@ -12,6 +12,10 @@ Framework-neutral client behavior shared by OpenBot web, Electron, and Expo clie
 - `contracts/installation` owns control-service health, public native-auth discovery, and the selected installation.
 - `contracts/attachments` owns attachment metadata and upload handshakes.
 - `contracts/queue` owns queued agent turns.
+- `queuedTurnText` normalizes queued ChatKit request text, while runtime actions own
+  run-now, reorder, removal, refresh, and error reconciliation for every client.
+- `contracts/onboarding` plus `loadOnboarding`, `completeOnboarding`, and
+  `resetOnboarding` own persisted first-run state through a platform-supplied storage port.
 - `contracts/platform` owns the narrow Electron renderer bridge.
 
 The runtime has no React, DOM, Electron, Expo, or Node dependency. Applications provide authentication, fetch, storage, lifecycle, and native file capabilities at their platform boundary. Tilde remains authoritative for chat resources; these schemas validate only the resource subset consumed by OpenBot clients.

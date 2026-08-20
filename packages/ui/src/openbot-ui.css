@@ -1190,7 +1190,7 @@ h6.ob-markdown__heading {
   gap: 7px;
   background: var(--surface);
 }
-.pending-file .file-icon {
+.pending-file .attachment-glyph {
   width: 32px;
   height: 32px;
   flex: 0 0 32px;

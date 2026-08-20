@@ -1,10 +1,17 @@
 # OpenBot Mobile
 
-Expo development-build client for Android and iOS. On first launch, the Owner enters an OpenBot
-control-service origin. The app verifies `/healthz`, discovers that installation's public PKCE
-metadata from `/auth/native-config`, and saves the selected origin in SecureStore before showing
-sign-in. The first slice then supports the agent/session sidebar, ordinary conversation rendering,
-live updates, and text messages.
+Expo owner client for Android and iOS. A first launch presents the same onboarding sequence and
+animated agent identity as desktop; later launches open the workspace selector. The app verifies
+`/healthz`, discovers the selected installation's public PKCE metadata from `/auth/native-config`,
+and saves the origin in SecureStore before showing sign-in.
+
+The authenticated client is chat-app shaped: the full first screen lists agents and conversations,
+opening a conversation replaces it, and a left swipe returns to the chat list. Conversation state,
+streaming, prompt queues, attachments, and Tilde resource shapes remain owned by
+`@tryopenbot/client-runtime`. Native rendering uses assistant-ui's external-store runtime,
+auto-scrolling thread and composer primitives over that existing state. It supports rich file,
+image, video, audio, reasoning, and tool parts; queued prompt reorder/edit/run/remove controls; and
+an authenticated live Computer preview with explicit take-over and release.
 
 Hosted control services must use HTTPS. Loopback HTTP remains available for emulator development.
 The app accepts no API keys, client secrets, or Tilde service credentials.
@@ -27,7 +34,10 @@ Presentation is built on [BNA UI](https://ui.ahmedbna.com), an Expo and React Na
 library distributed as copy-in source rather than a versioned dependency. Components live in
 `src/components/ui`, their hooks in `src/hooks`, and the light and dark token sets in
 `src/theme/colors.ts`. That source is owned by this repository: edit it in place and review it like
-any other code.
+any other code. Chat behavior uses [assistant-ui native](https://www.assistant-ui.com/native), while
+the repository supplies its own OpenBot-specific native markup and Inter typography. The
+`assistant-cloud` dependency satisfies an optional assistant-ui Metro peer; OpenBot does not use
+Assistant Cloud or move Tilde-owned chat state there.
 
 Add a component from this directory:
 

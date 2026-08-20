@@ -81,6 +81,9 @@ export interface OpenBotActions {
   sendMessage(input: SendMessageInput): Promise<void>;
   interrupt(): Promise<void>;
   refreshQueue(sessionId?: string): Promise<void>;
+  runQueuedTurnNow(id: string): Promise<void>;
+  reorderQueuedTurn(id: string, queuePosition: number): Promise<void>;
+  removeQueuedTurn(id: string): Promise<void>;
   setError(message: string): void;
 }
 
@@ -228,6 +231,28 @@ export function createOpenBotRuntime(options: OpenBotRuntimeOptions): OpenBotRun
       ),
     });
   }
+
+  async function mutateQueue(id: string, operation: () => Promise<void>): Promise<void> {
+    const conversation = store.getState().conversation;
+    const sessionId =
+      conversation.queuedTurns.find((turn) => turn.id === id)?.session_id ||
+      conversation.selectedSessionId;
+    if (!sessionId) return;
+    try {
+      await operation();
+      await refreshQueue(sessionId);
+    } catch (error) {
+      updateConversation({ error: errorMessage(error) });
+      throw error;
+    }
+  }
+
+  const runQueuedTurnNow = (id: string) =>
+    mutateQueue(id, () => options.client.steerQueuedTurn(id));
+  const reorderQueuedTurn = (id: string, queuePosition: number) =>
+    mutateQueue(id, () => options.client.reorderQueuedTurn(id, queuePosition));
+  const removeQueuedTurn = (id: string) =>
+    mutateQueue(id, () => options.client.deleteQueuedTurn(id));
 
   function beginObservation(sessionId: string): void {
     observer?.abort();
@@ -484,6 +509,9 @@ export function createOpenBotRuntime(options: OpenBotRuntimeOptions): OpenBotRun
     sendMessage,
     interrupt,
     refreshQueue,
+    runQueuedTurnNow,
+    reorderQueuedTurn,
+    removeQueuedTurn,
     setError(message) {
       updateConversation({ error: message });
     },

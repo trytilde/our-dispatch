@@ -3,7 +3,7 @@ import { ButtonSpinner, SpinnerVariant } from "@/components/ui/spinner";
 import { Text } from "@/components/ui/text";
 import { useColor } from "@/hooks/useColor";
 import { useHaptics } from "@/hooks/useHaptics";
-import { CORNERS, FONT_SIZE, HEIGHT } from "@/theme/globals";
+import { CORNERS, FONT_FAMILY_MEDIUM, FONT_SIZE, HEIGHT } from "@/theme/globals";
 import { LucideProps } from "lucide-react-native";
 import { forwardRef } from "react";
 import {
@@ -136,7 +136,7 @@ export const Button = forwardRef<View, ButtonProps>(
     const getButtonTextStyle = (): TextStyle => {
       const baseTextStyle: TextStyle = {
         fontSize: FONT_SIZE,
-        fontWeight: "500",
+        fontFamily: FONT_FAMILY_MEDIUM,
       };
 
       switch (variant) {
@@ -307,7 +307,7 @@ export const Button = forwardRef<View, ButtonProps>(
       const styleArray = Array.isArray(style) ? style : [style];
       return styleArray.map((s) => {
         if (s && typeof s === "object" && "flex" in s) {
-          const { flex, ...restStyle } = s;
+          const { flex: _flex, ...restStyle } = s;
           return restStyle;
         }
         return s;

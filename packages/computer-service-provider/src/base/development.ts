@@ -1,8 +1,8 @@
 import { execFile } from "node:child_process";
-import { lstat, readFile } from "node:fs/promises";
-import { resolve } from "node:path";
+import { lstat, readFile, readlink } from "node:fs/promises";
+import { dirname, isAbsolute, resolve, sep } from "node:path";
 import { promisify } from "node:util";
-import type { ComputerSeedFile } from "../core/index.js";
+import type { ComputerSeedEntry, ComputerSeedFile } from "../core/index.js";
 
 const sandboxConfigurationPaths = [
   "configuration/.env",
@@ -15,7 +15,7 @@ const execute = promisify(execFile);
 /** Capture tracked and non-ignored source without copying plaintext local environment files. */
 export async function developmentSandboxSourceFiles(
   repositoryRoot: string,
-): Promise<readonly ComputerSeedFile[]> {
+): Promise<readonly ComputerSeedEntry[]> {
   const { stdout } = await execute(
     "git",
     ["ls-files", "--cached", "--others", "--exclude-standard", "-z"],
@@ -34,6 +34,8 @@ export async function developmentSandboxSourceFiles(
         throw error;
       });
       if (!metadata) return undefined;
+      if (metadata.isSymbolicLink())
+        return { path: `openbot/${path}`, target: await containedLinkTarget(repositoryRoot, path) };
       if (!metadata.isFile())
         throw new Error(`Development sandbox source must be a regular file: ${path}`);
       return {
@@ -44,6 +46,18 @@ export async function developmentSandboxSourceFiles(
     }),
   );
   return files.filter((file) => file !== undefined);
+}
+
+/** Preserve a tracked symlink verbatim, refusing any target that escapes the seeded tree. */
+async function containedLinkTarget(repositoryRoot: string, path: string): Promise<string> {
+  const source = resolve(repositoryRoot, path);
+  const target = await readlink(source);
+  if (isAbsolute(target) || target.includes("\0"))
+    throw new Error(`Development sandbox symlink must use a relative target: ${path}`);
+  const root = resolve(repositoryRoot);
+  if (!resolve(dirname(source), target).startsWith(`${root}${sep}`))
+    throw new Error(`Development sandbox symlink must stay inside the repository: ${path}`);
+  return target;
 }
 
 /** Files refreshed on every trusted-sandbox deployment, including ignored local configuration. */

@@ -15,7 +15,7 @@ import {
   type ComputerExecResult,
   type ComputerHandle,
   type ComputerInput,
-  type ComputerSeedFile,
+  type ComputerSeedEntry,
   type ComputerImageSpec,
   type ComputerProvider,
   type ComputerSpec,
@@ -532,7 +532,7 @@ export abstract class BaseComputerProvider implements ComputerProvider {
 
   async #writeComputerFiles(
     computerId: string,
-    files: readonly ComputerSeedFile[],
+    files: readonly ComputerSeedEntry[],
     context: ComputerCallContext,
   ): Promise<void> {
     for (const file of files) {
@@ -547,6 +547,19 @@ export abstract class BaseComputerProvider implements ComputerProvider {
           "provider_unavailable",
           `Could not create development source directory: ${result.stderr}`,
         );
+      if ("target" in file) {
+        const link = await this.exec(
+          computerId,
+          { command: "ln", args: ["-sfn", file.target, destination] },
+          context,
+        );
+        if (link.exitCode !== 0)
+          throw new ComputerProviderError(
+            "provider_unavailable",
+            `Could not recreate development source symlink: ${link.stderr}`,
+          );
+        continue;
+      }
       await this.writeFile(computerId, destination, file.content, context);
       if (file.executable) {
         const chmod = await this.exec(

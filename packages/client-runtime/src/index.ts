@@ -15,4 +15,5 @@ export * from "./contracts/queue.js";
 export * from "./contracts/sidebar.js";
 export * from "./errors.js";
 export * from "./onboarding.js";
+export * from "./queue.js";
 export * from "./state/runtime.js";

@@ -6,9 +6,10 @@
 - Zustand vanilla store owns client snapshots and live reconciliation. No React, DOM, Expo, or Node dependency.
 - Web and Expo render separate components. Share behavior and data, not JSX.
 - Tilde REST and SSE stay wire authority. No duplicate server protocol package.
-- Mobile starts control selection, auth, sidebar, regular chat. No offline queue or Computer surface yet.
+- Mobile owns onboarding, workspace selection, auth, chat-list navigation, rich chat, prompt queues, attachments, and Computer take-over. No offline or background sending.
 - Runtime is mandatory for major UX surfaces and state interactions. Presentation-only state stays local.
-- BNA UI is the mobile component library. Copy-in source under `apps/mobile/src/components/ui`, tokens in `theme/colors.ts`.
+- assistant-ui native supplies transcript and composer behavior over the external OpenBot store. No second chat authority.
+- BNA UI plus repository-owned native components supply mobile presentation. Tokens in `theme/colors.ts`.
 
 ## Context
 
@@ -70,10 +71,19 @@ depends on the `@/*` path alias resolving to `apps/mobile/src`. The trade-off ac
 copied source does not receive upstream fixes automatically; the compensation is that the component
 layer is reviewable, patchable, and diffable in this repository like any other code.
 
-The initial Expo slice then supports authentication, agent and session navigation, creating a
-session, loading and streaming regular messages, interruption, and sign-out. It does not promise offline
-sending, background delivery, attachment picking, rich desktop workspace panels, or Computer
-control. Those require separate product and platform decisions.
+Native chat uses assistant-ui's React Native external-store runtime and primitives. assistant-ui
+owns transcript virtualization, message context, auto-scroll, and composer interaction only;
+`client-runtime` remains the sole source of messages, sessions, streaming state, attachments, and
+queued turns. Tilde remains wire and resource authority. OpenBot does not adopt Assistant Cloud;
+the `assistant-cloud` package is present only because assistant-ui's Metro bundle statically resolves
+that optional peer.
+
+The Expo owner flow now supports first-run onboarding aligned with the desktop sequence, explicit
+workspace selection, authentication, a full-screen chat list, session navigation, left-swipe return,
+rich message parts, native file uploads, prompt queue mutation, interruption, and a capability-scoped
+Computer WebView with preview shielding and explicit take-over. Expo owns only platform work:
+SecureStore, PKCE, native file selection and upload, gestures, fonts, and rendering. Offline and
+background sending remain unsupported.
 
 ```mermaid
 flowchart TD
@@ -85,6 +95,8 @@ flowchart TD
   WA["Cookie auth and DOM uploads"] --> W
   S["Selected control service"] -->|"health and native auth discovery"| M
   MA["PKCE and SecureStore"] --> M
+  M --> AUI["assistant-ui native transcript and composer"]
+  M --> CP["Authenticated Computer preview"]
   DA["Main-process auth bridge"] --> D
 ```
 
@@ -100,3 +112,7 @@ flowchart TD
   their owning packages.
 - A later independently cacheable domain may justify query-core, but conversation state must retain
   one explicit reconciliation owner.
+
+## Updates
+
+- 2026-08-20T15:36:25Z: Expanded Expo from the initial regular-chat slice to desktop-parity onboarding, assistant-ui native transcript/composer behavior, rich attachments, prompt queues, and guarded Computer take-over while retaining client-runtime and Tilde ownership.

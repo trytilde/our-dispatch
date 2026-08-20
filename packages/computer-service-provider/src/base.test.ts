@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vite-plus/test";
 import { Code, ConnectError } from "@connectrpc/connect";
 import { execFile } from "node:child_process";
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
@@ -262,6 +262,62 @@ describe("development sandbox source", () => {
           content: new TextEncoder().encode("present"),
         },
       ]);
+    } finally {
+      await rm(repositoryRoot, { recursive: true, force: true });
+    }
+  });
+
+  it("preserves tracked symlinks so the sandbox keeps the repository layout", async () => {
+    const repositoryRoot = await mkdtemp(join(tmpdir(), "openbot-computer-link-"));
+    try {
+      await execute("git", ["init"], { cwd: repositoryRoot });
+      await mkdir(join(repositoryRoot, ".agents/skills"), { recursive: true });
+      await mkdir(join(repositoryRoot, ".claude"), { recursive: true });
+      await writeFile(join(repositoryRoot, ".agents/skills/tilde.md"), "skill");
+      await writeFile(join(repositoryRoot, "AGENTS.md"), "guide");
+      await symlink("../.agents/skills", join(repositoryRoot, ".claude/skills"));
+      await symlink("AGENTS.md", join(repositoryRoot, "CLAUDE.md"));
+      await execute("git", ["add", "-A"], { cwd: repositoryRoot });
+
+      await expect(developmentSandboxSourceFiles(repositoryRoot)).resolves.toEqual([
+        {
+          path: "openbot/.agents/skills/tilde.md",
+          content: new TextEncoder().encode("skill"),
+        },
+        { path: "openbot/.claude/skills", target: "../.agents/skills" },
+        { path: "openbot/AGENTS.md", content: new TextEncoder().encode("guide") },
+        { path: "openbot/CLAUDE.md", target: "AGENTS.md" },
+      ]);
+    } finally {
+      await rm(repositoryRoot, { recursive: true, force: true });
+    }
+  });
+
+  it("refuses symlinks that would resolve outside the seeded repository", async () => {
+    const repositoryRoot = await mkdtemp(join(tmpdir(), "openbot-computer-escape-"));
+    try {
+      await execute("git", ["init"], { cwd: repositoryRoot });
+      await symlink("../outside", join(repositoryRoot, "escape"));
+      await execute("git", ["add", "-A"], { cwd: repositoryRoot });
+
+      await expect(developmentSandboxSourceFiles(repositoryRoot)).rejects.toThrow(
+        "must stay inside the repository",
+      );
+    } finally {
+      await rm(repositoryRoot, { recursive: true, force: true });
+    }
+  });
+
+  it("refuses absolute symlinks that would leak host paths into the sandbox", async () => {
+    const repositoryRoot = await mkdtemp(join(tmpdir(), "openbot-computer-absolute-"));
+    try {
+      await execute("git", ["init"], { cwd: repositoryRoot });
+      await symlink("/etc/passwd", join(repositoryRoot, "absolute"));
+      await execute("git", ["add", "-A"], { cwd: repositoryRoot });
+
+      await expect(developmentSandboxSourceFiles(repositoryRoot)).rejects.toThrow(
+        "must use a relative target",
+      );
     } finally {
       await rm(repositoryRoot, { recursive: true, force: true });
     }

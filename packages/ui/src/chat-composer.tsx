@@ -101,7 +101,7 @@ export function ChatComposer({
               {attachment.previewUrl ? (
                 <img alt="" className="file-thumb" src={attachment.previewUrl} />
               ) : (
-                <span className="file-icon">↗</span>
+                <span className="attachment-glyph">↗</span>
               )}
               <span>
                 <strong>{attachment.name}</strong>
