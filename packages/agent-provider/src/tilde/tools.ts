@@ -5,10 +5,12 @@ import { tildeErrorMessage } from "@tryopenbot/platform-integrations/tilde/error
 import type { ProviderInitialization } from "@tryopenbot/runtime-provider";
 import { persistEnvironment, type DeploymentContext } from "@tryopenbot/runtime-provider";
 import {
+  addMcpServerInstanceFunction,
   connectProxiedMcpServer,
   createResourceServerCredential,
   createTildeApiClient,
   createToolGroupInstance,
+  getMcpServerInstance,
   deleteProxiedMcpServer,
   deleteResourceServerCredential,
   enableProxiedMcpServer,
@@ -119,7 +121,7 @@ export class TildeToolReconciler {
       server.id,
       `Tilde MCP server ID for ${id}.`,
     );
-    await this.#reconcileTildeControlPlane(context, id, prefix);
+    await this.#reconcileTildeControlPlane(context, id, prefix, server.id);
     if (context.agentKind === "primary") await this.#reconcileGitHubTools(context);
     if (context.platformIds?.includes("vercel"))
       await this.#reconcileVercelMcp(context, id, prefix);
@@ -178,6 +180,7 @@ export class TildeToolReconciler {
     context: DeploymentContext,
     agentId: string,
     prefix: string,
+    serverId: string,
   ): Promise<void> {
     const desiredId = `openbot-${agentId}-tilde-control-plane`;
     const displayName = `OpenBot ${agentId} Tilde control plane`;
@@ -247,6 +250,33 @@ export class TildeToolReconciler {
           tool_source_type_id: tool.type_id,
         },
         body: {},
+        throwOnError: true,
+      });
+    }
+    // Enabling a tool on the provider does not expose it to the agent: every
+    // function must also be mapped onto the agent's runtime MCP server, where
+    // the dynamic registry (SEARCH_TOOLS / MULTI_EXECUTE_TOOL) discovers it.
+    const { data: instance } = await getMcpServerInstance({
+      client: this.#api,
+      path: { team_id: this.#teamId, mcp_server_instance_id: serverId },
+      throwOnError: true,
+    });
+    const mapped = new Set(
+      (instance.tools ?? [])
+        .filter((tool) => tool.tool_group_instance_id === group.id)
+        .map((tool) => tool.tool_source_type_id),
+    );
+    for (const tool of source.tools) {
+      if (mapped.has(tool.type_id)) continue;
+      await addMcpServerInstanceFunction({
+        client: this.#api,
+        path: { team_id: this.#teamId, mcp_server_instance_id: serverId },
+        body: {
+          tool_group_instance_id: group.id,
+          tool_group_source_type_id: "tilde_control_plane",
+          tool_name: tool.type_id,
+          tool_source_type_id: tool.type_id,
+        },
         throwOnError: true,
       });
     }
