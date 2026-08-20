@@ -16,7 +16,7 @@ export interface WorkspaceSelectorProps {
   joining?: boolean;
   error?: string;
   presentation?: "dialog" | "screen";
-  onJoin: (controlOrigin: string) => void;
+  onJoin: (name: string, controlOrigin: string) => void;
   onRemove: (id: string) => void;
   onSelect: (id: string) => void;
 }
@@ -55,6 +55,7 @@ export function WorkspaceSelector({
   onSelect,
 }: WorkspaceSelectorProps) {
   const [adding, setAdding] = useState(workspaces.length === 0);
+  const [name, setName] = useState("");
   const [origin, setOrigin] = useState("");
 
   useEffect(() => {
@@ -67,31 +68,42 @@ export function WorkspaceSelector({
         className={`workspace-selector workspace-selector-add workspace-selector-${presentation}`}
         onSubmit={(event) => {
           event.preventDefault();
-          if (!joining) onJoin(origin);
+          if (!joining && name.trim() && origin.trim()) onJoin(name.trim(), origin);
         }}
       >
         {presentation === "dialog" ? (
           <div className="workspace-selector-heading">
             <span>Add a workspace</span>
-            <small>Enter the URL of its OpenBot control server.</small>
+            <small>Name it and enter its OpenBot control server URL.</small>
           </div>
-        ) : (
-          <label className="workspace-selector-input-label" htmlFor="workspace-control-origin">
-            Control server URL
+        ) : null}
+        <div className="workspace-selector-fields">
+          <label className="workspace-selector-field" htmlFor="workspace-name">
+            <span>Workspace name</span>
+            <input
+              autoFocus
+              disabled={joining}
+              id="workspace-name"
+              onChange={(event) => setName(event.target.value)}
+              placeholder="Design team"
+              type="text"
+              value={name}
+            />
           </label>
-        )}
-        <input
-          autoFocus
-          aria-label="Control server URL"
-          disabled={joining}
-          id="workspace-control-origin"
-          onChange={(event) => setOrigin(event.target.value)}
-          placeholder="https://openbot.example.com"
-          spellCheck={false}
-          inputMode="url"
-          type="text"
-          value={origin}
-        />
+          <label className="workspace-selector-field" htmlFor="workspace-control-origin">
+            <span>Control server URL</span>
+            <input
+              disabled={joining}
+              id="workspace-control-origin"
+              onChange={(event) => setOrigin(event.target.value)}
+              placeholder="https://openbot.example.com"
+              spellCheck={false}
+              inputMode="url"
+              type="text"
+              value={origin}
+            />
+          </label>
+        </div>
         {error ? <p className="workspace-selector-error">{error}</p> : null}
         <div
           className={`workspace-selector-actions ${workspaces.length === 0 ? "workspace-selector-actions-single" : ""}`}
@@ -109,7 +121,7 @@ export function WorkspaceSelector({
           ) : null}
           <button
             className="workspace-selector-join"
-            disabled={joining || !origin.trim()}
+            disabled={joining || !name.trim() || !origin.trim()}
             type="submit"
           >
             {joining ? <span className="workspace-selector-spinner" aria-hidden="true" /> : null}
@@ -149,7 +161,6 @@ export function WorkspaceSelector({
             </span>
             <span className="workspace-selector-meta">
               <strong>{workspace.name}</strong>
-              <small>{workspace.control_origin}</small>
               <button
                 className="workspace-selector-remove"
                 onClick={(event) => {

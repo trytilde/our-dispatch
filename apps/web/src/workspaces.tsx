@@ -29,7 +29,13 @@ import {
 
 const transferParameter = "openbot-workspaces";
 const joinParameter = "openbot-join";
+const joinNameParameter = "openbot-workspace-name";
 const pendingJoinKey = "openbot.pending-workspace";
+
+interface PendingWorkspaceJoin {
+  controlOrigin: string;
+  name: string;
+}
 
 const browserStorage: ClientWorkspaceStorage = {
   getItem: (key) => safeStorage(() => localStorage.getItem(key), null),
@@ -67,8 +73,16 @@ export function ClientWorkspaceGate({ children }: { children: ReactNode }) {
         if (incoming) loaded = mergeClientWorkspaceRegistries(loaded, incoming);
       }
       const incomingJoin = parameters.get(joinParameter);
-      if (incomingJoin)
-        safeStorage(() => sessionStorage.setItem(pendingJoinKey, incomingJoin), undefined);
+      if (incomingJoin) {
+        const pendingJoin: PendingWorkspaceJoin = {
+          controlOrigin: incomingJoin,
+          name: parameters.get(joinNameParameter)?.trim() || workspaceNameFromOrigin(incomingJoin),
+        };
+        safeStorage(
+          () => sessionStorage.setItem(pendingJoinKey, JSON.stringify(pendingJoin)),
+          undefined,
+        );
+      }
       if (transferred || incomingJoin)
         history.replaceState(null, "", `${location.pathname}${location.search}`);
       if (import.meta.env.DEV)
@@ -76,8 +90,10 @@ export function ClientWorkspaceGate({ children }: { children: ReactNode }) {
       loaded = await saveClientWorkspaces(browserStorage, loaded);
       if (!active) return;
       setRegistry(loaded);
-      const pending = safeStorage(() => sessionStorage.getItem(pendingJoinKey), null);
-      if (pending) await connect(pending, loaded);
+      const pending = readPendingWorkspaceJoin(
+        safeStorage(() => sessionStorage.getItem(pendingJoinKey), null),
+      );
+      if (pending) await connect(pending.name, pending.controlOrigin, loaded);
     })();
     return () => {
       active = false;
@@ -98,7 +114,11 @@ export function ClientWorkspaceGate({ children }: { children: ReactNode }) {
       );
   }, [registry, shellControlOrigin]);
 
-  async function connect(value: string, baseRegistry = registry): Promise<void> {
+  async function connect(
+    name: string,
+    value: string,
+    baseRegistry = registry,
+  ): Promise<void> {
     if (!baseRegistry || joining) return;
     setJoining(true);
     setError("");
@@ -108,7 +128,7 @@ export function ClientWorkspaceGate({ children }: { children: ReactNode }) {
         if (window.openbotDesktop)
           throw new Error("This desktop build can only use its configured control server");
         safeStorage(() => sessionStorage.removeItem(pendingJoinKey), undefined);
-        navigateToWorkspace(controlOrigin, baseRegistry, controlOrigin);
+        navigateToWorkspace(controlOrigin, baseRegistry, { controlOrigin, name });
         return;
       }
       await discoverControlService(controlOrigin, workspaceFetch(shellControlOrigin));
@@ -116,7 +136,14 @@ export function ClientWorkspaceGate({ children }: { children: ReactNode }) {
         ? await window.openbotDesktop.authStatus()
         : await createOpenBotClient({ fetch: workspaceFetch(shellControlOrigin) }).getSession();
       if (!session) {
-        safeStorage(() => sessionStorage.setItem(pendingJoinKey, controlOrigin), undefined);
+        safeStorage(
+          () =>
+            sessionStorage.setItem(
+              pendingJoinKey,
+              JSON.stringify({ controlOrigin, name } satisfies PendingWorkspaceJoin),
+            ),
+          undefined,
+        );
         if (window.openbotDesktop) {
           await window.openbotDesktop.signIn();
           if (!(await window.openbotDesktop.authStatus()))
@@ -128,7 +155,7 @@ export function ClientWorkspaceGate({ children }: { children: ReactNode }) {
       }
       const next = await saveClientWorkspaces(
         browserStorage,
-        addClientWorkspace(baseRegistry, controlOrigin, new Date(), location.origin),
+        addClientWorkspace(baseRegistry, controlOrigin, new Date(), location.origin, name),
       );
       safeStorage(() => sessionStorage.removeItem(pendingJoinKey), undefined);
       setRegistry(next);
@@ -179,7 +206,7 @@ export function ClientWorkspaceGate({ children }: { children: ReactNode }) {
     activeWorkspaceId: registry.active_workspace_id,
     joining,
     error,
-    onJoin: (origin: string) => void connect(origin),
+    onJoin: (name: string, origin: string) => void connect(name, origin),
     onRemove: (id: string) => void remove(id),
     onSelect: (id: string) => void select(id),
   };
@@ -238,13 +265,36 @@ function workspaceFetch(controlOrigin: string): typeof fetch {
 function navigateToWorkspace(
   origin: string,
   registry: ClientWorkspaceRegistry,
-  joinOrigin?: string,
+  pendingJoin?: PendingWorkspaceJoin,
 ): void {
   const parameters = new URLSearchParams({
     [transferParameter]: encodeClientWorkspaceTransfer(registry),
   });
-  if (joinOrigin) parameters.set(joinParameter, joinOrigin);
+  if (pendingJoin) {
+    parameters.set(joinParameter, pendingJoin.controlOrigin);
+    parameters.set(joinNameParameter, pendingJoin.name);
+  }
   location.assign(`${origin}/#${parameters}`);
+}
+
+function readPendingWorkspaceJoin(value: string | null): PendingWorkspaceJoin | undefined {
+  if (!value) return undefined;
+  try {
+    const parsed = JSON.parse(value) as Partial<PendingWorkspaceJoin>;
+    if (typeof parsed.controlOrigin === "string" && typeof parsed.name === "string")
+      return { controlOrigin: parsed.controlOrigin, name: parsed.name };
+  } catch {
+    // Older clients stored only the control origin.
+  }
+  return { controlOrigin: value, name: workspaceNameFromOrigin(value) };
+}
+
+function workspaceNameFromOrigin(value: string): string {
+  try {
+    return new URL(value).host;
+  } catch {
+    return value;
+  }
 }
 
 function safeStorage<Value>(operation: () => Value, fallback: Value): Value {

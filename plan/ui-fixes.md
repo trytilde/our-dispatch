@@ -449,6 +449,24 @@ No tests or checks were run by operator instruction. The next requested validati
 screenshot-only tool output, duplicate file-part suppression, queue policy create/update idempotency,
 and rapid multi-send queue visibility while the first response is streaming.
 
+## 17. Named client workspaces — `done (fork)`
+
+- Changed the add-workspace surface to a compact two-field form: workspace name first, then control
+  server URL. Both values are required before Join becomes available.
+- Persists the user-supplied name in the existing framework-neutral workspace registry and updates
+  the saved name when the same control server is joined again.
+- Carries the name through cross-origin handoff and authentication resume, while keeping hostname
+  fallback compatibility for the automatic development workspace and older pending joins.
+- Workspace selection rows now render the saved name without exposing the control server URL.
+
+Cross-client decision: this ships in the shared React DOM selector used by web and Electron. Expo's
+native installation picker remains unchanged because it does not consume the browser/Electron
+multi-workspace registry UI.
+
+No tests or checks were run by operator instruction. Include named join persistence, auth resume,
+cross-origin transfer, duplicate-origin rename, and name-only selector rows in the next requested
+validation batch.
+
 ## Investigation log
 
 - **HAR (67 entries, 2026-08-20)**: no failed HTTP requests. The chat error is a persisted signal,

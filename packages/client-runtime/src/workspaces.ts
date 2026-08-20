@@ -61,21 +61,27 @@ export function addClientWorkspace(
   controlOrigin: string,
   now = new Date(),
   clientOrigin?: string,
+  name?: string,
 ): ClientWorkspaceRegistry {
+  const explicitName = name?.trim();
   const existing = registry.workspaces.find((item) => item.control_origin === controlOrigin);
   if (existing)
     return normalizeRegistry({
       ...registry,
       active_workspace_id: existing.id,
       workspaces: registry.workspaces.map((item) =>
-        item.id === existing.id && clientOrigin
-          ? { ...item, client_origin: new URL(clientOrigin).origin }
+        item.id === existing.id
+          ? {
+              ...item,
+              ...(clientOrigin ? { client_origin: new URL(clientOrigin).origin } : {}),
+              ...(explicitName ? { name: explicitName } : {}),
+            }
           : item,
       ),
     });
   const workspace: ClientWorkspace = {
     id: globalThis.crypto.randomUUID(),
-    name: workspaceName(controlOrigin),
+    name: explicitName || workspaceName(controlOrigin),
     control_origin: controlOrigin,
     ...(clientOrigin ? { client_origin: new URL(clientOrigin).origin } : {}),
     color: nextWorkspaceColor(registry.workspaces),
