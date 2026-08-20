@@ -173,13 +173,16 @@ export class TildeSkillReconciler {
     );
     const ids: string[] = [];
     for (const skill of desired) {
+      // Tilde skill names are unique per team, and every agent authors the same
+      // shared platform skills, so the stored name is namespaced by agent ID.
+      const name = teamSkillName(agentId, skill.name);
       const existing = owned.find((candidate) => candidate.source_path === skill.sourcePath);
       if (!existing) {
         const { data } = await createSkill({
           client: this.#api({ requestId: `agent-lifecycle:${agentId}:skill:create` }),
           path: { team_id: this.#config.teamId },
           body: {
-            name: skill.name,
+            name,
             description: skill.description,
             content: skill.content,
             source_kind: "openbot",
@@ -190,7 +193,7 @@ export class TildeSkillReconciler {
         ids.push(data.id);
       } else {
         if (
-          existing.name !== skill.name ||
+          existing.name !== name ||
           existing.description !== skill.description ||
           existing.content !== skill.content
         ) {
@@ -198,7 +201,7 @@ export class TildeSkillReconciler {
             client: this.#api({ requestId: `agent-lifecycle:${agentId}:skill:update` }),
             path: { team_id: this.#config.teamId, id: existing.id },
             body: {
-              name: skill.name,
+              name,
               description: skill.description,
               content: skill.content,
             },
@@ -322,6 +325,12 @@ function frontmatterField(frontmatter: string | undefined, key: string): string 
     ?.slice(key.length + 1)
     .trim();
   return value?.replace(/^(?:"([\s\S]*)"|'([\s\S]*)')$/, "$1$2") || undefined;
+}
+
+/** Team-unique Tilde skill name: agents share authored skill names, teams do not. */
+function teamSkillName(agentId: string, skillName: string): string {
+  const prefix = `${agentId}-`;
+  return skillName.startsWith(prefix) ? skillName : `${prefix}${skillName}`;
 }
 
 function agentSourcePrefix(repositoryRoot: string, agentPath: string): string {
