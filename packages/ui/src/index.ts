@@ -219,6 +219,7 @@ export {
 export {
   ChatFindBar,
   type ChatFindBarProps,
+  ConversationSkeleton,
   FailedSendActions,
   type FailedSendActionsProps,
   NewMessagesPill,

@@ -538,6 +538,28 @@ own native composer and is unchanged.
 No tests or checks were run by operator instruction. Include the streaming, stopping, light-mode,
 and dark-mode prompt states in the next requested validation batch.
 
+## 22. Chat loading skeleton and persistent prompt — `done (fork)`
+
+- Replaced the selected conversation's centred loading text with a full-width, three-message chat
+  skeleton that mirrors assistant and owner message alignment.
+- Kept the prompt bar mounted below the loading transcript so the composer does not disappear while
+  a selected conversation is fetched.
+- Preserved conversation loading failures in the existing floating error pill above the prompt bar;
+  loading errors are not rendered inside the prompt surface or in place of the transcript.
+
+Cross-client decision: web and Electron share the chat shell and receive the skeleton and prompt
+behaviour. Expo owns a separate native transcript and needs its own equivalent loading treatment.
+
+<FOLLOW UP>
+Owner: apps/mobile
+Trigger: when the Expo transcript loading state is aligned with the shared owner-chat experience
+Work: render native chat-message skeletons while retaining the native prompt and show load failures above it
+</FOLLOW UP>
+
+No tests or checks were run by operator instruction. Include delayed conversation loading, prompt
+availability during loading, load failure pills, light/dark modes, and narrow viewports in the next
+requested validation batch.
+
 ## Investigation log
 
 - **HAR (67 entries, 2026-08-20)**: no failed HTTP requests. The chat error is a persisted signal,

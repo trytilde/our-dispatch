@@ -26,6 +26,7 @@ import {
   ChatComposer,
   ChatHeader,
   ChatPane,
+  ConversationSkeleton,
   ConversationSurface,
   ConversationMessage,
   MarkdownText,
@@ -440,7 +441,7 @@ export function OpenBotApp() {
         {selectedAgent ? (
           <ConversationSurface scrollRef={conversationRef} onScroll={handleConversationScroll}>
             {loadingMessages ? (
-              <div className="conversation-loading">Loading conversation…</div>
+              <ConversationSkeleton />
             ) : null}
             {!loadingMessages ? (
               <div className="message-list">
