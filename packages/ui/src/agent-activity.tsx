@@ -1,6 +1,7 @@
 export interface ActivityQueueItem {
   id: string;
   text: string;
+  pending?: boolean;
 }
 
 export interface ActivityTimelineItem {
@@ -73,31 +74,37 @@ export function ActivityQueue({
           <span>{index + 1}</span>
           <p>{turn.text}</p>
           <div>
-            <button
-              disabled={index === 0}
-              onClick={() => onMoveEarlier(turn.id)}
-              title="Move earlier"
-              type="button"
-            >
-              ↑
-            </button>
-            <button
-              disabled={index === items.length - 1}
-              onClick={() => onMoveLater(turn.id)}
-              title="Move later"
-              type="button"
-            >
-              ↓
-            </button>
-            <button onClick={() => onRunNow(turn.id)} type="button">
-              Steer now
-            </button>
-            <button onClick={() => onEdit(turn.id)} type="button">
-              Edit
-            </button>
-            <button onClick={() => onRemove(turn.id)} type="button">
-              Remove
-            </button>
+            {turn.pending ? (
+              <small>Queuing…</small>
+            ) : (
+              <>
+                <button
+                  disabled={index === 0}
+                  onClick={() => onMoveEarlier(turn.id)}
+                  title="Move earlier"
+                  type="button"
+                >
+                  ↑
+                </button>
+                <button
+                  disabled={index === items.length - 1}
+                  onClick={() => onMoveLater(turn.id)}
+                  title="Move later"
+                  type="button"
+                >
+                  ↓
+                </button>
+                <button onClick={() => onRunNow(turn.id)} type="button">
+                  Steer now
+                </button>
+                <button onClick={() => onEdit(turn.id)} type="button">
+                  Edit
+                </button>
+                <button onClick={() => onRemove(turn.id)} type="button">
+                  Remove
+                </button>
+              </>
+            )}
           </div>
         </article>
       ))}

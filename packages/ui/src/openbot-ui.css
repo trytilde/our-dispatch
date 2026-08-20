@@ -7396,6 +7396,12 @@ button.system-event-chip {
   gap: 2px;
 }
 
+.queue-panel article > div > small {
+  padding: 4px 6px;
+  color: var(--ink-3);
+  font-size: 10px;
+}
+
 .queue-panel article button {
   padding: 4px 6px;
   border-radius: 999px;

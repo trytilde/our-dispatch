@@ -603,7 +603,11 @@ export function OpenBotApp() {
         {selectedAgent && !threadRoot ? (
           <>
             <ActivityQueue
-              items={queuedTurns.map((turn) => ({ id: turn.id, text: queuedTurnText(turn) }))}
+              items={queuedTurns.map((turn) => ({
+                id: turn.id,
+                text: queuedTurnText(turn),
+                pending: turn.id.startsWith("optimistic-queue-"),
+              }))}
               onEdit={(id) => {
                 const turn = queuedTurns.find((candidate) => candidate.id === id);
                 if (turn) void editQueuedTurn(turn);

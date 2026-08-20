@@ -560,6 +560,36 @@ No tests or checks were run by operator instruction. Include delayed conversatio
 availability during loading, load failure pills, light/dark modes, and narrow viewports in the next
 requested validation batch.
 
+## 23. Immediate queued-message reconciliation — `done (fork)`
+
+- Correlated the 12:42 HAR burst with runtime behavior: five user messages were persisted
+  immediately, six pending-queue reads returned empty, and two reads spent about 20 seconds blocked
+  in the browser before reaching the local server.
+- Replaced the five-poll-per-send reconciliation tail with one in-flight queue read per session.
+  Durable queue SSE events and the send response now trigger reconciliation without request fan-out.
+- Added an optimistic queue row as soon as a message is sent during an active agent turn. The row is
+  matched to the persisted `message.created` ID, which keeps that trigger message out of the main
+  transcript until Tilde dequeues it.
+- Optimistic queue controls render `Queuing…` until the durable ChatKit queue item replaces them, so
+  actions never target a client-only ID.
+- Confirmed against current Tilde API source that Mission Control uses the same local-pending-text,
+  hidden-trigger-ID, queue-event invalidation flow and that the agent registration policy remains
+  `concurrency_policy: queue`.
+
+Cross-client decision: queue ownership and reconciliation live in `client-runtime`, so web,
+Electron, and Expo receive the state correction. The prompt-adjacent queue renderer is shared only
+by web and Electron; Expo still needs a native queue presentation.
+
+<FOLLOW UP>
+Owner: apps/mobile
+Trigger: when Expo exposes ChatKit queued-turn controls
+Work: render client-runtime optimistic and durable queued turns natively, including the Queuing state
+</FOLLOW UP>
+
+No tests or checks were run by operator instruction. Include burst sends during a real stream,
+identical queued texts, attachment-only queued sends, queue SSE replacement, failed sends, and
+network request-count assertions in the next requested validation batch.
+
 ## Investigation log
 
 - **HAR (67 entries, 2026-08-20)**: no failed HTTP requests. The chat error is a persisted signal,
