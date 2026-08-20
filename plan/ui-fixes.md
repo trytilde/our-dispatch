@@ -652,6 +652,32 @@ No tests or checks were run by operator instruction. Include legacy inline scree
 attachment screenshots, malformed base64, rejected SVG, modal preview, and download in the next
 requested validation batch.
 
+## 28. Mission Control queue presentation — `done (fork)`
+
+- Replaced the numbered queue summary and exposed move-up/move-down text controls with Mission
+  Control's current queue hierarchy: a drag handle, single-line message preview, labelled Steer
+  action, and icon-only delete and edit actions.
+- Added the same direct drag-to-reorder interaction, including the grabbed cursor and reduced
+  opacity while moving a queued message.
+- Tucked the queue stack behind the prompt bar as in Mission Control. The internal spacing and
+  control sizing follow that source; the outer card deliberately uses OpenBot's input surface,
+  20px radius, hairline border, and `--shadow-card` so it belongs to this app.
+- Kept optimistic queue rows visible immediately with their existing `Queuing…` state and disabled
+  drag/actions until ChatKit replaces them with durable queue items.
+
+Cross-client decision: web and Electron share this queue component and receive the new
+presentation. Expo still needs a native queue renderer over the existing client-runtime state.
+
+<FOLLOW UP>
+Owner: apps/mobile
+Trigger: when Expo exposes ChatKit queued-turn controls
+Work: reproduce the Mission Control queue hierarchy and reorder interactions with native components
+</FOLLOW UP>
+
+No tests or checks were run by operator instruction. Include multiple queued rows, drag reorder,
+Steer, delete, edit, optimistic Queuing, light/dark modes, and narrow viewports in the next
+requested validation batch.
+
 ## Investigation log
 
 - **HAR (67 entries, 2026-08-20)**: no failed HTTP requests. The chat error is a persisted signal,

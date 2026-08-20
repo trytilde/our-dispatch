@@ -1334,66 +1334,6 @@ h6.ob-markdown__heading {
   color: var(--ink-3);
   font-size: 9px;
 }
-.queue-panel {
-  margin: 16px 16px 0;
-  border: 1px solid var(--line);
-  border-radius: 11px;
-  background: var(--surface);
-}
-.queue-panel > header {
-  padding: 9px 11px;
-  border-bottom: 1px solid var(--line);
-  display: flex;
-  justify-content: space-between;
-  color: var(--ink-2);
-  font-size: 10px;
-}
-.queue-panel > header span {
-  color: var(--ink-3);
-}
-.queue-panel article {
-  padding: 9px 10px;
-  display: grid;
-  grid-template-columns: 18px minmax(0, 1fr);
-  gap: 5px;
-}
-.queue-panel article + article {
-  border-top: 1px solid var(--line);
-}
-.queue-panel article > span {
-  width: 17px;
-  height: 17px;
-  border-radius: 5px;
-  display: grid;
-  place-items: center;
-  color: var(--accent-ink);
-  background: var(--accent-tint);
-  font-size: 8px;
-  font-weight: 700;
-}
-.queue-panel article > p {
-  overflow: hidden;
-  color: var(--ink-2);
-  font-size: 9px;
-  line-height: 1.45;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.queue-panel article > div {
-  grid-column: 2;
-  display: flex;
-  gap: 4px;
-}
-.queue-panel article button {
-  padding: 3px 5px;
-  border-radius: 5px;
-  color: var(--ink-3);
-  background: var(--field);
-  font-size: 8px;
-}
-.queue-panel article button:hover:not(:disabled) {
-  color: var(--ink);
-}
 .event-list {
   margin: 0;
   padding: 19px;
@@ -7361,72 +7301,118 @@ button.system-event-chip {
 
 /* Queued sends are steering messages attached visually to the prompt surface. */
 .queue-panel {
-  width: min(680px, calc(100% - 32px));
+  position: relative;
+  z-index: 0;
+  width: min(656px, calc(100% - 56px));
   max-height: 184px;
-  margin: 0 auto 8px;
+  margin: 0 auto -12px;
   overflow: auto;
-  border: 0;
-  border-radius: 14px;
+  border: 0.5px solid var(--line);
+  border-radius: 20px;
   background: var(--surface);
   box-shadow: var(--shadow-card);
 }
 
-.queue-panel > header {
-  padding: 7px 10px 5px;
-  border: 0;
-  color: var(--ink-3);
-  font-size: 11px;
-}
-
-.queue-panel > header strong::after {
-  content: " · sends when the agent is ready";
-  font-weight: 400;
-}
-
-.queue-panel article {
-  min-height: 38px;
-  padding: 6px 8px;
-  grid-template-columns: 20px minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 7px;
-}
-
-.queue-panel article + article {
-  border-top: 0.5px solid var(--line);
-}
-
-.queue-panel article > span {
-  width: 20px;
-  height: 20px;
-  border-radius: 999px;
-  color: var(--ink-2);
-  background: var(--hover-2);
-  font-size: 9px;
-}
-
-.queue-panel article > p {
-  color: var(--ink);
-  font-size: 12px;
-  line-height: 16px;
-}
-
-.queue-panel article > div {
-  grid-column: 3;
-  display: flex;
+.queue-list {
+  margin: 0;
+  padding: 4px 0 15px;
+  display: grid;
   gap: 2px;
+  list-style: none;
 }
 
-.queue-panel article > div > small {
-  padding: 4px 6px;
+.queue-item {
+  min-height: 32px;
+  padding: 4px 10px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--ink-3);
+  font-size: 12px;
+  cursor: grab;
+  transition: opacity 150ms ease;
+}
+
+.queue-item:active {
+  cursor: grabbing;
+}
+
+.queue-item[data-dragging="true"] {
+  opacity: 0.5;
+}
+
+.queue-item[data-pending="true"] {
+  cursor: default;
+}
+
+.queue-grip {
+  width: 24px;
+  height: 24px;
+  flex: 0 0 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  color: color-mix(in srgb, var(--ink-3) 70%, transparent);
+}
+
+.queue-grip svg,
+.queue-item button svg {
+  width: 14px;
+  height: 14px;
+  stroke-width: 1.75;
+}
+
+.queue-message {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.queue-pending {
+  flex: 0 0 auto;
   color: var(--ink-3);
   font-size: 10px;
 }
 
-.queue-panel article button {
-  padding: 4px 6px;
-  border-radius: 999px;
+.queue-item button {
+  height: 24px;
+  padding: 0 6px;
+  border: 0;
+  border-radius: 6px;
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  color: var(--ink-3);
   background: transparent;
-  font-size: 10px;
+  font: inherit;
+  cursor: pointer;
+  transition:
+    color 120ms ease,
+    background-color 120ms ease;
+}
+
+.queue-item button:hover {
+  color: var(--ink);
+  background: var(--hover);
+}
+
+.queue-item .queue-delete:hover {
+  color: var(--red);
+}
+
+.queue-item .queue-delete,
+.queue-item .queue-edit {
+  width: 24px;
+  padding: 0;
+}
+
+.rich-chat .composer-shell {
+  z-index: 1;
 }
 
 /* Native rich-media presentation inspired by the recovered reference app. */
@@ -7644,11 +7630,7 @@ button.system-event-chip {
     width: calc(100% - 20px);
   }
 
-  .queue-panel article {
-    grid-template-columns: 20px minmax(0, 1fr);
-  }
-
-  .queue-panel article > div {
-    grid-column: 2;
+  .queue-item {
+    padding-inline: 7px;
   }
 }

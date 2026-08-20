@@ -27,8 +27,7 @@ export const Queue: Story = {
       <ActivityQueue
         items={queue}
         onEdit={noop}
-        onMoveEarlier={noop}
-        onMoveLater={noop}
+        onReorder={noop}
         onRemove={noop}
         onRunNow={noop}
       />
@@ -49,8 +48,7 @@ export const CombinedActivity: Story = {
         events={events}
         queue={queue}
         onEdit={noop}
-        onMoveEarlier={noop}
-        onMoveLater={noop}
+        onReorder={noop}
         onRemove={noop}
         onRunNow={noop}
       />

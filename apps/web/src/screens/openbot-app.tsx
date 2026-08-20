@@ -612,20 +612,11 @@ export function OpenBotApp() {
                 const turn = queuedTurns.find((candidate) => candidate.id === id);
                 if (turn) void editQueuedTurn(turn);
               }}
-              onMoveEarlier={(id) => {
-                const turn = queuedTurns.find((candidate) => candidate.id === id);
-                if (turn)
-                  void mutateQueue(() =>
-                    openBotRuntime.actions.reorderQueuedTurn(id, turn.queue_position - 1),
-                  );
-              }}
-              onMoveLater={(id) => {
-                const turn = queuedTurns.find((candidate) => candidate.id === id);
-                if (turn)
-                  void mutateQueue(() =>
-                    openBotRuntime.actions.reorderQueuedTurn(id, turn.queue_position + 1),
-                  );
-              }}
+              onReorder={(id, queuePosition) =>
+                void mutateQueue(() =>
+                  openBotRuntime.actions.reorderQueuedTurn(id, queuePosition),
+                )
+              }
               onRemove={(id) => void mutateQueue(() => openBotRuntime.actions.removeQueuedTurn(id))}
               onRunNow={(id) => void mutateQueue(() => openBotRuntime.actions.steerQueuedTurn(id))}
             />
