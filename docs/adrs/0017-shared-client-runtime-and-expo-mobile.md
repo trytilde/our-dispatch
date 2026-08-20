@@ -112,3 +112,6 @@ flowchart TD
   The client reconciles pending turns independently of long-lived send requests, owns optimistic
   queue mutations, and uses reply IDs rather than wall-clock completion time to order late replies.
   Vite development also seeds its loopback control server into the persisted workspace registry.
+- 2026-08-20T13:10:00+01:00: Made `queue` an explicit, drift-reconciled concurrency policy for every
+  Tilde agent in development and production. Mission Control's message endpoint remains the sole
+  queue producer; clients reconcile the resulting durable pending turns through the native queue API.

@@ -429,6 +429,26 @@ reduced-motion behavior, and accessible status announcement in the next requeste
 No tests or checks were run by operator instruction. Include the busy stop control plus short, long,
 light-mode, and dark-mode error pills in the next requested validation batch.
 
+## 16. Screenshot media and enforced ChatKit queueing — `done (fork)`
+
+- Converts successful `screenshot` tool attachment results directly into the transcript's native
+  image-preview segment and deduplicates any matching ChatKit file part. Screenshot attachment JSON
+  no longer appears in the tool trace.
+- Makes `queue` an explicit desired-state property of every Tilde agent. Development and production
+  reconciliation now creates new agents with the queue policy and repairs existing agents that drift.
+- Keeps Mission Control message submission as the only ChatKit queue producer and extends the
+  bounded queue refresh tail to cover slower persistence and SSE propagation.
+
+<FOLLOW UP>
+Owner: apps/mobile
+Trigger: when Expo renders tool-produced ChatKit attachments in its conversation transcript
+Work: map successful screenshot tool attachment results to the native image preview and suppress the attachment-reference JSON, matching the shared web and Electron behavior
+</FOLLOW UP>
+
+No tests or checks were run by operator instruction. The next requested validation batch must cover
+screenshot-only tool output, duplicate file-part suppression, queue policy create/update idempotency,
+and rapid multi-send queue visibility while the first response is streaming.
+
 ## Investigation log
 
 - **HAR (67 entries, 2026-08-20)**: no failed HTTP requests. The chat error is a persisted signal,

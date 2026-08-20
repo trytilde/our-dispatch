@@ -235,7 +235,9 @@ export function createOpenBotRuntime(options: OpenBotRuntimeOptions): OpenBotRun
 
   function refreshQueueAfterDispatch(sessionId: string): void {
     void refreshQueue(sessionId).catch(() => undefined);
-    for (const delay of [250, 900]) {
+    // Queue persistence and its SSE notification can trail the message response. Keep a short,
+    // bounded reconciliation tail so the pending turn still appears when propagation is slow.
+    for (const delay of [250, 900, 2_000, 4_000]) {
       const timer = schedule(() => {
         queueRefreshTimers.delete(timer);
         void refreshQueue(sessionId).catch(() => undefined);

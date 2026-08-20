@@ -29,6 +29,11 @@ export function splitMessageSegments(parts: readonly MessagePart[]): MessageSegm
       else segments.push({ kind: "text", text });
       continue;
     }
+    const screenshot = screenshotFilePart(part);
+    if (screenshot) {
+      appendFilePart(segments, screenshot);
+      continue;
+    }
     if (part.type === "reasoning" || isToolPart(part)) {
       if (part.type === "reasoning" && !part.text?.trim()) continue;
       if (previous?.kind === "run") previous.parts.push(part);
@@ -36,8 +41,7 @@ export function splitMessageSegments(parts: readonly MessagePart[]): MessageSegm
       continue;
     }
     if (part.type === "file" || part.type === "image") {
-      if (previous?.kind === "files") previous.parts.push(part);
-      else segments.push({ kind: "files", parts: [part] });
+      appendFilePart(segments, part);
       continue;
     }
     segments.push({ kind: "other", part });
@@ -170,4 +174,58 @@ function truncateChip(value: string): string {
 
 function isToolPart(part: MessagePart): boolean {
   return part.type === "tool" || part.type === "dynamic-tool" || part.type.startsWith("tool-");
+}
+
+/** Screenshot tools return a ChatKit attachment reference, not user-facing JSON. */
+function screenshotFilePart(part: MessagePart): MessagePart | undefined {
+  if (!isToolPart(part)) return undefined;
+  const name = (part.tool_name ?? part.toolName ?? part.type.replace(/^tool-/, "")).toLowerCase();
+  if (name !== "screenshot") return undefined;
+  const output = objectValue(part.output);
+  const attachmentId = stringValue(output.attachment_id ?? output.attachmentId);
+  if (!attachmentId) return undefined;
+  return {
+    type: "image",
+    attachment_id: attachmentId,
+    media_type: stringValue(output.media_type ?? output.mediaType) || "image/png",
+    filename: stringValue(output.filename) || "Screenshot.png",
+  };
+}
+
+function appendFilePart(segments: MessageSegment[], part: MessagePart): void {
+  const attachmentId = part.attachment_id ?? part.attachmentId;
+  if (
+    attachmentId &&
+    segments.some(
+      (segment) =>
+        segment.kind === "files" &&
+        segment.parts.some(
+          (candidate) =>
+            (candidate.attachment_id ?? candidate.attachmentId) === attachmentId,
+        ),
+    )
+  )
+    return;
+  const previous = segments.at(-1);
+  if (previous?.kind === "files") previous.parts.push(part);
+  else segments.push({ kind: "files", parts: [part] });
+}
+
+function objectValue(value: unknown): Record<string, unknown> {
+  if (typeof value === "object" && value !== null && !Array.isArray(value))
+    return value as Record<string, unknown>;
+  if (typeof value === "string") {
+    try {
+      const parsed: unknown = JSON.parse(value);
+      if (typeof parsed === "object" && parsed !== null && !Array.isArray(parsed))
+        return parsed as Record<string, unknown>;
+    } catch {
+      // A non-JSON tool result remains a normal tool trace.
+    }
+  }
+  return {};
+}
+
+function stringValue(value: unknown): string {
+  return typeof value === "string" ? value : "";
 }

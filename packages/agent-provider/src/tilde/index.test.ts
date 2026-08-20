@@ -49,6 +49,7 @@ describe("TildeAgentProvider", () => {
             display_name: "Scout",
             endpoint_url: "http://127.0.0.1:4100/api/agents/scout",
             local_running_endpoint: true,
+            concurrency_policy: "queue",
           });
           return Response.json({
             agent: agent(),
@@ -104,6 +105,44 @@ describe("TildeAgentProvider", () => {
     expect(tools).toHaveBeenCalledTimes(2);
   });
 
+  it("repairs an existing agent that is not configured to queue turns", async () => {
+    vi.spyOn(TildeSkillReconciler.prototype, "deploy").mockResolvedValue();
+    vi.spyOn(TildeToolReconciler.prototype, "deploy").mockResolvedValue();
+    const context = await agentContext("scout");
+    context.environment.AGENT_SCOUT_API_KEY = "existing-key";
+    context.environment.AGENT_SCOUT_WEBHOOK_SIGNING_KEY = "existing-signing-key";
+    const updates: Record<string, unknown>[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+        const request = input instanceof Request ? input : new Request(input, init);
+        const path = new URL(request.url).pathname;
+        if (request.method === "GET" && path.endsWith("/agents/scout"))
+          return Response.json(agent("interrupt"));
+        if (request.method === "PATCH" && path.endsWith("/agents/scout")) {
+          updates.push((await request.json()) as Record<string, unknown>);
+          return Response.json(agent());
+        }
+        if (request.method === "GET" && path.endsWith("/channels"))
+          return Response.json({
+            items: [
+              {
+                id: "openbot-mission-control-scout",
+                provider_id: "chatkit.vercel-ui",
+                status: "enabled",
+                configuration: { default_agent_inbox_id: "scout" },
+              },
+            ],
+          });
+        throw new Error(`Unexpected request: ${request.method} ${path}`);
+      }),
+    );
+
+    await new TildeAgentProvider(config).deployable.deploy(context);
+
+    expect(updates).toEqual([expect.objectContaining({ concurrency_policy: "queue" })]);
+  });
+
   it("reports the Tilde operation, agent, API detail, and HTTP status", async () => {
     vi.spyOn(TildeSkillReconciler.prototype, "deploy").mockResolvedValue();
     vi.spyOn(TildeToolReconciler.prototype, "deploy").mockResolvedValue();
@@ -139,7 +178,7 @@ async function agentContext(slug: string): Promise<DeploymentContext> {
   };
 }
 
-function agent() {
+function agent(concurrencyPolicy = "queue") {
   return {
     id: "scout",
     provider_id: "chatkit.http-vercel-ai-sdk",
@@ -149,6 +188,7 @@ function agent() {
       local_running_endpoint: true,
       streaming: true,
       timeout_ms: 300_000,
+      concurrency_policy: concurrencyPolicy,
     },
     status: "enabled",
   };
