@@ -73,6 +73,7 @@ export function AuthGate({
     return (
       <WorkspaceAccessScreen
         error={auth.error}
+        name={workspace.workspaceName}
         signingIn={signingIn}
         onSignIn={() => {
           setSigningIn(true);

@@ -507,6 +507,24 @@ No tests or checks were run by operator instruction. Include initial workspace e
 without agents, empty selected chats, setup-route fallback, and desktop/mobile viewport shells in
 the next requested validation batch.
 
+## 20. Named workspace sign-in — `done (fork)`
+
+- Reduced the saved-workspace access screen to `Sign in to <workspace name>` with the sign-in action
+  directly below it. Removed the leading workspace icon and explanatory saved-device subtext.
+- Exposed the active persisted workspace name through the existing browser workspace context rather
+  than deriving it again from the control URL.
+- Reused the select-workspace screen's exact fixed five-bot constellation behind the sign-in state;
+  the avatars remain decorative, non-drifting, and outside the accessibility tree.
+- Retained authentication errors and the Switch workspace escape hatch below the primary action.
+
+Cross-client decision: web and Electron share this access gate and presentation. Expo owns a
+separate native installation-auth surface and does not consume this persisted browser workspace
+context, so it is unchanged.
+
+No tests or checks were run by operator instruction. Include long workspace names, auth failure,
+sign-in loading, Switch workspace, light/dark modes, and mobile viewport avatar placement in the
+next requested validation batch.
+
 ## Investigation log
 
 - **HAR (67 entries, 2026-08-20)**: no failed HTTP requests. The chat error is a persisted signal,

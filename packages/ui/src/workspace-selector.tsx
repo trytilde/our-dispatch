@@ -3,12 +3,7 @@ import type { ClientWorkspace } from "@tryopenbot/client-runtime";
 import { ChevronRightIcon } from "lucide-react";
 import { AgentAvatar } from "./agent-avatar.js";
 import { Dialog, DialogContent, DialogTitle } from "./components/ui/dialog.js";
-import {
-  BackIcon,
-  PlusIcon,
-  TrashIcon,
-  WorkspaceIcon,
-} from "./workspace-icons.js";
+import { BackIcon, PlusIcon, TrashIcon } from "./workspace-icons.js";
 
 export interface WorkspaceSelectorProps {
   workspaces: readonly ClientWorkspace[];
@@ -200,33 +195,7 @@ export function WorkspaceSelector({
 export function SelectWorkspaceScreen(props: WorkspaceSelectorProps) {
   return (
     <main className="select-workspace-screen">
-      <div className="workspace-constellation" aria-hidden="true">
-        <AgentAvatar
-          id="workspace-orbit-cobalt"
-          paused
-          className="workspace-float workspace-float-one"
-        />
-        <AgentAvatar
-          id="workspace-orbit-coral"
-          paused
-          className="workspace-float workspace-float-two"
-        />
-        <AgentAvatar
-          id="workspace-orbit-moss"
-          paused
-          className="workspace-float workspace-float-three"
-        />
-        <AgentAvatar
-          id="workspace-orbit-violet"
-          paused
-          className="workspace-float workspace-float-four"
-        />
-        <AgentAvatar
-          id="workspace-orbit-amber"
-          paused
-          className="workspace-float workspace-float-five"
-        />
-      </div>
+      <WorkspaceConstellation />
       <section className="select-workspace-content">
         <div className="select-workspace-title">
           <h1>Select a workspace</h1>
@@ -238,11 +207,13 @@ export function SelectWorkspaceScreen(props: WorkspaceSelectorProps) {
 }
 
 export function WorkspaceAccessScreen({
+  name,
   error = "",
   signingIn = false,
   onSignIn,
   onSwitchWorkspace,
 }: {
+  name: string;
   error?: string;
   signingIn?: boolean;
   onSignIn: () => void;
@@ -250,12 +221,9 @@ export function WorkspaceAccessScreen({
 }) {
   return (
     <main className="workspace-access-screen">
+      <WorkspaceConstellation />
       <section>
-        <span className="workspace-access-mark">
-          <WorkspaceIcon />
-        </span>
-        <h1>Sign in to this workspace</h1>
-        <p>Your workspace is saved on this device.</p>
+        <h1>Sign in to {name}</h1>
         {error ? <p className="workspace-selector-error">{error}</p> : null}
         <button disabled={signingIn} onClick={onSignIn} type="button">
           {signingIn ? <span className="workspace-selector-spinner" aria-hidden="true" /> : null}
@@ -266,5 +234,37 @@ export function WorkspaceAccessScreen({
         </button>
       </section>
     </main>
+  );
+}
+
+function WorkspaceConstellation() {
+  return (
+    <div className="workspace-constellation" aria-hidden="true">
+      <AgentAvatar
+        id="workspace-orbit-cobalt"
+        paused
+        className="workspace-float workspace-float-one"
+      />
+      <AgentAvatar
+        id="workspace-orbit-coral"
+        paused
+        className="workspace-float workspace-float-two"
+      />
+      <AgentAvatar
+        id="workspace-orbit-moss"
+        paused
+        className="workspace-float workspace-float-three"
+      />
+      <AgentAvatar
+        id="workspace-orbit-violet"
+        paused
+        className="workspace-float workspace-float-four"
+      />
+      <AgentAvatar
+        id="workspace-orbit-amber"
+        paused
+        className="workspace-float workspace-float-five"
+      />
+    </div>
   );
 }

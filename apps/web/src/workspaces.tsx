@@ -44,6 +44,7 @@ const browserStorage: ClientWorkspaceStorage = {
 };
 
 interface WorkspaceContextValue {
+  workspaceName: string;
   openWorkspaceSelector(): void;
 }
 
@@ -228,7 +229,12 @@ export function ClientWorkspaceGate({ children }: { children: ReactNode }) {
   }
 
   return (
-    <WorkspaceContext.Provider value={{ openWorkspaceSelector: () => setSelectorOpen(true) }}>
+    <WorkspaceContext.Provider
+      value={{
+        workspaceName: activeWorkspace.name,
+        openWorkspaceSelector: () => setSelectorOpen(true),
+      }}
+    >
       {children}
       <WorkspaceSelectorDialog
         {...selectorProps}
