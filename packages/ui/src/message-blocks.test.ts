@@ -2,11 +2,11 @@ import { describe, expect, it } from "vite-plus/test";
 import { splitMessageSegments } from "./message-blocks.js";
 
 describe("message block segmentation", () => {
-  it("renders screenshot output as one image without its JSON tool result", () => {
+  it("renders attachment-shaped tool output as media without its JSON tool result", () => {
     const segments = splitMessageSegments([
       {
         type: "tool",
-        tool_name: "screenshot",
+        tool_name: "image",
         state: "output-available",
         output: {
           attachment_id: "attachment-one",
@@ -27,7 +27,7 @@ describe("message block segmentation", () => {
         kind: "files",
         parts: [
           {
-            type: "image",
+            type: "file",
             attachment_id: "attachment-one",
             media_type: "image/png",
             filename: "screenshot-factory.png",

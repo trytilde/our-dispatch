@@ -29,9 +29,9 @@ export function splitMessageSegments(parts: readonly MessagePart[]): MessageSegm
       else segments.push({ kind: "text", text });
       continue;
     }
-    const screenshot = screenshotFilePart(part);
-    if (screenshot) {
-      appendFilePart(segments, screenshot);
+    const attachment = toolAttachmentFilePart(part);
+    if (attachment) {
+      appendFilePart(segments, attachment);
       continue;
     }
     if (part.type === "reasoning" || isToolPart(part)) {
@@ -176,20 +176,27 @@ function isToolPart(part: MessagePart): boolean {
   return part.type === "tool" || part.type === "dynamic-tool" || part.type.startsWith("tool-");
 }
 
-/** Screenshot tools return a ChatKit attachment reference, not user-facing JSON. */
-function screenshotFilePart(part: MessagePart): MessagePart | undefined {
+/** Media-producing tools return a ChatKit attachment reference, not user-facing JSON. */
+function toolAttachmentFilePart(part: MessagePart): MessagePart | undefined {
   if (!isToolPart(part)) return undefined;
-  const name = (part.tool_name ?? part.toolName ?? part.type.replace(/^tool-/, "")).toLowerCase();
-  if (name !== "screenshot") return undefined;
   const output = objectValue(part.output);
   const attachmentId = stringValue(output.attachment_id ?? output.attachmentId);
   if (!attachmentId) return undefined;
+  const mediaType =
+    stringValue(output.media_type ?? output.mediaType) || "application/octet-stream";
   return {
-    type: "image",
+    type: "file",
     attachment_id: attachmentId,
-    media_type: stringValue(output.media_type ?? output.mediaType) || "image/png",
-    filename: stringValue(output.filename) || "Screenshot.png",
+    media_type: mediaType,
+    filename: stringValue(output.filename) || defaultAttachmentName(mediaType),
   };
+}
+
+function defaultAttachmentName(mediaType: string): string {
+  if (mediaType.startsWith("image/")) return "Image";
+  if (mediaType.startsWith("video/")) return "Video";
+  if (mediaType.startsWith("audio/")) return "Audio";
+  return "Attachment";
 }
 
 function appendFilePart(segments: MessageSegment[], part: MessagePart): void {

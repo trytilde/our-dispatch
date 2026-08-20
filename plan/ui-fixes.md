@@ -467,6 +467,29 @@ No tests or checks were run by operator instruction. Include named join persiste
 cross-origin transfer, duplicate-origin rename, and name-only selector rows in the next requested
 validation batch.
 
+## 18. Attachment-native transcript media — `done (fork)`
+
+- Fixed the remaining screenshot/image JSON leak: UI parts whose wire type is `image` now use the
+  same native attachment renderer as `file` parts instead of falling through to the JSON fallback.
+- Generalized tool-result promotion from the specifically named `screenshot` tool to any completed
+  tool output carrying a ChatKit `attachment_id`. Images, video, audio, and documents therefore
+  render from their attachment metadata without exposing the transport object in the transcript.
+- Kept the existing inline native treatment for each media kind and made Preview available from its
+  caption. Image and video previews use the full-screen dark media viewer; audio and documents use
+  the full modal file viewer.
+- Added a download control to both viewer variants, beside the close/open controls, using the
+  attachment's resolved signed URL and filename.
+
+<FOLLOW UP>
+Owner: apps/mobile
+Trigger: when Expo renders ChatKit tool-result attachments in its native transcript
+Work: promote any attachment-shaped tool result to native image, video, audio, or document UI; add a native full-screen preview and platform download/share action without exposing attachment JSON
+</FOLLOW UP>
+
+No tests or checks were run by operator instruction. Include image-typed wire parts, generic
+attachment-producing tools, duplicate suppression, every media kind, unavailable URLs, modal
+keyboard dismissal, and download controls in the next requested validation batch.
+
 ## Investigation log
 
 - **HAR (67 entries, 2026-08-20)**: no failed HTTP requests. The chat error is a persisted signal,

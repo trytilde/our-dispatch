@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { DownloadIcon, ExternalLinkIcon, XIcon } from "lucide-react";
 import {
   Reasoning,
   ReasoningContent,
@@ -256,9 +257,9 @@ export function FileCard({ part, sessionId, resolveAttachmentUrl, rewriteUrl }: 
               <strong>{filename}</strong>
               <small>{detail}</small>
             </span>
-            <a href={resolvedUrl} rel="noreferrer" target="_blank">
-              Open
-            </a>
+            <button onClick={() => setViewerOpen(true)} type="button">
+              Preview
+            </button>
           </div>
         ) : null}
       </div>
@@ -335,11 +336,14 @@ function DocumentFileViewer({ open, title, subtitle, url, mediaType, onClose }: 
             {subtitle ? <small>{subtitle}</small> : null}
           </span>
           <span className="file-viewer-actions">
+            <a aria-label={`Download ${title}`} download={title} href={url}>
+              <DownloadIcon />
+            </a>
             <a aria-label="Open file in new window" href={url} rel="noreferrer" target="_blank">
-              ↗
+              <ExternalLinkIcon />
             </a>
             <button aria-label="Close preview" onClick={onClose} type="button">
-              ×
+              <XIcon />
             </button>
           </span>
         </header>
@@ -385,8 +389,11 @@ export function MediaViewer({ open, items, activeIndex = 0, onClose, onSelect }:
       role="dialog"
     >
       <div className="media-viewer-top-bar">
+        <a aria-label={`Download ${item.title}`} download={item.title} href={item.url}>
+          <DownloadIcon />
+        </a>
         <button aria-label="Close media preview" onClick={onClose} type="button">
-          ×
+          <XIcon />
         </button>
       </div>
       <div className="media-viewer-column">

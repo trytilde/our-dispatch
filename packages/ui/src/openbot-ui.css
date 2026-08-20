@@ -4352,6 +4352,14 @@ body.resizing-workspace .rich-chat.workspace-shell {
   background: var(--ob-fill-ghost-hover);
 }
 
+.file-viewer-actions svg {
+  width: 15px;
+  height: 15px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+}
+
 .file-viewer-body {
   position: relative;
   min-height: 0;
@@ -4398,8 +4406,10 @@ body.resizing-workspace .rich-chat.workspace-shell {
   display: flex;
   align-items: center;
   justify-content: flex-end;
+  gap: 8px;
 }
 
+.media-viewer-top-bar a,
 .media-viewer-top-bar button,
 .media-viewer-nav {
   width: 36px;
@@ -4415,16 +4425,26 @@ body.resizing-workspace .rich-chat.workspace-shell {
   backdrop-filter: blur(16px);
   font-size: 22px;
   line-height: 1;
+  text-decoration: none;
   cursor: pointer;
   transition:
     background-color var(--ob-duration-fast) var(--ob-ease-default),
     transform var(--ob-duration-fast) var(--ob-ease-default);
 }
 
+.media-viewer-top-bar a:hover,
 .media-viewer-top-bar button:hover,
 .media-viewer-nav:hover {
   background: #141414cc;
   transform: scale(1.04);
+}
+
+.media-viewer-top-bar svg {
+  width: 17px;
+  height: 17px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
 }
 
 .media-viewer-column {
@@ -7559,7 +7579,7 @@ button.system-event-chip {
   line-height: 14px;
 }
 
-.media-caption > a,
+.media-caption > button,
 .media-unavailable > button {
   padding: 5px 9px;
   border: 0;

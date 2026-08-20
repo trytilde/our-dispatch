@@ -89,6 +89,7 @@ function renderPart(
       return <MarkdownText key={key} text={part.text ?? ""} />;
     case "reasoning":
       return part.text ? <ThinkingBlock key={key} part={part} /> : null;
+    case "image":
     case "file": {
       return (
         <FileCard
