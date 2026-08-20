@@ -681,8 +681,11 @@ requested validation batch.
 ## 29. GrokBot-style Computer takeover and usable desktop — `done (fork)`
 
 - Matched the recovered GrokBot interaction boundary: the header Computer control opens a
-  non-interactive live preview that fills the right pane; its Open affordance promotes the same
-  connected VNC surface into an interactive full-screen modal.
+  non-interactive live preview in the right pane; its Open affordance promotes the same connected
+  VNC surface into an interactive full-screen modal.
+- Corrected the preview geometry so the Computer sidebar uses the same rail background and inset
+  padding as the main sidebar. The desktop preview fills that inset width while retaining a 16:9
+  aspect ratio and natural height; only the explicit takeover state fills the screen.
 - Removed the separate pane maximize and return-control buttons. The full-screen surface owns a
   compact translucent top bar with the selected agent name and an explicit Exit full screen
   action; Escape returns to the preview too.
