@@ -129,8 +129,10 @@ describe("TildeSkillReconciler", () => {
       await provider.deploy(context);
       expect(mutations).toEqual(["create-registry", "create-skill", "update-registry"]);
       expect(context.environment.AGENT_HELLO_WORLD_SKILL_REGISTRY_ID).toBe("registry-one");
+      // Skill names are team-unique in Tilde, so the stored name carries the
+      // agent ID while the authored frontmatter keeps the shared name.
       expect(remoteSkills[0]).toMatchObject({
-        name: "hello",
+        name: "hello-world-hello",
         description: "Say hello.",
         source_kind: "openbot",
         source_path: "configuration/agent/skills/hello/SKILL.md",
