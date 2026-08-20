@@ -122,14 +122,17 @@ export {
   type WorkspaceAccountProps,
 } from "./sidebar-components.js";
 export {
+  BackIcon,
   ClockIcon,
   ComputerIcon,
+  FeedbackIcon,
   ListIcon,
   MoreIcon,
   PlusIcon,
   ReplyIcon,
   SearchIcon,
   SendIcon,
+  SettingsIcon,
 } from "./workspace-icons.js";
 export {
   MessageContent,

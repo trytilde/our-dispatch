@@ -324,6 +324,9 @@ importers:
       '@tryopenbot/ui':
         specifier: workspace:*
         version: link:../../packages/ui
+      motion:
+        specifier: ^13.1.0
+        version: 13.1.0(react-dom@19.1.2(react@19.1.2))(react@19.1.2)
       react:
         specifier: 19.1.2
         version: 19.1.2
@@ -13499,7 +13502,9 @@ snapshots:
       metro-runtime: 0.84.4
     transitivePeerDependencies:
       - '@babel/core'
+      - bufferutil
       - supports-color
+      - utf-8-validate
 
   '@react-native/normalize-colors@0.86.2': {}
 

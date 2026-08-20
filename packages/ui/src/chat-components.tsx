@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import { AgentAvatar } from "./agent-avatar.js";
 import { LoaderGrid, useElapsed } from "./beautiful-ui/blocks/loader-grid.js";
 import { Suggestion, Suggestions } from "./components/ai-elements/suggestion.js";
-import { ComputerIcon, MoreIcon, ReplyIcon } from "./workspace-icons.js";
+import { ComputerIcon, MoreIcon, PlusIcon, ReplyIcon } from "./workspace-icons.js";
 
 export interface ChatHeaderProps {
   agentId?: string;
@@ -10,6 +10,7 @@ export interface ChatHeaderProps {
   /** Agent is mid-turn — the avatar spins its orbit. */
   busy?: boolean;
   computerOpen: boolean;
+  onCreateAgent?: () => void;
   onToggleComputer: () => void;
 }
 
@@ -18,6 +19,7 @@ export function ChatHeader({
   agentName,
   busy = false,
   computerOpen,
+  onCreateAgent,
   onToggleComputer,
 }: ChatHeaderProps) {
   return (
@@ -33,6 +35,11 @@ export function ChatHeader({
         </div>
       </div>
       <div className="chat-actions">
+        {onCreateAgent ? (
+          <button aria-label="New agent" onClick={onCreateAgent} title="New agent" type="button">
+            <PlusIcon />
+          </button>
+        ) : null}
         <button
           aria-expanded={computerOpen}
           aria-label="Toggle Computer pane"

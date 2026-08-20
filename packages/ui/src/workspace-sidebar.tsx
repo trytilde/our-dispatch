@@ -1,4 +1,4 @@
-import type { PointerEvent as ReactPointerEvent } from "react";
+import type { PointerEvent as ReactPointerEvent, ReactNode } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import {
   AgentListItem,
@@ -8,7 +8,7 @@ import {
   WorkspaceAccount,
 } from "./sidebar-components.js";
 import GlideMenu from "./beautiful-ui/atoms/glide-menu.js";
-import { SearchIcon } from "./workspace-icons.js";
+import { FeedbackIcon, SearchIcon, SettingsIcon } from "./workspace-icons.js";
 
 export type WorkspaceSidebarAgent = SidebarAgent;
 
@@ -27,7 +27,9 @@ export interface WorkspaceSidebarProps {
   onSearchClose: () => void;
   onSelectAgent: (id: string) => void;
   onLoadMore?: () => void;
-  onCreateAgent?: () => void;
+  onOpenSettings?: () => void;
+  /** Address the "Send Feedback" row opens in the owner's mail client. */
+  feedbackEmail?: string;
   onResize: (event: ReactPointerEvent<HTMLDivElement>) => void;
 }
 
@@ -44,7 +46,8 @@ export function WorkspaceSidebar({
   onSearchClose,
   onSelectAgent,
   onLoadMore,
-  onCreateAgent,
+  onOpenSettings,
+  feedbackEmail = "daniel@trytilde.ai",
   onResize,
 }: WorkspaceSidebarProps) {
   useSearchShortcut(onSearchOpen);
@@ -136,22 +139,24 @@ export function WorkspaceSidebar({
             </button>
           ) : null}
         </motion.nav>
-        {onCreateAgent ? (
-          <div className="px-3 pb-1">
-            <button
-              className="flex h-8 w-full items-center gap-2 rounded-control px-2.5 text-left
-                text-[12.5px] font-medium text-ink-2 transition-[background-color,color]
-                duration-150 hover:bg-hover hover:text-ink"
-              onClick={onCreateAgent}
-              type="button"
-            >
-              <span aria-hidden className="text-[15px] leading-none">
-                +
-              </span>
-              New agent
-            </button>
-          </div>
-        ) : null}
+        <div className="sidebar-utility px-2 pb-1">
+          <SidebarUtilityRow
+            collapsed={collapsed}
+            icon={
+              <SettingsIcon className="size-4 shrink-0 fill-none stroke-current stroke-[1.3]" />
+            }
+            label="Settings"
+            onClick={onOpenSettings}
+          />
+          <SidebarUtilityRow
+            collapsed={collapsed}
+            href={`mailto:${feedbackEmail}`}
+            icon={
+              <FeedbackIcon className="size-4 shrink-0 fill-none stroke-current stroke-[1.3]" />
+            }
+            label="Send Feedback"
+          />
+        </div>
         <WorkspaceAccount collapsed={collapsed} />
         <div
           aria-label="Drag to resize the sidebar"
@@ -171,5 +176,49 @@ export function WorkspaceSidebar({
         value={searchValue}
       />
     </>
+  );
+}
+
+interface SidebarUtilityRowProps {
+  collapsed: boolean;
+  href?: string;
+  icon: ReactNode;
+  label: string;
+  onClick?: () => void;
+}
+
+/** Sidebar footer action shaped like a shadcn sidebar menu button: icon, label, one row. */
+function SidebarUtilityRow({ collapsed, href, icon, label, onClick }: SidebarUtilityRowProps) {
+  const className = `sidebar-utility-row flex h-8 w-full items-center rounded-control text-left
+    text-[12.5px] font-medium text-ink-2 transition-[background-color,color] duration-150
+    hover:bg-hover hover:text-ink ${collapsed ? "justify-center gap-0 px-0" : "gap-2 px-2.5"}`;
+  const body = (
+    <>
+      {icon}
+      <AnimatePresence initial={false}>
+        {collapsed ? null : (
+          <motion.span
+            animate={{ opacity: 1, width: "auto" }}
+            className="truncate"
+            exit={{ opacity: 0, width: 0 }}
+            initial={{ opacity: 0, width: 0 }}
+            key={`${label}-label`}
+            transition={railTransition}
+          >
+            {label}
+          </motion.span>
+        )}
+      </AnimatePresence>
+    </>
+  );
+
+  return href ? (
+    <a aria-label={label} className={className} href={href} title={label}>
+      {body}
+    </a>
+  ) : (
+    <button aria-label={label} className={className} onClick={onClick} title={label} type="button">
+      {body}
+    </button>
   );
 }

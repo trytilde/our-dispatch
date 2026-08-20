@@ -1,5 +1,6 @@
 import { createRootRoute, createRoute, createRouter } from "@tanstack/react-router";
 import { OpenBotApp } from "./screens/openbot-app.js";
+import { SettingsApp } from "./screens/settings-app.js";
 
 const rootRoute = createRootRoute({ notFoundComponent: OpenBotApp });
 const indexRoute = createRoute({
@@ -8,7 +9,13 @@ const indexRoute = createRoute({
   component: OpenBotApp,
 });
 
-const routeTree = rootRoute.addChildren([indexRoute]);
+const settingsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/settings",
+  component: SettingsApp,
+});
+
+const routeTree = rootRoute.addChildren([indexRoute, settingsRoute]);
 
 export const router = createRouter({ routeTree });
 

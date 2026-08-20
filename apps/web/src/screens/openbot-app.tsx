@@ -18,6 +18,7 @@ import {
   messageText,
   type QueuedTurn,
 } from "@tryopenbot/client-runtime";
+import { useNavigate } from "@tanstack/react-router";
 import { useStore } from "zustand";
 import {
   AgentWorkspacePanel,
@@ -85,6 +86,7 @@ export function OpenBotApp() {
   const previousMessageIdRef = useRef("");
   const [showScrollLatest, setShowScrollLatest] = useState(false);
   const layout = useWorkspaceLayout();
+  const navigate = useNavigate();
 
   const selectedAgent = agents.find((agent) => agent.id === agentId);
   const hasContent = Boolean(draft.trim() || files.length);
@@ -409,7 +411,7 @@ export function OpenBotApp() {
           if (agent) selectAgent(agent);
         }}
         onLoadMore={() => void loadMoreAgents()}
-        onCreateAgent={() => setCreateAgentOpen(true)}
+        onOpenSettings={() => void navigate({ to: "/settings" })}
         onResize={layout.beginSidebarResize}
       />
 
@@ -419,6 +421,7 @@ export function OpenBotApp() {
           agentName={selectedAgent?.display_name || "OpenBot"}
           busy={agentBusy}
           computerOpen={layout.workspaceOpen}
+          onCreateAgent={() => setCreateAgentOpen(true)}
           onToggleComputer={layout.toggleWorkspace}
         />
 

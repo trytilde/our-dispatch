@@ -286,9 +286,7 @@ export function WorkspaceAccount({
   name = "Your account",
 }: WorkspaceAccountProps) {
   return (
-    <div
-      className={`mt-auto border-t border-line p-2 ${collapsed ? "sidebar-account-collapsed" : ""}`}
-    >
+    <div className={`mt-auto p-2 ${collapsed ? "sidebar-account-collapsed" : ""}`}>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <button
