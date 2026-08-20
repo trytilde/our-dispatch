@@ -564,6 +564,7 @@ describe("computer image lifecycle", () => {
     const viewer = await readFile(computerImageAssets.openbotVnc, "utf8");
     expect(viewer).toContain('import RFB from "./core/rfb.js"');
     expect(viewer).toContain('type: "openbot:vnc"');
+    expect(viewer).toContain("rfb.resizeSession = false");
     expect(viewer).not.toContain("noVNC_control_bar");
     const bootstrap = await readFile(computerImageAssets.bootstrap, "utf8");
     expect(bootstrap).toContain("SOPS_VERSION=3.13.3");
@@ -572,9 +573,10 @@ describe("computer image lifecycle", () => {
     expect(await readFile(computerImageAssets.desktopSession, "utf8")).toContain(
       "desktop-wallpaper.png",
     );
-    expect(await readFile(computerImageAssets.tint2, "utf8")).toContain(
-      "openbot-browser.desktop",
-    );
+    const taskbar = await readFile(computerImageAssets.tint2, "utf8");
+    expect(taskbar).toContain("openbot-browser.desktop");
+    expect(taskbar).toContain("panel_size = 100% 54");
+    expect(taskbar).toContain("autohide = 0");
   });
 });
 

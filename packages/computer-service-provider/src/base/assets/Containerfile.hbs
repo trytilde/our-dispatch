@@ -45,7 +45,7 @@ COPY packages/computer-service-provider/src/base/assets/tint2rc /opt/openbot/tin
 # Install the desktop stack once while building the shared image.
 RUN chmod 0755 /opt/openbot/bootstrap.sh /opt/openbot/desktop-session.sh /opt/openbot/development-profile.sh /usr/local/bin/openbot-browser /usr/local/bin/setup-openbot-development /usr/local/bin/start-openbot-computer \
     && /opt/openbot/bootstrap.sh \
-    && rsvg-convert --width 1440 --height 900 /opt/openbot/desktop-wallpaper.svg --output /opt/openbot/desktop-wallpaper.png \
+    && rsvg-convert --width 1440 --height 810 /opt/openbot/desktop-wallpaper.svg --output /opt/openbot/desktop-wallpaper.png \
     && corepack enable \
     && corepack prepare pnpm@10.33.1 --activate
 

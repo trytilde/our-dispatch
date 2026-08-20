@@ -7,7 +7,7 @@ set -euo pipefail
 # Keep all mutable browser and runtime data on the persistent computer workspace.
 export DISPLAY="${DISPLAY:-:1}"
 export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/tmp/openbot-runtime}"
-export COMPUTER_GEOMETRY="${COMPUTER_GEOMETRY:-1440x900}"
+export COMPUTER_GEOMETRY="${COMPUTER_GEOMETRY:-1440x810}"
 
 mkdir -p "$XDG_RUNTIME_DIR" /workspace/.openbot/desktops
 chmod 0700 "$XDG_RUNTIME_DIR"

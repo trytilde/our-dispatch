@@ -137,7 +137,7 @@ async function startDesktop(
     [
       desktop.display,
       "-geometry",
-      process.env.COMPUTER_GEOMETRY ?? "1440x900",
+      process.env.COMPUTER_GEOMETRY ?? "1440x810",
       "-depth",
       "24",
       "-SecurityTypes",

@@ -32,7 +32,9 @@
       report("connecting");
       const rfb = new RFB(document.getElementById("screen"), socketUrl);
       rfb.scaleViewport = true;
-      rfb.resizeSession = true;
+      // Keep one stable framebuffer while the owner moves between preview and takeover.
+      // Resizing the remote X session here makes the wallpaper, windows, and dock visibly jump.
+      rfb.resizeSession = false;
       rfb.focusOnClick = true;
       rfb.viewOnly = false;
       rfb.showDotCursor = true;
