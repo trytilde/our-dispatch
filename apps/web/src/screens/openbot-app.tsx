@@ -385,6 +385,7 @@ export function OpenBotApp() {
       style={layout.style}
     >
       <WorkspaceSidebar
+        collapsed={layout.sidebarCollapsed}
         agents={filteredAgents.map((agent) => ({
           id: agent.id,
           name: agent.display_name,

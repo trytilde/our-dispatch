@@ -3288,29 +3288,16 @@ body.resizing-workspace .workspace-resize-handle::after {
   background: var(--accent);
 }
 
-/* Collapsed rail: search folds away entirely and every chat row becomes its avatar. */
-.sidebar-search {
-  display: grid;
-  grid-template-rows: 1fr;
-  transition:
-    grid-template-rows 0.18s ease,
-    opacity 0.12s ease;
-}
-
-.sidebar-search > * {
-  min-height: 0;
-  overflow: hidden;
-}
-
-.sidebar-collapsed .sidebar-search {
-  grid-template-rows: 0fr;
-  padding-block: 0;
-  opacity: 0;
-  visibility: hidden;
-  pointer-events: none;
+/* Collapsed rail: Motion unmounts the search field, and each chat row becomes a square
+   avatar tile so the glide highlight reads as a square rather than a full-width bar. */
+.sidebar-collapsed .sidebar-agent-list {
+  padding-inline: 14px;
 }
 
 .sidebar-collapsed .sidebar-agent-row {
+  width: 44px;
+  height: 44px;
+  margin-inline: auto;
   justify-content: center;
   gap: 0;
   padding-inline: 0;
@@ -3319,6 +3306,10 @@ body.resizing-workspace .workspace-resize-handle::after {
 .sidebar-collapsed .sidebar-agent-meta,
 .sidebar-collapsed .sidebar-agent-unread {
   display: none;
+}
+
+.sidebar-collapsed .sidebar-account-collapsed {
+  padding-inline: 14px;
 }
 
 .sidebar-collapsed .sidebar-titlebar {

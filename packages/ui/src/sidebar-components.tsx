@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { AnimatePresence, motion } from "motion/react";
 import { AgentAvatar, type AgentAvatarState } from "./agent-avatar.js";
 import GlideMenu from "./beautiful-ui/atoms/glide-menu.js";
 import {
@@ -14,7 +15,6 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "./components/ui/dropdown-menu.js";
 
@@ -277,46 +277,54 @@ function ThemeActionIcon({ preference }: { preference: ThemePreference }) {
 }
 
 export interface WorkspaceAccountProps {
+  collapsed?: boolean;
   name?: string;
 }
 
-const accountMenuItems = [
-  { icon: "gear", label: "Settings" },
-  { icon: "info", label: "About" },
-  { icon: "help", label: "Help Center" },
-  { icon: "feedback", label: "Send Feedback" },
-] as const;
-
-export function WorkspaceAccount({ name = "Your account" }: WorkspaceAccountProps) {
+export function WorkspaceAccount({
+  collapsed = false,
+  name = "Your account",
+}: WorkspaceAccountProps) {
   return (
-    <div className="mt-auto border-t border-line p-2">
+    <div
+      className={`mt-auto border-t border-line p-2 ${collapsed ? "sidebar-account-collapsed" : ""}`}
+    >
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <button
             aria-label={`Open account menu for ${name}`}
-            className="flex w-full items-center gap-2.5 rounded-control p-1.5 text-left
+            className={`flex w-full items-center rounded-control p-1.5 text-left
               transition-[background-color,transform] duration-100 hover:bg-hover active:scale-[0.98]
-              data-[state=open]:bg-hover"
+              data-[state=open]:bg-hover ${collapsed ? "justify-center gap-0" : "gap-2.5"}`}
             type="button"
           >
-            <span
+            <motion.span
               aria-hidden="true"
-              className="flex size-7 shrink-0 items-center justify-center rounded-full
-                bg-field text-[12px] font-semibold text-ink shadow-hairline"
+              animate={{ height: collapsed ? 36 : 28, width: collapsed ? 36 : 28 }}
+              className="flex shrink-0 items-center justify-center rounded-full bg-field
+                text-[12px] font-semibold text-ink shadow-hairline"
+              initial={false}
+              transition={avatarTransition}
             >
               {name.charAt(0).toUpperCase()}
-            </span>
-            <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-ink">{name}</span>
+            </motion.span>
+            <AnimatePresence initial={false}>
+              {collapsed ? null : (
+                <motion.span
+                  animate={{ opacity: 1, width: "auto" }}
+                  className="min-w-0 flex-1 truncate text-[13px] font-medium text-ink"
+                  exit={{ opacity: 0, width: 0 }}
+                  initial={{ opacity: 0, width: 0 }}
+                  key="account-name"
+                  transition={avatarTransition}
+                >
+                  {name}
+                </motion.span>
+              )}
+            </AnimatePresence>
           </button>
         </DropdownMenuTrigger>
         <DropdownMenuContent side="top" align="start" className="w-[220px]">
-          {accountMenuItems.map((item) => (
-            <DropdownMenuItem key={item.label}>
-              <AccountMenuIcon name={item.icon} />
-              <span>{item.label}</span>
-            </DropdownMenuItem>
-          ))}
-          <DropdownMenuSeparator />
           <DropdownMenuItem>
             <AccountMenuIcon name="logout" />
             <span>Log out</span>
@@ -327,13 +335,10 @@ export function WorkspaceAccount({ name = "Your account" }: WorkspaceAccountProp
   );
 }
 
-function AccountMenuIcon({ name }: { name: (typeof accountMenuItems)[number]["icon"] | "logout" }) {
+const avatarTransition = { duration: 0.18, ease: [0.23, 1, 0.32, 1] } as const;
+
+function AccountMenuIcon({ name }: { name: "logout" }) {
   const path = {
-    gear: "M8 5.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5Zm0-3v1.25m0 8.5v1.25m5.5-5.5h-1.25M3.75 8H2.5m9.39-3.89-.88.88m-6.02 6.02-.88.88m7.78 0-.88-.88M4.99 4.99l-.88-.88",
-    info: "M8 13.25A5.25 5.25 0 1 0 8 2.75a5.25 5.25 0 0 0 0 10.5ZM8 7v3.25M8 5.25h.01",
-    help: "M8 13.25A5.25 5.25 0 1 0 8 2.75a5.25 5.25 0 0 0 0 10.5Zm-1.5-7a1.55 1.55 0 0 1 3 0c0 1.25-1.5 1.4-1.5 2.5M8 10.75h.01",
-    feedback:
-      "M3 11.25v2l2.25-2H11a1.5 1.5 0 0 0 1.5-1.5v-5A1.5 1.5 0 0 0 11 3.25H4.5A1.5 1.5 0 0 0 3 4.75v6.5Z",
     logout:
       "M6.25 3.25H4.5A1.5 1.5 0 0 0 3 4.75v6.5a1.5 1.5 0 0 0 1.5 1.5h1.75M9.5 5.25 12.25 8 9.5 10.75M12 8H6.5",
   }[name];

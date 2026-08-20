@@ -1,4 +1,5 @@
 import type { PointerEvent as ReactPointerEvent } from "react";
+import { AnimatePresence, motion } from "motion/react";
 import {
   AgentListItem,
   AgentSearchDialog,
@@ -11,8 +12,11 @@ import { SearchIcon } from "./workspace-icons.js";
 
 export type WorkspaceSidebarAgent = SidebarAgent;
 
+const railTransition = { duration: 0.18, ease: [0.23, 1, 0.32, 1] } as const;
+
 export interface WorkspaceSidebarProps {
   agents: readonly WorkspaceSidebarAgent[];
+  collapsed?: boolean;
   selectedAgentId: string;
   loading?: boolean;
   hasMore?: boolean;
@@ -29,6 +33,7 @@ export interface WorkspaceSidebarProps {
 
 export function WorkspaceSidebar({
   agents,
+  collapsed = false,
   selectedAgentId,
   loading = false,
   hasMore = false,
@@ -48,47 +53,67 @@ export function WorkspaceSidebar({
     <>
       <aside className="rail">
         <div className="sidebar-titlebar" />
-        <div className="sidebar-search px-3 pb-1">
-          <button
-            aria-label="Search"
-            className="flex h-8 w-full items-center gap-2 rounded-control bg-inset px-2.5 text-left
-              shadow-hairline transition-[background-color] duration-150 hover:bg-hover"
-            onClick={onSearchOpen}
-            onKeyDown={(event) => {
-              if (
-                !event.defaultPrevented &&
-                event.key.length === 1 &&
-                event.key !== " " &&
-                !event.metaKey &&
-                !event.ctrlKey &&
-                !event.altKey
-              ) {
-                event.preventDefault();
-                onSearchOpen();
-              }
-            }}
-            type="button"
-          >
-            <span className="flex min-w-0 flex-1 items-center gap-2 text-[12.5px] text-ink-3">
-              <SearchIcon className="size-4 shrink-0 fill-none stroke-current stroke-[1.3] [stroke-linecap:round]" />
-              Search
-            </span>
-            <kbd
-              className="flex h-4.5 shrink-0 items-center justify-center rounded-[5px] bg-surface
-                px-1 font-sans text-[10px] text-ink-3 shadow-hairline"
+        <AnimatePresence initial={false}>
+          {collapsed ? null : (
+            <motion.div
+              animate={{ height: "auto", opacity: 1 }}
+              className="sidebar-search overflow-hidden px-3 pb-1"
+              exit={{ height: 0, opacity: 0 }}
+              initial={{ height: 0, opacity: 0 }}
+              key="sidebar-search"
+              transition={railTransition}
             >
-              ⌘K
-            </kbd>
-          </button>
-        </div>
-        <nav className="min-h-0 flex-1 overflow-y-auto px-2 py-1" aria-label="Agents">
+              <button
+                aria-label="Search"
+                className="flex h-8 w-full items-center gap-2 rounded-control bg-inset px-2.5 text-left
+              shadow-hairline transition-[background-color] duration-150 hover:bg-hover"
+                onClick={onSearchOpen}
+                onKeyDown={(event) => {
+                  if (
+                    !event.defaultPrevented &&
+                    event.key.length === 1 &&
+                    event.key !== " " &&
+                    !event.metaKey &&
+                    !event.ctrlKey &&
+                    !event.altKey
+                  ) {
+                    event.preventDefault();
+                    onSearchOpen();
+                  }
+                }}
+                type="button"
+              >
+                <span className="flex min-w-0 flex-1 items-center gap-2 text-[12.5px] text-ink-3">
+                  <SearchIcon className="size-4 shrink-0 fill-none stroke-current stroke-[1.3] [stroke-linecap:round]" />
+                  Search
+                </span>
+                <kbd
+                  className="flex h-4.5 shrink-0 items-center justify-center rounded-[5px] bg-surface
+                px-1 font-sans text-[10px] text-ink-3 shadow-hairline"
+                >
+                  ⌘K
+                </kbd>
+              </button>
+            </motion.div>
+          )}
+        </AnimatePresence>
+        <motion.nav
+          aria-label="Agents"
+          className="sidebar-agent-list min-h-0 flex-1 overflow-y-auto px-2 py-1"
+          layout
+          transition={railTransition}
+        >
           {loading ? <p className="px-2 py-2 text-[12.5px] text-ink-3">Loading agents…</p> : null}
           {!loading && agents.length === 0 ? (
             <p className="px-2 py-2 text-[12.5px] text-ink-3">No agents are available.</p>
           ) : null}
           <GlideMenu
             className="flex flex-col gap-px"
-            highlightClassName="inset-x-0 rounded-[8px] bg-hover"
+            highlightClassName={
+              collapsed
+                ? "left-1/2 w-11 -translate-x-1/2 rounded-[10px] bg-hover"
+                : "inset-x-0 rounded-[8px] bg-hover"
+            }
           >
             {agents.map((agent) => (
               <AgentListItem
@@ -110,7 +135,7 @@ export function WorkspaceSidebar({
               Show more agents
             </button>
           ) : null}
-        </nav>
+        </motion.nav>
         {onCreateAgent ? (
           <div className="px-3 pb-1">
             <button
@@ -127,7 +152,7 @@ export function WorkspaceSidebar({
             </button>
           </div>
         ) : null}
-        <WorkspaceAccount />
+        <WorkspaceAccount collapsed={collapsed} />
         <div
           aria-label="Drag to resize the sidebar"
           className="sidebar-resize-handle"
