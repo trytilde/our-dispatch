@@ -632,6 +632,182 @@ test("queues another turn while the agent is busy", async ({ page }) => {
   await expect(page.getByRole("dialog", { name: "Search agents" })).toHaveCount(0);
 });
 
+test("configures a connector through the in-chat account picker", async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem("openbot.onboarding-seen", "true"));
+  const now = new Date().toISOString();
+  const sentMessages: string[] = [];
+  const transcript: Array<Record<string, unknown>> = [
+    {
+      id: "message-picker",
+      type: "ui",
+      role: "assistant",
+      session_id: "session-one",
+      created_at: now,
+      parts: [
+        { type: "text", text: "You have two Tavily accounts." },
+        {
+          type: "tool",
+          tool_name: "configure_connector",
+          tool_invocation_id: "call-connector",
+          state: "output-available",
+          input: { provider_type_id: "tavily" },
+          output: {
+            status: "selection_required",
+            instructions: "Card shown.",
+            connector_selection: {
+              provider_type_id: "tavily",
+              provider_name: "Tavily",
+              accounts: [
+                { id: "tgi-work", display_name: "Work account", status: "active" },
+                { id: "tgi-personal", display_name: "Personal", status: "active" },
+              ],
+              credential_sources: [
+                {
+                  type_id: "tavily_api_key",
+                  name: "Use an API key",
+                  requires_brokering: false,
+                  supports_auto_display_name: false,
+                  resource_server_schema: null,
+                  user_credential_schema: {
+                    type: "object",
+                    required: ["api_key"],
+                    properties: {
+                      api_key: { type: "string", format: "password" },
+                    },
+                  },
+                },
+              ],
+            },
+          },
+        },
+      ],
+    },
+  ];
+  const connectorAccountRequests: Array<Record<string, unknown>> = [];
+
+  await page.route("**/api/connectors/**", async (route) => {
+    const request = route.request();
+    if (request.method() === "POST") {
+      connectorAccountRequests.push(request.postDataJSON() as Record<string, unknown>);
+      await route.fulfill({
+        status: 201,
+        json: {
+          status: "created",
+          account: {
+            id: "tgi-new",
+            display_name: "Research key",
+            status: "active",
+            provider_type_id: "tavily",
+            credential_source_type_id: "tavily_api_key",
+          },
+        },
+      });
+      return;
+    }
+    await route.fulfill({ json: { items: [] } });
+  });
+
+  await page.route("**/api/chat/**", async (route) => {
+    const request = route.request();
+    const path = new URL(request.url()).pathname;
+    if (path.endsWith("/mission-control/sidebar")) {
+      await route.fulfill({
+        json: {
+          items: [
+            {
+              id: "hello-world",
+              display_name: "Hello World",
+              provider_id: "chatkit.http-vercel-ai-sdk",
+              status: "enabled",
+              sessions: {
+                items: [
+                  { id: "session-one", title: "Connectors", created_at: now, updated_at: now },
+                ],
+              },
+            },
+          ],
+        },
+      });
+      return;
+    }
+    if (path.endsWith("/observe")) {
+      await route.fulfill({ contentType: "text/event-stream", body: "" });
+      return;
+    }
+    if (path.endsWith("/agent-turn-queue")) {
+      await route.fulfill({ json: { items: [] } });
+      return;
+    }
+    if (path.endsWith("/messages") && request.method() === "GET") {
+      await route.fulfill({ json: { items: transcript } });
+      return;
+    }
+    if (path.endsWith("/messages") && request.method() === "POST") {
+      const body = request.postDataJSON() as { text?: string };
+      sentMessages.push(body.text ?? "");
+      transcript.push({
+        id: `message-user-${sentMessages.length}`,
+        type: "ui",
+        role: "user",
+        session_id: "session-one",
+        created_at: now,
+        parts: [{ type: "text", text: body.text ?? "" }],
+      });
+      await route.fulfill({ json: { items: transcript } });
+      return;
+    }
+    await route.fulfill({ status: 404, json: { error: `Unhandled ${request.method()} ${path}` } });
+  });
+
+  await page.goto("/");
+
+  // The completed configure_connector call renders as the picker card, not a tool chip.
+  const picker = page.getByRole("region", { name: "Tavily accounts" });
+  await expect(picker).toBeVisible();
+  await expect(
+    picker.getByText("Select which account to enable for this bot for Tavily"),
+  ).toBeVisible();
+  await expect(picker.locator(".connector-select-grid")).toHaveCSS("display", "grid");
+  const cards = picker.locator(".connector-select-card");
+  await expect(cards).toHaveCount(3);
+  await expect(cards.nth(0)).toContainText("Work account");
+  await expect(cards.nth(2)).toContainText("Add new Tavily account");
+  await expect(cards.nth(0)).toHaveCSS("cursor", "pointer");
+  await expect(page.getByText("Configure connector", { exact: true })).toHaveCount(0);
+
+  // Selecting an account hands the structured choice back to the agent.
+  await cards.nth(0).click();
+  await expect.poll(() => sentMessages.length).toBe(1);
+  expect(sentMessages[0]).toContain('"Work account"');
+  expect(sentMessages[0]).toContain("tool_group_instance_id=tgi-work");
+  expect(sentMessages[0]).toContain("tool_group_source_type_id=tavily");
+
+  // The add-account card opens the schema-driven credential form.
+  await cards.nth(2).click();
+  const dialog = page.getByRole("dialog", { name: "Add Tavily account" });
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByRole("heading", { name: "Add a Tavily account" })).toBeVisible();
+  const secret = dialog.getByPlaceholder("api_key");
+  await expect(secret).toHaveAttribute("type", "password");
+  await expect(dialog.getByRole("button", { name: "Connect" })).toBeDisabled();
+  await dialog.getByPlaceholder("Label this account — e.g. work, personal").fill("Research key");
+  await secret.fill("tvly-secret");
+  await dialog.getByRole("button", { name: "Connect" }).click();
+
+  // Credentials go to the control service; the agent gets only the new instance id.
+  await expect.poll(() => connectorAccountRequests.length).toBe(1);
+  expect(connectorAccountRequests[0]).toMatchObject({
+    provider_type_id: "tavily",
+    credential_source_type_id: "tavily_api_key",
+    display_name: "Research key",
+    user_credential_values: { api_key: "tvly-secret" },
+  });
+  await expect.poll(() => sentMessages.length).toBe(2);
+  expect(sentMessages[1]).toContain("tool_group_instance_id=tgi-new");
+  expect(sentMessages[1]).not.toContain("tvly-secret");
+  await expect(dialog).toHaveCount(0);
+});
+
 test("keeps the server healthy", async ({ request }) => {
   const health = await request.get("/healthz");
   expect(health.ok()).toBeTruthy();
