@@ -1,6 +1,6 @@
 import {
+  BrandedLoadingState,
   Onboarding,
-  Shimmer,
   WorkspaceAccessScreen,
   type OnboardingResult,
 } from "@tryopenbot/ui";
@@ -65,11 +65,7 @@ export function AuthGate({
   }, [skipOnboarding]);
 
   if (auth.status === "checking" || seen === undefined)
-    return (
-      <main className="grid min-h-screen place-items-center bg-page">
-        <Shimmer className="text-[13px]">Checking access…</Shimmer>
-      </main>
-    );
+    return <BrandedLoadingState label="Checking access…" />;
 
   const signedIn = auth.status === "authenticated";
 

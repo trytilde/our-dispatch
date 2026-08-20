@@ -401,6 +401,22 @@ No tests or checks were run by operator instruction. The next requested validati
 rapid multi-submit queue visibility, remove/reorder/steer rollback, causal late-response rendering,
 queued history cutoff, and automatic local workspace seeding.
 
+## 14. Branded access loading state — `done (fork)`
+
+- Replaced the web and Electron access-check shimmer with the blue onboarding bot in its busy state,
+  including the existing animated gold orbit ribbons and the same restrained status label.
+- Kept the visual implementation in `packages/ui` so browser and Electron render the same loading
+  treatment rather than maintaining app-specific copies.
+
+<FOLLOW UP>
+Owner: apps/mobile
+Trigger: when the Expo client adopts the illustrated OpenBot avatar
+Work: render the native blue OpenBot avatar and gold busy orbit for full-screen access and bootstrap loading states; do not import the React DOM packages/ui component
+</FOLLOW UP>
+
+No tests or checks were run by operator instruction. Include light and dark access-check rendering,
+reduced-motion behavior, and accessible status announcement in the next requested validation batch.
+
 ## Investigation log
 
 - **HAR (67 entries, 2026-08-20)**: no failed HTTP requests. The chat error is a persisted signal,

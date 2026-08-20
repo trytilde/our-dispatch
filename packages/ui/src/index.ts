@@ -108,6 +108,10 @@ export {
 export { useWorkspaceLayout, type WorkspaceLayout } from "./use-workspace-layout.js";
 export { AgentAvatar, type AgentAvatarProps } from "./agent-avatar.js";
 export {
+  BrandedLoadingState,
+  type BrandedLoadingStateProps,
+} from "./branded-loading-state.js";
+export {
   WorkspaceSidebar,
   type WorkspaceSidebarAgent,
   type WorkspaceSidebarProps,
