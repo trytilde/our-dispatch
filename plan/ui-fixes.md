@@ -1,0 +1,301 @@
+# OpenBot fork fix queue
+
+Working repository: `/root/our-openbot`, branch `fork/main`.
+Rule from the user: **fix in the fork now, do not open upstream PRs until explicitly asked.**
+Almost every item here is upstream-shaped work (it lives outside `configuration/`), so each entry
+records what upstream package it will eventually target.
+
+Status legend: `todo` / `in progress` / `done (fork)` / `upstreamed`.
+
+---
+
+## 1. Chat window does not scroll on overflow — `done (fork)`
+
+Symptom: in the main chat window, when the transcript overflows the viewport it does not scroll.
+Cause: `.chat-pane` is `display:grid; grid-template-rows: auto 1fr auto`, and a grid item defaults to
+`min-height:auto`. The transcript row therefore grew to content height instead of clamping, so
+`.conversation { overflow-y:auto }` never had a bounded box and `.workspace-shell { overflow:hidden }`
+clipped the excess.
+Fix: `packages/ui/src/openbot-ui.css` — `.chat-pane` gains `min-height:0` and
+`grid-template-rows: auto minmax(0, 1fr) auto`; `.conversation` gains `min-height:0`. Applied to both
+palette copies of the rule.
+Upstream target: `@tryopenbot/ui`.
+
+## 2. Agent images arrive as markdown instead of Tilde media references — `done (fork)`
+
+Symptom: agents emit images as markdown; they should upload multimedia through the Tilde harness
+SDK (S3) and return a media reference in the message format that the browser renders natively.
+Scope: every snapshot/multimedia-producing tool must use the Tilde protocol, not inline markdown.
+Reference sources to read: `/root/tilde-api`, `/root/harness-sdk`.
+Upstream target: `packages/computer-tools`, agent templates in `configuration/templates/agent/` and
+`cli/src/assets/agents/**`, possibly `@tryopenbot/client-runtime` contracts.
+
+Findings so far:
+- `createScreenshotTool` (`packages/computer-tools/src/index.ts:224`) returns
+  `{ media_type: "image/png", data: <base64> }` straight to the model. The model then has no
+  attachment to reference, so it re-emits the image as markdown.
+- The browser already renders real attachments: `MessageContent`
+  (`packages/ui/src/message-content.tsx:47`) collects `file` / `image` parts and resolves them via
+  `resolveAttachmentUrl(sessionId, attachmentId)`.
+- The web composer already speaks the three-step Tilde protocol in
+  `apps/web/src/web-attachments.ts`: `createAttachment` → `PUT upload_url` (S3, presigned) →
+  `completeAttachment`.
+- The harness SDK exposes the same operations server-side: `createAttachmentUpload`,
+  `uploadAttachmentContent`, `completeAttachmentUpload`, `getAttachmentDownloadUrl`
+  (`/root/harness-sdk/packages/api-client/src/generated/sdk.gen.ts:1108+`). Only the download side
+  is wrapped in `core/src/chatkit/index.ts` today.
+- Inbound attachments are already handled by `createChatKitAttachmentFilePartHandler`
+  (`/root/harness-sdk/packages/vercel-ai-node/src/chatkit-attachments.ts`); the outbound direction
+  is the gap.
+
+Design problem to settle before building: tools are constructed at module scope in
+`configuration/agent/agent.ts` and know only their `agentId`; the ChatKit `sessionId` lives in the
+per-request `context` inside `chatKitEndpoint({ handler })`. Uploading requires the session. Options:
+1. `AsyncLocalStorage` set by the handler, read inside tool `execute` — no signature changes, but
+   implicit context.
+2. Explicit: tool factories take an `attachments` sink; the agent binds one per request.
+3. Push the upload into the harness SDK (a `createChatKitAttachmentSink(client, context)` alongside
+   the existing download handler), so every Tilde agent gets it, not just OpenBot.
+**Decision (user, this session):** make the computer tools factory functions and construct the MCP
+client inside `chatKitEndpoint`'s handler, passing `sessionId` through. That means dropping the
+process-wide `mcpTools` memo in `configuration/agent/agent.ts` and paying an MCP handshake per turn;
+if that cost bites, memoize per session with eviction rather than reintroducing a module-level
+mutable session (which is racy across concurrent turns in one process).
+
+All three upload operations are session-scoped — confirmed against both the generated client and the
+API source (`/projects_1/tilde-api/crates/chatkit-router/src/attachment.rs:46`), where `session_id`
+is a required `WrappedUuidV4` path param:
+
+```
+POST /api/v1/team/{team_id}/chatkit/session/{session_id}/attachment/upload
+PUT  …/attachment/{attachment_id}/content        (debug-build fallback)
+POST …/attachment/{attachment_id}/complete
+```
+
+`createAttachmentUpload` returns presigned object-store URLs; follow the URL it returns instead of
+hardcoding either path. Auth is the agent's existing Tilde API key — no new credential.
+
+### Shipped in the fork
+
+- `packages/computer-tools/src/attachments.ts` (new): `createTildeMediaUploader` implements the
+  three-step protocol — reserve (`POST …/attachment/upload`), `PUT` to whatever `upload_url` the
+  reservation returns, then `POST …/complete`. It follows the returned URL rather than assuming
+  object storage, and only attaches Tilde credentials when the upload URL is the API's own origin,
+  never to a presigned object-store URL. SHA-256 and byte length are sent on both calls.
+- `ComputerToolOptions` gains `uploadMedia`. `createScreenshotTool` returns
+  `{ attachment_id, media_type, filename }` when an uploader is configured and falls back to base64
+  when there is none, so tools still work outside a ChatKit session.
+- `configuration/agent/tools/screenshot.ts` is now a factory taking the uploader.
+  `configuration/agent/agent.ts` builds the tool set and the MCP client per turn from
+  `context.sessionId`, and closes the MCP client in `onFinish`.
+
+Remaining for this item: the browser renders `file` parts through `MessageContent`, but a tool
+result carrying an attachment reference is still drawn by `ToolsBlock` as a tool result. Rendering
+tool-result attachments inline is the last mile, and worth doing before upstreaming.
+
+### `<FOLLOW UP>` blocks to carry into the eventual PRs
+
+```text
+<FOLLOW UP>
+Owner: trytilde/api chatkit attachments
+Trigger: when an agent-produced medium has no natural conversation to belong to (background job,
+scheduled run, or a tool result reused across sessions)
+Work: decide whether ChatKit attachment upload must stay session-scoped, or whether a team-scoped
+upload plus a later session binding is the better protocol; every upload route today requires
+session_id in its path, which forces a live session on every producer; acceptance proof is either a
+documented decision that session scoping is intentional and permanent, or a team-scoped upload
+endpoint with a binding step and round-trip coverage
+</FOLLOW UP>
+```
+
+```text
+<FOLLOW UP>
+Owner: trytilde/harness-sdk vercel-ai-node MCP client
+Trigger: when a local tool needs per-request context such as the ChatKit session id
+Work: allow local tools to be registered or replaced after the initial MCP connect, so a process can
+keep one memoized MCP client instead of re-handshaking per turn to swap a session-bound tool set;
+today wrapMcpClientWithLocalTools binds tools at construction (packages/vercel-ai-node/src/mcp.ts:76);
+acceptance proof is a single long-lived client whose local tool set can be swapped per request, with
+a test showing two concurrent sessions receiving their own bound tools
+</FOLLOW UP>
+```
+
+## 3. Sidebar resize, minimized state, and account menu — `done (fork)`
+
+- Do not show the blue line on hover while resizing either sidebar.
+- Left sidebar in minimized form: drop the search placeholder text, centre chat rows to icons only,
+  hide the accompanying chat text.
+- Animate hiding the search bar as the sidebar minimizes; when minimized do not render search at all.
+Upstream target: `@tryopenbot/ui` (`sidebar-components.tsx`, `workspace-sidebar.tsx`, `openbot-ui.css`).
+Fix:
+- Dropped the `:hover` rule that painted `--accent` on `.sidebar-resize-handle::after` /
+  `.workspace-resize-handle::after`. The line now appears only while `body.resizing-workspace`
+  is set, i.e. during an actual drag.
+- Added stable hooks: `.sidebar-search` on the search wrapper, `.sidebar-agent-row` /
+  `.sidebar-agent-meta` / `.sidebar-agent-unread` on chat rows.
+- `.sidebar-collapsed .sidebar-search` animates to `grid-template-rows: 0fr` with fading opacity,
+  then goes `visibility:hidden; pointer-events:none` — search is gone from view and from the
+  accessibility tree, and the collapse is animated rather than a snap.
+- `.sidebar-collapsed .sidebar-agent-row` centres the avatar (`justify-content:center; gap:0;
+  padding-inline:0`) and `.sidebar-agent-meta` / `.sidebar-agent-unread` are hidden.
+Second pass (user follow-up), now Motion-driven rather than CSS-only:
+- The search field is wrapped in `AnimatePresence`; collapsing animates height and opacity to zero
+  and then **unmounts** it, so it is genuinely not rendered. The earlier `visibility:hidden` CSS was
+  replaced.
+- The agent list is a `motion.nav` with `layout`, so the rows glide upward into the freed space
+  instead of jumping.
+- Collapsed chat rows are 44×44 squares centred in the rail, and `GlideMenu` receives a square
+  highlight (`left-1/2 w-11 -translate-x-1/2`) so the hover block is no longer a full-width bar.
+- Collapsed rail gains `padding-inline: 14px` on the list and the account row.
+- `WorkspaceAccount` takes `collapsed`: the "Your account" label animates out through
+  `AnimatePresence`, and the avatar animates 28px → 36px to match the chat avatars (`size-9`).
+- Account menu trimmed to `Log out` only — Settings, About, Help Center, and Send Feedback are gone,
+  along with their icon paths and the now-unused separator import.
+- `collapsed` is plumbed from `layout.sidebarCollapsed` (which is `compact`, so it also covers the
+  automatic narrow-viewport collapse).
+
+## 4. Computer panel: broken screen view and tab removal — `done (fork)`
+
+- Clicking the computer icon (top right) fails with "can't reach Factory's screen".
+- Remove the Computer and Activity tabs, and the tab strip itself.
+- Render only the live feed as a thumbnail.
+- Bottom right: maximize icon that takes the feed full screen.
+- Top right: double right chevron that closes the panel.
+Upstream target: `@tryopenbot/ui` (`agent-workspace-panel.tsx`, `openbot-ui.css`), `apps/web`
+(`screens/openbot-app.tsx`), `packages/ui/stories/Computer.stories.tsx`.
+
+Root cause of "Can't reach Factory's screen" (from `~/127.0.0.1.har`, 269 entries): the backend is
+healthy. `GET /api/computer/factory/preview` answers `307` to
+`http://127.0.0.1:6081/vnc.html?autoconnect=1&resize=remote&token=…`, and every noVNC asset then
+loads `200` from WebSockify, ending in the `/websockify` upgrade. The panel's `onLoad` handler read
+`iframe.contentDocument`, which **throws** because `:6081` is a different origin from the app on
+`:58140`; the `catch` treated that throw as failure. So the preview was working and the UI reported
+it as unreachable every time.
+
+Fix:
+- `onLoad`'s `catch` now sets `failed = false`: a cross-origin document is the ordinary success
+  path, and only same-origin error payloads remain detectable.
+- Removed the Computer/Activity tabs and the whole `workspace-tabs` header, plus its CSS.
+- The pane now renders the live feed alone: `.agent-workspace-pane` is a single
+  `grid-template-rows: minmax(0, 1fr)`.
+- Floating controls: `.computer-collapse` (double chevron `»`, top right) closes the pane;
+  `.computer-maximize` (bottom right) toggles full screen. Reload and "Drive it yourself" buttons
+  are gone; the placeholder keeps its retry, and click-to-take-over still works through the shield.
+- `AgentWorkspacePanel` lost its `activity` / `activityCount` props; the caller and the Storybook
+  story were updated.
+
+**Consequence to decide:** removing the Activity tab left the queued-turn controls (reorder, run
+now, edit, remove) with no surface. `AgentActivity`, `mutateQueue`, `editQueuedTurn`, `eventSummary`,
+and `humanEventName` were removed from `apps/web/src/screens/openbot-app.tsx`; `AgentActivity` still
+exists in `@tryopenbot/ui` but nothing renders it. Queue state itself is still consumed for
+`queuedMessageIds`. Ask the user where queue management should live before upstreaming.
+
+## 5. Agent stays "working" after the response ends — `done (fork)`
+
+Symptom: the header keeps showing the agent working with the seconds counter climbing, and the
+composer keeps the Stop button, long after the reply finished.
+
+Cause: `agentBusy` is set `true` on send (`state/runtime.ts:429`) and is only cleared by
+`eventBusyState` (`chat/reducer.ts:120`), which never matched a real Tilde event:
+- `eventName()` returns Tilde's underscore names (`message_streaming`), while the checks compared
+  dotted names (`message.streaming`), so the "still streaming" branch never fired.
+- Tilde has no `turn_completed` event at all — the enum is `message_created`, `message_updated`,
+  `message_streaming`, `session_*`, `agent_turn_queued`/`dequeued`, `task_*`, `error`, `custom`
+  (`/projects_1/tilde-api/crates/chatkit-core/src/event.rs:10`), so the `turn.completed` branch was
+  dead too.
+- The finish check used `findField(data, "type")`, which only descends `delta`/`ui`/`value`/
+  `payload` — it cannot reach `data.kind.message_streaming.delta`, the nested production shape.
+So every event returned `undefined` and the busy flag was never lowered.
+
+Fix (`packages/client-runtime/src/chat/reducer.ts`): resolve the streaming payload exactly as the
+reducer does (`eventKindPayload` for both nested spellings, else the flat `data`), then read
+`payload.delta` for `finish`/`abort`/`error`; event names are normalised underscore → dot before the
+remaining checks. Three tests added in `reducer.test.ts` (flat finish, nested finish, nested
+text-delta stays busy); `pnpm --filter @tryopenbot/client-runtime test` → 17 passed.
+
+Both reported symptoms share this one flag, so the Stop button clears with the spinner.
+
+Note: this depends on a terminal `finish`/`abort`/`error` delta actually arriving. If a stream dies
+without one, busy still sticks — a timeout or stream-close fallback would be the follow-up.
+
+## 6. New agent, settings, and feedback placement — `done (fork)`
+
+- "New agent" moved out of the sidebar into the chat header as an icon-only button (`PlusIcon`,
+  `packages/ui/src/chat-components.tsx`), wired to the existing create-agent dialog.
+- Sidebar gains a `SidebarUtilityRow` pair above the account row, shaped like a shadcn sidebar menu
+  button (icon + label, one row, hover fill): **Settings** and **Send Feedback**. Both collapse to
+  centred icons with the label animated out through Motion.
+- Send Feedback is an anchor to `mailto:daniel@trytilde.ai` (overridable via the `feedbackEmail`
+  prop) so it opens the owner's default mail client.
+- Settings is a full-screen route, not a modal: `/settings` in `apps/web/src/router.tsx` rendering
+  `screens/settings-app.tsx` — left nav with a single **General** entry (cog), a Back control, and an
+  Appearance card wired to the existing `getThemePreference`/`setThemePreference`.
+- Removed the horizontal divider above the account row.
+- `motion` added to `apps/web` dependencies; per the user, motion.dev is the animation library for
+  all app animations.
+
+---
+
+## 7. Rail metrics, colour, and typography — `done (fork)`
+
+- Default sidebar width 400px (`SIDEBAR_DEFAULT`), maximum raised to 520 so it still resizes both
+  ways; the drag and collapse e2e expectations moved with it.
+- New `--rail-surface` token: grayer than the page in light mode (`#f4f4f4`), lighter in dark
+  (`#202020`). Only `.rail` consumes it, so no other surface shifts.
+- `--hover` and `--hover-2` lightened in both palettes.
+- Vertical gap between chat rows and between footer rows increased to 4px.
+- Bottom rows (Settings, Send Feedback, and the new-agent icon) all render in `--ink`, one colour,
+  no muted variant.
+- Collapsed rail: 52×52 avatar tiles, gutter padding cut from 14px to 9px, larger icons.
+- Paper Mono vendored at `packages/ui/src/assets/fonts/paper-mono-variable.woff2` (SIL OFL 1.1,
+  recorded in `THIRD_PARTY_NOTICES.md` with its licence file beside it) and wired through
+  `--font-mono-face` / `--font-inter`, applied to `body`, inputs, buttons, and selects.
+- `motion` added to `apps/web`; motion.dev drives every animation added in this pass.
+
+## 8. Glide highlight behaviour — `done (fork)`
+
+`packages/ui/src/beautiful-ui/atoms/glide-menu.tsx` rewritten on motion.dev:
+- First hover lands in place and fades in; no vertical slide from the previous position.
+- Row-to-row movement glides, slowed to 320ms.
+- Leaving the column fades the highlight out.
+- Hovering the selected row shows no highlight at all — it already carries its own fill.
+
+## Investigation log
+
+- **HAR (67 entries, 2026-08-20)**: no failed HTTP requests. The chat error is a persisted signal,
+  `"ChatKit HTTP agent returned 500 Internal Server Error"`, 47 occurrences, session `04d14df5…`.
+- **Which endpoint Tilde calls**: the live agent record shows
+  `endpoint_url: https://daniel-54b4f7b9bdaa.trytilde-sb.com/api/agents/pirate-poet` with
+  `local_running_endpoint: true`, updated 07:56Z by the running `pnpm dev`. Tilde was calling the
+  **local-runtime tunnel**, not `our-ob-agents.vercel.app`. `dev.ts:215` returns the tunnel origin
+  and `agent-lifecycle.ts:78` registers it. The 500 therefore came from the local dev process; its
+  stack is in the `pnpm dev` terminal and `~/.openbot/logs/*.log`, not in Vercel.
+- Vercel was checked and is healthy: routes answer `401 Missing x-tilde-webhook-id header`, and all
+  89 project env vars including the full `AGENT_PIRATE_POET_*` set are present. Not the culprit.
+- **Prod Tilde defect**, unrelated to the chat: `/ecs/tilde-api-prod` logs
+  `common provider recovery reconciliation failed … Decryption failed: aead::Error` for
+  `credential_id cad11206-2a68-4639-baf5-39d350902897` every ~60s. Filed as
+  <https://github.com/trytilde/api/issues/143>.
+- Prod also logged `timed out waiting for Mission Control agent response` for `factory` at 08:14Z —
+  same tunnel, same cause family.
+
+## Verification
+
+- `pnpm check` → 0 errors, 24 pre-existing warnings across 347 files.
+- `pnpm build` → passed, including `verify:packages` and `verify:cli`.
+- `pnpm --filter @tryopenbot/client-runtime test` → 17 passed (3 new busy-state cases).
+- `pnpm --filter openbot test` → 117 passed. `@tryopenbot/ui` → 4 passed.
+- `pnpm test:e2e` → 6 passed, 1 skipped. Specs updated for the new UX: 400px rail, 460px after drag,
+  52×52 collapsed tiles, search unmounted while collapsed, account menu down to `Log out`, and the
+  Activity-tab assertions removed.
+- Not done: real browser evidence (screenshots) for the new settings route and collapsed rail.
+
+## Working notes
+
+- Fork branch `fork/main` = upstream `d4a8aca` + fork configuration + tracked `configuration/.env`
+  and `configuration/secrets.enc.yaml`.
+- This file lives in `plan/`, which `.gitignore:1` ignores; it is force-added so the queue travels
+  with the fork while scratch files in that directory stay untracked.
+- Nothing here has been upstreamed. Each item records its upstream target for when that starts.
+- Fork commits carrying this work: `5e5fd27` (scroll, resize, computer pane) and `4366747` (rail
+  controls, settings route, Paper Mono, busy-state fix, Tilde media uploads).
