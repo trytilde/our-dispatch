@@ -50,6 +50,7 @@
     "@tryopenbot/computer-service-provider": "workspace:*",
     "@tryopenbot/computer-tools": "workspace:*",
     "@tryopenbot/configuration": "workspace:*",
+    "@tryopenbot/connector-tools": "workspace:*",
     "@tryopenbot/control-service-provider": "workspace:*",
     "@tryopenbot/git-provider": "workspace:*",
     "@tryopenbot/inference-provider": "workspace:*",

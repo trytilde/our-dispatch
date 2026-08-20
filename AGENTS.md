@@ -64,6 +64,8 @@ Per ADR-0018, every developer workflow is an `openbot` command — repository ga
 - `packages/computer-service-provider`: Computer service image, provisioning, workspace installation, and development/production lifecycle adapters.
 - `packages/git-provider`: hosted-git access reconciliation; brokers the GitHub App credential through Tilde and maintains the GitHub REST and git-over-HTTPS reverse-proxy profiles.
 - `packages/computer-tools`: typed Vercel AI SDK tools that call computer-service; this is a runtime utility, not a provider.
+- `packages/connector-tools`: typed Vercel AI SDK tools for in-chat connector (Tilde tool-provider) configuration; a runtime utility, not a provider.
+- `packages/connector-tools`: typed Vercel AI SDK tools for in-chat connector (Tilde tool-provider) configuration; a runtime utility, not a provider.
 - `packages/configuration`: typed contract for the fork-owned composition root.
 - `packages/utilities`: shared utilities, including strict Handlebars rendering for generated source, configuration, service, and deployment files.
 - `configuration`: fork-owned Eve-compatible agent directories, future-agent templates, provider composition, and provider plugins.

@@ -15,6 +15,7 @@ import {
 import instructions from "./instructions.js";
 import awaitShell from "./tools/await_shell.js";
 import bash from "./tools/bash.js";
+import configureConnector from "./tools/configure_connector.js";
 import copyFromComputer from "./tools/copy_from_computer.js";
 import copyToComputer from "./tools/copy_to_computer.js";
 import glob from "./tools/glob.js";
@@ -35,6 +36,7 @@ const client = createClient({
 const localTools = {
   await_shell: awaitShell,
   bash,
+  configure_connector: configureConnector,
   copy_from_computer: copyFromComputer,
   copy_to_computer: copyToComputer,
   glob,

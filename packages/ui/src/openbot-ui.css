@@ -4251,6 +4251,219 @@ body.resizing-workspace .workspace-resize-handle::after {
   background: transparent;
 }
 
+/* In-chat connector account selection (configure_connector tool). */
+.connector-select {
+  min-width: min(420px, 74vw);
+  display: grid;
+  gap: 8px;
+}
+
+.connector-select-prompt {
+  margin: 0;
+  padding: 0 2px;
+  color: var(--ink-2);
+  font-size: 11px;
+  font-weight: 520;
+}
+
+.connector-select-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.connector-select-card {
+  min-height: 52px;
+  padding: 8px;
+  border: 0.5px solid #1414141a;
+  border-radius: 9px;
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  color: var(--ink);
+  background: var(--canvas);
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 0.12s ease;
+}
+
+.connector-select-card:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--canvas) 86%, var(--ink) 8%);
+}
+
+.connector-select-card:focus-visible {
+  outline: none;
+  box-shadow:
+    0 0 0 2px var(--canvas),
+    0 0 0 4px var(--accent, #0a84ff);
+}
+
+.connector-select-card:disabled {
+  cursor: default;
+  opacity: 0.66;
+}
+
+.connector-select-card.selected {
+  border-color: var(--accent, #0a84ff);
+}
+
+.connector-glyph {
+  width: 30px;
+  height: 30px;
+  border-radius: 7px;
+  display: grid;
+  place-items: center;
+  color: #171718;
+  background: #ededee;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.connector-glyph-add {
+  color: var(--ink-2);
+  background: #77777717;
+  font-size: 16px;
+  font-weight: 500;
+}
+
+.connector-select-copy {
+  min-width: 0;
+  display: grid;
+}
+
+.connector-select-copy strong,
+.connector-select-copy small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.connector-select-copy strong {
+  font-size: 11px;
+  font-weight: 520;
+}
+
+.connector-select-copy small {
+  color: var(--ink-2);
+  font-size: 9px;
+}
+
+.connector-select-check {
+  color: var(--green);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+/* New-account credential setup dialog. */
+.connector-setup-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 14vh;
+  background: #0000004d;
+}
+
+.connector-setup {
+  width: min(420px, calc(100vw - 32px));
+  max-height: 72vh;
+  overflow-y: auto;
+  padding: 16px;
+  border-radius: 12px;
+  display: grid;
+  gap: 10px;
+  background: var(--canvas);
+  box-shadow: 0 12px 32px #00000029;
+}
+
+.connector-setup h2 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.connector-setup-hint {
+  margin: 0;
+  color: var(--ink-2);
+  font-size: 11px;
+}
+
+.connector-setup-error {
+  margin: 0;
+  color: var(--red, #c62f2f);
+  font-size: 11px;
+}
+
+.connector-setup-field {
+  display: grid;
+  gap: 4px;
+}
+
+.connector-setup-field > span {
+  color: var(--ink-2);
+  font-size: 11px;
+  font-weight: 540;
+}
+
+.connector-setup-field > span em {
+  color: var(--ink-3);
+  font-style: normal;
+  font-weight: 400;
+}
+
+.connector-setup-field input,
+.connector-setup-field select,
+.connector-setup-field textarea {
+  padding: 7px 9px;
+  border: 0.5px solid #1414141f;
+  border-radius: 7px;
+  color: var(--ink);
+  background: var(--inset, var(--canvas));
+  font-size: 12px;
+  font-family: inherit;
+}
+
+.connector-setup-waiting p {
+  margin: 0 0 10px;
+  color: var(--ink-2);
+  font-size: 12px;
+}
+
+.connector-setup-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.connector-setup-actions button {
+  height: 30px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 7px;
+  color: var(--ink-2);
+  background: transparent;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.connector-setup-actions button:hover:not(:disabled) {
+  background: #7777771f;
+}
+
+.connector-setup-actions button.primary {
+  color: var(--accent-foreground, #fff);
+  background: var(--accent, #0a84ff);
+  font-weight: 540;
+}
+
+.connector-setup-actions button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
 .file-viewer {
   position: fixed;
   z-index: 1000;

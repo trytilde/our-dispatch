@@ -4,6 +4,7 @@ import {
   type ToolChipIcon,
   type ToolChipRow,
 } from "./beautiful-ui/blocks/tool-chips-block.js";
+import { isConnectorSelectionPart } from "./connector-components.js";
 import { stringify, type MessagePart } from "./rich-message-components.js";
 
 /* Assistant output is split into standalone blocks: text stays in chat
@@ -27,6 +28,12 @@ export function splitMessageSegments(parts: readonly MessagePart[]): MessageSegm
       if (!text.trim()) continue;
       if (previous?.kind === "text") previous.text += `\n\n${text}`;
       else segments.push({ kind: "text", text });
+      continue;
+    }
+    // A completed connector-selection tool call renders as its own
+    // interactive card row, never as a collapsed tool chip.
+    if (isConnectorSelectionPart(part)) {
+      segments.push({ kind: "other", part });
       continue;
     }
     if (part.type === "reasoning" || isToolPart(part)) {
