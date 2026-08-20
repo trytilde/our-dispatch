@@ -9,6 +9,7 @@ import type { AuthProvider } from "@tryopenbot/auth-provider";
 import type { ComputerProvider } from "@tryopenbot/computer-service-provider";
 import { registerAgentCreation } from "./agent-create.js";
 import { registerTildeChatProxy, type TildeChatProxyOptions } from "./chat-proxy.js";
+import { registerConnectorRoutes, type ConnectorRouteOptions } from "./connectors.js";
 import { registerComputerPreview } from "./computer-preview.js";
 import { registerOwnerAuth, requireOwner } from "./auth.js";
 const sourceWebRoot = fileURLToPath(new URL("../../web/dist", import.meta.url));
@@ -22,6 +23,7 @@ export interface AppOptions {
   devMode?: boolean;
   environment?: NodeJS.ProcessEnv;
   tildeChatProxy?: TildeChatProxyOptions;
+  connectors?: ConnectorRouteOptions;
   authProvider?: AuthProvider;
 }
 
@@ -36,6 +38,7 @@ export function createApp(options: AppOptions = {}): Hono {
     app.use("/api/chat/*", middleware);
     app.use("/api/computer/*", middleware);
     app.use("/api/agents", middleware);
+    app.use("/api/connectors/*", middleware);
   } else
     app.get("/auth/native-config", (context) =>
       context.json({ error: "Owner authentication is not configured" }, 503),
@@ -46,6 +49,7 @@ export function createApp(options: AppOptions = {}): Hono {
   });
   registerAgentCreation(app, { environment: options.environment });
   registerTildeChatProxy(app, options.tildeChatProxy);
+  registerConnectorRoutes(app, options.connectors);
   if (existsSync(webRoot)) {
     const cacheHeaders = (
       path: string,

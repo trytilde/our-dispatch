@@ -13,6 +13,8 @@ import * as SecureStore from "expo-secure-store";
 import { fetch as expoFetch } from "expo/fetch";
 import { useStore } from "zustand";
 import {
+  connectorAccountSelectionMessage,
+  connectorSelectionFromPart,
   errorMessage,
   messageText,
   type ChatAgent,
@@ -20,6 +22,7 @@ import {
   type ChatMessage,
   type ChatPart,
   type ChatSession,
+  type ConnectorSelection,
   type OpenBotRuntime,
 } from "@tryopenbot/client-runtime";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -35,6 +38,7 @@ import { View } from "@/components/ui/view";
 import { ModeProvider, useModeContext } from "@/providers/mode-provider";
 import { useColor } from "@/hooks/useColor";
 import { BORDER_RADIUS, SPACING } from "@/theme/globals";
+import { ConnectorSetupSheet } from "./connector-setup";
 import { discoverControlService } from "./installation/discovery";
 import { clearControlOrigin, loadControlOrigin, saveControlOrigin } from "./installation/storage";
 import { createMobileRuntime } from "./runtime/openbot-runtime";
@@ -616,6 +620,9 @@ function ChatScreen({
 }
 
 function MessageBubble({ message }: { message: ChatMessage }) {
+  const connectorSelections = (message.parts ?? [])
+    .map((part) => connectorSelectionFromPart(part))
+    .filter((selection): selection is ConnectorSelection => selection !== undefined);
   const text =
     messageText(message).trim() || message.parts?.map(partLabel).filter(Boolean).join("\n") || "";
   const owner = message.role === "user";
@@ -632,9 +639,107 @@ function MessageBubble({ message }: { message: ChatMessage }) {
           owner ? styles.ownerBubble : styles.agentBubble,
         ]}
       >
-        <Text variant="body" style={owner ? { color: primaryForeground } : undefined}>
-          {text}
-        </Text>
+        {text ? (
+          <Text variant="body" style={owner ? { color: primaryForeground } : undefined}>
+            {text}
+          </Text>
+        ) : null}
+        {connectorSelections.map((selection) => (
+          <ConnectorSelectionPicker key={selection.provider_type_id} selection={selection} />
+        ))}
+      </View>
+    </View>
+  );
+}
+
+/**
+ * Native rendering of the agent's connector account picker. Selecting an
+ * account round-trips exactly like the web grid; adding a new account opens
+ * the native credential setup sheet (API keys, custom schemas, and brokered
+ * OAuth through the system browser).
+ */
+function ConnectorSelectionPicker({ selection }: { selection: ConnectorSelection }) {
+  const runtime = useRuntime();
+  const [setupOpen, setSetupOpen] = useState(false);
+  const muted = useColor("textMuted");
+  const border = useColor("border");
+  const background = useColor("background");
+  const prompt =
+    selection.prompt ??
+    `Select which account to enable for this bot for ${selection.provider_name}`;
+
+  const choose = (accountId: string, displayName: string) => {
+    void runtime.actions.sendMessage({
+      text: connectorAccountSelectionMessage(selection, {
+        id: accountId,
+        display_name: displayName,
+      }),
+    });
+  };
+  const addAccount = () => setSetupOpen(true);
+
+  if (setupOpen) {
+    return (
+      <ConnectorSetupSheet
+        client={runtime.client}
+        selection={selection}
+        onClose={() => setSetupOpen(false)}
+        onComplete={(text) => {
+          setSetupOpen(false);
+          void runtime.actions.sendMessage({ text });
+        }}
+      />
+    );
+  }
+
+  return (
+    <View style={styles.connectorPicker}>
+      <Text variant="caption" style={{ color: muted }}>
+        {prompt}
+      </Text>
+      <View style={styles.connectorGrid}>
+        {selection.accounts.map((account) => (
+          <Pressable
+            accessibilityRole="button"
+            key={account.id}
+            onPress={() => choose(account.id, account.display_name)}
+            style={({ pressed }) => [
+              styles.connectorCard,
+              { borderColor: border, backgroundColor: background },
+              pressed && styles.connectorCardPressed,
+            ]}
+          >
+            <View style={[styles.connectorGlyph, { borderColor: border }]}>
+              <Text variant="caption">{selection.provider_name.slice(0, 2).toUpperCase()}</Text>
+            </View>
+            <View style={styles.connectorCopy}>
+              <Text numberOfLines={1} variant="caption">
+                {selection.provider_name}
+              </Text>
+              <Text numberOfLines={1} variant="caption" style={{ color: muted }}>
+                {account.display_name}
+              </Text>
+            </View>
+          </Pressable>
+        ))}
+        <Pressable
+          accessibilityRole="button"
+          onPress={addAccount}
+          style={({ pressed }) => [
+            styles.connectorCard,
+            { borderColor: border, backgroundColor: background },
+            pressed && styles.connectorCardPressed,
+          ]}
+        >
+          <View style={[styles.connectorGlyph, { borderColor: border }]}>
+            <Text variant="caption">+</Text>
+          </View>
+          <View style={styles.connectorCopy}>
+            <Text numberOfLines={2} variant="caption">
+              Add new {selection.provider_name} account
+            </Text>
+          </View>
+        </Pressable>
       </View>
     </View>
   );
@@ -693,6 +798,32 @@ function formatDate(value: string): string {
 // appearances resolve without a second stylesheet.
 const styles = StyleSheet.create({
   fill: { flex: 1 },
+  connectorPicker: { gap: SPACING.sm, marginTop: SPACING.sm },
+  connectorGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: SPACING.sm,
+  },
+  connectorCard: {
+    flexBasis: "47%",
+    flexGrow: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: SPACING.sm,
+    padding: SPACING.sm,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: 12,
+  },
+  connectorCardPressed: { opacity: 0.7 },
+  connectorGlyph: {
+    width: 30,
+    height: 30,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  connectorCopy: { flex: 1, minWidth: 0 },
   centered: {
     flex: 1,
     alignItems: "center",

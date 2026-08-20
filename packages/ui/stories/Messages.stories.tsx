@@ -4,6 +4,8 @@ import {
   CitationLink,
   CodeBlock,
   ConnectionCard,
+  ConnectorAccountGrid,
+  ConnectorSetupDialog,
   DiffBlock,
   FileCard,
   FileViewer,
@@ -103,6 +105,59 @@ export const ToolCall: Story = {
         }}
       />
     </div>
+  ),
+};
+
+export const ConnectorAccountSelection: Story = {
+  render: () => (
+    <div style={{ width: 560 }}>
+      <ConnectorAccountGrid
+        onAddAccount={() => {}}
+        onSelectAccount={() => {}}
+        selection={{
+          providerTypeId: "google_mail",
+          providerName: "Google Mail",
+          accounts: [
+            { id: "tgi-1", displayName: "Work Gmail", status: "active" },
+            { id: "tgi-2", displayName: "Personal Gmail", status: "active" },
+            { id: "tgi-3", displayName: "Support inbox", status: "active" },
+          ],
+          credentialSources: [],
+        }}
+        selectedAccountId="tgi-1"
+      />
+    </div>
+  ),
+};
+
+export const ConnectorSetup: Story = {
+  render: () => (
+    <ConnectorSetupDialog
+      credentialSources={[
+        {
+          typeId: "tavily_api_key",
+          name: "Use an API key",
+          requiresBrokering: false,
+          supportsAutoDisplayName: false,
+          userCredentialSchema: {
+            type: "object",
+            required: ["api_key"],
+            properties: {
+              api_key: { type: "string", format: "password", description: "tvly-..." },
+            },
+          },
+        },
+        {
+          typeId: "managed_oauth",
+          name: "Sign in with your browser",
+          requiresBrokering: true,
+          supportsAutoDisplayName: true,
+        },
+      ]}
+      onClose={() => {}}
+      onSubmit={() => {}}
+      providerName="Tavily"
+    />
   ),
 };
 

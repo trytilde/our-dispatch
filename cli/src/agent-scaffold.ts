@@ -16,6 +16,7 @@ const defaultAgentTemplates = [
   ["tools/await_shell.ts", "./assets/agents/factory/tools/await_shell.ts.hbs"],
   ["tools/bash.ts", "./assets/agents/factory/tools/bash.ts.hbs"],
   ["tools/copy_from_computer.ts", "./assets/agents/factory/tools/copy_from_computer.ts.hbs"],
+  ["tools/configure_connector.ts", "./assets/agents/factory/tools/configure_connector.ts.hbs"],
   ["tools/copy_to_computer.ts", "./assets/agents/factory/tools/copy_to_computer.ts.hbs"],
   ["tools/glob.ts", "./assets/agents/factory/tools/glob.ts.hbs"],
   ["tools/grep.ts", "./assets/agents/factory/tools/grep.ts.hbs"],
@@ -24,6 +25,24 @@ const defaultAgentTemplates = [
   ["tools/write_file.ts", "./assets/agents/factory/tools/write_file.ts.hbs"],
   ["sandbox/workspace/.profile", "./assets/agents/factory/sandbox/workspace/.profile.hbs"],
   ["sandbox/workspace/README.md", "./assets/agents/factory/sandbox/workspace/README.md.hbs"],
+  // The eight Tilde platform skills every agent's skill registry carries.
+  [
+    "skills/tilde-connectors/SKILL.md",
+    "./assets/agents/shared/skills/tilde-connectors/SKILL.md.hbs",
+  ],
+  ["skills/tilde-tools/SKILL.md", "./assets/agents/shared/skills/tilde-tools/SKILL.md.hbs"],
+  ["skills/tilde-chatkit/SKILL.md", "./assets/agents/shared/skills/tilde-chatkit/SKILL.md.hbs"],
+  ["skills/tilde-memory/SKILL.md", "./assets/agents/shared/skills/tilde-memory/SKILL.md.hbs"],
+  ["skills/tilde-skills/SKILL.md", "./assets/agents/shared/skills/tilde-skills/SKILL.md.hbs"],
+  ["skills/tilde-state/SKILL.md", "./assets/agents/shared/skills/tilde-state/SKILL.md.hbs"],
+  [
+    "skills/tilde-dev-tunnels/SKILL.md",
+    "./assets/agents/shared/skills/tilde-dev-tunnels/SKILL.md.hbs",
+  ],
+  [
+    "skills/tilde-control-plane/SKILL.md",
+    "./assets/agents/shared/skills/tilde-control-plane/SKILL.md.hbs",
+  ],
 ] as const;
 
 /** Rendered only into scaffolded subagents, never into the primary factory agent. */
@@ -46,6 +65,7 @@ const requiredAgentTemplatePaths = [
   "tools/await_shell.ts.hbs",
   "tools/bash.ts.hbs",
   "tools/copy_from_computer.ts.hbs",
+  "tools/configure_connector.ts.hbs",
   "tools/copy_to_computer.ts.hbs",
   "tools/glob.ts.hbs",
   "tools/grep.ts.hbs",

@@ -56,6 +56,9 @@ importers:
       '@tryopenbot/configuration':
         specifier: workspace:*
         version: link:packages/configuration
+      '@tryopenbot/connector-tools':
+        specifier: workspace:*
+        version: link:packages/connector-tools
       '@tryopenbot/control-service-provider':
         specifier: workspace:*
         version: link:packages/control-service-provider
@@ -382,6 +385,9 @@ importers:
       '@tryopenbot/configuration':
         specifier: workspace:*
         version: link:../packages/configuration
+      '@tryopenbot/connector-tools':
+        specifier: workspace:*
+        version: link:../packages/connector-tools
       '@tryopenbot/control-service':
         specifier: workspace:*
         version: link:../apps/control-service
@@ -698,6 +704,25 @@ importers:
         specifier: 4.1.10
         version: 4.1.10(@edge-runtime/vm@3.2.0)(@opentelemetry/api@1.9.1)(@types/node@24.3.0)(@vitest/browser-preview@4.1.10)(vite@8.2.1(@types/node@24.3.0)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.50.0)(tsx@4.21.0)(yaml@2.9.0))
 
+  packages/connector-tools:
+    dependencies:
+      ai:
+        specifier: 6.0.250
+        version: 6.0.250(zod@4.4.3)
+      zod:
+        specifier: 4.4.3
+        version: 4.4.3
+    devDependencies:
+      '@types/node':
+        specifier: 24.3.0
+        version: 24.3.0
+      typescript:
+        specifier: 5.9.2
+        version: 5.9.2
+      vitest:
+        specifier: 4.1.10
+        version: 4.1.10(@edge-runtime/vm@3.2.0)(@opentelemetry/api@1.9.1)(@types/node@24.3.0)(@vitest/browser-preview@4.1.10)(vite@8.2.1(@types/node@24.3.0)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.50.0)(tsx@4.21.0)(yaml@2.9.0))
+
   packages/control-service-provider:
     dependencies:
       '@tryopenbot/platform-integrations':
@@ -827,6 +852,9 @@ importers:
       '@streamdown/mermaid':
         specifier: ^1.0.2
         version: 1.0.2(react@19.1.2)
+      '@tryopenbot/client-runtime':
+        specifier: workspace:*
+        version: link:../client-runtime
       ai:
         specifier: 6.0.250
         version: 6.0.250(zod@4.4.3)

@@ -133,10 +133,26 @@ export {
 } from "./workspace-icons.js";
 export {
   MessageContent,
+  type ConnectorPartActions,
   type MessageContentMessage,
   type MessageContentProps,
   type MessagePart,
 } from "./message-content.js";
+export {
+  CONNECTOR_SELECTION_TOOL_NAME,
+  ConnectorAccountGrid,
+  type ConnectorAccountGridProps,
+  type ConnectorAccountView,
+  type ConnectorCredentialSourceView,
+  ConnectorSetupDialog,
+  type ConnectorSetupDialogProps,
+  type ConnectorSetupField,
+  type ConnectorSetupSubmit,
+  connectorSelectionViewFromPart,
+  connectorSetupFields,
+  isConnectorSelectionPart,
+  type ConnectorSelectionView,
+} from "./connector-components.js";
 export {
   ConnectionCard,
   type ConnectionView,

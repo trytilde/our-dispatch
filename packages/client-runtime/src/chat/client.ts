@@ -8,6 +8,15 @@ import {
   type CreateAttachmentInput,
 } from "../contracts/attachments.js";
 import { AuthenticatedSessionSchema, type AuthenticatedSession } from "../contracts/auth.js";
+import {
+  ConnectorAccountPageSchema,
+  ConnectorProviderPageSchema,
+  CreateConnectorAccountResultSchema,
+  type ConnectorAccount,
+  type ConnectorProvider,
+  type CreateConnectorAccountInput,
+  type CreateConnectorAccountResult,
+} from "../contracts/connectors.js";
 import type { ChatEvent } from "../contracts/events.js";
 import { ChatMessagePageSchema, type ChatMessagePage } from "../contracts/messages.js";
 import { QueuedTurnPageSchema, type QueuedTurnPage } from "../contracts/queue.js";
@@ -67,6 +76,9 @@ export interface OpenBotClient {
   steerQueuedTurn(id: string): Promise<void>;
   deleteQueuedTurn(id: string): Promise<void>;
   reorderQueuedTurn(id: string, queuePosition: number): Promise<void>;
+  listConnectorProviders(): Promise<ConnectorProvider[]>;
+  listConnectorAccounts(providerTypeId?: string): Promise<ConnectorAccount[]>;
+  createConnectorAccount(input: CreateConnectorAccountInput): Promise<CreateConnectorAccountResult>;
   createAttachment(sessionId: string, input: CreateAttachmentInput): Promise<AttachmentUpload>;
   completeAttachment(
     sessionId: string,
@@ -269,6 +281,29 @@ export function createOpenBotClient(options: OpenBotClientOptions = {}): OpenBot
         method: "PATCH",
         body: JSON.stringify({ queue_position: queuePosition }),
         headers: { "content-type": "application/json" },
+      }),
+    async listConnectorProviders() {
+      const response = await json("/api/connectors/providers", ConnectorProviderPageSchema);
+      return response.items;
+    },
+    async listConnectorAccounts(providerTypeId) {
+      const parameters = new URLSearchParams();
+      if (providerTypeId) parameters.set("provider", providerTypeId);
+      const query = parameters.size > 0 ? `?${parameters}` : "";
+      const response = await json(`/api/connectors/accounts${query}`, ConnectorAccountPageSchema);
+      return response.items;
+    },
+    createConnectorAccount: (input) =>
+      json("/api/connectors/accounts", CreateConnectorAccountResultSchema, {
+        method: "POST",
+        body: JSON.stringify({
+          provider_type_id: input.providerTypeId,
+          credential_source_type_id: input.credentialSourceTypeId,
+          display_name: input.displayName,
+          resource_server_values: input.resourceServerValues ?? null,
+          user_credential_values: input.userCredentialValues ?? null,
+          return_url: input.returnUrl ?? null,
+        }),
       }),
     createAttachment: (sessionId, input) =>
       json(
