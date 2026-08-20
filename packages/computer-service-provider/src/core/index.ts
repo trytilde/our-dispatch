@@ -46,6 +46,14 @@ export interface ComputerSeedFile {
   executable?: boolean;
 }
 
+export interface ComputerSeedSymlink {
+  path: string;
+  target: string;
+}
+
+/** Seeded repository entry, which the trusted development sandbox may express as a symlink. */
+export type ComputerSeedEntry = ComputerSeedFile | ComputerSeedSymlink;
+
 export interface ComputerLifecycleScript {
   id: string;
   path: string;

@@ -650,6 +650,12 @@ importers:
       '@tryopenbot/computer-service-proto':
         specifier: workspace:*
         version: link:../computer-service-proto
+      '@trytilde/harness-sdk':
+        specifier: 0.1.2
+        version: 0.1.2(esbuild@0.28.2)(jiti@2.7.0)(rollup@4.62.4)(terser@5.50.0)(tsx@4.20.4)(yaml@2.9.0)
+      '@trytilde/harness-sdk-vercel-ai-node':
+        specifier: 0.2.0
+        version: 0.2.0(@ai-sdk/mcp@1.0.70(zod@4.4.3))(@trytilde/harness-sdk@0.1.2(esbuild@0.28.2)(jiti@2.7.0)(rollup@4.62.4)(terser@5.50.0)(tsx@4.20.4)(yaml@2.9.0))(ai@6.0.250(zod@4.4.3))
       ai:
         specifier: 6.0.250
         version: 6.0.250(zod@4.4.3)

@@ -5,7 +5,28 @@ import { ComputerService } from "@tryopenbot/computer-service-proto";
 
 export interface AgentCreationOptions {
   environment?: NodeJS.ProcessEnv;
+  execute?: AgentCreationExecutor;
 }
+
+export interface AgentCreationRequest {
+  agentId: string;
+  command: string;
+  arguments: string[];
+  cwd: string;
+  timeoutMilliseconds: number;
+  background: boolean;
+}
+
+export interface AgentCreationResult {
+  exitCode: number;
+  stdout: string;
+  stderr: string;
+}
+
+export type AgentCreationExecutor = (
+  request: AgentCreationRequest,
+  options: { authorization: string; signal: AbortSignal },
+) => Promise<AgentCreationResult>;
 
 const agentNamePattern = /^[\p{L}\p{N}][\p{L}\p{N} ._-]{0,71}$/u;
 const createTimeoutMs = 600_000;
@@ -30,24 +51,21 @@ export function registerAgentCreation(app: Hono, options: AgentCreationOptions =
     }
     if (!agentNamePattern.test(name)) return context.json({ error: "Invalid agent name" }, 400);
 
-    const service = createClient(
-      ComputerService,
-      createConnectTransport({ baseUrl: serviceUrl, httpVersion: "1.1" }),
-    );
-    const response = await service.exec(
+    const execute = options.execute ?? connectExecutor(serviceUrl);
+    const response = await execute(
       {
         agentId: "factory",
         command: "bash",
         arguments: [
           "-lc",
-          `cd /workspace/openbot && pnpm openbot new-agent ${shellQuote(name)} --json`,
+          `source /workspace/.openbot/development/profile.sh && cd /workspace/openbot && pnpm openbot new-agent ${shellQuote(name)} --json`,
         ],
         cwd: "",
         timeoutMilliseconds: createTimeoutMs,
         background: false,
       },
       {
-        headers: { authorization: `Bearer ${apiKey}` },
+        authorization: `Bearer ${apiKey}`,
         signal: context.req.raw.signal,
       },
     );
@@ -61,6 +79,18 @@ export function registerAgentCreation(app: Hono, options: AgentCreationOptions =
     if (!created) return context.json({ error: "Agent creation returned no result" }, 502);
     return context.json(created, 201);
   });
+}
+
+function connectExecutor(serviceUrl: string): AgentCreationExecutor {
+  const service = createClient(
+    ComputerService,
+    createConnectTransport({ baseUrl: serviceUrl, httpVersion: "1.1" }),
+  );
+  return async (request, options) =>
+    await service.exec(request, {
+      headers: { authorization: options.authorization },
+      signal: options.signal,
+    });
 }
 
 function parseCreatedAgent(stdout: string): { id: string; name: string } | undefined {

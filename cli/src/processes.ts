@@ -32,32 +32,56 @@ export async function runChecked(
   }
 }
 
-export async function supervise(children: readonly ChildProcess[]): Promise<never> {
+export interface SupervisionOptions {
+  onStop?: () => void | Promise<void>;
+}
+
+export async function superviseProcesses(
+  children: readonly ChildProcess[],
+  options: SupervisionOptions = {},
+): Promise<number> {
   let stopping = false;
   let requestedStop = false;
-  const stop = (signal: NodeJS.Signals = "SIGTERM") => {
-    if (stopping) return;
+  let cleanup: Promise<void> | undefined;
+  const stop = () => {
+    if (stopping) return cleanup!;
     stopping = true;
-    for (const child of children) if (!child.killed) child.kill(signal);
+    cleanup = Promise.resolve(options.onStop?.()).then(() => undefined);
+    for (const child of children) if (!child.killed) child.kill("SIGTERM");
+    return cleanup;
   };
-  process.once("SIGINT", () => {
+  const onInterrupt = () => {
     requestedStop = true;
-    stop("SIGINT");
-  });
-  process.once("SIGTERM", () => {
+    void stop();
+  };
+  const onTerminate = () => {
     requestedStop = true;
-    stop("SIGTERM");
-  });
+    void stop();
+  };
+  process.once("SIGINT", onInterrupt);
+  process.once("SIGTERM", onTerminate);
 
-  const result = await Promise.race(
-    children.map(
-      (child) =>
-        new Promise<{ code: number | null; signal: NodeJS.Signals | null }>((resolve, reject) => {
-          child.once("error", reject);
-          child.once("exit", (code, signal) => resolve({ code, signal }));
-        }),
-    ),
-  );
-  stop();
-  process.exit(requestedStop ? 0 : (result.code ?? (result.signal ? 1 : 0)));
+  try {
+    const result = await Promise.race(
+      children.map(
+        (child) =>
+          new Promise<{ code: number | null; signal: NodeJS.Signals | null }>((resolve, reject) => {
+            child.once("error", reject);
+            child.once("exit", (code, signal) => resolve({ code, signal }));
+          }),
+      ),
+    );
+    await stop();
+    return requestedStop ? 0 : (result.code ?? (result.signal ? 1 : 0));
+  } finally {
+    process.off("SIGINT", onInterrupt);
+    process.off("SIGTERM", onTerminate);
+  }
+}
+
+export async function supervise(
+  children: readonly ChildProcess[],
+  options: SupervisionOptions = {},
+): Promise<never> {
+  process.exit(await superviseProcesses(children, options));
 }

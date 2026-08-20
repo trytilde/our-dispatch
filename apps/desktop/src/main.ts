@@ -6,6 +6,13 @@ import { DesktopAuth } from "./auth.js";
 if (process.platform === "win32")
   throw new Error("OpenBot Desktop currently supports macOS and Linux");
 
+// A packaged build takes its mark from the app bundle, but an unpackaged run would otherwise
+// show the stock Electron icon. build/icon.png is not shipped in the package, so resolve it
+// only when running unpackaged.
+const developmentIcon = app.isPackaged ? undefined : join(__dirname, "../build/icon.png");
+// The only deployment value the desktop is given: everything else is discovered from here.
+const controlOrigin = process.env.CONTROL_ORIGIN || "http://127.0.0.1:4100";
+
 let window: BrowserWindow | undefined;
 let rendererServer: RendererServer | undefined;
 let desktopAuth: DesktopAuth | undefined;
@@ -31,6 +38,7 @@ async function createWindow(): Promise<void> {
     minWidth: 900,
     minHeight: 640,
     titleBarStyle: process.platform === "darwin" ? "hiddenInset" : "default",
+    ...(developmentIcon && process.platform === "linux" ? { icon: developmentIcon } : {}),
     backgroundColor: "#fafafb",
     webPreferences: {
       preload: join(__dirname, "preload.cjs"),
@@ -50,14 +58,10 @@ async function createWindow(): Promise<void> {
     if (current && new URL(url).origin !== new URL(current).origin) event.preventDefault();
   });
 
-  rendererServer ??= await startRendererServer(
-    join(process.resourcesPath, "web"),
-    process.env.CONTROL_ORIGIN || "http://127.0.0.1:4100",
-    {
-      accessToken: async () => await desktopAuth?.accessToken(),
-      ...(process.env.DESKTOP_DEV_URL ? { webOrigin: process.env.DESKTOP_DEV_URL } : {}),
-    },
-  );
+  rendererServer ??= await startRendererServer(join(process.resourcesPath, "web"), controlOrigin, {
+    accessToken: async () => await desktopAuth?.accessToken(),
+    ...(process.env.DESKTOP_DEV_URL ? { webOrigin: process.env.DESKTOP_DEV_URL } : {}),
+  });
   await window.loadURL(rendererServer.origin);
 }
 
@@ -71,7 +75,9 @@ async function main(): Promise<void> {
   });
 
   await app.whenReady();
-  desktopAuth = new DesktopAuth(join(app.getPath("userData"), "auth.enc"));
+  // macOS reads the dock icon from the bundle, which an unpackaged run does not have.
+  if (developmentIcon && process.platform === "darwin") app.dock?.setIcon(developmentIcon);
+  desktopAuth = new DesktopAuth(join(app.getPath("userData"), "auth.enc"), controlOrigin);
   await desktopAuth.load();
   ipcMain.handle("openbot:auth-status", () => desktopAuth!.status());
   ipcMain.handle("openbot:sign-in", () => desktopAuth!.signIn());

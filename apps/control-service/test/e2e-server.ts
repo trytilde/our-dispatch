@@ -2,6 +2,9 @@ import { serve } from "@hono/node-server";
 import type { AuthProvider } from "@tryopenbot/auth-provider";
 import { createApp } from "../src/app.js";
 
+const controlPort = Number(process.env.OPENBOT_E2E_CONTROL_PORT || "4100");
+const computerApiKey = "e2e-computer-service-api-key-000000";
+
 const authProvider: AuthProvider = {
   nativeClientConfiguration: () => ({
     authorizationEndpoint: "https://identity.test/authorize",
@@ -31,9 +34,35 @@ const authProvider: AuthProvider = {
   },
 };
 
-const app = createApp({ authProvider, devMode: true });
+const app = createApp({
+  authProvider,
+  devMode: true,
+  environment: {
+    ...process.env,
+    COMPUTER_SERVICE_API_KEY: computerApiKey,
+    DEVELOPMENT_SANDBOX_SERVICE_URL: "http://computer-service.test/rpc",
+  },
+  agentCreation: {
+    execute: async (request, options) => {
+      if (options.authorization !== `Bearer ${computerApiKey}`)
+        return { exitCode: 1, stdout: "", stderr: "Computer service API key required" };
+      const script = request.arguments.at(-1) ?? "";
+      if (!script.includes("source /workspace/.openbot/development/profile.sh"))
+        return {
+          exitCode: 1,
+          stdout: "",
+          stderr: "Trusted development profile was not loaded",
+        };
+      return {
+        exitCode: 0,
+        stderr: "",
+        stdout: '{"ok":true,"command":"new-agent","agent":{"id":"reviewer","name":"Reviewer"}}\n',
+      };
+    },
+  },
+});
 serve({
   fetch: app.fetch,
   hostname: "127.0.0.1",
-  port: Number(process.env.OPENBOT_E2E_CONTROL_PORT || "4100"),
+  port: controlPort,
 });

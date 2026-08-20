@@ -117,6 +117,8 @@ export {
   type WorkspaceSidebarProps,
 } from "./workspace-sidebar.js";
 export {
+  AddAgentDialog,
+  type AddAgentDialogProps,
   AgentListItem,
   type AgentListItemProps,
   AgentSearchDialog,

@@ -71,11 +71,11 @@ export function WorkspaceSidebar({
         <div className="sidebar-titlebar">
           {onCreateAgent && !collapsed ? (
             <button
-              aria-label="New agent"
+              aria-label="Add bot"
               className="flex size-7 items-center justify-center rounded-control text-ink
                 transition-[background-color] duration-150 hover:bg-hover"
               onClick={onCreateAgent}
-              title="New agent"
+              title="Add bot"
               type="button"
             >
               <PlusIcon className="size-4 fill-none stroke-current stroke-[1.3]" />
@@ -127,12 +127,12 @@ export function WorkspaceSidebar({
           )}
         </AnimatePresence>
         <nav
-          aria-label="Agents"
+          aria-label="Bots"
           className="sidebar-agent-list min-h-0 flex-1 overflow-y-auto px-2 py-1"
         >
-          {loading ? <p className="px-2 py-2 text-[12.5px] text-ink-3">Loading agents…</p> : null}
+          {loading ? <p className="px-2 py-2 text-[12.5px] text-ink-3">Loading bots…</p> : null}
           {!loading && agents.length === 0 ? (
-            <p className="px-2 py-2 text-[12.5px] text-ink-3">No agents are available.</p>
+            <p className="px-2 py-2 text-[12.5px] text-ink-3">No bots are available.</p>
           ) : null}
           <GlideMenu
             className="flex flex-col gap-1"
@@ -159,7 +159,7 @@ export function WorkspaceSidebar({
               onClick={onLoadMore}
               type="button"
             >
-              Show more agents
+              Show more bots
             </button>
           ) : null}
         </nav>
@@ -168,7 +168,7 @@ export function WorkspaceSidebar({
             <SidebarUtilityRow
               collapsed={collapsed}
               icon={<PlusIcon className={collapsedIcon} />}
-              label="New agent"
+              label="Add bot"
               onClick={onCreateAgent}
             />
           ) : null}

@@ -425,16 +425,16 @@ test("streams rich messages and uploads a file through Tilde ChatKit", async ({ 
   await expect(page.locator("[data-menu-row]").first()).toHaveCSS("width", "52px");
   await expect(page.locator("[data-menu-row]").first()).toHaveCSS("height", "52px");
   await expect(page.locator("[data-menu-row] strong").first()).toBeHidden();
-  // Search is unmounted while collapsed; new agent, settings, and feedback stay as icons.
+  // Search is unmounted while collapsed; add bot, settings, and feedback stay as icons.
   await expect(page.getByRole("button", { name: "Search", exact: true })).toHaveCount(0);
-  await expect(page.getByRole("button", { name: "New agent" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Add bot" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Settings" })).toBeVisible();
   await expect(page.getByRole("link", { name: "Send Feedback" })).toHaveAttribute(
     "href",
     "mailto:daniel@trytilde.ai",
   );
   for (const control of [
-    page.getByRole("button", { name: "New agent" }),
+    page.getByRole("button", { name: "Add bot" }),
     page.getByRole("button", { name: "Settings" }),
     page.getByRole("link", { name: "Send Feedback" }),
   ]) {
@@ -452,7 +452,9 @@ test("streams rich messages and uploads a file through Tilde ChatKit", async ({ 
   const conversationWidth = await page.locator(".conversation").evaluate((element) => {
     const style = getComputedStyle(element);
     return (
-      element.clientWidth - Number.parseFloat(style.paddingLeft) - Number.parseFloat(style.paddingRight)
+      element.clientWidth -
+      Number.parseFloat(style.paddingLeft) -
+      Number.parseFloat(style.paddingRight)
     );
   });
   await expect(page.locator(".message-list")).toHaveJSProperty("clientWidth", conversationWidth);
@@ -586,6 +588,113 @@ test("streams rich messages and uploads a file through Tilde ChatKit", async ({ 
     expect(bounds.x + bounds.width).toBeLessThanOrEqual(390);
   }
   await expect(page.locator("body")).toHaveJSProperty("scrollWidth", 390);
+});
+
+test("picks or creates a bot from the add-bot command palette", async ({ page }) => {
+  const now = new Date().toISOString();
+  let created = false;
+
+  await page.route("**/api/agents", async (route) => {
+    const response = await route.fetch();
+    created = response.ok();
+    await route.fulfill({ response });
+  });
+
+  await page.route("**/api/computer/**", async (route) => {
+    await route.fulfill({ contentType: "text/html", body: "<main>Agent desktop</main>" });
+  });
+  await page.route("**/api/chat/**", async (route) => {
+    const path = new URL(route.request().url()).pathname;
+    if (path.endsWith("/mission-control/sidebar")) {
+      await route.fulfill({
+        json: {
+          items: [
+            {
+              id: "hello-world",
+              display_name: "Hello World",
+              provider_id: "chatkit.http-vercel-ai-sdk",
+              status: "enabled",
+              sessions: {
+                items: [
+                  {
+                    id: "hello-session",
+                    title: "Hello session",
+                    created_at: now,
+                    updated_at: now,
+                  },
+                ],
+              },
+            },
+            {
+              id: "researcher",
+              display_name: "Researcher",
+              provider_id: "chatkit.http-vercel-ai-sdk",
+              status: "enabled",
+              sessions: {
+                items: [
+                  {
+                    id: "research-session",
+                    title: "Research session",
+                    created_at: now,
+                    updated_at: now,
+                  },
+                ],
+              },
+            },
+            ...(created
+              ? [
+                  {
+                    id: "reviewer",
+                    display_name: "Reviewer",
+                    provider_id: "chatkit.http-vercel-ai-sdk",
+                    status: "enabled",
+                    sessions: { items: [] },
+                  },
+                ]
+              : []),
+          ],
+        },
+      });
+      return;
+    }
+    if (path.endsWith("/observe")) {
+      await route.fulfill({ contentType: "text/event-stream", body: "" });
+      return;
+    }
+    if (path.endsWith("/agent-turn-queue")) {
+      await route.fulfill({ json: { items: [] } });
+      return;
+    }
+    if (path.endsWith("/messages")) {
+      await route.fulfill({ json: { items: [] } });
+      return;
+    }
+    await route.fulfill({ json: {} });
+  });
+
+  await page.goto("/");
+  await expect(page.locator("[data-menu-row]")).toHaveCount(2);
+  await page.getByRole("button", { name: "Add bot" }).click();
+
+  const addDialog = page.getByRole("dialog", { name: "Add bot" });
+  await expect(addDialog.getByPlaceholder("Search bots")).toBeFocused();
+  await expect(addDialog.locator("[cmdk-group-heading]")).toHaveCount(0);
+  await expect(addDialog.locator("[cmdk-separator]")).toHaveCount(0);
+  await expect(addDialog.locator("[cmdk-item]").first()).toContainText("Create a new bot");
+  await expect(addDialog.getByText("Hello World", { exact: true })).toBeVisible();
+  await expect(addDialog.getByText("Researcher", { exact: true })).toBeVisible();
+
+  await expect(addDialog.getByText("Create a new bot", { exact: true })).toBeVisible();
+  await addDialog.getByText("Create a new bot", { exact: true }).click();
+  const createDialog = page.getByRole("dialog", { name: "Create bot" });
+  await expect(createDialog.getByPlaceholder("Name your bot")).toBeFocused();
+  await createDialog.getByPlaceholder("Name your bot").fill("Reviewer");
+  await expect(createDialog.getByRole("button", { name: "Create bot" })).toBeEnabled();
+  await createDialog.getByRole("button", { name: "Create bot" }).click();
+
+  await expect(addDialog).toBeHidden();
+  await expect(page.locator('[data-menu-row][aria-current="page"]')).toContainText("Reviewer");
+  await expect(page.getByRole("heading", { name: "Reviewer" })).toBeVisible();
 });
 
 test("queues another turn while the agent is busy", async ({ page }) => {

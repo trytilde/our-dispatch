@@ -22,6 +22,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { useStore } from "zustand";
 import {
   ActivityQueue,
+  AddAgentDialog,
   AgentWorkspacePanel,
   ChatComposer,
   ChatHeader,
@@ -70,7 +71,6 @@ export function OpenBotApp() {
   const [replyingTo, setReplyingTo] = useState<ChatMessage | null>(null);
   const [threadRootId, setThreadRootId] = useState("");
   const [createAgentOpen, setCreateAgentOpen] = useState(false);
-  const [createAgentName, setCreateAgentName] = useState("");
   const [creatingAgent, setCreatingAgent] = useState(false);
   const conversationRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -357,8 +357,8 @@ export function OpenBotApp() {
   );
 
   /** Scaffold and register a new agent, then open a fresh conversation with it. */
-  async function submitCreateAgent(): Promise<void> {
-    const name = createAgentName.trim();
+  async function submitCreateAgent(candidateName: string): Promise<void> {
+    const name = candidateName.trim();
     if (!name || creatingAgent) return;
     setCreatingAgent(true);
     openBotRuntime.actions.setError("");
@@ -372,7 +372,6 @@ export function OpenBotApp() {
           .sidebar.agents.find((candidate) => candidate.id === created.id);
         if (agent) {
           setCreateAgentOpen(false);
-          setCreateAgentName("");
           await openBotRuntime.actions.selectAgent(agent.id);
           openBotRuntime.actions.startNewConversation(agent.id);
           return;
@@ -381,7 +380,7 @@ export function OpenBotApp() {
       }
       setCreateAgentOpen(false);
       openBotRuntime.actions.setError(
-        `Agent ${created.name} was created but has not appeared yet; refresh shortly.`,
+        `Bot ${created.name} was created but has not appeared yet; refresh shortly.`,
       );
     } catch (reason) {
       openBotRuntime.actions.setError(errorMessage(reason));
@@ -659,56 +658,22 @@ export function OpenBotApp() {
         onClose={layout.toggleWorkspace}
         onResize={layout.beginWorkspaceResize}
       />
-      {createAgentOpen ? (
-        <div
-          aria-label="New agent"
-          className="fixed inset-0 z-50 flex items-start justify-center bg-black/30 pt-[18vh]"
-          role="dialog"
-        >
-          <form
-            className="flex w-[360px] flex-col gap-3 rounded-[12px] bg-surface p-4 shadow-lg"
-            onSubmit={(event) => {
-              event.preventDefault();
-              void submitCreateAgent();
-            }}
-          >
-            <h2 className="text-[14px] font-semibold text-ink">New agent</h2>
-            <p className="text-[12.5px] text-ink-3">
-              The agent is scaffolded in your OpenBot fork and registered immediately.
-            </p>
-            <input
-              autoFocus
-              className="h-8 rounded-control bg-inset px-2.5 text-[13px] text-ink shadow-hairline"
-              disabled={creatingAgent}
-              maxLength={72}
-              onChange={(event) => setCreateAgentName(event.target.value)}
-              placeholder="Agent name"
-              value={createAgentName}
-            />
-            <div className="flex justify-end gap-2">
-              <button
-                className="h-8 rounded-control px-3 text-[12.5px] text-ink-2 hover:bg-hover"
-                disabled={creatingAgent}
-                onClick={() => {
-                  setCreateAgentOpen(false);
-                  setCreateAgentName("");
-                }}
-                type="button"
-              >
-                Cancel
-              </button>
-              <button
-                className="h-8 rounded-control bg-accent px-3 text-[12.5px] font-medium
-                  text-accent-foreground disabled:opacity-50"
-                disabled={creatingAgent || !createAgentName.trim()}
-                type="submit"
-              >
-                {creatingAgent ? "Creating…" : "Create agent"}
-              </button>
-            </div>
-          </form>
-        </div>
-      ) : null}
+      <AddAgentDialog
+        agents={agents.map((agent) => ({
+          id: agent.id,
+          name: agent.display_name,
+          lastMessage: agent.last_message_preview || undefined,
+        }))}
+        creating={creatingAgent}
+        loading={loading}
+        onClose={() => setCreateAgentOpen(false)}
+        onCreate={(name) => void submitCreateAgent(name)}
+        onSelect={(id) => {
+          const agent = agents.find((candidate) => candidate.id === id);
+          if (agent) selectAgent(agent);
+        }}
+        open={createAgentOpen}
+      />
     </WorkspaceShell>
   );
 }

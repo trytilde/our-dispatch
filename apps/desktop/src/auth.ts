@@ -6,6 +6,10 @@ import {
   AuthenticatedSessionSchema,
   type AuthenticatedSession,
 } from "@tryopenbot/client-runtime/contracts/auth";
+import {
+  NativeAuthConfigurationSchema,
+  type NativeAuthConfiguration,
+} from "@tryopenbot/client-runtime/contracts/installation";
 
 interface StoredTokens {
   accessToken: string;
@@ -21,7 +25,34 @@ interface PendingAuthorization {
 export class DesktopAuth {
   #tokens?: StoredTokens;
   #pending?: PendingAuthorization;
-  constructor(readonly path: string) {}
+  #configuration?: Promise<NativeAuthConfiguration>;
+  constructor(
+    readonly path: string,
+    readonly controlOrigin: string,
+  ) {}
+
+  /**
+   * The control service owns OIDC configuration, so a packaged build carries no deployment
+   * specifics and every client resolves the same values as the mobile app does.
+   */
+  async #nativeConfiguration(): Promise<NativeAuthConfiguration> {
+    this.#configuration ??= (async () => {
+      const response = await fetch(new URL("/auth/native-config", this.controlOrigin), {
+        headers: { accept: "application/json" },
+        signal: AbortSignal.timeout(10_000),
+      });
+      if (!response.ok)
+        throw new Error(`OpenBot authentication is not configured (${response.status})`);
+      return NativeAuthConfigurationSchema.parse(await response.json());
+    })();
+    try {
+      return await this.#configuration;
+    } catch (error) {
+      // A transient control-service failure must not pin the process to a rejected promise.
+      this.#configuration = undefined;
+      throw error;
+    }
+  }
 
   async load(): Promise<void> {
     ensureSecureStorage();
@@ -37,11 +68,12 @@ export class DesktopAuth {
     if (this.#pending) throw new Error("A sign-in is already in progress");
     const state = randomBytes(24).toString("base64url");
     const verifier = randomBytes(48).toString("base64url");
-    const url = new URL(required("OPENBOT_OIDC_AUTHORIZATION_ENDPOINT"));
-    url.searchParams.set("client_id", required("OPENBOT_OIDC_CLIENT_ID"));
+    const configuration = await this.#nativeConfiguration();
+    const url = new URL(configuration.authorization_endpoint);
+    url.searchParams.set("client_id", configuration.client_id);
     url.searchParams.set("redirect_uri", "openbot://auth/callback");
     url.searchParams.set("response_type", "code");
-    url.searchParams.set("scope", required("OPENBOT_OIDC_SCOPE"));
+    url.searchParams.set("scope", configuration.scope);
     url.searchParams.set("state", state);
     url.searchParams.set(
       "code_challenge",
@@ -65,11 +97,11 @@ export class DesktopAuth {
       const code = url.searchParams.get("code");
       if (!code || url.searchParams.get("state") !== pending.state)
         throw new Error("Invalid OAuth callback");
-      const tokens = await exchange({
+      const configuration = await this.#nativeConfiguration();
+      const tokens = await exchange(configuration, {
         grant_type: "authorization_code",
         code,
         code_verifier: pending.verifier,
-        client_id: required("OPENBOT_OIDC_CLIENT_ID"),
         redirect_uri: "openbot://auth/callback",
       });
       if (!tokens.refresh_token) throw new Error("OIDC response did not include a refresh token");
@@ -89,10 +121,9 @@ export class DesktopAuth {
     const claims = tokenClaims(this.#tokens.accessToken);
     if ((claims.exp ?? 0) > Math.floor(Date.now() / 1000) + 60) return this.#tokens.accessToken;
     try {
-      const refreshed = await exchange({
+      const refreshed = await exchange(await this.#nativeConfiguration(), {
         grant_type: "refresh_token",
         refresh_token: this.#tokens.refreshToken,
-        client_id: required("OPENBOT_OIDC_CLIENT_ID"),
       });
       this.#tokens = {
         accessToken: refreshed.access_token,
@@ -106,9 +137,7 @@ export class DesktopAuth {
     }
   }
 
-  async status(
-    controlOrigin = process.env.CONTROL_ORIGIN || "http://127.0.0.1:4100",
-  ): Promise<AuthenticatedSession | null> {
+  async status(controlOrigin = this.controlOrigin): Promise<AuthenticatedSession | null> {
     const token = await this.accessToken();
     if (!token) return null;
     const response = await fetch(new URL("/auth/session", controlOrigin), {
@@ -141,18 +170,19 @@ export class DesktopAuth {
 }
 
 function ensureSecureStorage(): void {
-  if (
-    !safeStorage.isEncryptionAvailable() ||
-    safeStorage.getSelectedStorageBackend() === "basic_text"
-  )
+  if (!safeStorage.isEncryptionAvailable())
+    throw new Error("Secure credential storage is unavailable on this system");
+  // getSelectedStorageBackend is Linux-only. Keychain and DPAPI have no plaintext fallback, so
+  // isEncryptionAvailable already settles the question everywhere else.
+  if (process.platform === "linux" && safeStorage.getSelectedStorageBackend() === "basic_text")
     throw new Error("Secure credential storage is unavailable on this system");
 }
 
-async function exchange(fields: Record<string, string>) {
-  const response = await fetch(required("OPENBOT_OIDC_TOKEN_ENDPOINT"), {
+async function exchange(configuration: NativeAuthConfiguration, fields: Record<string, string>) {
+  const response = await fetch(configuration.token_endpoint, {
     method: "POST",
     headers: { "content-type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams(fields),
+    body: new URLSearchParams({ ...fields, client_id: configuration.client_id }),
   });
   if (!response.ok) throw new Error(`OIDC token exchange failed (${response.status})`);
   const body = (await response.json()) as {
@@ -170,10 +200,4 @@ function tokenClaims(token: string): { sub?: string; email?: string; exp?: numbe
   } catch {
     return {};
   }
-}
-
-function required(name: string): string {
-  const value = process.env[name]?.trim();
-  if (!value) throw new Error(`${name} is required`);
-  return value;
 }

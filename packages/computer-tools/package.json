@@ -35,6 +35,8 @@
     "@connectrpc/connect": "2.1.2",
     "@connectrpc/connect-node": "2.1.2",
     "@tryopenbot/computer-service-proto": "workspace:*",
+    "@trytilde/harness-sdk": "0.1.2",
+    "@trytilde/harness-sdk-vercel-ai-node": "0.2.0",
     "ai": "6.0.250",
     "zod": "4.4.3"
   },

@@ -146,8 +146,11 @@ describe("OpenBot initialization", () => {
         "utf8",
       );
       expect(primaryAgent).toContain("export default chatKitEndpoint");
-      expect(primaryAgent).toContain("createChatKitAttachmentFilePartHandler(client, context");
-      expect(primaryAgent).toContain('headers.delete("authorization")');
+      expect(primaryAgent).toContain("createTildeAttachmentMessageHandlers(client, context)");
+      expect(primaryAgent).toContain("createTildeMediaUploader");
+      expect(primaryAgent).toContain("createTildeMediaDownloader");
+      expect(primaryAgent).not.toContain("createChatKitAttachmentFilePartHandler");
+      expect(primaryAgent).not.toContain("base64");
       expect(primaryAgent).not.toContain("@tryopenbot/agent-provider");
       expect(
         await readFile(join(repositoryRoot, "configuration/agent/instructions.ts"), "utf8"),

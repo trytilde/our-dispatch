@@ -9,13 +9,16 @@ import {
   reconcileDevelopmentInfrastructure,
   watchDevelopmentComputer,
 } from "../development-lifecycle.js";
-import { loadLocalEnvironment, publicDevelopmentEnvironment } from "../environment.js";
+import { developmentChildEnvironment, loadLocalEnvironment } from "../environment.js";
 import { repositoryRoot } from "../paths.js";
 import { run, runChecked, supervise } from "../processes.js";
 import { createStreamingProgress } from "../ui.js";
 import { inkPrompts } from "./init.js";
 
 export async function runDevelopment(): Promise<never> {
+  // Snapshot the shell before loadLocalEnvironment merges the decrypted deployment configuration
+  // into process.env. Development children inherit this and the wiring named below, nothing else.
+  const shellEnvironment = { ...process.env };
   const env = await loadLocalEnvironment({
     prompts: process.stdin.isTTY && process.stdout.isTTY ? inkPrompts : undefined,
   });
@@ -43,7 +46,6 @@ export async function runDevelopment(): Promise<never> {
     infrastructureProgress.fail("OpenBot development infrastructure failed");
     throw error;
   }
-  const publicEnvironment = publicDevelopmentEnvironment(env);
   await runChecked("pnpm", ["contracts:generate"], env);
   const computerWatcher = await watchDevelopmentComputer({
     repositoryRoot,
@@ -82,8 +84,8 @@ export async function runDevelopment(): Promise<never> {
   }
   const web = run(
     "pnpm",
-    ["--filter", "@tryopenbot/web", "dev", "--port", webPort],
-    publicEnvironment,
+    developmentPackageCommand("@tryopenbot/web", "dev", ["--port", webPort]),
+    developmentChildEnvironment(shellEnvironment, { OPENBOT_CONTROL_PORT: serverPort }),
   );
   const children = [server.child, web];
 
@@ -91,19 +93,25 @@ export async function runDevelopment(): Promise<never> {
     env.NO_DESKTOP !== "1" &&
     (process.platform === "darwin" || Boolean(env.DISPLAY || env.WAYLAND_DISPLAY));
   if (canLaunchDesktop) {
-    const desktopEnv = {
-      ...publicEnvironment,
+    // The desktop discovers its OIDC configuration from the control service, so it needs only
+    // the origins to reach.
+    const desktopEnv = developmentChildEnvironment(shellEnvironment, {
       CONTROL_ORIGIN: `http://127.0.0.1:${serverPort}`,
       DESKTOP_DEV_URL: `http://127.0.0.1:${webPort}`,
-    };
-    children.push(run("pnpm", ["--filter", "@tryopenbot/desktop", "dev"], desktopEnv));
+    });
+    children.push(run("pnpm", developmentPackageCommand("@tryopenbot/desktop", "dev"), desktopEnv));
   } else {
     console.log(
       "OpenBot desktop: skipped (set DISPLAY/WAYLAND_DISPLAY, or run on macOS; NO_DESKTOP=1 disables it explicitly)",
     );
   }
 
-  return supervise(children);
+  return supervise(children, {
+    onStop: () => {
+      computerWatcher.close();
+      server.stop();
+    },
+  });
 }
 
 export async function loadDevelopmentConfiguration(
@@ -121,6 +129,14 @@ export async function loadDevelopmentConfiguration(
 
 export function developmentServerCommand(): readonly [string, readonly string[]] {
   return ["pnpm", ["exec", "tsx", "watch", resolve(repositoryRoot, "cli/src/index.tsx"), "_serve"]];
+}
+
+export function developmentPackageCommand(
+  packageName: string,
+  script: string,
+  arguments_: readonly string[] = [],
+): readonly string[] {
+  return ["--reporter=silent", "--filter", packageName, script, ...arguments_];
 }
 
 export function developmentServerEnvironment(environment: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
@@ -187,7 +203,13 @@ export async function startTunneledAgentService(
   }
 
   const previousNodeOptions = process.env.NODE_OPTIONS;
+  const previousTunnelLogLevel = process.env.TUNNEL_LOGLEVEL;
+  const previousTunnelTransportLogLevel = process.env.TUNNEL_TRANSPORT_LOGLEVEL;
   process.env.NODE_OPTIONS = serverEnvironment.NODE_OPTIONS;
+  // cloudflared reports canceled streams as errors during its otherwise healthy SIGTERM path.
+  // Keep development shutdown quiet while preserving fatal connector failures.
+  process.env.TUNNEL_LOGLEVEL ??= "fatal";
+  process.env.TUNNEL_TRANSPORT_LOGLEVEL ??= "fatal";
   let tunnel;
   try {
     tunnel = await runLocalRuntimeTunnelCommand({
@@ -197,6 +219,10 @@ export async function startTunneledAgentService(
   } finally {
     if (previousNodeOptions === undefined) delete process.env.NODE_OPTIONS;
     else process.env.NODE_OPTIONS = previousNodeOptions;
+    if (previousTunnelLogLevel === undefined) delete process.env.TUNNEL_LOGLEVEL;
+    else process.env.TUNNEL_LOGLEVEL = previousTunnelLogLevel;
+    if (previousTunnelTransportLogLevel === undefined) delete process.env.TUNNEL_TRANSPORT_LOGLEVEL;
+    else process.env.TUNNEL_TRANSPORT_LOGLEVEL = previousTunnelTransportLogLevel;
   }
   process.once("exit", () => tunnel.stop());
   void tunnel.closed.then(() => {

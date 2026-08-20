@@ -2831,6 +2831,10 @@ body.resizing-workspace .rich-chat.workspace-shell {
   -webkit-app-region: drag;
 }
 
+.sidebar-titlebar button {
+  -webkit-app-region: no-drag;
+}
+
 .rich-chat .sidebar-titlebar .brand {
   min-height: 0;
   padding: 0;
@@ -3180,8 +3184,6 @@ body.resizing-workspace .rich-chat.workspace-shell {
   flex: 0 0 24px;
 }
 
-/* GrokBot-style Computer preview: the side pane is only the live desktop, with a close control.
-   Taking control promotes the same surface into a full-screen modal. */
 .computer-collapse {
   position: absolute;
   z-index: 6;

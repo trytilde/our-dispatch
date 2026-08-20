@@ -9,6 +9,6 @@ const baseUrl = () =>
  * Screenshots are uploaded as ChatKit attachments, and every attachment route is session-scoped,
  * so this tool is built per turn with that turn's uploader rather than once at module load.
  */
-export default function screenshot(uploadMedia?: MediaUploader) {
+export default function screenshot(uploadMedia: MediaUploader) {
   return createScreenshotTool({ agentId: "factory", baseUrl, uploadMedia });
 }

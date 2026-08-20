@@ -23,6 +23,7 @@ export function SettingsApp() {
   const navigate = useNavigate();
   const [section, setSection] = useState<(typeof sections)[number]["id"]>("general");
   const [theme, setTheme] = useState<ThemePreference>(() => getThemePreference());
+  const macDesktop = window.openbotDesktop?.platform === "mac";
 
   return (
     <motion.main
@@ -31,7 +32,10 @@ export function SettingsApp() {
       initial={{ opacity: 0 }}
       transition={pageTransition}
     >
-      <aside className="flex w-[248px] shrink-0 flex-col gap-1 border-r border-line bg-surface p-3">
+      <aside
+        className={`flex w-[248px] shrink-0 flex-col gap-1 border-r border-line bg-surface px-3
+          pb-3 ${macDesktop ? "pt-[42px]" : "pt-3"}`}
+      >
         <button
           aria-label="Back to workspace"
           className="mb-2 flex h-8 w-full items-center gap-2 rounded-control px-2.5 text-left

@@ -49,7 +49,11 @@ describe("agent scaffolding", () => {
     expect(agentSource).not.toContain("@tryopenbot/agent-provider");
     expect(agentSource).not.toContain("@tryopenbot/tools-provider");
     expect(agentSource).toContain("AGENT_RESEARCH_ASSISTANT_MCP_SERVER_ID");
-    expect(agentSource).toContain("tools: localTools");
+    expect(agentSource).toContain("tools: localTools(sessionId)");
+    expect(agentSource).toContain("createTildeAttachmentMessageHandlers(client, context)");
+    expect(agentSource).toContain("createTildeMediaUploader");
+    expect(agentSource).toContain("createTildeMediaDownloader");
+    expect(agentSource).not.toContain("base64");
     expect(agentSource).not.toContain("AGENT_RESEARCH_ASSISTANT_SKILL_REGISTRY_ID");
     expect(agentSource).not.toContain("function addTools");
     expect(agentSource).not.toContain("searchSkillRegistry");

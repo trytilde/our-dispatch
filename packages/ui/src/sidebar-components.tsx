@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { type FormEvent, useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { AgentAvatar, type AgentAvatarState } from "./agent-avatar.js";
 import GlideMenu from "./beautiful-ui/atoms/glide-menu.js";
@@ -10,6 +10,7 @@ import {
   CommandItem,
   CommandList,
 } from "./components/ui/command.js";
+import { BackIcon, PlusIcon } from "./workspace-icons.js";
 import { getThemePreference, setThemePreference, type ThemePreference } from "./theme.js";
 import {
   DropdownMenu,
@@ -207,7 +208,7 @@ export function AgentSearchDialog({
     >
       <CommandInput autoFocus placeholder="Search" value={value} onValueChange={onChange} />
       <CommandList>
-        {!loading ? <CommandEmpty>{query ? "No results" : "No agents yet"}</CommandEmpty> : null}
+        {!loading ? <CommandEmpty>{query ? "No results" : "No bots yet"}</CommandEmpty> : null}
         {agents.map((agent, index) => (
           <CommandItem
             key={agent.id}
@@ -252,6 +253,170 @@ export function AgentSearchDialog({
           </CommandGroup>
         ) : null}
       </CommandList>
+    </CommandDialog>
+  );
+}
+
+export interface AddAgentDialogProps {
+  agents: readonly SidebarAgent[];
+  loading: boolean;
+  open: boolean;
+  creating?: boolean;
+  onClose: () => void;
+  onCreate: (name: string) => void;
+  onSelect: (id: string) => void;
+}
+
+export function AddAgentDialog({
+  agents,
+  loading,
+  open,
+  creating = false,
+  onClose,
+  onCreate,
+  onSelect,
+}: AddAgentDialogProps) {
+  const [creatingNew, setCreatingNew] = useState(false);
+  const [query, setQuery] = useState("");
+  const matchingAgents = agents.filter((agent) =>
+    `${agent.name} ${agent.id}`.toLowerCase().includes(query.trim().toLowerCase()),
+  );
+
+  useEffect(() => {
+    if (open) return;
+    setCreatingNew(false);
+    setQuery("");
+  }, [open]);
+
+  const close = () => {
+    if (creating) return;
+    onClose();
+  };
+
+  const submit = (event: FormEvent) => {
+    event.preventDefault();
+    const name = query.trim();
+    if (name && !creating) onCreate(name);
+  };
+
+  return (
+    <CommandDialog
+      className="max-w-[520px]"
+      commandProps={{ shouldFilter: false }}
+      onOpenChange={(next) => {
+        if (!next) close();
+      }}
+      open={open}
+      title={creatingNew ? "Create bot" : "Add bot"}
+    >
+      {creatingNew ? (
+        <form onSubmit={submit}>
+          <div className="flex items-center gap-1 border-b border-line px-2">
+            <button
+              aria-label="Back to bots"
+              className="flex size-8 shrink-0 items-center justify-center rounded-control text-ink-2
+                transition-colors hover:bg-hover hover:text-ink"
+              disabled={creating}
+              onClick={() => {
+                setCreatingNew(false);
+                setQuery("");
+              }}
+              type="button"
+            >
+              <BackIcon className="size-4 fill-none stroke-current stroke-[1.4]" />
+            </button>
+            <input
+              autoFocus
+              className="h-12 min-w-0 flex-1 bg-transparent px-1 text-[14px] text-ink outline-none
+                placeholder:text-ink-3"
+              disabled={creating}
+              maxLength={72}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Name your bot"
+              value={query}
+            />
+          </div>
+          <div className="px-4 py-3 text-[12.5px] leading-relaxed text-ink-3">
+            Create a new bot in this OpenBot workspace.
+          </div>
+          <div className="flex justify-end gap-2 border-t border-line px-3 py-2.5">
+            <button
+              className="h-8 rounded-control px-3 text-[12.5px] text-ink-2 transition-colors
+                hover:bg-hover hover:text-ink"
+              disabled={creating}
+              onClick={close}
+              type="button"
+            >
+              Cancel
+            </button>
+            <button
+              className="h-8 rounded-control bg-accent px-3 text-[12.5px] font-medium
+                text-accent-foreground disabled:opacity-50"
+              disabled={creating || !query.trim()}
+              type="submit"
+            >
+              {creating ? "Creating…" : "Create bot"}
+            </button>
+          </div>
+        </form>
+      ) : (
+        <>
+          <CommandInput
+            autoFocus
+            onValueChange={setQuery}
+            placeholder="Search bots"
+            value={query}
+          />
+          <CommandList>
+            <CommandItem
+              onSelect={() => {
+                setCreatingNew(true);
+                setQuery("");
+              }}
+              value="Create a new bot"
+            >
+              <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-inset text-ink-2">
+                <PlusIcon className="size-4 fill-none stroke-current stroke-[1.4]" />
+              </span>
+              <span className="min-w-0 flex-1">
+                <strong className="block text-[13px] font-medium leading-tight text-ink">
+                  Create a new bot
+                </strong>
+                <small className="block text-[12px] leading-snug text-ink-3">
+                  Set up a new bot
+                </small>
+              </span>
+            </CommandItem>
+            {!loading && matchingAgents.length === 0 ? (
+              <div className="px-3 py-6 text-center text-[13px] text-ink-3">
+                {agents.length === 0 ? "No bots yet" : "No bots found"}
+              </div>
+            ) : null}
+            {matchingAgents.map((agent) => (
+              <CommandItem
+                key={agent.id}
+                onSelect={() => {
+                  onClose();
+                  onSelect(agent.id);
+                }}
+                value={`${agent.name} ${agent.id}`}
+              >
+                <AgentAvatar id={agent.id} />
+                <span className="min-w-0 flex-1">
+                  <strong className="block truncate text-[13px] font-medium leading-tight text-ink">
+                    {agent.name}
+                  </strong>
+                  {agent.lastMessage ? (
+                    <small className="block truncate text-[12px] leading-snug text-ink-3">
+                      {agent.lastMessage}
+                    </small>
+                  ) : null}
+                </span>
+              </CommandItem>
+            ))}
+          </CommandList>
+        </>
+      )}
     </CommandDialog>
   );
 }
@@ -372,7 +537,7 @@ export function useSearchShortcut(onOpen: () => void): void {
   }, [onOpen]);
 }
 
-export function relativeTime(value: string): string {
+function relativeTime(value: string): string {
   const date = new Date(value);
   if (!Number.isFinite(date.valueOf())) return "";
   const now = new Date();

@@ -2,11 +2,14 @@ import { configHeaders } from "@trytilde/harness-sdk";
 import {
   chatKitEndpoint,
   convertToAiSdkMessages,
-  createChatKitAttachmentFilePartHandler,
   createClient,
   createMCPClient,
 } from "@trytilde/harness-sdk-vercel-ai-node";
-import { createTildeMediaUploader } from "@tryopenbot/computer-tools";
+import {
+  createTildeAttachmentMessageHandlers,
+  createTildeMediaDownloader,
+  createTildeMediaUploader,
+} from "@tryopenbot/computer-tools";
 import { consumeStream, convertToModelMessages, stepCountIs, streamText, type ToolSet } from "ai";
 import instructions from "./instructions.js";
 import awaitShell from "./tools/await_shell.js";
@@ -37,11 +40,12 @@ function localTools(sessionId: string): ToolSet {
     sessionId,
     teamId: process.env.TILDE_TEAM_ID!,
   });
+  const downloadMedia = createTildeMediaDownloader(client, sessionId);
   return {
     await_shell: awaitShell,
     bash,
-    copy_from_computer: copyFromComputer,
-    copy_to_computer: copyToComputer,
+    copy_from_computer: copyFromComputer(uploadMedia),
+    copy_to_computer: copyToComputer(downloadMedia),
     glob,
     grep,
     read_file: readFile,
@@ -57,15 +61,15 @@ function localTools(sessionId: string): ToolSet {
 async function managedMcpTools(
   sessionId: string,
 ): Promise<{ tools: ToolSet; closeMcp: () => Promise<void> }> {
-  const { mcp, closeMcp } = await createMCPClient({
+  const handle = await createMCPClient({
     client,
     serverId: mcpServerId,
     tools: localTools(sessionId),
   });
   // The Tilde wrapper preserves AI SDK tools but exposes a transport-neutral registry type.
-  const tools: Record<string, unknown> = await mcp.tools();
+  const tools: Record<string, unknown> = await handle.mcp.tools();
   assertToolSet(tools);
-  return { tools, closeMcp };
+  return { tools, closeMcp: () => handle.closeMcp() };
 }
 
 function assertToolSet(tools: Record<string, unknown>): asserts tools is ToolSet {
@@ -88,21 +92,6 @@ function queuedRequestCutoff(messages: readonly { metadata?: unknown }[]): strin
     .at(-1);
 }
 
-function fetchAttachment(input: string | URL | Request, init?: RequestInit): Promise<Response> {
-  const url = new URL(
-    input instanceof Request ? input.url : input.toString(),
-    client.config.baseUrl,
-  );
-  if (url.origin === new URL(client.config.baseUrl).origin) return fetch(input, init);
-
-  const headers = new Headers(init?.headers);
-  headers.delete("authorization");
-  headers.delete("x-api-key");
-  headers.delete("x-tilde-org-id");
-  headers.delete("x-tilde-team-id");
-  return fetch(input, { ...init, headers });
-}
-
 export default chatKitEndpoint({
   client,
   webhookSigningKey: process.env.AGENT_FACTORY_WEBHOOK_SIGNING_KEY!,
@@ -113,14 +102,15 @@ export default chatKitEndpoint({
     const requestHistory = cutoff
       ? history.items.filter((message) => !message.created_at || message.created_at <= cutoff)
       : history.items;
+    const attachmentHandlers = createTildeAttachmentMessageHandlers(client, context);
     const messages = await convertToAiSdkMessages({
       messages: [...requestHistory, ...context.messages],
       chatkit: context.chatkit,
       onUnprocessed: {
-        fileUpload: createChatKitAttachmentFilePartHandler(client, context, {
-          fetch: fetchAttachment,
-        }),
+        fileUpload: attachmentHandlers.fileUpload,
       },
+      onCacheMessage: attachmentHandlers.onCacheMessage,
+      onHydrateMessage: attachmentHandlers.onHydrateMessage,
     });
     const { tools, closeMcp } = await managedMcpTools(context.sessionId);
     const result = streamText({
