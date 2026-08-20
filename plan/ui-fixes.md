@@ -316,6 +316,18 @@ Upstream targets: `@tryopenbot/agent-service-provider`, `@tryopenbot/control-ser
   references the installed system face and ships no font binary.
 - Set the rail to `#F7F7F7` in light mode and `#111111` in dark mode. Set the profile avatar fill to
   `#8D6E62` and raise the initial from 12px to 13px without changing the circle dimensions.
+- Follow-up: make the plus control open the Beautiful-style popover instead of opening the picker
+  directly; its only supported item remains **Add photos & files**.
+- Follow-up: send and stop are one morphing action in the same slot. During an active turn, Enter
+  submits the current draft to Mission Control's queue while the visible button remains Stop.
+- Queue root cause: Mission Control holds the first message POST open for the whole agent turn, but
+  both the web screen and client runtime rejected every later submit while that request was marked
+  `submitting`. The runtime now marks the agent busy when the request starts, releases the
+  short-lived submit lock immediately, and clears busy when that long request resolves. This lets a
+  later Enter reach the same Mission Control message endpoint, where Tilde creates the pending turn.
+- Diagnostics follow-up: every local authored-agent request now logs received/completed/cancelled,
+  not only exceptions, and the ChatKit proxy logs safe upstream 5xx status/detail without request
+  bodies, credentials, or query strings.
 
 Cross-client decision: web and Electron share these DOM components. Expo attachment rendering and
 composer presentation are deferred because they are separate native components; no wire contract
@@ -336,6 +348,11 @@ validation must cover this section and every change made after that instruction.
   stack is in the `pnpm dev` terminal and `~/.openbot/logs/*.log`, not in Vercel.
 - Vercel was checked and is healthy: routes answer `401 Missing x-tilde-webhook-id header`, and all
   89 project env vars including the full `AGENT_PIRATE_POET_*` set are present. Not the culprit.
+- **Fresh local logs (10:19–10:30Z)**: the active restarted control service logged no authored-agent
+  failure for the newly reported 500; only aborted response streams were present. Because the old
+  failure-only wrapper could not prove whether a request arrived, received/completed lifecycle logs
+  were added. On the next trigger, absence of `request received` isolates the failure to tunnel/Tilde
+  delivery; presence followed by failure isolates it to the authored handler or stream.
 - **Prod Tilde defect**, unrelated to the chat: `/ecs/tilde-api-prod` logs
   `common provider recovery reconciliation failed … Decryption failed: aead::Error` for
   `credential_id cad11206-2a68-4639-baf5-39d350902897` every ~60s. Filed as

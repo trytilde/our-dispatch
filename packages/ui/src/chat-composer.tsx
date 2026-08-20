@@ -1,4 +1,13 @@
-import type { ChangeEvent, DragEvent, FocusEventHandler, FormEventHandler, RefObject } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type ChangeEvent,
+  type DragEvent,
+  type FocusEventHandler,
+  type FormEventHandler,
+  type RefObject,
+} from "react";
 import { PlusIcon, ReplyIcon, SendIcon } from "./workspace-icons.js";
 
 export interface ComposerAttachment {
@@ -63,6 +72,24 @@ export function ChatComposer({
   onStop,
 }: ChatComposerProps) {
   const hasContent = Boolean(draft.trim() || attachments.length);
+  const [attachmentMenuOpen, setAttachmentMenuOpen] = useState(false);
+  const formRef = useRef<HTMLFormElement>(null);
+
+  useEffect(() => {
+    if (!attachmentMenuOpen) return;
+    const closeOnOutsidePointer = (event: PointerEvent) => {
+      if (!formRef.current?.contains(event.target as Node)) setAttachmentMenuOpen(false);
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setAttachmentMenuOpen(false);
+    };
+    document.addEventListener("pointerdown", closeOnOutsidePointer);
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener("pointerdown", closeOnOutsidePointer);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [attachmentMenuOpen]);
 
   function setDrag(event: DragEvent, active: boolean): void {
     event.preventDefault();
@@ -71,6 +98,7 @@ export function ChatComposer({
 
   return (
     <form
+      ref={formRef}
       className={`composer ${dragging ? "dragging" : ""} ${expanded ? "expanded" : ""}`}
       onSubmit={onSubmit}
       onDragEnter={(event) => setDrag(event, true)}
@@ -126,6 +154,26 @@ export function ChatComposer({
         </div>
       ) : null}
       {dragging ? <div className="drop-overlay">Drop files to attach</div> : null}
+      {attachmentMenuOpen ? (
+        <div className="composer-attachment-menu" role="menu" aria-label="Add to message">
+          <button
+            role="menuitem"
+            type="button"
+            onClick={() => {
+              setAttachmentMenuOpen(false);
+              fileInputRef.current?.click();
+            }}
+          >
+            <span className="composer-attachment-menu-icon" aria-hidden="true">
+              ↗
+            </span>
+            <span>
+              <strong>Add photos &amp; files</strong>
+              <small>Upload from your computer</small>
+            </span>
+          </button>
+        </div>
+      ) : null}
       <div className="composer-input-grid">
         <div className="composer-attachment-control">
           <input
@@ -142,7 +190,9 @@ export function ChatComposer({
             className="attach-button"
             type="button"
             disabled={!agentAvailable || submitting}
-            onClick={() => fileInputRef.current?.click()}
+            aria-expanded={attachmentMenuOpen}
+            aria-haspopup="menu"
+            onClick={() => setAttachmentMenuOpen((open) => !open)}
             aria-label="Add photos and files"
             title="Add photos and files"
           >
@@ -153,7 +203,13 @@ export function ChatComposer({
           aria-label="Message"
           disabled={!agentAvailable}
           ref={inputRef}
-          placeholder={agentAvailable ? "Write a message…" : "No agent is available."}
+          placeholder={
+            agentAvailable
+              ? busy
+                ? "Write another message to queue…"
+                : "Write a message…"
+              : "No agent is available."
+          }
           value={draft}
           onChange={(event) => onDraftChange(event.target.value)}
           onBlur={onBlur}
@@ -175,15 +231,16 @@ export function ChatComposer({
         <div className="composer-actions">
           {busy ? (
             <button className="stop-button" type="button" onClick={onStop} aria-label="Stop">
-              ■
+              <span aria-hidden="true" />
             </button>
-          ) : null}
-          <button
-            aria-label={busy ? "Queue message" : "Send message"}
-            disabled={!agentAvailable || !hasContent || submitting}
-          >
-            <SendIcon />
-          </button>
+          ) : (
+            <button
+              aria-label="Send message"
+              disabled={!agentAvailable || !hasContent || submitting}
+            >
+              <SendIcon />
+            </button>
+          )}
         </div>
       </div>
       {error ? <span className="composer-error error">{error}</span> : null}

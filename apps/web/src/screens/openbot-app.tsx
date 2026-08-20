@@ -156,7 +156,7 @@ export function OpenBotApp() {
   async function send(event: FormEvent): Promise<void> {
     event.preventDefault();
     const authoredText = draft.trim();
-    if (!hasContent || !agentId || submitting) return;
+    if (!hasContent || !agentId || (submitting && !agentBusy)) return;
     const text = replyingTo
       ? `> ${messageText(replyingTo).replaceAll("\n", "\n> ")}\n\n${authoredText}`.trim()
       : authoredText;

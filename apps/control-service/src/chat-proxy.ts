@@ -53,6 +53,7 @@ export function registerTildeChatProxy(app: Hono, configuredOptions?: TildeChatP
     const upstreamUrl = new URL(upstreamPath, options.baseUrl ?? "https://api.trytilde.ai");
     upstreamUrl.search = incomingUrl.search;
 
+    const startedAt = Date.now();
     try {
       const upstream = await (options.fetch ?? globalThis.fetch)(upstreamUrl, {
         method: context.req.method,
@@ -61,6 +62,8 @@ export function registerTildeChatProxy(app: Hono, configuredOptions?: TildeChatP
         signal: context.req.raw.signal,
         redirect: "manual",
       });
+      if (upstream.status >= 500)
+        void logUpstreamFailure(context, relativePath, upstream.clone(), startedAt);
       const headers = responseHeaders(upstream.headers);
       headers.set("cache-control", "no-store");
       return new Response(upstream.body, {
@@ -70,6 +73,15 @@ export function registerTildeChatProxy(app: Hono, configuredOptions?: TildeChatP
       });
     } catch (error) {
       if (context.req.raw.signal.aborted) throw error;
+      console.error(
+        "[openbot-chat-proxy] upstream request threw",
+        {
+          elapsedMs: Date.now() - startedAt,
+          method: context.req.method,
+          path: relativePath,
+        },
+        error,
+      );
       return context.json(
         {
           error: "Tilde ChatKit request failed",
@@ -78,6 +90,39 @@ export function registerTildeChatProxy(app: Hono, configuredOptions?: TildeChatP
         502,
       );
     }
+  });
+}
+
+async function logUpstreamFailure(
+  context: Context,
+  path: string,
+  response: Response,
+  startedAt: number,
+): Promise<void> {
+  let detail = "";
+  try {
+    const text = (await response.text()).slice(0, 2_000);
+    if (text) {
+      try {
+        const parsed = JSON.parse(text) as Record<string, unknown>;
+        detail = [parsed.error, parsed.detail, parsed.message]
+          .filter((value): value is string => typeof value === "string")
+          .join(": ")
+          .slice(0, 500);
+      } catch {
+        if (response.headers.get("content-type")?.startsWith("text/plain"))
+          detail = text.slice(0, 500);
+      }
+    }
+  } catch {
+    // Preserve the upstream response even when its diagnostic clone cannot be consumed.
+  }
+  console.error("[openbot-chat-proxy] upstream request failed", {
+    elapsedMs: Date.now() - startedAt,
+    method: context.req.method,
+    path,
+    status: response.status,
+    ...(detail ? { detail } : {}),
   });
 }
 

@@ -4672,8 +4672,15 @@ body.resizing-workspace .workspace-resize-handle::after {
 }
 
 .rich-chat .composer .stop-button {
-  color: #eeeeef;
-  background: #e05757;
+  color: var(--page);
+  background: var(--ink);
+}
+
+.rich-chat .composer .stop-button > span {
+  width: 9px;
+  height: 9px;
+  border-radius: 2px;
+  background: currentColor;
 }
 
 @media (max-width: 1150px) {
@@ -6747,6 +6754,7 @@ button.system-event-chip {
 
 /* Pill prompt bar: the Beautiful UI reference reduced to OpenBot's real controls. */
 .rich-chat .composer {
+  position: relative;
   width: min(680px, calc(100% - 32px));
   margin-bottom: 16px;
   padding: 6px;
@@ -6787,6 +6795,78 @@ button.system-event-chip {
   display: flex;
   align-items: center;
   gap: 4px;
+}
+
+.composer-attachment-menu {
+  position: absolute;
+  z-index: 20;
+  left: 0;
+  right: 0;
+  bottom: calc(100% + 8px);
+  padding: 5px;
+  border: 0.5px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  box-shadow: var(--shadow-raised);
+  animation: composer-menu-in 120ms ease-out both;
+}
+
+@keyframes composer-menu-in {
+  from {
+    opacity: 0;
+    transform: translateY(3px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.composer-attachment-menu > button {
+  width: 100%;
+  min-height: 48px;
+  padding: 7px 9px;
+  border: 0;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--ink);
+  background: transparent;
+  text-align: left;
+}
+
+.composer-attachment-menu > button:hover {
+  background: var(--hover);
+}
+
+.composer-attachment-menu-icon {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  color: var(--ink-2);
+  background: var(--field);
+  font-size: 15px;
+}
+
+.composer-attachment-menu > button > span:last-child {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.composer-attachment-menu strong {
+  font-size: 13px;
+  font-weight: 550;
+}
+
+.composer-attachment-menu small {
+  color: var(--ink-3);
+  font-size: 11px;
 }
 
 .rich-chat .composer textarea {

@@ -393,7 +393,11 @@ export function createOpenBotRuntime(options: OpenBotRuntimeOptions): OpenBotRun
     const text = input.text.trim();
     const state = store.getState();
     const agentId = state.sidebar.selectedAgentId;
-    if ((!text && !input.attachmentIds?.length) || !agentId || state.conversation.submitting)
+    if (
+      (!text && !input.attachmentIds?.length) ||
+      !agentId ||
+      (state.conversation.submitting && !state.conversation.agentBusy)
+    )
       return;
     const queueing = state.conversation.agentBusy;
     updateConversation({
@@ -414,24 +418,35 @@ export function createOpenBotRuntime(options: OpenBotRuntimeOptions): OpenBotRun
           parts: input.optimisticParts ?? (text ? [{ type: "text", text }] : []),
           created_at: now().toISOString(),
         };
-        updateConversation({ messages: [...store.getState().conversation.messages, optimistic] });
+        updateConversation({
+          messages: [...store.getState().conversation.messages, optimistic],
+          agentBusy: true,
+        });
       }
-      const response = await options.client.sendMessage(
+      const responsePromise = options.client.sendMessage(
         agentId,
         sessionId,
         text,
         input.attachmentIds,
       );
+      // Mission Control keeps the first POST open for the duration of the turn. Release the
+      // short-lived submit lock once that request has started so later Enter presses can queue.
+      updateConversation({ submitting: false });
+      const response = await responsePromise;
       if (!queueing)
         updateConversation({
           messages: uniqueMessages(response.items),
           nextMessageToken: response.next_page_token,
-          agentBusy: true,
+          agentBusy: false,
         });
-      updateConversation({ turnStatus: queueing ? "Queued" : "Agent working" });
+      updateConversation({ turnStatus: queueing ? "Queued" : "Completed" });
       await Promise.all([refreshSidebar(), refreshQueue(sessionId)]);
     } catch (error) {
-      updateConversation({ error: errorMessage(error), turnStatus: "Turn failed" });
+      updateConversation({
+        error: errorMessage(error),
+        turnStatus: "Turn failed",
+        ...(!queueing ? { agentBusy: false } : {}),
+      });
       if (sessionId) await refreshMessages(sessionId).catch(() => undefined);
       throw error;
     } finally {
