@@ -1,7 +1,6 @@
 import type { ReactNode } from "react";
 import { AgentAvatar } from "./agent-avatar.js";
 import { LoaderGrid, useElapsed } from "./beautiful-ui/blocks/loader-grid.js";
-import { Suggestion, Suggestions } from "./components/ai-elements/suggestion.js";
 import { ComputerIcon, MoreIcon, ReplyIcon } from "./workspace-icons.js";
 
 export interface ChatHeaderProps {
@@ -44,33 +43,6 @@ export function ChatHeader({
         </button>
       </div>
     </header>
-  );
-}
-
-export interface EmptyConversationProps {
-  title?: string;
-  description?: string;
-  suggestions: readonly string[];
-  onSelectSuggestion: (suggestion: string) => void;
-}
-
-export function EmptyConversation({
-  title = "What should OpenBot do?",
-  description = "Message an agent. It can use tools, skills, files, and its Computer.",
-  suggestions,
-  onSelectSuggestion,
-}: EmptyConversationProps) {
-  return (
-    <div className="empty-chat">
-      <div className="openbot-glyph">✣</div>
-      <h1>{title}</h1>
-      <p>{description}</p>
-      <Suggestions className="suggestions">
-        {suggestions.map((suggestion) => (
-          <Suggestion key={suggestion} onClick={onSelectSuggestion} suggestion={suggestion} />
-        ))}
-      </Suggestions>
-    </div>
   );
 }
 

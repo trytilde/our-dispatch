@@ -174,8 +174,6 @@ export {
   type ChatHeaderProps,
   ConversationMessage,
   type ConversationMessageProps,
-  EmptyConversation,
-  type EmptyConversationProps,
   ThinkingIndicator,
 } from "./chat-components.js";
 export {

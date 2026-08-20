@@ -490,6 +490,23 @@ No tests or checks were run by operator instruction. Include image-typed wire pa
 attachment-producing tools, duplicate suppression, every media kind, unavailable URLs, modal
 keyboard dismissal, and download controls in the next requested validation batch.
 
+## 19. Permanent blank chat state — `done (fork)`
+
+- Removed the `What should OpenBot do?` frame, its suggested-question buttons, glyph, component,
+  exports, stories, and now-unused styling. It is no longer an application state.
+- A workspace always mounts its sidebar and main pane. When no sidebar chat is selected, the main
+  pane has no header, transcript chrome, prompt bar, thread overlay, or Computer pane content.
+- A selected chat with no messages keeps its ordinary header and prompt bar around an empty
+  transcript; it does not replace the transcript with onboarding or suggestion content.
+
+Cross-client decision: web and Electron share this React DOM shell and receive the change. Expo does
+not render `EmptyConversation` and already owns its native navigation/selection surface, so no Expo
+code changes are required.
+
+No tests or checks were run by operator instruction. Include initial workspace entry with and
+without agents, empty selected chats, setup-route fallback, and desktop/mobile viewport shells in
+the next requested validation batch.
+
 ## Investigation log
 
 - **HAR (67 entries, 2026-08-20)**: no failed HTTP requests. The chat error is a persisted signal,

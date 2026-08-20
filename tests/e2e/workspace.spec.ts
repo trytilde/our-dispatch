@@ -29,7 +29,7 @@ test("requires a Tilde owner session", async ({ browser }) => {
 
 test("loads the bare workspace without setup", async ({ page }) => {
   await page.goto("/");
-  await expect(page.getByRole("heading", { name: "What should OpenBot do?" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "What should OpenBot do?" })).toHaveCount(0);
   await expect(page.locator(".rail")).toHaveCSS("width", "400px");
   await expect(page.locator(".agent-workspace-pane")).toHaveCSS("width", "0px");
   await page.getByRole("button", { name: "Toggle Computer pane" }).click();
@@ -87,7 +87,7 @@ test("loads the bare workspace without setup", async ({ page }) => {
   await expect(page.locator("body")).toHaveJSProperty("scrollWidth", 820);
 
   await page.goto("/api/setup/unlock");
-  await expect(page.getByRole("heading", { name: "What should OpenBot do?" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "What should OpenBot do?" })).toHaveCount(0);
 });
 
 test("keeps the chat composition inside a mobile viewport", async ({ page }) => {

@@ -10,7 +10,6 @@ import {
   ComputerIcon,
   ConversationMessage,
   ConversationSurface,
-  EmptyConversation,
   ListIcon,
   MoreIcon,
   PlusIcon,
@@ -134,17 +133,6 @@ export const Header: Story = {
   ),
 };
 
-export const EmptyChat: Story = {
-  render: () => (
-    <div style={{ height: 480, width: 720 }}>
-      <EmptyConversation
-        onSelectSuggestion={noop}
-        suggestions={["Plan my day", "Research a topic", "Work with a file"]}
-      />
-    </div>
-  ),
-};
-
 export const Message: Story = {
   render: () => (
     <div style={{ width: 620 }}>
@@ -253,7 +241,6 @@ function LayoutExample() {
           computerOpen={layout.workspaceOpen}
           onToggleComputer={layout.toggleWorkspace}
         />
-        <EmptyConversation onSelectSuggestion={noop} suggestions={["Start a task"]} />
       </ChatPane>
     </WorkspaceShell>
   );
