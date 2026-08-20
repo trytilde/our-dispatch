@@ -11,6 +11,7 @@ import { consumeStream, convertToModelMessages, stepCountIs, streamText, type To
 import instructions from "./instructions.js";
 import awaitShell from "./tools/await_shell.js";
 import bash from "./tools/bash.js";
+import configureConnector from "./tools/configure_connector.js";
 import copyFromComputer from "./tools/copy_from_computer.js";
 import copyToComputer from "./tools/copy_to_computer.js";
 import glob from "./tools/glob.js";
@@ -40,6 +41,7 @@ function localTools(sessionId: string): ToolSet {
   return {
     await_shell: awaitShell,
     bash,
+    configure_connector: configureConnector,
     copy_from_computer: copyFromComputer,
     copy_to_computer: copyToComputer,
     glob,
@@ -111,7 +113,9 @@ export default chatKitEndpoint({
       model: process.env.AI_MODEL ?? "openai/gpt-5.6-sol",
       onFinish: () => void closeMcp(),
       providerOptions: { openai: { reasoningEffort: "medium" } },
-      stopWhen: stepCountIs(12),
+      // Connector configuration workflows chain discovery, schema fetches, and
+      // control-plane mutations in one turn, so the step budget must cover them.
+      stopWhen: stepCountIs(24),
       system: instructions,
       tools,
     });
