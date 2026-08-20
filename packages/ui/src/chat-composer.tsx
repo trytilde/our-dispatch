@@ -97,19 +97,26 @@ export function ChatComposer({
   }
 
   return (
-    <form
-      ref={formRef}
-      className={`composer ${dragging ? "dragging" : ""} ${expanded ? "expanded" : ""}`}
-      onSubmit={onSubmit}
-      onDragEnter={(event) => setDrag(event, true)}
-      onDragOver={(event) => setDrag(event, true)}
-      onDragLeave={(event) => setDrag(event, false)}
-      onDrop={(event) => {
-        event.preventDefault();
-        onDragStateChange(false);
-        onFilesAdded(event.dataTransfer.files);
-      }}
-    >
+    <div className="composer-shell">
+      {error ? (
+        <div className="composer-error-pill" role="alert">
+          <span aria-hidden="true" className="composer-error-dot" />
+          <span>{error}</span>
+        </div>
+      ) : null}
+      <form
+        ref={formRef}
+        className={`composer ${dragging ? "dragging" : ""} ${expanded ? "expanded" : ""}`}
+        onSubmit={onSubmit}
+        onDragEnter={(event) => setDrag(event, true)}
+        onDragOver={(event) => setDrag(event, true)}
+        onDragLeave={(event) => setDrag(event, false)}
+        onDrop={(event) => {
+          event.preventDefault();
+          onDragStateChange(false);
+          onFilesAdded(event.dataTransfer.files);
+        }}
+      >
       {reply ? (
         <div className="reply-preview">
           <ReplyIcon />
@@ -243,8 +250,8 @@ export function ChatComposer({
           )}
         </div>
       </div>
-      {error ? <span className="composer-error error">{error}</span> : null}
-    </form>
+      </form>
+    </div>
   );
 }
 

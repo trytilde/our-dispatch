@@ -4680,6 +4680,7 @@ body.resizing-workspace .rich-chat.workspace-shell {
 }
 
 .rich-chat .composer .stop-button > span {
+  display: block;
   width: 9px;
   height: 9px;
   border-radius: 2px;
@@ -7335,12 +7336,49 @@ button.system-event-chip {
   transform: scale(0.94);
 }
 
-.composer-error {
-  display: block;
-  padding: 3px 9px 2px 36px;
-  color: var(--red);
+.rich-chat .composer-shell {
+  position: relative;
+  width: min(680px, calc(100% - 32px));
+  margin: 0 auto 16px;
+}
+
+.rich-chat .composer-shell > .composer {
+  width: 100%;
+  margin: 0;
+}
+
+.composer-error-pill {
+  position: absolute;
+  z-index: 30;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  width: max-content;
+  max-width: min(620px, calc(100vw - 48px));
+  padding: 7px 11px;
+  border: 0.5px solid color-mix(in srgb, var(--red) 24%, var(--line));
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--ink);
+  background: var(--surface);
+  box-shadow: var(--shadow-raised);
   font-size: 11px;
   line-height: 15px;
+  transform: translateX(-50%);
+}
+
+.composer-error-pill > span:last-child {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.composer-error-dot {
+  width: 6px;
+  height: 6px;
+  flex: 0 0 6px;
+  border-radius: 50%;
+  background: var(--red);
 }
 
 .rich-chat .composer > .attachment-tray {
@@ -7652,7 +7690,7 @@ button.system-event-chip {
 }
 
 @media (max-width: 560px) {
-  .rich-chat .composer,
+  .rich-chat .composer-shell,
   .queue-panel {
     width: calc(100% - 20px);
   }

@@ -417,6 +417,18 @@ Work: render the native blue OpenBot avatar and gold busy orbit for full-screen 
 No tests or checks were run by operator instruction. Include light and dark access-check rendering,
 reduced-motion behavior, and accessible status announcement in the next requested validation batch.
 
+## 15. Composer stop glyph and floating errors — `done (fork)`
+
+- Made the stop control's inner square participate in layout so the black circular button visibly
+  contains its contrasting square instead of rendering as an empty disc.
+- Removed control-server and other runtime errors from the prompt bar's internal flow. Errors now
+  render as compact, accessible floating pill cards directly above the composer without resizing it.
+- Applied the prompt treatment to the shared React DOM UI, covering web and Electron. Expo keeps its
+  native inline-error treatment because it does not use the pill prompt bar.
+
+No tests or checks were run by operator instruction. Include the busy stop control plus short, long,
+light-mode, and dark-mode error pills in the next requested validation batch.
+
 ## Investigation log
 
 - **HAR (67 entries, 2026-08-20)**: no failed HTTP requests. The chat error is a persisted signal,
