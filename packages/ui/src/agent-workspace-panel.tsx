@@ -111,20 +111,17 @@ export function AgentWorkspacePanel({
 
       {fullscreen ? (
         <header className="computer-fullscreen-bar">
-          <span>{previewAgentName}&apos;s Computer</span>
-          <div>
-            <button
-              className="computer-fullscreen-release"
-              onClick={() => {
-                setControlling(false);
-                setFullscreen(false);
-              }}
-              type="button"
-            >
-              <Minimize2Icon aria-hidden />
-              Exit full screen
-            </button>
-          </div>
+          <button
+            className="computer-fullscreen-release"
+            onClick={() => {
+              setControlling(false);
+              setFullscreen(false);
+            }}
+            type="button"
+          >
+            <Minimize2Icon aria-hidden />
+            Exit full screen
+          </button>
         </header>
       ) : null}
 

@@ -686,9 +686,10 @@ requested validation batch.
 - Corrected the preview geometry so the Computer sidebar uses the same rail background and inset
   padding as the main sidebar. The desktop preview fills that inset width while retaining a 16:9
   aspect ratio and natural height; only the explicit takeover state fills the screen.
-- Removed the separate pane maximize and return-control buttons. The full-screen surface owns a
-  compact translucent top bar with the selected agent name and an explicit Exit full screen
-  action; Escape returns to the preview too.
+- Removed the separate pane maximize and return-control buttons. Full-screen takeover now uses a
+  structural 48px control row above the VNC screen rather than a floating overlay. It renders only
+  the Exit full screen action—never the selected agent name—and the screen consumes the remaining
+  height, keeping the Computer's permanent bottom dock visible. Escape returns to the preview too.
 - Removed the takeover size/scale animation and stopped noVNC from resizing the remote X session.
   The Computer now stays at a stable 1440x810 framebuffer and scales between its 16:9 preview and
   full-screen takeover without the wallpaper, windows, or dock reflowing and jumping.
