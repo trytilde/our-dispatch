@@ -286,7 +286,7 @@ export function OpenBotApp() {
 
   async function editQueuedTurn(turn: QueuedTurn): Promise<void> {
     const text = queuedTurnText(turn);
-    await mutateQueue(() => openBotRuntime.client.deleteQueuedTurn(turn.id));
+    await mutateQueue(() => openBotRuntime.actions.removeQueuedTurn(turn.id));
     setDraft(text === "Queued agent turn" ? "" : text);
   }
 
@@ -613,18 +613,18 @@ export function OpenBotApp() {
                 const turn = queuedTurns.find((candidate) => candidate.id === id);
                 if (turn)
                   void mutateQueue(() =>
-                    openBotRuntime.client.reorderQueuedTurn(id, turn.queue_position - 1),
+                    openBotRuntime.actions.reorderQueuedTurn(id, turn.queue_position - 1),
                   );
               }}
               onMoveLater={(id) => {
                 const turn = queuedTurns.find((candidate) => candidate.id === id);
                 if (turn)
                   void mutateQueue(() =>
-                    openBotRuntime.client.reorderQueuedTurn(id, turn.queue_position + 1),
+                    openBotRuntime.actions.reorderQueuedTurn(id, turn.queue_position + 1),
                   );
               }}
-              onRemove={(id) => void mutateQueue(() => openBotRuntime.client.deleteQueuedTurn(id))}
-              onRunNow={(id) => void mutateQueue(() => openBotRuntime.client.steerQueuedTurn(id))}
+              onRemove={(id) => void mutateQueue(() => openBotRuntime.actions.removeQueuedTurn(id))}
+              onRunNow={(id) => void mutateQueue(() => openBotRuntime.actions.steerQueuedTurn(id))}
             />
             {composer}
           </>

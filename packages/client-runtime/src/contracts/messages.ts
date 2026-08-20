@@ -37,6 +37,8 @@ export const ChatMessageSchema = z
     type: z.string(),
     role: z.string(),
     session_id: z.string(),
+    in_reply_to_message_id: z.string().nullable().optional(),
+    in_reply_to_inbox_id: z.string().nullable().optional(),
     user_display_name: z.string().optional(),
     text: z.string().optional(),
     summary: z.string().nullable().optional(),

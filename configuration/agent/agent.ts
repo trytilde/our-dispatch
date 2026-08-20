@@ -74,6 +74,20 @@ function assertToolSet(tools: Record<string, unknown>): asserts tools is ToolSet
       throw new TypeError(`MCP tool ${name} is not a Vercel AI SDK tool`);
 }
 
+function queuedRequestCutoff(messages: readonly { metadata?: unknown }[]): string | undefined {
+  return messages
+    .map((message) => {
+      if (typeof message.metadata !== "object" || message.metadata === null)
+        return undefined;
+      const metadata = message.metadata as Record<string, unknown>;
+      const value = metadata.createdAt ?? metadata.created_at;
+      return typeof value === "string" ? value : undefined;
+    })
+    .filter((value): value is string => Boolean(value))
+    .sort()
+    .at(-1);
+}
+
 function fetchAttachment(input: string | URL | Request, init?: RequestInit): Promise<Response> {
   const url = new URL(
     input instanceof Request ? input.url : input.toString(),
@@ -95,8 +109,12 @@ export default chatKitEndpoint({
   requestTimeoutMs: 285_000,
   async handler(request, context) {
     const history = await context.session.history();
+    const cutoff = queuedRequestCutoff(context.messages);
+    const requestHistory = cutoff
+      ? history.items.filter((message) => !message.created_at || message.created_at <= cutoff)
+      : history.items;
     const messages = await convertToAiSdkMessages({
-      messages: [...history.items, ...context.messages],
+      messages: [...requestHistory, ...context.messages],
       chatkit: context.chatkit,
       onUnprocessed: {
         fileUpload: createChatKitAttachmentFilePartHandler(client, context, {

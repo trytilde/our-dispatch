@@ -81,6 +81,9 @@ export interface OpenBotActions {
   sendMessage(input: SendMessageInput): Promise<void>;
   interrupt(): Promise<void>;
   refreshQueue(sessionId?: string): Promise<void>;
+  removeQueuedTurn(id: string): Promise<void>;
+  reorderQueuedTurn(id: string, queuePosition: number): Promise<void>;
+  steerQueuedTurn(id: string): Promise<void>;
   setError(message: string): void;
 }
 
@@ -129,6 +132,7 @@ export function createOpenBotRuntime(options: OpenBotRuntimeOptions): OpenBotRun
   const sessionSort = options.sessionSort ?? "updated_at";
   let observer: AbortController | undefined;
   let refreshTimer: ReturnType<typeof setTimeout> | undefined;
+  const queueRefreshTimers = new Set<ReturnType<typeof setTimeout>>();
   let initializePromise: Promise<void> | undefined;
 
   const updateAuth = (patch: Partial<AuthState>) =>
@@ -227,6 +231,70 @@ export function createOpenBotRuntime(options: OpenBotRuntimeOptions): OpenBotRun
         (left, right) => left.queue_position - right.queue_position,
       ),
     });
+  }
+
+  function refreshQueueAfterDispatch(sessionId: string): void {
+    void refreshQueue(sessionId).catch(() => undefined);
+    for (const delay of [250, 900]) {
+      const timer = schedule(() => {
+        queueRefreshTimers.delete(timer);
+        void refreshQueue(sessionId).catch(() => undefined);
+      }, delay);
+      queueRefreshTimers.add(timer);
+    }
+  }
+
+  async function removeQueuedTurn(id: string): Promise<void> {
+    const sessionId = store.getState().conversation.selectedSessionId;
+    if (!sessionId) return;
+    const previous = store.getState().conversation.queuedTurns;
+    updateConversation({ queuedTurns: previous.filter((turn) => turn.id !== id) });
+    try {
+      await options.client.deleteQueuedTurn(id);
+      await refreshQueue(sessionId);
+    } catch (error) {
+      updateConversation({ queuedTurns: previous, error: errorMessage(error) });
+      throw error;
+    }
+  }
+
+  async function reorderQueuedTurn(id: string, queuePosition: number): Promise<void> {
+    const sessionId = store.getState().conversation.selectedSessionId;
+    if (!sessionId) return;
+    const previous = store.getState().conversation.queuedTurns;
+    const target = previous.find((turn) => turn.id === id);
+    if (!target) return;
+    const reordered = previous.filter((turn) => turn.id !== id);
+    const insertion = Math.max(0, Math.min(reordered.length, queuePosition));
+    reordered.splice(insertion, 0, target);
+    updateConversation({
+      queuedTurns: reordered.map((turn, index) => ({ ...turn, queue_position: index })),
+    });
+    try {
+      await options.client.reorderQueuedTurn(id, queuePosition);
+      await refreshQueue(sessionId);
+    } catch (error) {
+      updateConversation({ queuedTurns: previous, error: errorMessage(error) });
+      throw error;
+    }
+  }
+
+  async function steerQueuedTurn(id: string): Promise<void> {
+    const sessionId = store.getState().conversation.selectedSessionId;
+    if (!sessionId) return;
+    const previous = store.getState().conversation.queuedTurns;
+    updateConversation({
+      queuedTurns: previous.filter((turn) => turn.id !== id),
+      agentBusy: true,
+      turnStatus: "Steering queued message",
+    });
+    try {
+      await options.client.steerQueuedTurn(id);
+      await refreshQueue(sessionId);
+    } catch (error) {
+      updateConversation({ queuedTurns: previous, error: errorMessage(error) });
+      throw error;
+    }
   }
 
   function beginObservation(sessionId: string): void {
@@ -399,16 +467,16 @@ export function createOpenBotRuntime(options: OpenBotRuntimeOptions): OpenBotRun
       (state.conversation.submitting && !state.conversation.agentBusy)
     )
       return;
-    const queueing = state.conversation.agentBusy;
+    const activeAtDispatch = state.conversation.agentBusy;
     updateConversation({
       submitting: true,
       error: "",
-      turnStatus: queueing ? "Adding to queue" : "Starting turn",
+      turnStatus: "Adding to queue",
     });
     let sessionId = state.conversation.selectedSessionId;
     try {
       if (!sessionId) sessionId = await ensureSession(input.title || titleFrom(text));
-      if (!queueing) {
+      if (!activeAtDispatch) {
         const optimistic: ChatMessage = {
           id: `optimistic-${createId()}`,
           type: "ui",
@@ -429,23 +497,25 @@ export function createOpenBotRuntime(options: OpenBotRuntimeOptions): OpenBotRun
         text,
         input.attachmentIds,
       );
-      // Mission Control keeps the first POST open for the duration of the turn. Release the
-      // short-lived submit lock once that request has started so later Enter presses can queue.
+      // Mission Control's send endpoint is the sole queue producer. The request may remain open
+      // until its turn runs, so release the submit lock and reconcile the durable queue separately.
       updateConversation({ submitting: false });
+      refreshQueueAfterDispatch(sessionId);
       const response = await responsePromise;
-      if (!queueing)
-        updateConversation({
-          messages: uniqueMessages(response.items),
-          nextMessageToken: response.next_page_token,
-          agentBusy: false,
-        });
-      updateConversation({ turnStatus: queueing ? "Queued" : "Completed" });
+      const persistedMessages = store
+        .getState()
+        .conversation.messages.filter((message) => !message.id.startsWith("optimistic-"));
+      updateConversation({
+        messages: uniqueMessages([...persistedMessages, ...response.items]),
+        nextMessageToken: response.next_page_token,
+        turnStatus: "Completed",
+      });
       await Promise.all([refreshSidebar(), refreshQueue(sessionId)]);
     } catch (error) {
       updateConversation({
         error: errorMessage(error),
         turnStatus: "Turn failed",
-        ...(!queueing ? { agentBusy: false } : {}),
+        ...(!activeAtDispatch ? { agentBusy: false } : {}),
       });
       if (sessionId) await refreshMessages(sessionId).catch(() => undefined);
       throw error;
@@ -499,6 +569,9 @@ export function createOpenBotRuntime(options: OpenBotRuntimeOptions): OpenBotRun
     sendMessage,
     interrupt,
     refreshQueue,
+    removeQueuedTurn,
+    reorderQueuedTurn,
+    steerQueuedTurn,
     setError(message) {
       updateConversation({ error: message });
     },
@@ -511,6 +584,8 @@ export function createOpenBotRuntime(options: OpenBotRuntimeOptions): OpenBotRun
     dispose() {
       observer?.abort();
       if (refreshTimer) cancelScheduled(refreshTimer);
+      for (const timer of queueRefreshTimers) cancelScheduled(timer);
+      queueRefreshTimers.clear();
     },
   };
 }

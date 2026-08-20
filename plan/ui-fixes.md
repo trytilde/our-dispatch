@@ -382,6 +382,25 @@ appearance, and the sidebar drag with no visible rule.
 No tests or checks were run by operator instruction. Include active-turn streaming alignment in the
 next requested validation batch.
 
+## 13. Queue-authoritative chat loop — `done (fork)`
+
+- Every composer submission now uses Mission Control's queue-producing message endpoint. The client
+  no longer selects a separate dispatch path based on its locally inferred busy state.
+- Queue snapshots refresh immediately and again after short propagation delays, independently of
+  the long-lived send request, so pending turns render while the active turn is still running.
+- Remove, reorder, and steer now update client-runtime state optimistically and reconcile with the
+  durable queue afterward; failures restore the prior snapshot.
+- Late replies are ordered causally using Tilde's `in_reply_to_message_id`, keeping each response
+  beside the prompt that triggered it instead of sorting a delayed response beneath newer prompts.
+- The authored agent and future-agent template trim live session history to the queued request's
+  enqueue-time message cutoff, preventing an old queued turn from seeing prompts submitted later.
+- Vite development startup always seeds and activates its loopback control server in the persisted
+  client workspace registry, allowing dev mode to bypass a missing local workspace entry.
+
+No tests or checks were run by operator instruction. The next requested validation batch must cover
+rapid multi-submit queue visibility, remove/reorder/steer rollback, causal late-response rendering,
+queued history cutoff, and automatic local workspace seeding.
+
 ## Investigation log
 
 - **HAR (67 entries, 2026-08-20)**: no failed HTTP requests. The chat error is a persisted signal,

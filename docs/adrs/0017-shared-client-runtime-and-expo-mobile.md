@@ -108,3 +108,7 @@ flowchart TD
   active workspace on-device; browser cookies and native credentials remain installation-scoped in
   their existing platform adapters. Switching hosted web workspaces transfers only that public
   registry and reloads the destination installation's full application shell.
+- 2026-08-20T12:05:00+01:00: Made the Tilde agent-turn queue authoritative for every owner message.
+  The client reconciles pending turns independently of long-lived send requests, owns optimistic
+  queue mutations, and uses reply IDs rather than wall-clock completion time to order late replies.
+  Vite development also seeds its loopback control server into the persisted workspace registry.

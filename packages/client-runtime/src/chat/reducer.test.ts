@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vite-plus/test";
-import { eventBusyState, reduceLiveChatEvent } from "./reducer.js";
+import { eventBusyState, reduceLiveChatEvent, uniqueMessages } from "./reducer.js";
 
 describe("live chat reducer", () => {
   it("accumulates text deltas into one assistant message", () => {
@@ -97,5 +97,28 @@ describe("event busy state", () => {
         },
       }),
     ).toBe(true);
+  });
+});
+
+describe("message ordering", () => {
+  it("keeps a late queued response beside the message that triggered it", () => {
+    const message = (id: string, role: string, createdAt: string, replyTo?: string) => ({
+      id,
+      type: "ui",
+      role,
+      session_id: "session-one",
+      parts: [{ type: "text", text: id }],
+      created_at: createdAt,
+      ...(replyTo ? { in_reply_to_message_id: replyTo } : {}),
+    });
+
+    expect(
+      uniqueMessages([
+        message("first-prompt", "user", "2026-08-20T09:00:00Z"),
+        message("second-prompt", "user", "2026-08-20T09:01:00Z"),
+        message("first-reply", "assistant", "2026-08-20T11:00:00Z", "first-prompt"),
+        message("second-reply", "assistant", "2026-08-20T11:01:00Z", "second-prompt"),
+      ]).map((item) => item.id),
+    ).toEqual(["first-prompt", "first-reply", "second-prompt", "second-reply"]);
   });
 });

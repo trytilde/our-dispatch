@@ -71,6 +71,8 @@ export function ClientWorkspaceGate({ children }: { children: ReactNode }) {
         safeStorage(() => sessionStorage.setItem(pendingJoinKey, incomingJoin), undefined);
       if (transferred || incomingJoin)
         history.replaceState(null, "", `${location.pathname}${location.search}`);
+      if (import.meta.env.DEV)
+        loaded = addClientWorkspace(loaded, shellControlOrigin, new Date(), location.origin);
       loaded = await saveClientWorkspaces(browserStorage, loaded);
       if (!active) return;
       setRegistry(loaded);
