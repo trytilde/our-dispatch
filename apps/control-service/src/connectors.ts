@@ -242,10 +242,11 @@ export function brokerRedirectUrl(response: Record<string, unknown>): string | u
 }
 
 async function listProviders(options: ConnectorRouteOptions): Promise<UpstreamProvider[]> {
-  const page = (await tildeJson(options, "/mcp/available-tool-groups?page_size=200")) as Record<
-    string,
-    unknown
-  >;
+  // Tilde requires both query fields; omitting deployment_alias is a 400.
+  const page = (await tildeJson(
+    options,
+    "/mcp/available-tool-groups?page_size=100&deployment_alias=latest",
+  )) as Record<string, unknown>;
   return pageItems(page) as UpstreamProvider[];
 }
 

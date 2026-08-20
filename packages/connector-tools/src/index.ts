@@ -115,8 +115,9 @@ export function createConfigureConnectorTool(options: ConnectorToolOptions) {
     }),
     execute: async (input) => {
       const context = await tildeContext(options);
+      // Tilde requires both query fields; omitting deployment_alias is a 400.
       const providers = pageItems(
-        await tildeGet(context, "/mcp/available-tool-groups?page_size=200"),
+        await tildeGet(context, "/mcp/available-tool-groups?page_size=100&deployment_alias=latest"),
       );
       const provider =
         providers.find((candidate) => asText(candidate.type_id) === input.provider_type_id) ??
