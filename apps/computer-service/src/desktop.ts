@@ -19,11 +19,15 @@ export async function ensureAgentDesktop(
   agentId: string,
   capability?: string,
   signal?: AbortSignal,
+  requestId?: string,
 ): Promise<AgentDesktop> {
   validateAgentId(agentId);
   const current = pending.get(agentId);
-  if (current) return current;
-  const created = ensureAgentDesktopNow(agentId, capability, signal).finally(() => {
+  if (current) {
+    logDesktop("awaiting pending desktop", { agentId, requestId });
+    return current;
+  }
+  const created = ensureAgentDesktopNow(agentId, capability, signal, requestId).finally(() => {
     pending.delete(agentId);
   });
   pending.set(agentId, created);
@@ -34,6 +38,7 @@ async function ensureAgentDesktopNow(
   agentId: string,
   capability?: string,
   signal?: AbortSignal,
+  requestId?: string,
 ): Promise<AgentDesktop> {
   const directory = join(desktopRoot, agentId);
   const statePath = join(directory, "desktop.json");
@@ -42,6 +47,13 @@ async function ensureAgentDesktopNow(
   const saved = await readDesktopState(statePath);
   if (saved && (await displayReady(saved.display))) {
     if (capability) await installCapability(capability, saved.vncPort);
+    logDesktop("reused desktop", {
+      agentId,
+      display: saved.display,
+      hasCapability: Boolean(capability),
+      requestId,
+      vncPort: saved.vncPort,
+    });
     return saved;
   }
 
@@ -49,6 +61,7 @@ async function ensureAgentDesktopNow(
     ? await startAndPersistDesktop(agentId, directory, statePath, saved, signal)
     : await serializeDesktopAllocation(async () => {
         const displayNumber = await allocateDisplay(agentId);
+        logDesktop("allocated display", { agentId, display: `:${displayNumber}`, requestId });
         return await startAndPersistDesktop(
           agentId,
           directory,
@@ -58,7 +71,19 @@ async function ensureAgentDesktopNow(
         );
       });
   if (capability) await installCapability(capability, desktop.vncPort);
+  logDesktop("started desktop", {
+    agentId,
+    display: desktop.display,
+    hasCapability: Boolean(capability),
+    requestId,
+    vncPort: desktop.vncPort,
+  });
   return desktop;
+}
+
+function logDesktop(message: string, fields: Record<string, unknown>): void {
+  if (!fields.requestId) return;
+  console.info(`[openbot-vnc] ${message}`, fields);
 }
 
 async function startAndPersistDesktop(

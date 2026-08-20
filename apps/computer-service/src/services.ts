@@ -160,12 +160,36 @@ export function registerComputerService(router: ConnectRouter): void {
     },
     async ensureDesktop(request, context) {
       authorized(context);
-      const desktop = await ensureAgentDesktop(
-        request.agentId,
-        request.capability || undefined,
-        context.signal,
-      );
-      return { display: desktop.display, vncPort: desktop.vncPort };
+      const requestId = context.requestHeader.get("x-openbot-request-id")?.trim() || undefined;
+      const startedAt = Date.now();
+      console.info("[openbot-vnc] computer desktop requested", {
+        agentId: request.agentId,
+        hasCapability: Boolean(request.capability),
+        requestId,
+      });
+      try {
+        const desktop = await ensureAgentDesktop(
+          request.agentId,
+          request.capability || undefined,
+          context.signal,
+          requestId,
+        );
+        console.info("[openbot-vnc] computer desktop ready", {
+          agentId: request.agentId,
+          display: desktop.display,
+          elapsedMs: Date.now() - startedAt,
+          requestId,
+          vncPort: desktop.vncPort,
+        });
+        return { display: desktop.display, vncPort: desktop.vncPort };
+      } catch (error) {
+        console.error(
+          "[openbot-vnc] computer desktop failed",
+          { agentId: request.agentId, elapsedMs: Date.now() - startedAt, requestId },
+          error instanceof Error ? error : new Error(String(error)),
+        );
+        throw error;
+      }
     },
     async listPorts(_request, context) {
       authorized(context);

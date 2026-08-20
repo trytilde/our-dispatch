@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vite-plus/test";
+import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 import { Code, ConnectError } from "@connectrpc/connect";
 import { execFile } from "node:child_process";
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
@@ -31,6 +31,8 @@ import {
 import { VercelSandboxComputerProvider } from "./vercel/index.js";
 
 const execute = promisify(execFile);
+
+afterEach(() => vi.restoreAllMocks());
 
 class TestVercelSandboxComputerProvider extends VercelSandboxComputerProvider {
   readonly login = vi.fn(async (_args: readonly string[], _input: string) => undefined);
@@ -169,6 +171,34 @@ describe("computer-service startup", () => {
       retryComputerServiceStartup(operation, controller.signal, { attempts: 2, delayMs: 0 }),
     ).rejects.toBe(failure);
     expect(operation).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("computer preview diagnostics", () => {
+  it("correlates provider stages without logging the capability token", async () => {
+    const provider = new TestComputerProvider();
+    provider.vnc.mockResolvedValue({
+      url: new URL("https://computer.test/vnc.html?token=private-capability"),
+      expiresAt: new Date("2026-08-20T12:00:00Z"),
+    });
+    const info = vi.spyOn(console, "info").mockImplementation(() => undefined);
+
+    await provider.previewAgentDesktop("hello-world", {
+      requestId: "preview-one",
+      environment: { COMPUTER_ID: "computer-one" },
+    });
+
+    expect(info).toHaveBeenCalledWith(
+      "[openbot-vnc] provider endpoint ready",
+      expect.objectContaining({
+        agentId: "hello-world",
+        computerId: "computer-one",
+        endpointOrigin: "https://computer.test",
+        endpointPath: "/vnc.html",
+        requestId: "preview-one",
+      }),
+    );
+    expect(JSON.stringify(info.mock.calls)).not.toContain("private-capability");
   });
 });
 

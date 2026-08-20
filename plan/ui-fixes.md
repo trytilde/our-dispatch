@@ -260,6 +260,70 @@ without one, busy still sticks — a timeout or stream-close fallback would be t
 - Leaving the column fades the highlight out.
 - Hovering the selected row shows no highlight at all — it already carries its own fill.
 
+## 9. Local diagnostics and workspace polish — `done (fork)`
+
+Requested for the fork first, with upstream-shaped ownership recorded here:
+
+- Log agent endpoint failures with the authored agent, request path, status, elapsed time, and full
+  error stack in the local service log, including failures raised while streaming a response.
+- Add one redacted trace id across the Computer iframe, control preview route, Computer provider,
+  and computer-service desktop allocation/capability path. Never log the VNC capability token or
+  a query string containing it.
+- Replace Paper Mono throughout the shared web/Electron workspace. The later recovered-app review
+  superseded the interim DM Sans choice: use its native system stack (SF Pro on Apple platforms,
+  Segoe UI on Windows) without redistributing proprietary font files; retain a system monospace
+  stack only for explicitly monospaced content. Expo remains on its native design system.
+- Let the main transcript and message rows use the full available chat width so user messages can
+  justify to the right edge.
+- Keep an agent's cached `last_message_preview` visible while its selected conversation loads.
+- Disable layout interpolation during continuous sidebar resizing while retaining the deliberate
+  collapsed/expanded rail animation.
+- Render New agent, Settings, and Send Feedback at 24px in the collapsed rail.
+
+Implemented at the owning boundaries: agent-service handler/stream observation, a redacted
+`openbot-vnc` trace spanning browser → control service → provider → computer service, shared UI
+typography/layout, and web conversation reconciliation. The trace id is returned as
+`x-openbot-vnc-trace-id`; logs expose only endpoint origin/path and never the capability query.
+
+Cross-client decision: the shared DOM UI changes apply to web and Electron. Expo is deliberately
+unchanged because its native UI does not consume `@tryopenbot/ui` or the DOM workspace layout.
+
+Local validation was started before the operator changed the standing workflow: focused package
+tests and typechecks passed. The focused workspace browser run reached the new cached-preview
+scenario (5 passed, 1 skipped) and exposed one ambiguous text locator, which was scoped afterward.
+Per the operator's instruction, no further tests or checks were run; the next requested validation
+must cover all changes made since that instruction.
+
+Upstream targets: `@tryopenbot/agent-service-provider`, `@tryopenbot/control-service`,
+`@tryopenbot/computer-service-provider`, `@tryopenbot/computer-service`, `@tryopenbot/ui`, and
+`@tryopenbot/web`.
+
+## 10. Pill composer, steering, and native media — `done (fork)`
+
+- Adapt the vendored Beautiful UI pill prompt bar verbatim at the visual/interaction level, while
+  keeping only OpenBot's real controls: plus, autosizing textarea, stop, and send. No microphone,
+  source browser, command menu, demo shader, or model selector. Plus opens the existing photo/file
+  upload flow; attachments render as removable pills.
+- Preserve the existing Tilde queue contract when sending during an active turn, but present queued
+  messages directly above the composer as a compact steering stack. Keep reorder, edit, remove,
+  and explicit `steer` actions backed by the existing client-runtime methods.
+- Rework ChatKit file parts into native rich media: full-width single images, compact multi-image
+  galleries, inline video/audio controls, document cards, fullscreen image/video previews, loading
+  feedback, signed-URL refresh, and explicit unavailable/retry states. The recovered app informed
+  the state model and interaction density; no recovered class names or renderer code were copied.
+- Match the recovered app's typography metrics: native system sans, 13px base, 18px line height,
+  antialiasing. Its macOS face is SF Pro, which is proprietary rather than open source; OpenBot
+  references the installed system face and ships no font binary.
+- Set the rail to `#F7F7F7` in light mode and `#111111` in dark mode. Set the profile avatar fill to
+  `#8D6E62` and raise the initial from 12px to 13px without changing the circle dimensions.
+
+Cross-client decision: web and Electron share these DOM components. Expo attachment rendering and
+composer presentation are deferred because they are separate native components; no wire contract
+changed in this pass.
+
+No tests or checks were run for this section by operator instruction. The next requested local
+validation must cover this section and every change made after that instruction.
+
 ## Investigation log
 
 - **HAR (67 entries, 2026-08-20)**: no failed HTTP requests. The chat error is a persisted signal,

@@ -47,13 +47,3 @@ kept outside the upstream directory.
 - License: MIT
 - Used by the vendored Beautiful UI `prompt-bar` component; declared as a
   regular npm dependency of `packages/ui`.
-
-## Paper Mono
-
-- Source: https://github.com/paper-design/paper-mono
-- Copyright (c) 2025 Lost Coast Labs, Inc. (Paper Design); based on Geist Mono, copyright (c) 2023
-  Vercel in collaboration with basement.studio.
-- License: SIL Open Font License, Version 1.1.
-- Vendored file: `packages/ui/src/assets/fonts/paper-mono-variable.woff2`, copied unmodified from
-  `fonts/webfonts/PaperMono[wght].woff2`.
-- Full license text: `packages/ui/src/assets/fonts/PaperMono-LICENSE.txt`.

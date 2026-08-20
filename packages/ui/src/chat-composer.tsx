@@ -126,33 +126,8 @@ export function ChatComposer({
         </div>
       ) : null}
       {dragging ? <div className="drop-overlay">Drop files to attach</div> : null}
-      <textarea
-        aria-label="Message"
-        disabled={!agentAvailable}
-        ref={inputRef}
-        placeholder={
-          agentAvailable ? "Type a message, or drop in a file." : "No agent is available."
-        }
-        value={draft}
-        onChange={(event) => onDraftChange(event.target.value)}
-        onBlur={onBlur}
-        onFocus={onFocus}
-        onKeyDown={(event) => {
-          const modEnter = event.key === "Enter" && (event.metaKey || event.ctrlKey);
-          const plainEnter =
-            event.key === "Enter" &&
-            !event.shiftKey &&
-            !event.metaKey &&
-            !event.ctrlKey &&
-            !event.nativeEvent.isComposing;
-          if (modEnter || plainEnter) {
-            event.preventDefault();
-            event.currentTarget.form?.requestSubmit();
-          }
-        }}
-      />
-      <div className="composer-toolbar">
-        <div>
+      <div className="composer-input-grid">
+        <div className="composer-attachment-control">
           <input
             hidden
             multiple
@@ -168,13 +143,35 @@ export function ChatComposer({
             type="button"
             disabled={!agentAvailable || submitting}
             onClick={() => fileInputRef.current?.click()}
-            aria-label="Attach files"
-            title="Attach files"
+            aria-label="Add photos and files"
+            title="Add photos and files"
           >
             <PlusIcon />
           </button>
-          {error ? <span className="error">{error}</span> : null}
         </div>
+        <textarea
+          aria-label="Message"
+          disabled={!agentAvailable}
+          ref={inputRef}
+          placeholder={agentAvailable ? "Write a message…" : "No agent is available."}
+          value={draft}
+          onChange={(event) => onDraftChange(event.target.value)}
+          onBlur={onBlur}
+          onFocus={onFocus}
+          onKeyDown={(event) => {
+            const modEnter = event.key === "Enter" && (event.metaKey || event.ctrlKey);
+            const plainEnter =
+              event.key === "Enter" &&
+              !event.shiftKey &&
+              !event.metaKey &&
+              !event.ctrlKey &&
+              !event.nativeEvent.isComposing;
+            if (modEnter || plainEnter) {
+              event.preventDefault();
+              event.currentTarget.form?.requestSubmit();
+            }
+          }}
+        />
         <div className="composer-actions">
           {busy ? (
             <button className="stop-button" type="button" onClick={onStop} aria-label="Stop">
@@ -189,6 +186,7 @@ export function ChatComposer({
           </button>
         </div>
       </div>
+      {error ? <span className="composer-error error">{error}</span> : null}
     </form>
   );
 }

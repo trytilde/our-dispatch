@@ -48,6 +48,7 @@ test("loads the bare workspace without setup", async ({ page }) => {
   await page.mouse.move(sidebarHandleX, sidebarHandle.y + 120);
   await page.mouse.down();
   await page.mouse.move(sidebarHandleX + 60, sidebarHandle.y + 120);
+  await expect(page.locator(".workspace-shell")).toHaveCSS("transition-duration", "0s");
   await page.mouse.up();
   await expect(page.locator(".rail")).toHaveCSS("width", "460px");
 
@@ -112,10 +113,15 @@ test("keeps the chat composition inside a mobile viewport", async ({ page }) => 
 test("streams rich messages and uploads a file through Tilde ChatKit", async ({ page }) => {
   const now = new Date().toISOString();
   let computerPreviewRequests = 0;
+  let researchMessageRequests = 0;
   let releaseComputerPreview = () => {};
+  let releaseResearchMessages = () => {};
   let computerPreviewUnavailable = true;
   const computerPreviewReady = new Promise<void>((resolve) => {
     releaseComputerPreview = resolve;
+  });
+  const researchMessagesReady = new Promise<void>((resolve) => {
+    releaseResearchMessages = resolve;
   });
   let messages: Array<Record<string, unknown>> = [
     {
@@ -178,7 +184,16 @@ test("streams rich messages and uploads a file through Tilde ChatKit", async ({ 
               display_name: "Researcher",
               provider_id: "chatkit.http-vercel-ai-sdk",
               status: "enabled",
-              sessions: { items: [] },
+              sessions: {
+                items: [
+                  {
+                    id: "research-session",
+                    title: "Research session",
+                    created_at: now,
+                    updated_at: now,
+                  },
+                ],
+              },
             },
           ],
         },
@@ -186,6 +201,10 @@ test("streams rich messages and uploads a file through Tilde ChatKit", async ({ 
       return;
     }
     if (path.endsWith("/observe")) {
+      if (path.includes("/research-session/")) {
+        await route.fulfill({ contentType: "text/event-stream", body: "" });
+        return;
+      }
       await route.fulfill({
         contentType: "text/event-stream",
         body:
@@ -220,6 +239,26 @@ test("streams rich messages and uploads a file through Tilde ChatKit", async ({ 
       return;
     }
     if (path.endsWith("/messages") && request.method() === "GET") {
+      if (path.includes("/research-session/")) {
+        researchMessageRequests += 1;
+        if (researchMessageRequests > 1) await researchMessagesReady;
+        await route.fulfill({
+          json: {
+            items: [
+              {
+                id: "research-message",
+                type: "ui",
+                role: "assistant",
+                session_id: "research-session",
+                user_display_name: "Researcher",
+                created_at: now,
+                parts: [{ type: "text", text: "Research cached preview" }],
+              },
+            ],
+          },
+        });
+        return;
+      }
       await route.fulfill({ json: { items: messages } });
       return;
     }
@@ -315,7 +354,11 @@ test("streams rich messages and uploads a file through Tilde ChatKit", async ({ 
   await expect(page.locator(".agent-workspace-pane iframe")).toHaveCount(0);
   expect(computerPreviewRequests).toBe(0);
   await expect(page.locator("body")).toHaveCSS("background-color", "rgb(252, 252, 252)");
-  await expect(page.locator(".rail")).toHaveCSS("background-color", "rgb(252, 252, 252)");
+  await expect(page.locator("body")).toHaveCSS(
+    "font-family",
+    /-apple-system|BlinkMacSystemFont|Segoe UI/,
+  );
+  await expect(page.locator(".rail")).toHaveCSS("background-color", "rgb(247, 247, 247)");
   await expect(page.locator("[data-menu-row]").first()).toHaveCSS("height", "54px");
   await expect(page.locator("[data-menu-row]").first()).toHaveCSS("border-radius", "8px");
   await expect(page.locator("[data-menu-row] .avatar").first()).toHaveCSS("width", "36px");
@@ -345,6 +388,17 @@ test("streams rich messages and uploads a file through Tilde ChatKit", async ({ 
   await expect(page.locator("[data-menu-row] small").first()).toHaveCSS("font-size", "12px");
   // Unread is carried by the row's data attribute and its accent dot.
   await expect(page.locator("[data-menu-row][data-unread]").first()).toBeVisible();
+  await page.locator("[data-menu-row]").nth(1).click();
+  await expect(page.locator(".conversation-loading")).toBeVisible();
+  await expect(page.locator("[data-menu-row]").nth(1)).toContainText("Research cached preview");
+  releaseResearchMessages();
+  await expect(
+    page.locator(".message-list").getByText("Research cached preview", { exact: true }),
+  ).toBeVisible();
+  await page.locator("[data-menu-row]").first().click();
+  await expect(
+    page.locator(".message-list").getByText("Ready when you are.", { exact: true }),
+  ).toBeVisible();
   await page.locator("[data-menu-row]").nth(1).hover();
   await expect(page.locator(".bg-hover[aria-hidden]").first()).toHaveCSS("opacity", "1");
   // The rebuilt sidebar renders WorkspaceAccount's default label: nothing passes the
@@ -379,6 +433,14 @@ test("streams rich messages and uploads a file through Tilde ChatKit", async ({ 
     "href",
     "mailto:daniel@trytilde.ai",
   );
+  for (const control of [
+    page.getByRole("button", { name: "New agent" }),
+    page.getByRole("button", { name: "Settings" }),
+    page.getByRole("link", { name: "Send Feedback" }),
+  ]) {
+    await expect(control.locator("svg")).toHaveCSS("width", "24px");
+    await expect(control.locator("svg")).toHaveCSS("height", "24px");
+  }
   // The rail footer is the account block now; collapsing keeps it reachable.
   await expect(accountButton).toBeVisible();
   await page.keyboard.press("Control+b");
@@ -386,6 +448,14 @@ test("streams rich messages and uploads a file through Tilde ChatKit", async ({ 
   await expect(page.locator("[data-menu-row] strong").first()).toBeVisible();
   await expect(page.getByText("Working session")).toHaveCount(0);
   await expect(page.getByText("Ready when you are.")).toBeVisible();
+  await expect(page.locator(".message-list")).toHaveCSS("width", /\d+px/);
+  const conversationWidth = await page.locator(".conversation").evaluate((element) => {
+    const style = getComputedStyle(element);
+    return (
+      element.clientWidth - Number.parseFloat(style.paddingLeft) - Number.parseFloat(style.paddingRight)
+    );
+  });
+  await expect(page.locator(".message-list")).toHaveJSProperty("clientWidth", conversationWidth);
   await expect(page.locator(".message.assistant .message-bubble").first()).toHaveCSS(
     "background-color",
     "rgb(238, 238, 238)",
@@ -438,12 +508,12 @@ test("streams rich messages and uploads a file through Tilde ChatKit", async ({ 
     page.locator(".message-list").getByText("Streaming preview", { exact: true }),
   ).toHaveCount(1);
   await expect(page.getByText("Queued follow-up")).toBeVisible();
-  await expect(page.getByRole("button", { name: "Run now" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Steer now" })).toBeVisible();
   await page.getByRole("button", { name: "Edit" }).click();
   await expect(page.getByRole("textbox", { name: "Message", exact: true })).toHaveValue(
     "Queued follow-up",
   );
-  await page.getByLabel("Attach files").click();
+  await page.getByLabel("Add photos and files").click();
   await page.locator('input[type="file"]').setInputFiles({
     name: "brief.txt",
     mimeType: "text/plain",
@@ -460,8 +530,9 @@ test("streams rich messages and uploads a file through Tilde ChatKit", async ({ 
     "rgb(7, 7, 7)",
   );
   await expect(page.getByText("Read file")).toBeVisible();
-  await expect(page.locator("button.file-part").filter({ hasText: "brief.txt" })).toBeVisible();
-  await page.locator("button.file-part").filter({ hasText: "brief.txt" }).click();
+  const documentPreview = page.locator(".document-preview").filter({ hasText: "brief.txt" });
+  await expect(documentPreview).toBeVisible();
+  await documentPreview.click();
   await expect(page.getByRole("dialog", { name: "Preview brief.txt" })).toBeVisible();
   await expect(page.locator(".file-viewer")).toHaveCSS(
     "background-color",

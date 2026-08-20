@@ -71,7 +71,6 @@ export function OpenBotApp() {
   const [dragging, setDragging] = useState(false);
   const [search, setSearch] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
-  const [composerFocused, setComposerFocused] = useState(false);
   const [messageMenuId, setMessageMenuId] = useState("");
   const [replyingTo, setReplyingTo] = useState<ChatMessage | null>(null);
   const [threadRootId, setThreadRootId] = useState("");
@@ -92,13 +91,13 @@ export function OpenBotApp() {
   const selectedAgent = agents.find((agent) => agent.id === agentId);
   const hasContent = Boolean(draft.trim() || files.length);
   const composerExpanded =
-    composerFocused || draft.includes("\n") || draft.length > 80 || files.length > 0;
+    draft.includes("\n") || draft.length > 80 || files.length > 0 || Boolean(replyingTo);
 
   useLayoutEffect(() => {
     const input = composerInputRef.current;
     if (!input) return;
     input.style.height = "0px";
-    input.style.height = `${Math.min(200, Math.max(44, input.scrollHeight))}px`;
+    input.style.height = `${Math.min(100, Math.max(28, input.scrollHeight))}px`;
   }, [draft]);
 
   useEffect(() => {
@@ -347,8 +346,6 @@ export function OpenBotApp() {
       fileInputRef={fileInputRef}
       onSubmit={(event) => void send(event)}
       onDraftChange={setDraft}
-      onFocus={() => setComposerFocused(true)}
-      onBlur={() => setComposerFocused(false)}
       onDragStateChange={setDragging}
       onFilesAdded={addFiles}
       onRemoveAttachment={(id) => {
@@ -410,7 +407,7 @@ export function OpenBotApp() {
           name: agent.display_name,
           lastMessage:
             agent.id === agentId
-              ? latestMessagePreview(messages)
+              ? latestMessagePreview(messages) || agent.last_message_preview || ""
               : agent.last_message_preview || "",
           updatedAt: agent.last_user_message_at || agent.sessions.items[0]?.updated_at,
           unread: agent.sessions.items.some((item) => item.unread),

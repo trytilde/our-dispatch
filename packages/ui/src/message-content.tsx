@@ -36,8 +36,15 @@ export function MessageContent({
   rewriteUrl = (url) => url,
 }: MessageContentProps) {
   if (message.type === "ui" && message.parts) {
+    const mediaParts = message.parts.filter(
+      (part) => part.type === "file" || part.type === "image",
+    );
+    const imageGallery =
+      mediaParts.length > 1 &&
+      mediaParts.length === message.parts.length &&
+      mediaParts.every((part) => (part.media_type ?? part.mediaType ?? "").startsWith("image/"));
     return (
-      <div className="message-parts">
+      <div className={`message-parts ${imageGallery ? "media-gallery" : ""}`}>
         {message.parts.map((part, index) =>
           renderPart(part, index, message.session_id, resolveAttachmentUrl, rewriteUrl),
         )}

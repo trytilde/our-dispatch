@@ -15,7 +15,7 @@ export type WorkspaceSidebarAgent = SidebarAgent;
 const railTransition = { duration: 0.18, ease: [0.23, 1, 0.32, 1] } as const;
 const expandedIcon = "size-4 shrink-0 fill-none stroke-current stroke-[1.3]";
 // Icons carry the collapsed rail on their own, so they sit larger there.
-const collapsedIcon = "size-5 shrink-0 fill-none stroke-current stroke-[1.4]";
+const collapsedIcon = "size-6 shrink-0 fill-none stroke-current stroke-[1.4]";
 
 export interface WorkspaceSidebarProps {
   agents: readonly WorkspaceSidebarAgent[];
@@ -118,11 +118,9 @@ export function WorkspaceSidebar({
             </motion.div>
           )}
         </AnimatePresence>
-        <motion.nav
+        <nav
           aria-label="Agents"
           className="sidebar-agent-list min-h-0 flex-1 overflow-y-auto px-2 py-1"
-          layout
-          transition={railTransition}
         >
           {loading ? <p className="px-2 py-2 text-[12.5px] text-ink-3">Loading agents…</p> : null}
           {!loading && agents.length === 0 ? (
@@ -156,7 +154,7 @@ export function WorkspaceSidebar({
               Show more agents
             </button>
           ) : null}
-        </motion.nav>
+        </nav>
         <div className="sidebar-utility flex flex-col gap-1 px-2 pb-1">
           {onCreateAgent && collapsed ? (
             <SidebarUtilityRow
@@ -169,7 +167,7 @@ export function WorkspaceSidebar({
           <SidebarUtilityRow
             collapsed={collapsed}
             icon={
-              <SettingsIcon className="size-4 shrink-0 fill-none stroke-current stroke-[1.3]" />
+              <SettingsIcon className={collapsed ? collapsedIcon : expandedIcon} />
             }
             label="Settings"
             onClick={onOpenSettings}
@@ -178,7 +176,7 @@ export function WorkspaceSidebar({
             collapsed={collapsed}
             href={`mailto:${feedbackEmail}`}
             icon={
-              <FeedbackIcon className="size-4 shrink-0 fill-none stroke-current stroke-[1.3]" />
+              <FeedbackIcon className={collapsed ? collapsedIcon : expandedIcon} />
             }
             label="Send Feedback"
           />

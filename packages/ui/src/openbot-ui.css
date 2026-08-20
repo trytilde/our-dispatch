@@ -25,22 +25,15 @@
   --color-ring: var(--accent);
 }
 
-/* Paper Mono (SIL OFL 1.1) is the workspace typeface; see THIRD_PARTY_NOTICES.md. */
-@font-face {
-  font-family: "Paper Mono";
-  src: url("./assets/fonts/paper-mono-variable.woff2") format("woff2-variations");
-  font-weight: 100 800;
-  font-style: normal;
-  font-display: swap;
-}
-
 :root {
   color-scheme: light;
-  --font-inter: "Paper Mono", ui-monospace, "SFMono-Regular", Menlo, Monaco, monospace;
+  /* Match the recovered app's native system stack. It resolves to SF Pro on Apple platforms
+   * and Segoe UI on Windows without redistributing either proprietary font. */
+  --font-inter: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   --font-sans-face: var(--font-inter);
   --font-mono-face:
-    "Paper Mono", ui-monospace, "SFMono-Regular", Menlo, Monaco, Consolas, "Liberation Mono",
-    "Courier New", monospace;
+    ui-monospace, "SFMono-Regular", Menlo, Monaco, Consolas, "Liberation Mono", "Courier New",
+    monospace;
 }
 
 body,
@@ -48,7 +41,13 @@ input,
 button,
 textarea,
 select {
-  font-family: var(--font-mono-face);
+  font-family: var(--font-sans-face);
+}
+
+body {
+  font-size: 13px;
+  line-height: 18px;
+  -webkit-font-smoothing: antialiased;
 }
 
 /* ── Sand palette ──────────────────────────────────────────
@@ -62,7 +61,7 @@ select {
   --canvas: #f7f7f7;
   --surface: #fcfcfc;
   /* The rail sits a step away from the page: grayer in light, lighter in dark. */
-  --rail-surface: #f4f4f4;
+  --rail-surface: #f7f7f7;
   --inset: #f3f3f3;
   --hover: #7777770f;
   --hover-2: #7777771f;
@@ -104,7 +103,7 @@ select {
   --page: #070707;
   --canvas: #111111;
   --surface: #181818;
-  --rail-surface: #202020;
+  --rail-surface: #111111;
   --inset: #151515;
   --hover: #7777773d;
   --hover-2: #7777776b;
@@ -147,7 +146,7 @@ select {
   z-index: 2;
   min-width: 0;
   overflow: hidden;
-  background: var(--canvas);
+  background: var(--rail-surface);
 }
 .agent-group + .agent-group {
   margin-top: 5px;
@@ -2921,7 +2920,7 @@ body.resizing-workspace .rich-chat.workspace-shell {
   padding: 0;
   gap: 0;
   border-right: 1px solid var(--line);
-  background: var(--canvas);
+  background: var(--rail-surface);
 }
 
 .sidebar-titlebar {
@@ -3073,7 +3072,8 @@ body.resizing-workspace .rich-chat.workspace-shell {
 }
 
 .rich-chat .message-list {
-  width: min(760px, 100%);
+  width: 100%;
+  max-width: none;
 }
 
 .rich-chat .message.user > .message-parts,
@@ -3980,7 +3980,8 @@ body.resizing-workspace .workspace-resize-handle::after {
 }
 
 .rich-chat .message-list {
-  width: min(720px, 100%);
+  width: 100%;
+  max-width: none;
   min-height: 100%;
   padding: 12px 0 30px;
   gap: 2px;
@@ -6742,4 +6743,428 @@ button.system-event-chip {
 .create-agent-actions button:disabled {
   opacity: 0.55;
   cursor: default;
+}
+
+/* Pill prompt bar: the Beautiful UI reference reduced to OpenBot's real controls. */
+.rich-chat .composer {
+  width: min(680px, calc(100% - 32px));
+  margin-bottom: 16px;
+  padding: 6px;
+  border: 0.5px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  box-shadow: var(--shadow-card);
+  transition:
+    border-color 150ms ease,
+    border-radius 150ms ease,
+    box-shadow 150ms ease;
+}
+
+.rich-chat .composer:focus-within {
+  border-color: var(--line-strong);
+}
+
+.rich-chat .composer.expanded,
+.rich-chat .composer:has(.attachment-tray),
+.rich-chat .composer:has(.reply-preview) {
+  border-radius: 24px;
+}
+
+.rich-chat .composer > .composer-input-grid {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 4px;
+}
+
+.rich-chat .composer > .reply-preview {
+  display: grid;
+}
+
+.composer-attachment-control,
+.composer-actions {
+  min-height: 28px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.rich-chat .composer textarea {
+  width: 100%;
+  height: 28px;
+  min-height: 28px;
+  max-height: 100px;
+  padding: 5px 4px;
+  resize: none;
+  background: transparent;
+  font-size: 13px;
+  line-height: 18px;
+}
+
+.rich-chat .composer.expanded .composer-input-grid {
+  grid-template-columns: 28px minmax(0, 1fr) auto;
+}
+
+.rich-chat .composer.expanded textarea {
+  grid-column: 1 / -1;
+  grid-row: 1;
+  min-height: 54px;
+  padding: 7px 8px;
+}
+
+.rich-chat .composer.expanded .composer-attachment-control,
+.rich-chat .composer.expanded .composer-actions {
+  grid-row: 2;
+}
+
+.rich-chat .composer.expanded .composer-actions {
+  grid-column: 3;
+}
+
+.rich-chat .composer .attach-button,
+.rich-chat .composer .composer-actions > button {
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 999px;
+  transition:
+    background-color 150ms ease,
+    color 150ms ease,
+    transform 150ms ease;
+}
+
+.rich-chat .composer .attach-button:active,
+.rich-chat .composer .composer-actions > button:active:not(:disabled) {
+  transform: scale(0.94);
+}
+
+.composer-error {
+  display: block;
+  padding: 3px 9px 2px 36px;
+  color: var(--red);
+  font-size: 11px;
+  line-height: 15px;
+}
+
+.rich-chat .composer > .attachment-tray {
+  margin: 0;
+  padding: 1px 4px 6px;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.rich-chat .composer .pending-file {
+  flex-basis: auto;
+  max-width: 240px;
+  min-height: 27px;
+  padding: 3px 27px 3px 7px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--field);
+  box-shadow: var(--shadow-hairline);
+}
+
+.rich-chat .composer .pending-file .file-icon,
+.rich-chat .composer .pending-file .file-thumb {
+  width: 20px;
+  height: 20px;
+  flex-basis: 20px;
+  border-radius: 999px;
+}
+
+.rich-chat .composer .pending-file strong {
+  font-size: 11.5px;
+  font-weight: 500;
+}
+
+.rich-chat .composer .pending-file small {
+  display: none;
+}
+
+/* Queued sends are steering messages attached visually to the prompt surface. */
+.queue-panel {
+  width: min(680px, calc(100% - 32px));
+  max-height: 184px;
+  margin: 0 auto 8px;
+  overflow: auto;
+  border: 0;
+  border-radius: 14px;
+  background: var(--surface);
+  box-shadow: var(--shadow-card);
+}
+
+.queue-panel > header {
+  padding: 7px 10px 5px;
+  border: 0;
+  color: var(--ink-3);
+  font-size: 11px;
+}
+
+.queue-panel > header strong::after {
+  content: " · sends when the agent is ready";
+  font-weight: 400;
+}
+
+.queue-panel article {
+  min-height: 38px;
+  padding: 6px 8px;
+  grid-template-columns: 20px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 7px;
+}
+
+.queue-panel article + article {
+  border-top: 0.5px solid var(--line);
+}
+
+.queue-panel article > span {
+  width: 20px;
+  height: 20px;
+  border-radius: 999px;
+  color: var(--ink-2);
+  background: var(--hover-2);
+  font-size: 9px;
+}
+
+.queue-panel article > p {
+  color: var(--ink);
+  font-size: 12px;
+  line-height: 16px;
+}
+
+.queue-panel article > div {
+  grid-column: 3;
+  display: flex;
+  gap: 2px;
+}
+
+.queue-panel article button {
+  padding: 4px 6px;
+  border-radius: 999px;
+  background: transparent;
+  font-size: 10px;
+}
+
+/* Native rich-media presentation inspired by the recovered reference app. */
+.file-part.media-part {
+  width: min(440px, 100%);
+  max-width: 100%;
+  padding: 0;
+  overflow: hidden;
+  border: 0.5px solid var(--line);
+  border-radius: 12px;
+  display: block;
+  background: var(--surface);
+  box-shadow: var(--shadow-hairline);
+}
+
+.media-part.image {
+  width: min(520px, 100%);
+}
+
+.media-part .image-preview {
+  width: 100%;
+  min-height: 120px;
+  max-height: 440px;
+  padding: 0;
+  border: 0;
+  display: block;
+  overflow: hidden;
+  background: var(--field);
+  cursor: zoom-in;
+}
+
+.media-part .image-preview img,
+.media-part > video {
+  width: 100%;
+  max-height: 440px;
+  display: block;
+  object-fit: contain;
+  background: #0d0d0e;
+}
+
+.media-caption {
+  min-height: 42px;
+  padding: 7px 9px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.media-caption > span {
+  min-width: 0;
+  flex: 1;
+  display: grid;
+}
+
+.media-caption strong,
+.media-caption small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.media-caption strong {
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 16px;
+}
+
+.media-caption small {
+  color: var(--ink-3);
+  font-size: 10px;
+  line-height: 14px;
+}
+
+.media-caption > a,
+.media-unavailable > button {
+  padding: 5px 9px;
+  border: 0;
+  border-radius: 999px;
+  color: var(--ink-2);
+  background: var(--hover);
+  font-size: 10px;
+  text-decoration: none;
+}
+
+.audio-preview,
+.document-preview,
+.media-unavailable {
+  min-height: 58px;
+  padding: 9px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.audio-preview > svg,
+.document-preview > svg,
+.media-unavailable > svg {
+  width: 34px;
+  height: 34px;
+  flex: 0 0 34px;
+  padding: 7px;
+  border-radius: 8px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.4;
+  color: var(--ink-2);
+  background: var(--field);
+}
+
+.audio-preview > audio {
+  width: 100%;
+  min-width: 0;
+  height: 36px;
+}
+
+.document-preview {
+  width: 100%;
+  border: 0;
+  color: var(--ink);
+  background: transparent;
+  text-align: left;
+}
+
+.document-preview > span:nth-child(2),
+.media-unavailable > span {
+  min-width: 0;
+  flex: 1;
+  display: grid;
+}
+
+.document-preview strong,
+.document-preview small,
+.media-unavailable strong,
+.media-unavailable small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.document-preview strong,
+.media-unavailable strong {
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.document-preview small,
+.media-unavailable small {
+  color: var(--ink-3);
+  font-size: 10px;
+}
+
+.media-unavailable {
+  color: var(--ink-2);
+  background: var(--field);
+}
+
+.media-loading {
+  min-height: 84px;
+  display: grid;
+  place-items: center;
+  gap: 8px;
+  color: var(--ink-3);
+  background: var(--field);
+  font-size: 11px;
+}
+
+.media-loading > span {
+  width: 18px;
+  height: 18px;
+  border: 1.5px solid var(--line-strong);
+  border-top-color: var(--ink-2);
+  border-radius: 50%;
+  animation: spin 800ms linear infinite;
+}
+
+.message-parts.media-gallery {
+  width: min(520px, 100%);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px;
+}
+
+.message-parts.media-gallery .file-part.media-part {
+  width: 100%;
+  height: 180px;
+  border-radius: 10px;
+}
+
+.message-parts.media-gallery .image-preview,
+.message-parts.media-gallery .image-preview img {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  object-fit: cover;
+}
+
+.message-parts.media-gallery .media-caption {
+  display: none;
+}
+
+.message-parts.media-gallery > :first-child:nth-last-child(3) {
+  grid-row: span 2;
+  height: 364px;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (max-width: 560px) {
+  .rich-chat .composer,
+  .queue-panel {
+    width: calc(100% - 20px);
+  }
+
+  .queue-panel article {
+    grid-template-columns: 20px minmax(0, 1fr);
+  }
+
+  .queue-panel article > div {
+    grid-column: 2;
+  }
 }

@@ -24,9 +24,76 @@ export async function createAgentServiceApp(
     )) as AgentModule;
     if (typeof module.default !== "function")
       throw new Error(`${agent.path} must default export chatKitEndpoint(...)`);
-    app.post(`/api/agents/${agent.slug}`, (context) => module.default!(context.req.raw));
+    app.post(`/api/agents/${agent.slug}`, async (context) =>
+      observeAgentResponse(agent.slug, context.req.raw, module.default!),
+    );
   }
   return app;
+}
+
+/** Preserve the authored-agent stack, including failures raised after a streaming response starts. */
+async function observeAgentResponse(
+  agentId: string,
+  request: Request,
+  endpoint: NonNullable<AgentModule["default"]>,
+): Promise<Response> {
+  const startedAt = Date.now();
+  try {
+    const response = await endpoint(request);
+    if (response.status >= 500)
+      logAgentFailure(agentId, request, startedAt, "response", new Error(`Agent returned ${response.status}`), {
+        status: response.status,
+      });
+    if (!response.body) return response;
+
+    const reader = response.body.getReader();
+    const body = new ReadableStream<Uint8Array>({
+      async pull(controller) {
+        try {
+          const next = await reader.read();
+          if (next.done) controller.close();
+          else controller.enqueue(next.value);
+        } catch (error) {
+          logAgentFailure(agentId, request, startedAt, "stream", error);
+          controller.error(error);
+        }
+      },
+      async cancel(reason) {
+        await reader.cancel(reason);
+      },
+    });
+    return new Response(body, {
+      headers: response.headers,
+      status: response.status,
+      statusText: response.statusText,
+    });
+  } catch (error) {
+    logAgentFailure(agentId, request, startedAt, "handler", error);
+    throw error;
+  }
+}
+
+function logAgentFailure(
+  agentId: string,
+  request: Request,
+  startedAt: number,
+  phase: "handler" | "response" | "stream",
+  error: unknown,
+  extra: Record<string, unknown> = {},
+): void {
+  const failure = error instanceof Error ? error : new Error(String(error));
+  console.error(
+    "[openbot-agent] request failed",
+    {
+      agentId,
+      elapsedMs: Date.now() - startedAt,
+      method: request.method,
+      path: new URL(request.url).pathname,
+      phase,
+      ...extra,
+    },
+    failure,
+  );
 }
 
 async function runInstrumentation(path: string, agent: AgentSource): Promise<void> {

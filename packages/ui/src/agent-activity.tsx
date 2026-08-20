@@ -65,7 +65,7 @@ export function ActivityQueue({
   return (
     <section className="queue-panel">
       <header>
-        <strong>Queued turns</strong>
+        <strong>Queued messages</strong>
         <span>{items.length}</span>
       </header>
       {items.map((turn, index) => (
@@ -90,7 +90,7 @@ export function ActivityQueue({
               ↓
             </button>
             <button onClick={() => onRunNow(turn.id)} type="button">
-              Run now
+              Steer now
             </button>
             <button onClick={() => onEdit(turn.id)} type="button">
               Edit

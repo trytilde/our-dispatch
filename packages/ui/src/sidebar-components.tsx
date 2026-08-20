@@ -299,8 +299,8 @@ export function WorkspaceAccount({
             <motion.span
               aria-hidden="true"
               animate={{ height: collapsed ? 36 : 28, width: collapsed ? 36 : 28 }}
-              className="flex shrink-0 items-center justify-center rounded-full bg-field
-                text-[12px] font-semibold text-ink shadow-hairline"
+              className="flex shrink-0 items-center justify-center rounded-full bg-[#8D6E62]
+                text-[13px] font-semibold text-white shadow-hairline"
               initial={false}
               transition={avatarTransition}
             >

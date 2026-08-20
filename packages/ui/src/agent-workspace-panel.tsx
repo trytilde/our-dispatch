@@ -27,6 +27,7 @@ export function AgentWorkspacePanel({
 }: AgentWorkspacePanelProps) {
   const [controlling, setControlling] = useState(false);
   const [previewKey, setPreviewKey] = useState(0);
+  const [previewTraceId, setPreviewTraceId] = useState(() => crypto.randomUUID());
   const [previewReady, setPreviewReady] = useState(false);
   const [previewFailed, setPreviewFailed] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
@@ -35,14 +36,25 @@ export function AgentWorkspacePanel({
   const previewAgentId = activeMonitor?.id ?? agentId;
   const previewAgentName = activeMonitor?.title ?? agentName;
   const previewUrl =
-    activeMonitor?.previewUrl ?? `/api/computer/${encodeURIComponent(agentId)}/preview`;
+    activeMonitor?.previewUrl ??
+    `/api/computer/${encodeURIComponent(agentId)}/preview?trace_id=${encodeURIComponent(previewTraceId)}`;
 
   useEffect(() => {
     setActiveMonitorId(agentId);
     setControlling(false);
     setPreviewReady(false);
     setPreviewFailed(false);
+    setPreviewTraceId(crypto.randomUUID());
   }, [agentId]);
+
+  useEffect(() => {
+    if (!open && !fullscreen) return;
+    console.info("[openbot-vnc] iframe preview started", {
+      agentId: previewAgentId,
+      path: previewPath(previewUrl),
+      requestId: previewTraceId,
+    });
+  }, [fullscreen, open, previewAgentId, previewTraceId, previewUrl]);
 
   useEffect(() => {
     if (!fullscreen) return;
@@ -88,11 +100,17 @@ export function AgentWorkspacePanel({
             allow="clipboard-read; clipboard-write"
             referrerPolicy="no-referrer"
             onError={() => {
+              console.error("[openbot-vnc] iframe preview failed", {
+                agentId: previewAgentId,
+                path: previewPath(previewUrl),
+                requestId: previewTraceId,
+              });
               setPreviewReady(false);
               setPreviewFailed(true);
             }}
             onLoad={(event) => {
               let failed = false;
+              let documentAccess: "cross-origin" | "same-origin" = "same-origin";
               try {
                 const document = event.currentTarget.contentDocument;
                 const location = event.currentTarget.contentWindow?.location.href ?? "";
@@ -108,7 +126,15 @@ export function AgentWorkspacePanel({
                 // document throws for the ordinary success case. Only same-origin error
                 // payloads are detectable here; a cross-origin document means it loaded.
                 failed = false;
+                documentAccess = "cross-origin";
               }
+              console.info("[openbot-vnc] iframe preview loaded", {
+                agentId: previewAgentId,
+                documentAccess,
+                failed,
+                path: previewPath(previewUrl),
+                requestId: previewTraceId,
+              });
               setPreviewFailed(failed);
               setPreviewReady(!failed);
             }}
@@ -124,6 +150,7 @@ export function AgentWorkspacePanel({
                   ? () => {
                       setPreviewFailed(false);
                       setPreviewReady(false);
+                      setPreviewTraceId(crypto.randomUUID());
                       setPreviewKey((value) => value + 1);
                     }
                   : undefined
@@ -165,6 +192,7 @@ export function AgentWorkspacePanel({
                 setControlling(false);
                 setPreviewReady(false);
                 setPreviewFailed(false);
+                setPreviewTraceId(crypto.randomUUID());
                 setPreviewKey((value) => value + 1);
                 onSelectMonitor?.(monitorId);
               }}
@@ -180,4 +208,13 @@ export function AgentWorkspacePanel({
       ) : null}
     </section>
   );
+}
+
+/** Keep capability-bearing VNC query strings out of browser diagnostics. */
+function previewPath(value: string): string {
+  try {
+    return new URL(value, window.location.href).pathname;
+  } catch {
+    return "computer-preview";
+  }
 }
