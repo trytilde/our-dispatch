@@ -7,6 +7,7 @@ import {
 } from "@trytilde/harness-sdk-vercel-ai-node";
 import {
   createTildeAttachmentMessageHandlers,
+  createCuaTools,
   createTildeMediaDownloader,
   createTildeMediaUploader,
 } from "@tryopenbot/computer-tools";
@@ -34,7 +35,7 @@ const client = createClient({
   orgSubdomain: false,
   teamId: process.env.TILDE_TEAM_ID!,
 });
-function localTools(sessionId: string): ToolSet {
+async function localTools(sessionId: string): Promise<ToolSet> {
   const uploadMedia = createTildeMediaUploader({
     baseUrl: client.config.baseUrl,
     headers: () => configHeaders(client.config),
@@ -42,7 +43,7 @@ function localTools(sessionId: string): ToolSet {
     teamId: process.env.TILDE_TEAM_ID!,
   });
   const downloadMedia = createTildeMediaDownloader(client, sessionId);
-  return {
+  const standardTools = {
     await_shell: awaitShell,
     bash,
     configure_connector: configureConnector,
@@ -54,6 +55,12 @@ function localTools(sessionId: string): ToolSet {
     screenshot: screenshot(uploadMedia),
     write_file: writeFile,
   } satisfies ToolSet;
+  const cuaTools = await createCuaTools({
+    agentId: "pirate-poet",
+    existingToolNames: Object.keys(standardTools),
+    uploadMedia,
+  });
+  return { ...standardTools, ...cuaTools };
 }
 
 async function managedMcpTools(
@@ -62,7 +69,7 @@ async function managedMcpTools(
   const handle = await createMCPClient({
     client,
     serverId: mcpServerId,
-    tools: localTools(sessionId),
+    tools: await localTools(sessionId),
   });
   const tools: Record<string, unknown> = await handle.mcp.tools();
   assertToolSet(tools);
