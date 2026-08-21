@@ -70,7 +70,7 @@ describe("createConfigureConnectorTool", () => {
     )) as Record<string, unknown>;
 
     expect(result.status).toBe("selection_required");
-    expect(String(result.instructions)).toContain("end your turn");
+    expect(String(result.instructions)).toContain("renders an account picker");
     const selection = result.connector_selection as Record<string, unknown>;
     expect(selection.provider_type_id).toBe("google_mail");
     expect(selection.provider_name).toBe("Google Mail");

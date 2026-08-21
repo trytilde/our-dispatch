@@ -5,12 +5,12 @@ import type { MessagePart } from "./rich-message-components.js";
 export { connectorSetupFields, type ConnectorSetupField };
 
 /**
- * In-chat connector configuration, ported from Grok Bot's connector cards.
- * The agent's `configure_connector` tool emits a `connector_selection`
- * payload; the grid lets the owner pick an existing provider account or add a
- * new one, and the setup dialog renders the provider's credential form from
- * its Tilde configuration schemas. Presentation-only: callers own data
- * fetching and the message round trip back to the agent.
+ * In-chat connector configuration. The agent's `configure_connector` tool
+ * emits a `connector_selection` payload; the grid lets the owner pick an
+ * existing provider account or add a new one, and the setup dialog renders
+ * the provider's credential form from its Tilde configuration schemas.
+ * Presentation-only: callers own data fetching and the message round trip
+ * back to the agent.
  */
 
 export const CONNECTOR_SELECTION_TOOL_NAME = "configure_connector";

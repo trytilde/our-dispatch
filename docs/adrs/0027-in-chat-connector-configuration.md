@@ -11,7 +11,7 @@
 
 ## Context
 
-Grok Bot (deprecated) let a bot manage its own connectors: meta tools for MCP discovery, management tools that emit connect cards, and instructions that prefer connectors over browser workarounds. OpenBot bots already carry the team-scoped Tilde control plane on their MCP servers, but had no user-facing account selection, no secure credential entry, and no instructions for the workflow.
+OpenBot bots already carry the team-scoped Tilde control plane on their MCP servers, so an agent can in principle discover, enable, and map provider tools for itself. What was missing was the owner-facing half: no in-chat way to choose which provider account a bot should use, no secure path for entering new credentials, and no instructions teaching agents the discovery-enable-map workflow instead of improvising through the browser or shell.
 
 ## Decision
 
@@ -29,7 +29,7 @@ sequenceDiagram
   A->>T: tilde_set_toolkit_tool_enabled + tilde_set_mcp_server_tool_enabled
 ```
 
-- The tool result carries both model-facing `instructions` ("card shown, end turn") and the client-facing payload, mirroring Grok Bot's host-emitted connector cards without adding a transcript message type.
+- The tool result carries both model-facing `instructions` ("card shown, end turn") and the client-facing payload, so the picker rides an ordinary tool part without adding a transcript message type.
 - `splitMessageSegments` routes completed `configure_connector` parts to their own transcript row so ADR-0025 tool-chip collapsing does not swallow the card.
 - The selection round trip is a plain user message carrying `tool_group_source_type_id` and `tool_group_instance_id`; the agent, not the client, performs enable/map reconciliation.
 - The control service, which already holds the team API key for the chat proxy, owns the credential write path so secrets stay server-side.

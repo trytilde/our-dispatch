@@ -83,9 +83,9 @@ function asText(value: unknown): string {
 }
 
 const cardShownNote = [
-  "The account picker card is now in the chat.",
-  "Tell the user to pick an account on the card (or add a new one there), finish any unrelated work, then end your turn.",
-  "Never paste authorization or install links and never ask for credential values in chat; the user's selection arrives as their next message.",
+  "The client renders an account picker from this result.",
+  "Point the user at it in one sentence, wrap up anything else in flight, and stop — their choice arrives as the next user message.",
+  "Do not paste authorization links and do not request credential values in chat while the selection is pending.",
 ].join(" ");
 
 /**
@@ -98,8 +98,8 @@ export function createConfigureConnectorTool(options: ConnectorToolOptions) {
     description: [
       "Show the user an in-chat account picker for one connector (Tilde tool provider), so they can choose which account to enable for this bot or add a new one.",
       "Use it when a task needs a provider (for example google_mail) whose tools are not on your MCP server yet, after confirming the provider exists with tilde_search_available_capabilities.",
-      "The card is rendered for the user automatically from this tool's result: after calling it, summarize why in one sentence and end your turn.",
-      "Never call it for providers already fully connected to this bot, and never ask the user to type credentials in chat.",
+      "The client renders the picker from this tool's result: after calling it, give a one-sentence reason and stop your turn.",
+      "Skip it for providers already fully connected to this bot, and never ask the user to type credentials in chat.",
     ].join(" "),
     inputSchema: z.object({
       provider_type_id: z
