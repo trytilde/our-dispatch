@@ -1,0 +1,130 @@
+import { configHeaders } from "@trytilde/harness-sdk";
+import {
+  chatKitEndpoint,
+  convertToAiSdkMessages,
+  createClient,
+  createMCPClient,
+} from "@trytilde/harness-sdk-vercel-ai-node";
+import {
+  createTildeAttachmentMessageHandlers,
+  createTildeMediaDownloader,
+  createTildeMediaUploader,
+} from "@tryopenbot/computer-tools";
+import {
+  consumeStream,
+  convertToModelMessages,
+  streamText,
+} from "ai";
+import type { ToolSet } from "@ai-sdk/provider-utils";
+import { prepareInference } from "./inference.js";
+import instructions from "./instructions.js";
+import awaitShell from "./tools/await_shell.js";
+import bash from "./tools/bash.js";
+import configureConnector from "./tools/configure_connector.js";
+import copyFromComputer from "./tools/copy_from_computer.js";
+import copyToComputer from "./tools/copy_to_computer.js";
+import glob from "./tools/glob.js";
+import grep from "./tools/grep.js";
+import readFile from "./tools/read_file.js";
+import screenshot from "./tools/screenshot.js";
+import writeFile from "./tools/write_file.js";
+
+const agentApiKey = process.env.AGENT_{{AGENT_ENV_PREFIX}}_API_KEY!;
+const mcpServerId = process.env.AGENT_{{AGENT_ENV_PREFIX}}_MCP_SERVER_ID!;
+
+const client = createClient({
+  apiKey: agentApiKey,
+  orgId: process.env.TILDE_ORG_ID!,
+  orgSubdomain: false,
+  teamId: process.env.TILDE_TEAM_ID!,
+});
+function localTools(sessionId: string): ToolSet {
+  const uploadMedia = createTildeMediaUploader({
+    baseUrl: client.config.baseUrl,
+    headers: () => configHeaders(client.config),
+    sessionId,
+    teamId: process.env.TILDE_TEAM_ID!,
+  });
+  const downloadMedia = createTildeMediaDownloader(client, sessionId);
+  return {
+    await_shell: awaitShell,
+    bash,
+    configure_connector: configureConnector,
+    copy_from_computer: copyFromComputer(uploadMedia),
+    copy_to_computer: copyToComputer(downloadMedia),
+    glob,
+    grep,
+    read_file: readFile,
+    screenshot: screenshot(uploadMedia),
+    write_file: writeFile,
+  } satisfies ToolSet;
+}
+
+async function managedMcpTools(
+  sessionId: string,
+): Promise<{ tools: ToolSet; closeMcp: () => Promise<void> }> {
+  const handle = await createMCPClient({
+    client,
+    serverId: mcpServerId,
+    tools: localTools(sessionId),
+  });
+  const tools: Record<string, unknown> = await handle.mcp.tools();
+  assertToolSet(tools);
+  return { tools, closeMcp: () => handle.closeMcp() };
+}
+
+function assertToolSet(tools: Record<string, unknown>): asserts tools is ToolSet {
+  for (const [name, definition] of Object.entries(tools))
+    if (typeof definition !== "object" || definition === null || !("inputSchema" in definition))
+      throw new TypeError(`MCP tool ${name} is not a Vercel AI SDK tool`);
+}
+
+function queuedRequestCutoff(messages: readonly { metadata?: unknown }[]): string | undefined {
+  return messages
+    .map((message) => {
+      if (typeof message.metadata !== "object" || message.metadata === null)
+        return undefined;
+      const metadata = message.metadata as Record<string, unknown>;
+      const value = metadata.createdAt ?? metadata.created_at;
+      return typeof value === "string" ? value : undefined;
+    })
+    .filter((value): value is string => Boolean(value))
+    .sort()
+    .at(-1);
+}
+
+export default chatKitEndpoint({
+  client,
+  webhookSigningKey: process.env.AGENT_{{AGENT_ENV_PREFIX}}_WEBHOOK_SIGNING_KEY!,
+  requestTimeoutMs: 285_000,
+  async handler(request, context) {
+    const history = await context.session.history();
+    const cutoff = queuedRequestCutoff(context.messages);
+    const requestHistory = cutoff
+      ? history.items.filter((message) => !message.created_at || message.created_at <= cutoff)
+      : history.items;
+    const attachmentHandlers = createTildeAttachmentMessageHandlers(client, context);
+    const messages = await convertToAiSdkMessages({
+      messages: [...requestHistory, ...context.messages],
+      chatkit: context.chatkit,
+      onUnprocessed: {
+        fileUpload: attachmentHandlers.fileUpload,
+      },
+      onCacheMessage: attachmentHandlers.onCacheMessage,
+      onHydrateMessage: attachmentHandlers.onHydrateMessage,
+    });
+    const { tools, closeMcp } = await managedMcpTools(context.sessionId);
+    const inference = await prepareInference(tools, request.signal);
+    const result = streamText({
+      ...inference,
+      abortSignal: request.signal,
+      instructions,
+      messages: await convertToModelMessages(messages),
+      onFinish: () => void closeMcp(),
+    });
+    return result.toUIMessageStreamResponse({
+      consumeSseStream: consumeStream,
+      originalMessages: messages,
+    });
+  },
+});

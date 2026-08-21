@@ -1,0 +1,29 @@
+import { TildeAgentProvider } from "@tryopenbot/agent-provider";
+import { VercelAgentServiceProvider } from "@tryopenbot/agent-service-provider";
+import { TildeAuthProvider } from "@tryopenbot/auth-provider";
+import { Configuration } from "@tryopenbot/configuration";
+import { VercelControlServiceProvider } from "@tryopenbot/control-service-provider";
+import { VercelSandboxComputerProvider } from "@tryopenbot/computer-service-provider";
+import { GitHubGitProvider } from "@tryopenbot/git-provider";
+import { VercelInferenceProvider } from "@tryopenbot/inference-provider";
+import { TildePlatform, VercelPlatform } from "@tryopenbot/platform-integrations";
+
+const tilde = new TildePlatform({
+  apiKey: process.env.TILDE_API_KEY!,
+  baseUrl: process.env.TILDE_BASE_URL ?? "https://api.trytilde.ai",
+  orgId: process.env.TILDE_ORG_ID!,
+  teamId: process.env.TILDE_TEAM_ID!,
+});
+const vercel = new VercelPlatform();
+
+export default Configuration({
+  providers: {
+    auth: new TildeAuthProvider(tilde),
+    controlService: new VercelControlServiceProvider({ platform: vercel }),
+    agentService: new VercelAgentServiceProvider({ platform: vercel }),
+    agent: new TildeAgentProvider(tilde),
+    computer: new VercelSandboxComputerProvider({ platform: vercel }),
+    inference: new VercelInferenceProvider(vercel),
+    git: new GitHubGitProvider(tilde),
+  },
+});
