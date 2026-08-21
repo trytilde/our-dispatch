@@ -2,9 +2,12 @@ import { describe, expect, it } from "vite-plus/test";
 import {
   connectorAccountCreatedMessage,
   connectorAccountSelectionMessage,
+  connectorAuthorizedReturnUrl,
   connectorSelectionFromPart,
   connectorSetupFields,
   CreateConnectorAccountResultSchema,
+  waitForConnectorAccountActive,
+  type ConnectorAccount,
 } from "./connectors.js";
 
 const selectionOutput = {
@@ -122,5 +125,50 @@ describe("connector hand-back messages", () => {
       authorization_url: "https://accounts.google.com/o/oauth2/auth",
     });
     expect(connectorAccountCreatedMessage(provider, authorize)).toContain("started authorizing");
+  });
+});
+
+describe("connectorAuthorizedReturnUrl", () => {
+  it("builds the universal return target per client", () => {
+    expect(connectorAuthorizedReturnUrl("https://openbot.test/", "electron")).toBe(
+      "https://openbot.test/connectors/authorized?client=electron",
+    );
+  });
+});
+
+describe("waitForConnectorAccountActive", () => {
+  it("resolves once the brokered account turns active", async () => {
+    const states = ["brokering_initiated", "brokering_initiated", "active"];
+    const client = {
+      listConnectorAccounts: async (): Promise<ConnectorAccount[]> => [
+        { id: "tgi-1", display_name: "Work", status: states.shift() ?? "active" },
+      ],
+    };
+    const account = await waitForConnectorAccountActive(client, {
+      providerTypeId: "github",
+      accountId: "tgi-1",
+      intervalMs: 1,
+      sleep: async () => undefined,
+    });
+    expect(account?.status).toBe("active");
+  });
+
+  it("returns undefined when aborted or timed out", async () => {
+    const controller = new AbortController();
+    controller.abort();
+    const client = {
+      listConnectorAccounts: async (): Promise<ConnectorAccount[]> => [
+        { id: "tgi-1", display_name: "Work", status: "brokering_initiated" },
+      ],
+    };
+    await expect(
+      waitForConnectorAccountActive(client, {
+        providerTypeId: "github",
+        accountId: "tgi-1",
+        signal: controller.signal,
+        intervalMs: 1,
+        sleep: async () => undefined,
+      }),
+    ).resolves.toBeUndefined();
   });
 });

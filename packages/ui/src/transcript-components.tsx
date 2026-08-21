@@ -85,6 +85,40 @@ export function TranscriptLoading({ children }: { children?: ReactNode }) {
   );
 }
 
+export function ConversationSkeleton() {
+  return (
+    <div
+      aria-busy="true"
+      aria-label="Loading conversation"
+      className="conversation-loading conversation-skeleton"
+      role="status"
+    >
+      <span className="sr-only">Loading conversation</span>
+      <div className="conversation-skeleton-row assistant" aria-hidden="true">
+        <span className="conversation-skeleton-avatar" />
+        <span className="conversation-skeleton-bubble wide">
+          <i />
+          <i />
+          <i />
+        </span>
+      </div>
+      <div className="conversation-skeleton-row user" aria-hidden="true">
+        <span className="conversation-skeleton-bubble compact">
+          <i />
+          <i />
+        </span>
+      </div>
+      <div className="conversation-skeleton-row assistant" aria-hidden="true">
+        <span className="conversation-skeleton-avatar" />
+        <span className="conversation-skeleton-bubble medium">
+          <i />
+          <i />
+        </span>
+      </div>
+    </div>
+  );
+}
+
 export function TranscriptError({ onRetry }: { onRetry: () => void }) {
   return (
     <div

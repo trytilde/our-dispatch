@@ -24,14 +24,7 @@ export const Empty: Story = {
 export const Queue: Story = {
   render: () => (
     <div style={{ width: 520 }}>
-      <ActivityQueue
-        items={queue}
-        onEdit={noop}
-        onMoveEarlier={noop}
-        onMoveLater={noop}
-        onRemove={noop}
-        onRunNow={noop}
-      />
+      <ActivityQueue items={queue} onEdit={noop} onReorder={noop} onRemove={noop} onRunNow={noop} />
     </div>
   ),
 };
@@ -49,8 +42,7 @@ export const CombinedActivity: Story = {
         events={events}
         queue={queue}
         onEdit={noop}
-        onMoveEarlier={noop}
-        onMoveLater={noop}
+        onReorder={noop}
         onRemove={noop}
         onRunNow={noop}
       />

@@ -711,7 +711,7 @@ function ChatScreen({
             void runtime.actions.reorderQueuedTurn(turn.id, position).catch(() => undefined)
           }
           onRemove={(turn) => void runtime.actions.removeQueuedTurn(turn.id).catch(() => undefined)}
-          onRunNow={(turn) => void runtime.actions.runQueuedTurnNow(turn.id).catch(() => undefined)}
+          onRunNow={(turn) => void runtime.actions.steerQueuedTurn(turn.id).catch(() => undefined)}
         />
         <MobilePromptBar
           busy={busy}

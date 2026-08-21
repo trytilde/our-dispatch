@@ -6,6 +6,7 @@ const providersPage = {
     {
       type_id: "google_mail",
       name: "Google Mail",
+      metadata: { icon_url: "https://icons.tilde.test/google-mail.svg", icon_slug: "google-mail" },
       credential_sources: [
         {
           type_id: "google_mail_managed_oauth",
@@ -75,6 +76,7 @@ describe("createConfigureConnectorTool", () => {
     expect(selection.provider_type_id).toBe("google_mail");
     expect(selection.provider_name).toBe("Google Mail");
     expect(selection.prompt).toBe("Send the weekly report");
+    expect(selection.icon_url).toBe("https://icons.tilde.test/google-mail.svg");
     expect(selection.accounts).toEqual([
       {
         id: "tgi-work",

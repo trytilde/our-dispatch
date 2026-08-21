@@ -31,15 +31,26 @@ RUN cp tsdown.node.config.ts packages/utilities/tsdown.image.config.ts \
 FROM node:24-bookworm-slim
 
 COPY packages/computer-service-provider/src/base/assets/bootstrap.sh /opt/openbot/bootstrap.sh
+COPY packages/computer-service-provider/src/base/assets/desktop-session.sh /opt/openbot/desktop-session.sh
+COPY packages/computer-service-provider/src/base/assets/desktop-wallpaper.svg /opt/openbot/desktop-wallpaper.svg
 COPY packages/computer-service-provider/src/base/assets/development-setup.sh /usr/local/bin/setup-openbot-development
 COPY packages/computer-service-provider/src/base/assets/development-profile.sh /opt/openbot/development-profile.sh
+COPY packages/computer-service-provider/src/base/assets/openbot-browser.sh /usr/local/bin/openbot-browser
+COPY packages/computer-service-provider/src/base/assets/openbot-browser.desktop /usr/share/applications/openbot-browser.desktop
+COPY packages/computer-service-provider/src/base/assets/openbot-files.desktop /usr/share/applications/openbot-files.desktop
+COPY packages/computer-service-provider/src/base/assets/openbox-rc.xml /opt/openbot/openbox-rc.xml
 COPY packages/computer-service-provider/src/base/assets/start.sh /usr/local/bin/start-openbot-computer
+COPY packages/computer-service-provider/src/base/assets/tint2rc /opt/openbot/tint2rc
 
 # Install the desktop stack once while building the shared image.
-RUN chmod 0755 /opt/openbot/bootstrap.sh /opt/openbot/development-profile.sh /usr/local/bin/setup-openbot-development /usr/local/bin/start-openbot-computer \
+RUN chmod 0755 /opt/openbot/bootstrap.sh /opt/openbot/desktop-session.sh /opt/openbot/development-profile.sh /usr/local/bin/openbot-browser /usr/local/bin/setup-openbot-development /usr/local/bin/start-openbot-computer \
     && /opt/openbot/bootstrap.sh \
+    && rsvg-convert --width 1440 --height 810 /opt/openbot/desktop-wallpaper.svg --output /opt/openbot/desktop-wallpaper.png \
     && corepack enable \
     && corepack prepare pnpm@10.33.1 --activate
+
+# Keep noVNC as the RFB implementation while exposing only OpenBot-owned viewer chrome.
+COPY packages/computer-service-provider/src/base/assets/openbot-vnc.html /usr/share/novnc/openbot.html
 
 # Keep service source changes above this lightweight layer so the expensive
 # browser and desktop installation remains cached during normal development.

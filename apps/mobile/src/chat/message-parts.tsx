@@ -1,13 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Linking, Modal, Pressable, StyleSheet } from "react-native";
 import { WebView } from "react-native-webview";
-import {
-  connectorAccountSelectionMessage,
-  connectorSelectionFromPart,
-  type ChatMessage,
-  type ChatPart,
-  type ConnectorSelection,
-} from "@tryopenbot/client-runtime";
+import type { ChatMessage, ChatPart } from "@tryopenbot/client-runtime";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Image } from "@/components/ui/image";
@@ -17,7 +11,7 @@ import { View } from "@/components/ui/view";
 import { useColor } from "@/hooks/useColor";
 import { SPACING } from "@/theme/globals";
 import type { MobileOpenBotRuntime } from "@/runtime/openbot-runtime";
-import { ConnectorSetupSheet } from "@/connector-setup";
+import { ConnectorSelectionPicker, connectorSelectionForPart } from "./connector-picker";
 
 export function MobileMessageParts({
   message,
@@ -62,10 +56,6 @@ function MobileMessagePart({
 }) {
   const muted = useColor("textMuted");
   const border = useColor("border");
-  const connectorSelection = connectorSelectionFromPart(part);
-
-  if (connectorSelection)
-    return <ConnectorSelectionPicker runtime={runtime} selection={connectorSelection} />;
 
   if (part.type === "file" || part.type === "image")
     return <MobileAttachment message={message} part={part} runtime={runtime} />;
@@ -83,6 +73,10 @@ function MobileMessagePart({
         ) : null}
       </View>
     );
+
+  const connectorSelection = connectorSelectionForPart(part);
+  if (connectorSelection)
+    return <ConnectorSelectionPicker runtime={runtime} selection={connectorSelection} />;
 
   if (part.type === "tool" || part.type.startsWith("tool-"))
     return (
@@ -102,95 +96,6 @@ function MobileMessagePart({
       {part.text}
     </Text>
   ) : null;
-}
-
-/** Keep the fork's connector-account handoff inside assistant-ui's native message renderer. */
-function ConnectorSelectionPicker({
-  runtime,
-  selection,
-}: {
-  runtime: MobileOpenBotRuntime;
-  selection: ConnectorSelection;
-}) {
-  const [setupOpen, setSetupOpen] = useState(false);
-  const muted = useColor("textMuted");
-  const border = useColor("border");
-  const background = useColor("background");
-  const prompt =
-    selection.prompt ??
-    `Select which account to enable for this bot for ${selection.provider_name}`;
-
-  const choose = (accountId: string, displayName: string) => {
-    void runtime.actions.sendMessage({
-      text: connectorAccountSelectionMessage(selection, {
-        id: accountId,
-        display_name: displayName,
-      }),
-    });
-  };
-
-  return (
-    <View style={styles.connectorPicker}>
-      <Text variant="caption" style={{ color: muted }}>
-        {prompt}
-      </Text>
-      <View style={styles.connectorGrid}>
-        {selection.accounts.map((account) => (
-          <Pressable
-            accessibilityRole="button"
-            key={account.id}
-            onPress={() => choose(account.id, account.display_name)}
-            style={({ pressed }) => [
-              styles.connectorCard,
-              { borderColor: border, backgroundColor: background },
-              pressed && styles.connectorCardPressed,
-            ]}
-          >
-            <View style={[styles.connectorGlyph, { borderColor: border }]}>
-              <Text variant="caption">{selection.provider_name.slice(0, 2).toUpperCase()}</Text>
-            </View>
-            <View style={styles.connectorCopy}>
-              <Text numberOfLines={1} variant="caption">
-                {selection.provider_name}
-              </Text>
-              <Text numberOfLines={1} variant="caption" style={{ color: muted }}>
-                {account.display_name}
-              </Text>
-            </View>
-          </Pressable>
-        ))}
-        <Pressable
-          accessibilityRole="button"
-          onPress={() => setSetupOpen(true)}
-          style={({ pressed }) => [
-            styles.connectorCard,
-            { borderColor: border, backgroundColor: background },
-            pressed && styles.connectorCardPressed,
-          ]}
-        >
-          <View style={[styles.connectorGlyph, { borderColor: border }]}>
-            <Text variant="caption">+</Text>
-          </View>
-          <View style={styles.connectorCopy}>
-            <Text numberOfLines={2} variant="caption">
-              Add new {selection.provider_name} account
-            </Text>
-          </View>
-        </Pressable>
-      </View>
-      {setupOpen ? (
-        <ConnectorSetupSheet
-          client={runtime.client}
-          selection={selection}
-          onClose={() => setSetupOpen(false)}
-          onComplete={(text) => {
-            setSetupOpen(false);
-            void runtime.actions.sendMessage({ text });
-          }}
-        />
-      ) : null}
-    </View>
-  );
 }
 
 function MobileAttachment({
@@ -402,28 +307,6 @@ function formatState(value?: string | null): string {
 
 const styles = StyleSheet.create({
   partStack: { gap: SPACING.sm },
-  connectorPicker: { gap: SPACING.sm, marginTop: SPACING.sm },
-  connectorGrid: { flexDirection: "row", flexWrap: "wrap", gap: SPACING.sm },
-  connectorCard: {
-    flexBasis: "47%",
-    flexGrow: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: SPACING.sm,
-    padding: SPACING.sm,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: 12,
-  },
-  connectorCardPressed: { opacity: 0.7 },
-  connectorGlyph: {
-    width: 30,
-    height: 30,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: 8,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  connectorCopy: { flex: 1, minWidth: 0 },
   reasoningPart: { borderLeftWidth: 2, gap: SPACING.xs, paddingLeft: SPACING.sm },
   toolPart: { gap: SPACING.xs, padding: SPACING.md },
   attachmentCard: { borderWidth: 1, borderRadius: 18, overflow: "hidden" },

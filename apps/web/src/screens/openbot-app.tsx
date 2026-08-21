@@ -12,18 +12,20 @@ import {
   type ChatMessage,
   connectorAccountCreatedMessage,
   connectorAccountSelectionMessage,
+  connectorAuthorizedReturnUrl,
   type ConnectorProvider,
   type CreateConnectorAccountResult,
   errorMessage,
+  waitForConnectorAccountActive,
   latestMessagePreview,
   messageText,
-  queuedTurnText,
   type QueuedTurn,
 } from "@tryopenbot/client-runtime";
-import { useNavigate } from "@tanstack/react-router";
+import { useNavigate, useSearch } from "@tanstack/react-router";
 import { useStore } from "zustand";
 import {
   ActivityQueue,
+  AddAgentDialog,
   AgentWorkspacePanel,
   ChatComposer,
   ChatHeader,
@@ -33,9 +35,9 @@ import {
   type ConnectorSelectionView,
   ConnectorSetupDialog,
   type ConnectorSetupSubmit,
+  ConversationSkeleton,
   ConversationSurface,
   ConversationMessage,
-  EmptyConversation,
   MarkdownText,
   MessageContent,
   type MessagePart,
@@ -48,14 +50,10 @@ import {
   WorkspaceShell,
   useWorkspaceLayout,
 } from "@tryopenbot/ui";
+import type { WorkspaceSearch } from "../router.js";
 import { openBotRuntime } from "../runtime.js";
 import { optimisticParts, type PendingFile, uploadAttachment } from "../web-attachments.js";
-
-const suggestions = [
-  "Inspect this workspace and tell me what to improve first",
-  "Build a small feature and verify it end to end",
-  "Research a topic, cite sources, and save a concise brief",
-];
+import { useClientWorkspace } from "../workspaces.js";
 
 export function OpenBotApp() {
   const sidebar = useStore(openBotRuntime.store, (state) => state.sidebar);
@@ -77,14 +75,17 @@ export function OpenBotApp() {
   const [dragging, setDragging] = useState(false);
   const [search, setSearch] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
-  const [composerFocused, setComposerFocused] = useState(false);
   const [messageMenuId, setMessageMenuId] = useState("");
   const [replyingTo, setReplyingTo] = useState<ChatMessage | null>(null);
   const [threadRootId, setThreadRootId] = useState("");
-  const [createAgentOpen, setCreateAgentOpen] = useState(false);
-  const [createAgentName, setCreateAgentName] = useState("");
+  // Modal open-state lives in the URL so redirects and deep links can target
+  // it directly; see WorkspaceSearch in router.tsx.
+  const workspaceSearch = useSearch({ strict: false }) as WorkspaceSearch;
+  const createAgentOpen = workspaceSearch.dialog === "new-agent";
   const [creatingAgent, setCreatingAgent] = useState(false);
   const [connectorSetup, setConnectorSetup] = useState<ConnectorSetupState | null>(null);
+  const connectorWatchRef = useRef<AbortController | null>(null);
+  const pendingConnectorSelectionRef = useRef<ConnectorSelectionView | null>(null);
   const conversationRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const composerInputRef = useRef<HTMLTextAreaElement>(null);
@@ -95,17 +96,35 @@ export function OpenBotApp() {
   const [showScrollLatest, setShowScrollLatest] = useState(false);
   const layout = useWorkspaceLayout();
   const navigate = useNavigate();
+  const setCreateAgentOpen = (open: boolean): void => {
+    void navigate({
+      to: "/",
+      search: (current: WorkspaceSearch) => ({
+        ...current,
+        dialog: open ? ("new-agent" as const) : undefined,
+      }),
+      replace: !open,
+    });
+  };
+  const setConnectorRoute = (providerTypeId: string | undefined): void => {
+    void navigate({
+      to: "/",
+      search: (current: WorkspaceSearch) => ({ ...current, connector: providerTypeId }),
+      replace: !providerTypeId,
+    });
+  };
+  const clientWorkspace = useClientWorkspace();
 
   const selectedAgent = agents.find((agent) => agent.id === agentId);
   const hasContent = Boolean(draft.trim() || files.length);
   const composerExpanded =
-    composerFocused || draft.includes("\n") || draft.length > 80 || files.length > 0;
+    draft.includes("\n") || draft.length > 80 || files.length > 0 || Boolean(replyingTo);
 
   useLayoutEffect(() => {
     const input = composerInputRef.current;
     if (!input) return;
     input.style.height = "0px";
-    input.style.height = `${Math.min(200, Math.max(44, input.scrollHeight))}px`;
+    input.style.height = `${Math.min(100, Math.max(28, input.scrollHeight))}px`;
   }, [draft]);
 
   useEffect(() => {
@@ -164,7 +183,7 @@ export function OpenBotApp() {
   async function send(event: FormEvent): Promise<void> {
     event.preventDefault();
     const authoredText = draft.trim();
-    if (!hasContent || !agentId || submitting) return;
+    if (!hasContent || !agentId || (submitting && !agentBusy)) return;
     const text = replyingTo
       ? `> ${messageText(replyingTo).replaceAll("\n", "\n> ")}\n\n${authoredText}`.trim()
       : authoredText;
@@ -280,13 +299,19 @@ export function OpenBotApp() {
     }
   }
 
+  async function mutateQueue(operation: () => Promise<void>): Promise<void> {
+    if (!sessionId) return;
+    try {
+      await operation();
+      await openBotRuntime.actions.refreshQueue(sessionId);
+    } catch (reason) {
+      openBotRuntime.actions.setError(errorMessage(reason));
+    }
+  }
+
   async function editQueuedTurn(turn: QueuedTurn): Promise<void> {
     const text = queuedTurnText(turn);
-    try {
-      await openBotRuntime.actions.removeQueuedTurn(turn.id);
-    } catch {
-      return;
-    }
+    await mutateQueue(() => openBotRuntime.actions.removeQueuedTurn(turn.id));
     setDraft(text === "Queued agent turn" ? "" : text);
   }
 
@@ -348,8 +373,6 @@ export function OpenBotApp() {
       fileInputRef={fileInputRef}
       onSubmit={(event) => void send(event)}
       onDraftChange={setDraft}
-      onFocus={() => setComposerFocused(true)}
-      onBlur={() => setComposerFocused(false)}
       onDragStateChange={setDragging}
       onFilesAdded={addFiles}
       onRemoveAttachment={(id) => {
@@ -365,8 +388,8 @@ export function OpenBotApp() {
   );
 
   /** Scaffold and register a new agent, then open a fresh conversation with it. */
-  async function submitCreateAgent(): Promise<void> {
-    const name = createAgentName.trim();
+  async function submitCreateAgent(candidateName: string): Promise<void> {
+    const name = candidateName.trim();
     if (!name || creatingAgent) return;
     setCreatingAgent(true);
     openBotRuntime.actions.setError("");
@@ -380,7 +403,6 @@ export function OpenBotApp() {
           .sidebar.agents.find((candidate) => candidate.id === created.id);
         if (agent) {
           setCreateAgentOpen(false);
-          setCreateAgentName("");
           await openBotRuntime.actions.selectAgent(agent.id);
           openBotRuntime.actions.startNewConversation(agent.id);
           return;
@@ -389,7 +411,7 @@ export function OpenBotApp() {
       }
       setCreateAgentOpen(false);
       openBotRuntime.actions.setError(
-        `Agent ${created.name} was created but has not appeared yet; refresh shortly.`,
+        `Bot ${created.name} was created but has not appeared yet; refresh shortly.`,
       );
     } catch (reason) {
       openBotRuntime.actions.setError(errorMessage(reason));
@@ -409,46 +431,87 @@ export function OpenBotApp() {
       });
     },
     onAddAccount: (selection) => {
-      setConnectorSetup({ selection, loading: selection.credentialSources.length === 0 });
-      if (selection.credentialSources.length > 0) return;
-      // Older payloads omit credential sources; recover them from the catalog.
-      void openBotRuntime.client
-        .listConnectorProviders()
-        .then((providers) => {
-          const provider = providers.find(
-            (candidate) => candidate.type_id === selection.providerTypeId,
-          );
-          setConnectorSetup((current) =>
-            current && current.selection === selection
-              ? {
-                  ...current,
-                  loading: false,
-                  ...(provider
-                    ? {
-                        selection: {
-                          ...selection,
-                          credentialSources: credentialSourceViews(provider),
-                        },
-                      }
-                    : { error: `No connector catalog entry for ${selection.providerName}` }),
-                }
-              : current,
-          );
-        })
-        .catch((reason) => {
-          setConnectorSetup((current) =>
-            current && current.selection === selection
-              ? { ...current, loading: false, error: errorMessage(reason) }
-              : current,
-          );
-        });
+      // Route the modal open through the URL so back/close and redirects work.
+      pendingConnectorSelectionRef.current = selection;
+      setConnectorRoute(selection.providerTypeId);
     },
   };
+
+  function openConnectorSetup(selection: ConnectorSelectionView): void {
+    setConnectorSetup({ selection, loading: selection.credentialSources.length === 0 });
+    if (selection.credentialSources.length > 0) return;
+    // Payloads opened by URL (or older tool outputs) carry no credential
+    // sources; recover them from the catalog.
+    void openBotRuntime.client
+      .listConnectorProviders()
+      .then((providers) => {
+        const provider = providers.find(
+          (candidate) => candidate.type_id === selection.providerTypeId,
+        );
+        setConnectorSetup((current) =>
+          current && current.selection === selection
+            ? {
+                ...current,
+                loading: false,
+                ...(provider
+                  ? {
+                      selection: {
+                        ...selection,
+                        providerName: provider.name,
+                        ...(provider.icon_url ? { iconUrl: provider.icon_url } : {}),
+                        credentialSources: credentialSourceViews(provider),
+                      },
+                    }
+                  : { error: `No connector catalog entry for ${selection.providerName}` }),
+              }
+            : current,
+        );
+      })
+      .catch((reason) => {
+        setConnectorSetup((current) =>
+          current && current.selection === selection
+            ? { ...current, loading: false, error: errorMessage(reason) }
+            : current,
+        );
+      });
+  }
+
+  function closeConnectorSetup(): void {
+    connectorWatchRef.current?.abort();
+    connectorWatchRef.current = null;
+    setConnectorSetup(null);
+  }
+
+  // The `?connector=<provider>` search param is the source of truth for the
+  // setup modal, so OAuth returns and deep links can open it directly and the
+  // back button closes it.
+  useEffect(() => {
+    const providerTypeId = workspaceSearch.connector;
+    if (!providerTypeId) {
+      if (connectorSetup) closeConnectorSetup();
+      return;
+    }
+    if (connectorSetup?.selection.providerTypeId === providerTypeId) return;
+    const pending = pendingConnectorSelectionRef.current;
+    pendingConnectorSelectionRef.current = null;
+    openConnectorSetup(
+      pending?.providerTypeId === providerTypeId
+        ? pending
+        : {
+            providerTypeId,
+            providerName: providerTypeId,
+            accounts: [],
+            credentialSources: [],
+          },
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- the URL param drives this modal
+  }, [workspaceSearch.connector]);
 
   async function submitConnectorSetup(input: ConnectorSetupSubmit): Promise<void> {
     if (!connectorSetup) return;
     const selection = connectorSetup.selection;
     setConnectorSetup({ ...connectorSetup, submitting: true, error: undefined });
+    const desktop = navigator.userAgent.includes("Electron");
     try {
       const result = await openBotRuntime.client.createConnectorAccount({
         providerTypeId: selection.providerTypeId,
@@ -456,7 +519,10 @@ export function OpenBotApp() {
         displayName: input.displayName,
         ...(input.resourceServerValues ? { resourceServerValues: input.resourceServerValues } : {}),
         ...(input.userCredentialValues ? { userCredentialValues: input.userCredentialValues } : {}),
-        returnUrl: `${window.location.origin}/?connector_setup=complete`,
+        returnUrl: connectorAuthorizedReturnUrl(
+          window.location.origin,
+          desktop ? "electron" : "web",
+        ),
       });
       if (result.status === "authorize" && result.authorization_url) {
         window.open(result.authorization_url, "_blank", "noopener");
@@ -465,6 +531,19 @@ export function OpenBotApp() {
           submitting: false,
           result,
           authorizationUrl: result.authorization_url,
+        });
+        // Close the loop without a manual "Done": once Tilde flips the account
+        // to active after the OAuth return, hand back to the agent directly.
+        const watcher = new AbortController();
+        connectorWatchRef.current?.abort();
+        connectorWatchRef.current = watcher;
+        void waitForConnectorAccountActive(openBotRuntime.client, {
+          providerTypeId: selection.providerTypeId,
+          accountId: result.account.id,
+          signal: watcher.signal,
+        }).then((account) => {
+          if (!account || watcher.signal.aborted) return;
+          finishConnectorSetup(selection, { ...result, status: "created", account });
         });
         return;
       }
@@ -480,7 +559,8 @@ export function OpenBotApp() {
     selection: ConnectorSelectionView,
     result: CreateConnectorAccountResult,
   ): void {
-    setConnectorSetup(null);
+    closeConnectorSetup();
+    setConnectorRoute(undefined);
     void openBotRuntime.actions.sendMessage({
       text: connectorAccountCreatedMessage(
         { provider_type_id: selection.providerTypeId, provider_name: selection.providerName },
@@ -492,7 +572,7 @@ export function OpenBotApp() {
   return (
     <WorkspaceShell
       sidebarCollapsed={layout.sidebarCollapsed}
-      computerOpen={layout.workspaceOpen}
+      computerOpen={layout.workspaceOpen && Boolean(selectedAgent)}
       style={layout.style}
     >
       <WorkspaceSidebar
@@ -502,7 +582,7 @@ export function OpenBotApp() {
           name: agent.display_name,
           lastMessage:
             agent.id === agentId
-              ? latestMessagePreview(messages)
+              ? latestMessagePreview(messages) || agent.last_message_preview || ""
               : agent.last_message_preview || "",
           updatedAt: agent.last_user_message_at || agent.sessions.items[0]?.updated_at,
           unread: agent.sessions.items.some((item) => item.unread),
@@ -522,147 +602,93 @@ export function OpenBotApp() {
         onLoadMore={() => void loadMoreAgents()}
         onCreateAgent={() => setCreateAgentOpen(true)}
         onOpenSettings={() => void navigate({ to: "/settings" })}
+        onSwitchWorkspace={() => clientWorkspace.openWorkspaceSelector()}
         onResize={layout.beginSidebarResize}
       />
 
       <ChatPane>
-        <ChatHeader
-          agentId={selectedAgent?.id}
-          agentName={selectedAgent?.display_name || "OpenBot"}
-          busy={agentBusy}
-          computerOpen={layout.workspaceOpen}
-          onToggleComputer={layout.toggleWorkspace}
-        />
+        {selectedAgent ? (
+          <ChatHeader
+            agentId={selectedAgent.id}
+            agentName={selectedAgent.display_name}
+            busy={agentBusy}
+            computerOpen={layout.workspaceOpen}
+            onToggleComputer={layout.toggleWorkspace}
+          />
+        ) : null}
 
-        <ConversationSurface scrollRef={conversationRef} onScroll={handleConversationScroll}>
-          {loadingMessages ? (
-            <div className="conversation-loading">Loading conversation…</div>
-          ) : null}
-          {!loadingMessages && messages.length === 0 ? (
-            <EmptyConversation suggestions={suggestions} onSelectSuggestion={setDraft} />
-          ) : (
-            <div className="message-list">
-              {nextMessageToken ? (
-                <button className="older-messages" onClick={() => void loadOlderMessages()}>
-                  Load earlier messages
-                </button>
-              ) : null}
-              {(() => {
-                const rendered: ReactNode[] = [];
-                // An agent run (reasoning + tool calls) that spans adjacent
-                // messages merges into one grouped tool-chips block.
-                let pendingRun: { key: string; parts: MessagePart[] } | null = null;
-                const flushRun = () => {
-                  if (!pendingRun) return;
-                  rendered.push(
-                    <div className="message-block" key={pendingRun.key}>
-                      <ToolsBlock parts={pendingRun.parts} />
-                    </div>,
-                  );
-                  pendingRun = null;
-                };
-                const resolveAttachmentUrl = (sessionKey: string, attachmentId: string) =>
-                  openBotRuntime.client.getAttachmentDownloadUrl(sessionKey, attachmentId);
-                const rewriteUrl = (value: string) => openBotRuntime.client.rewriteTildeUrl(value);
-
-                visibleMessages.forEach((message, index) => {
-                  const previous = visibleMessages[index - 1];
-                  const next = visibleMessages[index + 1];
-                  const continuedPrevious = previous?.role === message.role;
-                  const continuedNext = next?.role === message.role;
-                  const parts = message.parts ?? [];
-                  const messageActions = {
-                    menuOpen: messageMenuId === message.id,
-                    onReply: () => {
-                      setReplyingTo(message);
-                      composerInputRef.current?.focus();
-                    },
-                    onToggleMenu: () => {
-                      setMessageMenuId((current) => (current === message.id ? "" : message.id));
-                    },
-                    onStartThread: () => {
-                      setThreadRootId(message.id);
-                      setReplyingTo(message);
-                      setMessageMenuId("");
-                      composerInputRef.current?.focus();
-                    },
-                    onCopy: () => {
-                      void navigator.clipboard.writeText(messageText(message));
-                      setMessageMenuId("");
-                    },
-                  };
-
-                  // Messages split into standalone blocks: text in bubbles;
-                  // agent runs and attachments as their own rows.
-                  const segments = parts.length > 0 ? splitMessageSegments(parts) : [];
-                  if (segments.length === 0) {
-                    flushRun();
+        {selectedAgent ? (
+          <ConversationSurface scrollRef={conversationRef} onScroll={handleConversationScroll}>
+            {loadingMessages ? <ConversationSkeleton /> : null}
+            {!loadingMessages ? (
+              <div className="message-list">
+                {nextMessageToken ? (
+                  <button className="older-messages" onClick={() => void loadOlderMessages()}>
+                    Load earlier messages
+                  </button>
+                ) : null}
+                {(() => {
+                  const rendered: ReactNode[] = [];
+                  // An agent run (reasoning + tool calls) that spans adjacent
+                  // messages merges into one grouped tool-chips block.
+                  let pendingRun: { key: string; parts: MessagePart[] } | null = null;
+                  const flushRun = () => {
+                    if (!pendingRun) return;
                     rendered.push(
-                      <ConversationMessage
-                        key={message.id}
-                        role={message.role}
-                        createdAt={message.created_at}
-                        continuedPrevious={continuedPrevious}
-                        continuedNext={continuedNext}
-                        {...messageActions}
-                      >
-                        <MessageContent
-                          message={message}
-                          resolveAttachmentUrl={resolveAttachmentUrl}
-                          rewriteUrl={rewriteUrl}
-                        />
-                      </ConversationMessage>,
+                      <div className="message-block" key={pendingRun.key}>
+                        <ToolsBlock parts={pendingRun.parts} />
+                      </div>,
                     );
-                    return;
-                  }
+                    pendingRun = null;
+                  };
+                  const resolveAttachmentUrl = (sessionKey: string, attachmentId: string) =>
+                    openBotRuntime.client.getAttachmentDownloadUrl(sessionKey, attachmentId);
+                  const rewriteUrl = (value: string) =>
+                    openBotRuntime.client.rewriteTildeUrl(value);
 
-                  const lastText = segments.reduce(
-                    (last, segment, at) => (segment.kind === "text" ? at : last),
-                    -1,
-                  );
-                  segments.forEach((segment, at) => {
-                    const key = `${message.id}:${at}`;
-                    if (segment.kind === "run") {
-                      if (pendingRun && message.role !== "user") {
-                        pendingRun.parts.push(...segment.parts);
-                      } else {
-                        flushRun();
-                        pendingRun = { key, parts: [...segment.parts] };
-                      }
-                      return;
-                    }
-                    flushRun();
-                    if (segment.kind === "text") {
+                  visibleMessages.forEach((message, index) => {
+                    const previous = visibleMessages[index - 1];
+                    const next = visibleMessages[index + 1];
+                    const continuedPrevious = previous?.role === message.role;
+                    const continuedNext = next?.role === message.role;
+                    const parts = message.parts ?? [];
+                    const messageActions = {
+                      menuOpen: messageMenuId === message.id,
+                      onReply: () => {
+                        setReplyingTo(message);
+                        composerInputRef.current?.focus();
+                      },
+                      onToggleMenu: () => {
+                        setMessageMenuId((current) => (current === message.id ? "" : message.id));
+                      },
+                      onStartThread: () => {
+                        setThreadRootId(message.id);
+                        setReplyingTo(message);
+                        setMessageMenuId("");
+                        composerInputRef.current?.focus();
+                      },
+                      onCopy: () => {
+                        void navigator.clipboard.writeText(messageText(message));
+                        setMessageMenuId("");
+                      },
+                    };
+
+                    // Messages split into standalone blocks: text in bubbles;
+                    // agent runs and attachments as their own rows.
+                    const segments = parts.length > 0 ? splitMessageSegments(parts) : [];
+                    if (segments.length === 0) {
+                      flushRun();
                       rendered.push(
                         <ConversationMessage
-                          key={key}
+                          key={message.id}
                           role={message.role}
                           createdAt={message.created_at}
-                          continuedPrevious={
-                            at > 0 ? segments[at - 1]?.kind === "text" : continuedPrevious
-                          }
-                          continuedNext={
-                            at < segments.length - 1
-                              ? segments[at + 1]?.kind === "text"
-                              : continuedNext
-                          }
-                          {...(at === lastText ? messageActions : {})}
-                        >
-                          <MarkdownText text={segment.text} />
-                        </ConversationMessage>,
-                      );
-                      return;
-                    }
-                    if (segment.kind === "files") {
-                      rendered.push(
-                        <ConversationMessage
-                          key={key}
-                          role={message.role}
-                          createdAt={message.created_at}
-                          mediaOnly
+                          continuedPrevious={continuedPrevious}
+                          continuedNext={continuedNext}
+                          {...messageActions}
                         >
                           <MessageContent
-                            message={{ ...message, type: "ui", parts: segment.parts }}
+                            message={message}
                             resolveAttachmentUrl={resolveAttachmentUrl}
                             rewriteUrl={rewriteUrl}
                           />
@@ -670,101 +696,151 @@ export function OpenBotApp() {
                       );
                       return;
                     }
-                    rendered.push(
-                      <div className="message-block" key={key}>
-                        <MessageContent
-                          connectorActions={connectorActions}
-                          message={{ ...message, type: "ui", parts: [segment.part] }}
-                          resolveAttachmentUrl={resolveAttachmentUrl}
-                          rewriteUrl={rewriteUrl}
-                        />
-                      </div>,
+
+                    const lastText = segments.reduce(
+                      (last, segment, at) => (segment.kind === "text" ? at : last),
+                      -1,
                     );
+                    segments.forEach((segment, at) => {
+                      const key = `${message.id}:${at}`;
+                      if (segment.kind === "run") {
+                        if (pendingRun && message.role !== "user") {
+                          pendingRun.parts.push(...segment.parts);
+                        } else {
+                          flushRun();
+                          pendingRun = { key, parts: [...segment.parts] };
+                        }
+                        return;
+                      }
+                      flushRun();
+                      if (segment.kind === "text") {
+                        rendered.push(
+                          <ConversationMessage
+                            key={key}
+                            role={message.role}
+                            createdAt={message.created_at}
+                            continuedPrevious={
+                              at > 0 ? segments[at - 1]?.kind === "text" : continuedPrevious
+                            }
+                            continuedNext={
+                              at < segments.length - 1
+                                ? segments[at + 1]?.kind === "text"
+                                : continuedNext
+                            }
+                            {...(at === lastText ? messageActions : {})}
+                          >
+                            <MarkdownText text={segment.text} />
+                          </ConversationMessage>,
+                        );
+                        return;
+                      }
+                      if (segment.kind === "files") {
+                        rendered.push(
+                          <ConversationMessage
+                            key={key}
+                            role={message.role}
+                            createdAt={message.created_at}
+                            mediaOnly
+                          >
+                            <MessageContent
+                              message={{ ...message, type: "ui", parts: segment.parts }}
+                              resolveAttachmentUrl={resolveAttachmentUrl}
+                              rewriteUrl={rewriteUrl}
+                            />
+                          </ConversationMessage>,
+                        );
+                        return;
+                      }
+                      rendered.push(
+                        <div className="message-block" key={key}>
+                          <MessageContent
+                            connectorActions={connectorActions}
+                            message={{ ...message, type: "ui", parts: [segment.part] }}
+                            resolveAttachmentUrl={resolveAttachmentUrl}
+                            rewriteUrl={rewriteUrl}
+                          />
+                        </div>,
+                      );
+                    });
                   });
-                });
-                flushRun();
-                return rendered;
-              })()}
-              {agentBusy ? (
-                <ThinkingIndicator>
-                  {turnStatus || `${selectedAgent?.display_name || "Agent"} is working…`}
-                </ThinkingIndicator>
-              ) : null}
-            </div>
-          )}
-        </ConversationSurface>
-        {showScrollLatest ? <ScrollToLatestButton onClick={scrollToLatest} /> : null}
-        {threadRoot ? null : (
+                  flushRun();
+                  return rendered;
+                })()}
+                {agentBusy ? (
+                  <ThinkingIndicator>
+                    {turnStatus || `${selectedAgent?.display_name || "Agent"} is working…`}
+                  </ThinkingIndicator>
+                ) : null}
+              </div>
+            ) : null}
+          </ConversationSurface>
+        ) : null}
+        {selectedAgent && showScrollLatest ? (
+          <ScrollToLatestButton onClick={scrollToLatest} />
+        ) : null}
+        {selectedAgent && !threadRoot ? (
           <>
             <ActivityQueue
-              items={queuedTurns.map((turn) => ({ id: turn.id, text: queuedTurnText(turn) }))}
+              items={queuedTurns.map((turn) => ({
+                id: turn.id,
+                text: queuedTurnText(turn),
+                pending: turn.id.startsWith("optimistic-queue-"),
+              }))}
               onEdit={(id) => {
                 const turn = queuedTurns.find((candidate) => candidate.id === id);
                 if (turn) void editQueuedTurn(turn);
               }}
-              onMoveEarlier={(id) => {
-                const turn = queuedTurns.find((candidate) => candidate.id === id);
-                if (turn)
-                  void openBotRuntime.actions
-                    .reorderQueuedTurn(id, turn.queue_position - 1)
-                    .catch(() => undefined);
-              }}
-              onMoveLater={(id) => {
-                const turn = queuedTurns.find((candidate) => candidate.id === id);
-                if (turn)
-                  void openBotRuntime.actions
-                    .reorderQueuedTurn(id, turn.queue_position + 1)
-                    .catch(() => undefined);
-              }}
-              onRemove={(id) =>
-                void openBotRuntime.actions.removeQueuedTurn(id).catch(() => undefined)
+              onReorder={(id, queuePosition) =>
+                void mutateQueue(() => openBotRuntime.actions.reorderQueuedTurn(id, queuePosition))
               }
-              onRunNow={(id) =>
-                void openBotRuntime.actions.runQueuedTurnNow(id).catch(() => undefined)
-              }
+              onRemove={(id) => void mutateQueue(() => openBotRuntime.actions.removeQueuedTurn(id))}
+              onRunNow={(id) => void mutateQueue(() => openBotRuntime.actions.steerQueuedTurn(id))}
             />
             {composer}
           </>
-        )}
-        <ThreadOverlay
-          footer={composer}
-          onClose={() => {
-            setThreadRootId("");
-            setReplyingTo(null);
-          }}
-          open={Boolean(threadRoot)}
-        >
-          {threadRoot ? (
-            <div className="thread-root-group">
-              <ConversationMessage role={threadRoot.role} createdAt={threadRoot.created_at}>
-                <MessageContent
-                  message={threadRoot}
-                  resolveAttachmentUrl={(selectedSessionId, attachmentId) =>
-                    openBotRuntime.client.getAttachmentDownloadUrl(selectedSessionId, attachmentId)
-                  }
-                  rewriteUrl={(value) => openBotRuntime.client.rewriteTildeUrl(value)}
-                />
-              </ConversationMessage>
-            </div>
-          ) : null}
-        </ThreadOverlay>
+        ) : null}
+        {selectedAgent ? (
+          <ThreadOverlay
+            footer={composer}
+            onClose={() => {
+              setThreadRootId("");
+              setReplyingTo(null);
+            }}
+            open={Boolean(threadRoot)}
+          >
+            {threadRoot ? (
+              <div className="thread-root-group">
+                <ConversationMessage role={threadRoot.role} createdAt={threadRoot.created_at}>
+                  <MessageContent
+                    message={threadRoot}
+                    resolveAttachmentUrl={(selectedSessionId, attachmentId) =>
+                      openBotRuntime.client.getAttachmentDownloadUrl(
+                        selectedSessionId,
+                        attachmentId,
+                      )
+                    }
+                    rewriteUrl={(value) => openBotRuntime.client.rewriteTildeUrl(value)}
+                  />
+                </ConversationMessage>
+              </div>
+            ) : null}
+          </ThreadOverlay>
+        ) : null}
       </ChatPane>
 
       <AgentWorkspacePanel
         agentId={agentId}
         agentName={selectedAgent?.display_name || "Agent"}
-        open={layout.workspaceOpen}
+        open={layout.workspaceOpen && Boolean(selectedAgent)}
         onClose={layout.toggleWorkspace}
         onResize={layout.beginWorkspaceResize}
-        monitors={agents.map((agent) => ({
-          id: agent.id,
-          title: agent.display_name,
-          previewUrl: `/api/computer/${encodeURIComponent(agent.id)}/preview`,
-        }))}
       />
       {connectorSetup && !connectorSetup.loading ? (
         <ConnectorSetupDialog
           providerName={connectorSetup.selection.providerName}
+          {...(connectorSetup.selection.iconUrl
+            ? { providerIconUrl: connectorSetup.selection.iconUrl }
+            : {})}
           credentialSources={connectorSetup.selection.credentialSources}
           submitting={connectorSetup.submitting ?? false}
           {...(connectorSetup.error ? { error: connectorSetup.error } : {})}
@@ -781,60 +857,26 @@ export function OpenBotApp() {
               finishConnectorSetup(connectorSetup.selection, connectorSetup.result);
               return;
             }
-            setConnectorSetup(null);
+            setConnectorRoute(undefined);
           }}
         />
       ) : null}
-      {createAgentOpen ? (
-        <div
-          aria-label="New agent"
-          className="fixed inset-0 z-50 flex items-start justify-center bg-black/30 pt-[18vh]"
-          role="dialog"
-        >
-          <form
-            className="flex w-[360px] flex-col gap-3 rounded-[12px] bg-surface p-4 shadow-lg"
-            onSubmit={(event) => {
-              event.preventDefault();
-              void submitCreateAgent();
-            }}
-          >
-            <h2 className="text-[14px] font-semibold text-ink">New agent</h2>
-            <p className="text-[12.5px] text-ink-3">
-              The agent is scaffolded in your OpenBot fork and registered immediately.
-            </p>
-            <input
-              autoFocus
-              className="h-8 rounded-control bg-inset px-2.5 text-[13px] text-ink shadow-hairline"
-              disabled={creatingAgent}
-              maxLength={72}
-              onChange={(event) => setCreateAgentName(event.target.value)}
-              placeholder="Agent name"
-              value={createAgentName}
-            />
-            <div className="flex justify-end gap-2">
-              <button
-                className="h-8 rounded-control px-3 text-[12.5px] text-ink-2 hover:bg-hover"
-                disabled={creatingAgent}
-                onClick={() => {
-                  setCreateAgentOpen(false);
-                  setCreateAgentName("");
-                }}
-                type="button"
-              >
-                Cancel
-              </button>
-              <button
-                className="h-8 rounded-control bg-accent px-3 text-[12.5px] font-medium
-                  text-accent-foreground disabled:opacity-50"
-                disabled={creatingAgent || !createAgentName.trim()}
-                type="submit"
-              >
-                {creatingAgent ? "Creating…" : "Create agent"}
-              </button>
-            </div>
-          </form>
-        </div>
-      ) : null}
+      <AddAgentDialog
+        agents={agents.map((agent) => ({
+          id: agent.id,
+          name: agent.display_name,
+          lastMessage: agent.last_message_preview || undefined,
+        }))}
+        creating={creatingAgent}
+        loading={loading}
+        onClose={() => setCreateAgentOpen(false)}
+        onCreate={(name) => void submitCreateAgent(name)}
+        onSelect={(id) => {
+          const agent = agents.find((candidate) => candidate.id === id);
+          if (agent) selectAgent(agent);
+        }}
+        open={createAgentOpen}
+      />
     </WorkspaceShell>
   );
 }
@@ -888,4 +930,27 @@ function credentialSourceViews(provider: ConnectorProvider): ConnectorCredential
     resourceServerSchema: source.resource_server_schema,
     userCredentialSchema: source.user_credential_schema,
   }));
+}
+
+function queuedTurnText(turn: QueuedTurn): string {
+  const messages = turn.chat_request.messages;
+  if (!Array.isArray(messages)) return "Queued agent turn";
+  const latest = messages.filter((message) => record(message).role === "user").at(-1);
+  return unknownText(record(latest).content ?? record(latest).parts) || "Queued agent turn";
+}
+
+function unknownText(value: unknown): string {
+  if (typeof value === "string") return value;
+  if (Array.isArray(value)) return value.map(unknownText).filter(Boolean).join("\n");
+  if (typeof value !== "object" || value === null) return "";
+  const item = record(value);
+  if (typeof item.text === "string") return item.text;
+  const nested = item.content ?? item.parts;
+  return nested === undefined ? "" : unknownText(nested);
+}
+
+function record(value: unknown): Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
 }

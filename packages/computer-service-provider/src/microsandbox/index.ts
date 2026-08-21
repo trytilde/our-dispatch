@@ -233,10 +233,13 @@ export class MicrosandboxComputerProvider extends BaseComputerProvider {
     await this.get(id, context);
     const port = this.#desktopPorts.get(id);
     if (!port) throw new ComputerProviderError("not_found", `Computer ${id} has no VNC port`);
-    const url = new URL(`http://127.0.0.1:${port}/vnc.html`);
-    url.searchParams.set("autoconnect", "1");
-    url.searchParams.set("resize", "remote");
-    url.searchParams.set("token", scopedCapability("vnc", id, context.agentId));
+    // Stock noVNC transport, without its settings drawer and toolbar: the OpenBot shell owns the
+    // take-control, fullscreen, reconnect, and close controls around this canvas.
+    const url = new URL(`http://127.0.0.1:${port}/openbot.html`);
+    const capability = scopedCapability("vnc", id, context.agentId);
+    // The chrome-free viewer reads its WebSocket path; carry the TokenFile capability there.
+    url.searchParams.set("path", `websockify?token=${capability}`);
+    url.searchParams.set("scale", "true");
     return { url, expiresAt: new Date(Date.now() + 86_400_000) };
   }
 

@@ -9,6 +9,12 @@ may import these tools without depending on a deployment provider package.
 
 - `createBashTool()` and `createAwaitShellTool()` for foreground and background shell work.
 - `createReadFileTool()` and `createWriteFileTool()` for UTF-8 files.
-- `createCopyToComputerTool()` and `createCopyFromComputerTool()` for binary transfer.
+- `createCopyToComputerTool()` and `createCopyFromComputerTool()` for binary transfer through
+  session-scoped Tilde attachments; binary data is never exposed to the model as base64.
 - `createGlobTool()` and `createGrepTool()` for filesystem discovery and search.
-- `createScreenshotTool()` for PNG desktop capture.
+- `createScreenshotTool()` for PNG desktop capture through a session-scoped Tilde attachment.
+
+`createTildeMediaUploader()`, `createTildeMediaDownloader()`, and
+`createTildeAttachmentMessageHandlers()` implement the shared attachment boundary. Browser uploads,
+computer-tool output, model input, and owner rendering pass attachment references or signed URLs;
+converted-message caches never contain file bytes or expiring signed URLs.

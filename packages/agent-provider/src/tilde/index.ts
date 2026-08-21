@@ -14,6 +14,7 @@ import {
   chatkitRegisterVercelUiChatProvider,
   chatkitSetAgentStatus,
   chatkitUpdateAgent,
+  ChatKitAgentConcurrencyPolicy,
   createTildeApiClient,
   InboxStatus,
   type TildeApiClient,
@@ -38,6 +39,7 @@ interface AgentResource {
   localRunningEndpoint: boolean;
   streaming: boolean;
   timeoutMs?: number;
+  concurrencyPolicy?: string;
   status?: string;
 }
 
@@ -124,18 +126,20 @@ export class TildeAgentProvider implements AgentProvider {
     }
 
     if (!agent) {
+      const createBody = {
+        id: slug,
+        display_name: displayName,
+        endpoint_url: endpointValue(endpointUrl),
+        local_running_endpoint: localRunningEndpoint,
+        streaming: true,
+        timeout_ms: 300_000,
+        concurrency_policy: ChatKitAgentConcurrencyPolicy.QUEUE,
+      };
       const response = await this.#generated(`create agent "${slug}"`, (signal) =>
         chatkitRegisterHttpVercelAiSdkAgent({
           client: this.#api,
           path: { team_id: this.#teamId },
-          body: {
-            id: slug,
-            display_name: displayName,
-            endpoint_url: endpointValue(endpointUrl),
-            local_running_endpoint: localRunningEndpoint,
-            streaming: true,
-            timeout_ms: 300_000,
-          },
+          body: createBody,
           signal,
         }),
       );
@@ -149,20 +153,23 @@ export class TildeAgentProvider implements AgentProvider {
       agent.endpointUrl !== endpointValue(endpointUrl) ||
       agent.localRunningEndpoint !== localRunningEndpoint ||
       !agent.streaming ||
-      agent.timeoutMs !== 300_000
+      agent.timeoutMs !== 300_000 ||
+      agent.concurrencyPolicy !== ChatKitAgentConcurrencyPolicy.QUEUE
     ) {
+      const updateBody = {
+        display_name: displayName,
+        endpoint_url: endpointValue(endpointUrl),
+        local_running_endpoint: localRunningEndpoint,
+        streaming: true,
+        timeout_ms: 300_000,
+        concurrency_policy: ChatKitAgentConcurrencyPolicy.QUEUE,
+      };
       agent = agentResource(
         (await this.#generated(`update agent "${slug}"`, (signal) =>
           chatkitUpdateAgent({
             client: this.#api,
             path: { team_id: this.#teamId, agent_id: slug },
-            body: {
-              display_name: displayName,
-              endpoint_url: endpointValue(endpointUrl),
-              local_running_endpoint: localRunningEndpoint,
-              streaming: true,
-              timeout_ms: 300_000,
-            },
+            body: updateBody,
             signal,
           }),
         )) as JsonRecord,
@@ -377,6 +384,7 @@ function agentResource(value: JsonRecord): AgentResource {
     localRunningEndpoint: configuration?.local_running_endpoint === true,
     streaming: configuration?.streaming === true,
     timeoutMs: typeof configuration?.timeout_ms === "number" ? configuration.timeout_ms : undefined,
+    concurrencyPolicy: optionalString(configuration?.concurrency_policy),
     status: optionalString(value.status),
   };
 }

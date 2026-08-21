@@ -9,10 +9,18 @@ const providerAssetDirectory = fileURLToPath(new URL("./assets/", import.meta.ur
 export const computerImageAssets = {
   bootstrap: resolve(providerAssetDirectory, "bootstrap.sh.hbs"),
   containerfile: resolve(providerAssetDirectory, "Containerfile.hbs"),
+  desktopSession: resolve(providerAssetDirectory, "desktop-session.sh.hbs"),
+  desktopWallpaper: resolve(providerAssetDirectory, "desktop-wallpaper.svg.hbs"),
   developmentProfile: resolve(providerAssetDirectory, "development-profile.sh.hbs"),
   developmentSetup: resolve(providerAssetDirectory, "development-setup.sh.hbs"),
   marker: resolve(providerAssetDirectory, "marker.hbs"),
+  openboxConfig: resolve(providerAssetDirectory, "openbox-rc.xml.hbs"),
+  openbotBrowser: resolve(providerAssetDirectory, "openbot-browser.sh.hbs"),
+  openbotBrowserDesktop: resolve(providerAssetDirectory, "openbot-browser.desktop.hbs"),
+  openbotFilesDesktop: resolve(providerAssetDirectory, "openbot-files.desktop.hbs"),
+  openbotVnc: resolve(providerAssetDirectory, "openbot-vnc.html.hbs"),
   start: resolve(providerAssetDirectory, "start.sh.hbs"),
+  tint2: resolve(providerAssetDirectory, "tint2rc.hbs"),
 } as const;
 
 const sourcePaths = [
@@ -82,6 +90,14 @@ export async function materializeComputerImageContext(
       resolve(assetDestination, "Containerfile"),
     ),
     materializeFileTemplate(
+      computerImageAssets.desktopSession,
+      resolve(assetDestination, "desktop-session.sh"),
+    ),
+    materializeFileTemplate(
+      computerImageAssets.desktopWallpaper,
+      resolve(assetDestination, "desktop-wallpaper.svg"),
+    ),
+    materializeFileTemplate(
       computerImageAssets.developmentSetup,
       resolve(assetDestination, "development-setup.sh"),
     ),
@@ -89,7 +105,28 @@ export async function materializeComputerImageContext(
       computerImageAssets.developmentProfile,
       resolve(assetDestination, "development-profile.sh"),
     ),
+    materializeFileTemplate(
+      computerImageAssets.openbotVnc,
+      resolve(assetDestination, "openbot-vnc.html"),
+    ),
+    materializeFileTemplate(
+      computerImageAssets.openboxConfig,
+      resolve(assetDestination, "openbox-rc.xml"),
+    ),
+    materializeFileTemplate(
+      computerImageAssets.openbotBrowser,
+      resolve(assetDestination, "openbot-browser.sh"),
+    ),
+    materializeFileTemplate(
+      computerImageAssets.openbotBrowserDesktop,
+      resolve(assetDestination, "openbot-browser.desktop"),
+    ),
+    materializeFileTemplate(
+      computerImageAssets.openbotFilesDesktop,
+      resolve(assetDestination, "openbot-files.desktop"),
+    ),
     materializeFileTemplate(computerImageAssets.start, resolve(assetDestination, "start.sh")),
+    materializeFileTemplate(computerImageAssets.tint2, resolve(assetDestination, "tint2rc")),
   ]);
 
   return {

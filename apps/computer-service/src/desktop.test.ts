@@ -7,6 +7,7 @@ const originalEnvironment = { ...process.env };
 const temporaryDirectories: string[] = [];
 
 afterEach(async () => {
+  vi.restoreAllMocks();
   vi.resetModules();
   for (const key of Object.keys(process.env)) delete process.env[key];
   Object.assign(process.env, originalEnvironment);
@@ -25,7 +26,7 @@ describe("agent desktops", () => {
     const desktopRoot = join(temporaryDirectory, "desktops");
     const tokenFile = join(temporaryDirectory, "novnc.tokens");
     await mkdir(binaryDirectory);
-    for (const command of ["Xvnc", "xdpyinfo", "dbus-launch", "google-chrome-stable"])
+    for (const command of ["Xvnc", "xdpyinfo", "dbus-launch"])
       await symlink("/usr/bin/true", join(binaryDirectory, command));
 
     process.env.PATH = `${binaryDirectory}:${originalEnvironment.PATH ?? ""}`;
@@ -33,9 +34,10 @@ describe("agent desktops", () => {
     process.env.COMPUTER_VNC_TOKEN_FILE = tokenFile;
     vi.resetModules();
     const { ensureAgentDesktop } = await import("./desktop.js");
+    const info = vi.spyOn(console, "info").mockImplementation(() => undefined);
 
     const [first, second] = await Promise.all([
-      ensureAgentDesktop("first-agent", "a".repeat(32)),
+      ensureAgentDesktop("first-agent", "a".repeat(32), undefined, "preview-one"),
       ensureAgentDesktop("second-agent", "b".repeat(32)),
     ]);
 
@@ -45,6 +47,16 @@ describe("agent desktops", () => {
     expect((await readFile(tokenFile, "utf8")).trim().split("\n").sort()).toEqual(
       [`${"a".repeat(32)}: localhost:5910`, `${"b".repeat(32)}: localhost:5911`].sort(),
     );
+    expect(info).toHaveBeenCalledWith(
+      "[openbot-vnc] started desktop",
+      expect.objectContaining({
+        agentId: "first-agent",
+        display: ":10",
+        requestId: "preview-one",
+        vncPort: 5910,
+      }),
+    );
+    expect(JSON.stringify(info.mock.calls)).not.toContain("a".repeat(32));
   });
 
   it("rejects an unsafe agent identifier before touching the filesystem", async () => {

@@ -5,6 +5,7 @@ import {
   eventName,
   eventStatus,
   latestMessagePreview,
+  messageText,
   reduceLiveChatEvent,
   uniqueMessages,
 } from "../chat/reducer.js";
@@ -81,9 +82,9 @@ export interface OpenBotActions {
   sendMessage(input: SendMessageInput): Promise<void>;
   interrupt(): Promise<void>;
   refreshQueue(sessionId?: string): Promise<void>;
-  runQueuedTurnNow(id: string): Promise<void>;
-  reorderQueuedTurn(id: string, queuePosition: number): Promise<void>;
   removeQueuedTurn(id: string): Promise<void>;
+  reorderQueuedTurn(id: string, queuePosition: number): Promise<void>;
+  steerQueuedTurn(id: string): Promise<void>;
   setError(message: string): void;
 }
 
@@ -104,6 +105,9 @@ export interface OpenBotRuntimeOptions {
   schedule?: (callback: () => void, delay: number) => ReturnType<typeof setTimeout>;
   cancelScheduled?: (handle: ReturnType<typeof setTimeout>) => void;
 }
+
+const optimisticQueuePrefix = "optimistic-queue-";
+const optimisticQueueGraceMs = 5_000;
 
 const initialState: OpenBotState = {
   auth: { status: "checking", session: null, error: "" },
@@ -132,6 +136,7 @@ export function createOpenBotRuntime(options: OpenBotRuntimeOptions): OpenBotRun
   const sessionSort = options.sessionSort ?? "updated_at";
   let observer: AbortController | undefined;
   let refreshTimer: ReturnType<typeof setTimeout> | undefined;
+  const queueRefreshes = new Map<string, Promise<void>>();
   let initializePromise: Promise<void> | undefined;
 
   const updateAuth = (patch: Partial<AuthState>) =>
@@ -223,36 +228,77 @@ export function createOpenBotRuntime(options: OpenBotRuntimeOptions): OpenBotRun
     sessionId = store.getState().conversation.selectedSessionId,
   ): Promise<void> {
     if (!sessionId) return;
-    const response = await options.client.getQueuedTurns(sessionId);
-    if (store.getState().conversation.selectedSessionId !== sessionId) return;
-    updateConversation({
-      queuedTurns: [...response.items].sort(
-        (left, right) => left.queue_position - right.queue_position,
-      ),
+    const activeRefresh = queueRefreshes.get(sessionId);
+    if (activeRefresh) return await activeRefresh;
+    const refresh = (async () => {
+      const response = await options.client.getQueuedTurns(sessionId);
+      if (store.getState().conversation.selectedSessionId !== sessionId) return;
+      updateConversation({
+        queuedTurns: reconcileQueuedTurns(
+          response.items,
+          store.getState().conversation.queuedTurns,
+          now(),
+        ),
+      });
+    })().finally(() => {
+      queueRefreshes.delete(sessionId);
     });
+    queueRefreshes.set(sessionId, refresh);
+    return await refresh;
   }
 
-  async function mutateQueue(id: string, operation: () => Promise<void>): Promise<void> {
-    const conversation = store.getState().conversation;
-    const sessionId =
-      conversation.queuedTurns.find((turn) => turn.id === id)?.session_id ||
-      conversation.selectedSessionId;
+  async function removeQueuedTurn(id: string): Promise<void> {
+    const sessionId = store.getState().conversation.selectedSessionId;
     if (!sessionId) return;
+    const previous = store.getState().conversation.queuedTurns;
+    updateConversation({ queuedTurns: previous.filter((turn) => turn.id !== id) });
     try {
-      await operation();
+      await options.client.deleteQueuedTurn(id);
       await refreshQueue(sessionId);
     } catch (error) {
-      updateConversation({ error: errorMessage(error) });
+      updateConversation({ queuedTurns: previous, error: errorMessage(error) });
       throw error;
     }
   }
 
-  const runQueuedTurnNow = (id: string) =>
-    mutateQueue(id, () => options.client.steerQueuedTurn(id));
-  const reorderQueuedTurn = (id: string, queuePosition: number) =>
-    mutateQueue(id, () => options.client.reorderQueuedTurn(id, queuePosition));
-  const removeQueuedTurn = (id: string) =>
-    mutateQueue(id, () => options.client.deleteQueuedTurn(id));
+  async function reorderQueuedTurn(id: string, queuePosition: number): Promise<void> {
+    const sessionId = store.getState().conversation.selectedSessionId;
+    if (!sessionId) return;
+    const previous = store.getState().conversation.queuedTurns;
+    const target = previous.find((turn) => turn.id === id);
+    if (!target) return;
+    const reordered = previous.filter((turn) => turn.id !== id);
+    const insertion = Math.max(0, Math.min(reordered.length, queuePosition));
+    reordered.splice(insertion, 0, target);
+    updateConversation({
+      queuedTurns: reordered.map((turn, index) => ({ ...turn, queue_position: index })),
+    });
+    try {
+      await options.client.reorderQueuedTurn(id, queuePosition);
+      await refreshQueue(sessionId);
+    } catch (error) {
+      updateConversation({ queuedTurns: previous, error: errorMessage(error) });
+      throw error;
+    }
+  }
+
+  async function steerQueuedTurn(id: string): Promise<void> {
+    const sessionId = store.getState().conversation.selectedSessionId;
+    if (!sessionId) return;
+    const previous = store.getState().conversation.queuedTurns;
+    updateConversation({
+      queuedTurns: previous.filter((turn) => turn.id !== id),
+      agentBusy: true,
+      turnStatus: "Steering queued message",
+    });
+    try {
+      await options.client.steerQueuedTurn(id);
+      await refreshQueue(sessionId);
+    } catch (error) {
+      updateConversation({ queuedTurns: previous, error: errorMessage(error) });
+      throw error;
+    }
+  }
 
   function beginObservation(sessionId: string): void {
     observer?.abort();
@@ -281,9 +327,22 @@ export function createOpenBotRuntime(options: OpenBotRuntimeOptions): OpenBotRun
               sessionId,
               now(),
             );
+            let queuedTurns = attachPersistedQueuedMessageIds(
+              state.conversation.queuedTurns,
+              state.conversation.messages,
+              reduction.messages,
+            );
+            const name = eventName(event);
+            if (name.includes("dequeued")) {
+              const dequeuedTriggerIds = new Set(queueEventTriggerMessageIds(event.data));
+              queuedTurns = queuedTurns.filter(
+                (turn) => !turn.trigger_message_ids?.some((id) => dequeuedTriggerIds.has(id)),
+              );
+            }
             const busy = eventBusyState(event);
             updateConversation({
               messages: reduction.messages,
+              queuedTurns,
               activity: [{ ...event, receivedAt: now() }, ...state.conversation.activity].slice(
                 0,
                 60,
@@ -291,8 +350,7 @@ export function createOpenBotRuntime(options: OpenBotRuntimeOptions): OpenBotRun
               turnStatus: eventStatus(event) || state.conversation.turnStatus,
               ...(busy === undefined ? {} : { agentBusy: busy }),
             });
-            if (eventName(event).includes("queue"))
-              void refreshQueue(sessionId).catch(() => undefined);
+            if (name.includes("queue")) void refreshQueue(sessionId).catch(() => undefined);
             if (refreshTimer) cancelScheduled(refreshTimer);
             if (!reduction.streaming) {
               refreshTimer = schedule(() => {
@@ -418,18 +476,40 @@ export function createOpenBotRuntime(options: OpenBotRuntimeOptions): OpenBotRun
     const text = input.text.trim();
     const state = store.getState();
     const agentId = state.sidebar.selectedAgentId;
-    if ((!text && !input.attachmentIds?.length) || !agentId || state.conversation.submitting)
+    const activeAtDispatch =
+      state.conversation.agentBusy || state.conversation.queuedTurns.length > 0;
+    if (
+      (!text && !input.attachmentIds?.length) ||
+      !agentId ||
+      (state.conversation.submitting && !activeAtDispatch)
+    )
       return;
-    const queueing = state.conversation.agentBusy;
+    const optimisticQueueId = activeAtDispatch ? `${optimisticQueuePrefix}${createId()}` : "";
     updateConversation({
       submitting: true,
       error: "",
-      turnStatus: queueing ? "Adding to queue" : "Starting turn",
+      turnStatus: "Adding to queue",
+      ...(optimisticQueueId
+        ? {
+            queuedTurns: [
+              ...state.conversation.queuedTurns,
+              optimisticQueuedTurn(
+                optimisticQueueId,
+                state.conversation.selectedSessionId,
+                text,
+                input.optimisticParts,
+                Math.max(-1, ...state.conversation.queuedTurns.map((turn) => turn.queue_position)) +
+                  1,
+                now(),
+              ),
+            ],
+          }
+        : {}),
     });
     let sessionId = state.conversation.selectedSessionId;
     try {
       if (!sessionId) sessionId = await ensureSession(input.title || titleFrom(text));
-      if (!queueing) {
+      if (!activeAtDispatch) {
         const optimistic: ChatMessage = {
           id: `optimistic-${createId()}`,
           type: "ui",
@@ -439,24 +519,49 @@ export function createOpenBotRuntime(options: OpenBotRuntimeOptions): OpenBotRun
           parts: input.optimisticParts ?? (text ? [{ type: "text", text }] : []),
           created_at: now().toISOString(),
         };
-        updateConversation({ messages: [...store.getState().conversation.messages, optimistic] });
+        updateConversation({
+          messages: [...store.getState().conversation.messages, optimistic],
+          agentBusy: true,
+        });
       }
-      const response = await options.client.sendMessage(
+      const responsePromise = options.client.sendMessage(
         agentId,
         sessionId,
         text,
         input.attachmentIds,
       );
-      if (!queueing)
-        updateConversation({
-          messages: uniqueMessages(response.items),
-          nextMessageToken: response.next_page_token,
-          agentBusy: true,
-        });
-      updateConversation({ turnStatus: queueing ? "Queued" : "Agent working" });
+      // Mission Control's send endpoint is the sole durable queue producer. Keep the local queued
+      // turn visible while that request is pending; queue SSE events own durable reconciliation.
+      updateConversation({ submitting: false });
+      const response = await responsePromise;
+      const persistedMessages = store
+        .getState()
+        .conversation.messages.filter((message) => !message.id.startsWith("optimistic-"));
+      const nextMessages = uniqueMessages([...persistedMessages, ...response.items]);
+      updateConversation({
+        messages: nextMessages,
+        queuedTurns: attachPersistedQueuedMessageIds(
+          store.getState().conversation.queuedTurns,
+          persistedMessages,
+          nextMessages,
+        ),
+        nextMessageToken: response.next_page_token,
+        turnStatus: activeAtDispatch ? "Queued" : "Completed",
+      });
       await Promise.all([refreshSidebar(), refreshQueue(sessionId)]);
     } catch (error) {
-      updateConversation({ error: errorMessage(error), turnStatus: "Turn failed" });
+      updateConversation({
+        error: errorMessage(error),
+        turnStatus: "Turn failed",
+        ...(optimisticQueueId
+          ? {
+              queuedTurns: store
+                .getState()
+                .conversation.queuedTurns.filter((turn) => turn.id !== optimisticQueueId),
+            }
+          : {}),
+        ...(!activeAtDispatch ? { agentBusy: false } : {}),
+      });
       if (sessionId) await refreshMessages(sessionId).catch(() => undefined);
       throw error;
     } finally {
@@ -509,9 +614,9 @@ export function createOpenBotRuntime(options: OpenBotRuntimeOptions): OpenBotRun
     sendMessage,
     interrupt,
     refreshQueue,
-    runQueuedTurnNow,
-    reorderQueuedTurn,
     removeQueuedTurn,
+    reorderQueuedTurn,
+    steerQueuedTurn,
     setError(message) {
       updateConversation({ error: message });
     },
@@ -524,8 +629,110 @@ export function createOpenBotRuntime(options: OpenBotRuntimeOptions): OpenBotRun
     dispose() {
       observer?.abort();
       if (refreshTimer) cancelScheduled(refreshTimer);
+      queueRefreshes.clear();
     },
   };
+}
+
+function optimisticQueuedTurn(
+  id: string,
+  sessionId: string,
+  text: string,
+  parts: ChatPart[] | undefined,
+  queuePosition: number,
+  createdAt: Date,
+): QueuedTurn {
+  return {
+    id,
+    session_id: sessionId,
+    queue_position: queuePosition,
+    status: "pending",
+    chat_request: {
+      messages: [{ role: "user", content: parts ?? (text ? [{ type: "text", text }] : []) }],
+    },
+    trigger_message_ids: [],
+    created_at: createdAt.toISOString(),
+  };
+}
+
+function attachPersistedQueuedMessageIds(
+  queuedTurns: QueuedTurn[],
+  previousMessages: ChatMessage[],
+  messages: ChatMessage[],
+): QueuedTurn[] {
+  const previousIds = new Set(previousMessages.map((message) => message.id));
+  const createdUserMessages = messages.filter(
+    (message) => message.role === "user" && !previousIds.has(message.id),
+  );
+  if (createdUserMessages.length === 0) return queuedTurns;
+  const next = [...queuedTurns];
+  for (const message of createdUserMessages) {
+    const index = next.findIndex(
+      (turn) =>
+        turn.id.startsWith(optimisticQueuePrefix) &&
+        !turn.trigger_message_ids?.length &&
+        queuedTurnText(turn) === messageText(message).trim(),
+    );
+    if (index === -1) continue;
+    next[index] = { ...next[index]!, trigger_message_ids: [message.id] };
+  }
+  return next;
+}
+
+function reconcileQueuedTurns(
+  durableTurns: QueuedTurn[],
+  currentTurns: QueuedTurn[],
+  currentTime: Date,
+): QueuedTurn[] {
+  const durableTriggerIds = new Set(durableTurns.flatMap((turn) => turn.trigger_message_ids ?? []));
+  const optimistic = currentTurns.filter((turn) => {
+    if (!turn.id.startsWith(optimisticQueuePrefix)) return false;
+    if (turn.trigger_message_ids?.some((id) => durableTriggerIds.has(id))) return false;
+    if (!turn.trigger_message_ids?.length) return true;
+    return currentTime.getTime() - Date.parse(turn.created_at) < optimisticQueueGraceMs;
+  });
+  return [...durableTurns, ...optimistic].sort(
+    (left, right) => left.queue_position - right.queue_position,
+  );
+}
+
+function queuedTurnText(turn: QueuedTurn): string {
+  const messages = turn.chat_request.messages;
+  if (!Array.isArray(messages)) return "";
+  const latest = messages.filter((message) => record(message).role === "user").at(-1);
+  return unknownText(record(latest).content ?? record(latest).parts).trim();
+}
+
+function unknownText(value: unknown): string {
+  if (typeof value === "string") return value;
+  if (Array.isArray(value)) return value.map(unknownText).filter(Boolean).join("\n");
+  const item = record(value);
+  if (typeof item.text === "string") return item.text;
+  const nested = item.content ?? item.parts;
+  return nested === undefined ? "" : unknownText(nested);
+}
+
+function record(value: unknown): Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
+}
+
+function queueEventTriggerMessageIds(value: unknown): string[] {
+  const data = record(value);
+  const kind = record(data.kind);
+  const namedKind = typeof kind.kind === "string" ? kind.kind.toLowerCase() : "";
+  const payload =
+    record(kind.agent_turn_queued).queue_item ??
+    record(kind.AgentTurnQueued).queue_item ??
+    record(kind.agent_turn_dequeued).queue_item ??
+    record(kind.AgentTurnDequeued).queue_item ??
+    (namedKind === "agent_turn_queued" || namedKind === "agent_turn_dequeued"
+      ? kind.queue_item
+      : undefined) ??
+    data.queue_item;
+  const ids = record(payload).trigger_message_ids;
+  return Array.isArray(ids) ? ids.filter((id): id is string => typeof id === "string") : [];
 }
 
 function uniqueAgents(agents: ChatAgent[]): ChatAgent[] {

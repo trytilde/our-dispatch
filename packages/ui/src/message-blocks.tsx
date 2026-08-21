@@ -36,6 +36,11 @@ export function splitMessageSegments(parts: readonly MessagePart[]): MessageSegm
       segments.push({ kind: "other", part });
       continue;
     }
+    const attachment = toolAttachmentFilePart(part);
+    if (attachment) {
+      appendFilePart(segments, attachment);
+      continue;
+    }
     if (part.type === "reasoning" || isToolPart(part)) {
       if (part.type === "reasoning" && !part.text?.trim()) continue;
       if (previous?.kind === "run") previous.parts.push(part);
@@ -43,8 +48,7 @@ export function splitMessageSegments(parts: readonly MessagePart[]): MessageSegm
       continue;
     }
     if (part.type === "file" || part.type === "image") {
-      if (previous?.kind === "files") previous.parts.push(part);
-      else segments.push({ kind: "files", parts: [part] });
+      appendFilePart(segments, part);
       continue;
     }
     segments.push({ kind: "other", part });
@@ -177,4 +181,77 @@ function truncateChip(value: string): string {
 
 function isToolPart(part: MessagePart): boolean {
   return part.type === "tool" || part.type === "dynamic-tool" || part.type.startsWith("tool-");
+}
+
+/** Media-producing tools return a ChatKit attachment reference, not user-facing JSON. */
+function toolAttachmentFilePart(part: MessagePart): MessagePart | undefined {
+  if (!isToolPart(part)) return undefined;
+  const outer = objectValue(part.output);
+  const output =
+    Object.keys(objectValue(outer.image)).length > 0 ? objectValue(outer.image) : outer;
+  const attachmentId = stringValue(output.attachment_id ?? output.attachmentId);
+  const mediaType =
+    stringValue(output.media_type ?? output.mediaType) || "application/octet-stream";
+  const inlineUrl = inlineImageUrl(
+    mediaType,
+    stringValue(output.data ?? output.content_base64 ?? output.base64),
+  );
+  if (!attachmentId && !inlineUrl) return undefined;
+  return {
+    type: "file",
+    ...(attachmentId ? { attachment_id: attachmentId } : {}),
+    ...(inlineUrl ? { url: inlineUrl } : {}),
+    media_type: mediaType,
+    filename: stringValue(output.filename) || defaultAttachmentName(mediaType),
+  };
+}
+
+function inlineImageUrl(mediaType: string, base64: string): string | undefined {
+  if (!/^image\/(?:png|jpeg|gif|webp)$/i.test(mediaType) || !/^[a-z0-9+/=\s]+$/i.test(base64))
+    return undefined;
+  return `data:${mediaType.toLowerCase()};base64,${base64.replaceAll(/\s+/g, "")}`;
+}
+
+function defaultAttachmentName(mediaType: string): string {
+  if (mediaType.startsWith("image/")) return "Image";
+  if (mediaType.startsWith("video/")) return "Video";
+  if (mediaType.startsWith("audio/")) return "Audio";
+  return "Attachment";
+}
+
+function appendFilePart(segments: MessageSegment[], part: MessagePart): void {
+  const attachmentId = part.attachment_id ?? part.attachmentId;
+  if (
+    attachmentId &&
+    segments.some(
+      (segment) =>
+        segment.kind === "files" &&
+        segment.parts.some(
+          (candidate) => (candidate.attachment_id ?? candidate.attachmentId) === attachmentId,
+        ),
+    )
+  )
+    return;
+  const previous = segments.at(-1);
+  if (previous?.kind === "files") previous.parts.push(part);
+  else segments.push({ kind: "files", parts: [part] });
+}
+
+function objectValue(value: unknown): Record<string, unknown> {
+  if (typeof value === "object" && value !== null && !Array.isArray(value))
+    return value as Record<string, unknown>;
+  if (typeof value === "string") {
+    try {
+      const parsed: unknown = JSON.parse(value);
+      if (typeof parsed === "object" && parsed !== null && !Array.isArray(parsed))
+        return parsed as Record<string, unknown>;
+    } catch {
+      // A non-JSON tool result remains a normal tool trace.
+    }
+  }
+  return {};
+}
+
+function stringValue(value: unknown): string {
+  return typeof value === "string" ? value : "";
 }

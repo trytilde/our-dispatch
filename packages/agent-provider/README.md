@@ -19,3 +19,5 @@ the control service's allowlisted same-origin bridge.
 - `AgentProviderError` and `AgentProviderErrorCode`: normalized provider failure surface.
 - `TildeAgentProvider` and `TildeAgentProviderConfig`: typed Tilde implementation and configuration.
 - `tildeAgentProviderInitialization`: provider-specific initialization metadata collected with the shared Tilde platform.
+
+Reconciliation guarantees per agent: the Tilde control-plane toolkit is enabled and every one of its functions is mapped onto the agent's runtime MCP server, and authored skills sync into the agent's Tilde skill registry with team-unique names namespaced as `<agent-id>-<skill-name>`.

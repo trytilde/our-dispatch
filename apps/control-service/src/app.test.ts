@@ -9,6 +9,7 @@ import { app, createApp } from "./app.js";
 const temporaryRoots: string[] = [];
 
 afterEach(async () => {
+  vi.restoreAllMocks();
   await Promise.all(
     temporaryRoots.splice(0).map((root) => rm(root, { recursive: true, force: true })),
   );
@@ -35,6 +36,8 @@ describe("bare OpenBot server", () => {
   });
 
   it("opens only the selected agent's capability-scoped computer preview", async () => {
+    const info = vi.spyOn(console, "info").mockImplementation(() => undefined);
+    const traceId = "11111111-1111-4111-8111-111111111111";
     const previewAgentDesktop = vi.fn(async () => ({
       url: new URL("https://computer.test/vnc.html?token=opaque"),
       expiresAt: new Date(Date.now() + 60_000),
@@ -45,20 +48,31 @@ describe("bare OpenBot server", () => {
       environment: { COMPUTER_ID: "computer-one" },
     });
     const response = await computerApp.request(
-      "https://openbot.test/api/computer/hello-world/preview",
+      `https://openbot.test/api/computer/hello-world/preview?trace_id=${traceId}`,
     );
     expect(response.status).toBe(307);
     expect(response.headers.get("location")).toBe("https://computer.test/vnc.html?token=opaque");
     expect(response.headers.get("cache-control")).toBe("no-store");
     expect(response.headers.get("referrer-policy")).toBe("no-referrer");
+    expect(response.headers.get("x-openbot-vnc-trace-id")).toBe(traceId);
     expect(previewAgentDesktop).toHaveBeenCalledWith(
       "hello-world",
       expect.objectContaining({
-        requestId: expect.any(String),
+        requestId: traceId,
         devMode: true,
         environment: { COMPUTER_ID: "computer-one" },
       }),
     );
+    expect(info).toHaveBeenCalledWith(
+      "[openbot-vnc] preview redirect ready",
+      expect.objectContaining({
+        agentId: "hello-world",
+        endpointOrigin: "https://computer.test",
+        endpointPath: "/vnc.html",
+        requestId: traceId,
+      }),
+    );
+    expect(JSON.stringify(info.mock.calls)).not.toContain("opaque");
 
     const invalid = await computerApp.request("https://openbot.test/api/computer/../preview");
     expect(invalid.status).not.toBe(307);

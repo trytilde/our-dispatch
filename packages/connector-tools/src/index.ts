@@ -135,6 +135,10 @@ export function createConfigureConnectorTool(options: ConnectorToolOptions) {
       }
       const providerTypeId = asText(provider.type_id);
       const providerName = asText(provider.name) || providerTypeId;
+      // Providers publish their branding through catalog metadata; clients
+      // render icon_url directly and fall back to an initials tile without it.
+      const metadata = isRecord(provider.metadata) ? provider.metadata : {};
+      const iconUrl = asText(metadata.icon_url);
       const accounts = pageItems(await tildeGet(context, "/mcp/tool-group?page_size=200")).filter(
         (account) => asText(account.tool_group_source_type_id) === providerTypeId,
       );
@@ -147,6 +151,7 @@ export function createConfigureConnectorTool(options: ConnectorToolOptions) {
         connector_selection: {
           provider_type_id: providerTypeId,
           provider_name: providerName,
+          ...(iconUrl ? { icon_url: iconUrl } : {}),
           ...(input.prompt ? { prompt: input.prompt } : {}),
           accounts: accounts.map((account) => ({
             id: asText(account.id),

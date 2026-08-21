@@ -1,8 +1,10 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Linking, Modal, Pressable, StyleSheet } from "react-native";
 import {
   connectorAccountCreatedMessage,
+  connectorAuthorizedReturnUrl,
   connectorSetupFields,
+  waitForConnectorAccountActive,
   type ConnectorCredentialSource,
   type ConnectorSelection,
   type CreateConnectorAccountResult,
@@ -19,6 +21,8 @@ import { SPACING } from "@/theme/globals";
 export interface ConnectorSetupSheetProps {
   selection: ConnectorSelection;
   client: OpenBotClient;
+  /** Control-service origin used to build the brokered-OAuth return URL. */
+  controlOrigin?: string;
   /** Sends the structured hand-back message to the agent and closes the sheet. */
   onComplete: (text: string) => void;
   onClose: () => void;
@@ -33,6 +37,7 @@ export interface ConnectorSetupSheetProps {
 export function ConnectorSetupSheet({
   selection,
   client,
+  controlOrigin,
   onComplete,
   onClose,
 }: ConnectorSetupSheetProps) {
@@ -54,6 +59,29 @@ export function ConnectorSetupSheet({
   const muted = useColor("textMuted");
   const destructive = useColor("destructive");
   const scrim = useColor("muted");
+
+  // Close the loop without a manual Done: once Tilde flips the brokered
+  // account active after the OAuth return, hand back to the agent directly.
+  useEffect(() => {
+    if (!pending) return;
+    const watcher = new AbortController();
+    void waitForConnectorAccountActive(client, {
+      providerTypeId: selection.provider_type_id,
+      accountId: pending.result.account.id,
+      signal: watcher.signal,
+    }).then((account) => {
+      if (!account || watcher.signal.aborted) return;
+      onComplete(
+        connectorAccountCreatedMessage(selection, {
+          ...pending.result,
+          status: "created",
+          account,
+        }),
+      );
+    });
+    return () => watcher.abort();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed by the pending account only
+  }, [pending?.result.account.id]);
 
   const resourceFields = useMemo(
     () => connectorSetupFields(source?.resource_server_schema),
@@ -88,6 +116,9 @@ export function ConnectorSetupSheet({
         displayName: displayName.trim() || `${selection.provider_name} account`,
         ...(resourceServerValues ? { resourceServerValues } : {}),
         ...(userCredentialValues ? { userCredentialValues } : {}),
+        ...(controlOrigin
+          ? { returnUrl: connectorAuthorizedReturnUrl(controlOrigin, "mobile") }
+          : {}),
       });
       if (result.status === "authorize" && result.authorization_url) {
         setPending({ result, authorizationUrl: result.authorization_url });

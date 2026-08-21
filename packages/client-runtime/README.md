@@ -12,6 +12,10 @@ Framework-neutral client behavior shared by OpenBot web, Electron, and Expo clie
 - `contracts/installation` owns control-service health, public native-auth discovery, and the selected installation.
 - `contracts/attachments` owns attachment metadata and upload handshakes.
 - `contracts/queue` owns queued agent turns.
+- `contracts/connectors` owns connector (Tilde tool-provider) configuration: the `configure_connector` tool's `connector_selection` payload, provider and account schemas, `connectorSetupFields` schema-to-form flattening, `connectorAuthorizedReturnUrl`, `waitForConnectorAccountActive` polling, and the structured hand-back message builders.
+- `contracts/workspaces` and the workspace registry helpers own persisted public control-service
+  origins, display metadata, and active-workspace selection without moving credentials between
+  installations.
 - `queuedTurnText` normalizes queued ChatKit request text, while runtime actions own
   run-now, reorder, removal, refresh, and error reconciliation for every client.
 - `contracts/onboarding` plus `loadOnboarding`, `completeOnboarding`, and

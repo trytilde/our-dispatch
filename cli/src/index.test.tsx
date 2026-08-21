@@ -32,4 +32,29 @@ describe("OpenBot CLI", () => {
     stdin.write("\r");
     expect(selected).toBe("dev");
   });
+  it("lists every public top-level command in the launcher", () => {
+    const { lastFrame } = render(<CommandMenu onSelect={() => undefined} />);
+    const frame = lastFrame();
+
+    for (const command of [
+      "init",
+      "new-agent",
+      "dev",
+      "orchestrate",
+      "deploy",
+      "secrets",
+      "env",
+      "check",
+      "build",
+      "test",
+      "e2e",
+      "desktop",
+      "mobile",
+      "connect",
+      "remote",
+      "help",
+    ]) {
+      expect(frame).toMatch(new RegExp(`(?:^|\\n)\\s*(?:❯\\s*)?${command}\\s`));
+    }
+  });
 });

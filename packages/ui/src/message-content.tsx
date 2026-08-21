@@ -51,8 +51,15 @@ export function MessageContent({
   connectorActions,
 }: MessageContentProps) {
   if (message.type === "ui" && message.parts) {
+    const mediaParts = message.parts.filter(
+      (part) => part.type === "file" || part.type === "image",
+    );
+    const imageGallery =
+      mediaParts.length > 1 &&
+      mediaParts.length === message.parts.length &&
+      mediaParts.every((part) => (part.media_type ?? part.mediaType ?? "").startsWith("image/"));
     return (
-      <div className="message-parts">
+      <div className={`message-parts ${imageGallery ? "media-gallery" : ""}`}>
         {message.parts.map((part, index) =>
           renderPart(
             part,
@@ -122,6 +129,7 @@ function renderPart(
       return <MarkdownText key={key} text={part.text ?? ""} />;
     case "reasoning":
       return part.text ? <ThinkingBlock key={key} part={part} /> : null;
+    case "image":
     case "file": {
       return (
         <FileCard

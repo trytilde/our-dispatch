@@ -162,9 +162,29 @@ export function eventName(event: ChatEvent): string {
 }
 
 export function uniqueMessages(messages: ChatMessage[]): ChatMessage[] {
-  return [...new Map(messages.map((message) => [message.id, message])).values()].sort(
-    (left, right) => Date.parse(left.created_at) - Date.parse(right.created_at),
-  );
+  const chronological = [
+    ...new Map(messages.map((message) => [message.id, message])).values(),
+  ].sort((left, right) => Date.parse(left.created_at) - Date.parse(right.created_at));
+  const ids = new Set(chronological.map((message) => message.id));
+  const replies = new Map<string, ChatMessage[]>();
+  for (const message of chronological) {
+    const parentId = message.in_reply_to_message_id;
+    if (!parentId || !ids.has(parentId)) continue;
+    replies.set(parentId, [...(replies.get(parentId) ?? []), message]);
+  }
+  const ordered: ChatMessage[] = [];
+  const visited = new Set<string>();
+  const append = (message: ChatMessage): void => {
+    if (visited.has(message.id)) return;
+    visited.add(message.id);
+    ordered.push(message);
+    for (const reply of replies.get(message.id) ?? []) append(reply);
+  };
+  for (const message of chronological)
+    if (!message.in_reply_to_message_id || !ids.has(message.in_reply_to_message_id))
+      append(message);
+  for (const message of chronological) append(message);
+  return ordered;
 }
 
 export function messageText(message: ChatMessage): string {

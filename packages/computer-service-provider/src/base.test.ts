@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vite-plus/test";
+import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 import { Code, ConnectError } from "@connectrpc/connect";
 import { execFile } from "node:child_process";
 import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
@@ -31,6 +31,8 @@ import {
 import { VercelSandboxComputerProvider } from "./vercel/index.js";
 
 const execute = promisify(execFile);
+
+afterEach(() => vi.restoreAllMocks());
 
 class TestVercelSandboxComputerProvider extends VercelSandboxComputerProvider {
   readonly login = vi.fn(async (_args: readonly string[], _input: string) => undefined);
@@ -169,6 +171,34 @@ describe("computer-service startup", () => {
       retryComputerServiceStartup(operation, controller.signal, { attempts: 2, delayMs: 0 }),
     ).rejects.toBe(failure);
     expect(operation).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("computer preview diagnostics", () => {
+  it("correlates provider stages without logging the capability token", async () => {
+    const provider = new TestComputerProvider();
+    provider.vnc.mockResolvedValue({
+      url: new URL("https://computer.test/vnc.html?token=private-capability"),
+      expiresAt: new Date("2026-08-20T12:00:00Z"),
+    });
+    const info = vi.spyOn(console, "info").mockImplementation(() => undefined);
+
+    await provider.previewAgentDesktop("hello-world", {
+      requestId: "preview-one",
+      environment: { COMPUTER_ID: "computer-one" },
+    });
+
+    expect(info).toHaveBeenCalledWith(
+      "[openbot-vnc] provider endpoint ready",
+      expect.objectContaining({
+        agentId: "hello-world",
+        computerId: "computer-one",
+        endpointOrigin: "https://computer.test",
+        endpointPath: "/vnc.html",
+        requestId: "preview-one",
+      }),
+    );
+    expect(JSON.stringify(info.mock.calls)).not.toContain("private-capability");
   });
 });
 
@@ -586,7 +616,23 @@ describe("computer image lifecycle", () => {
     expect(containerfile).toContain("pnpm --filter @tryopenbot/computer-service-proto exec tsdown");
     expect(containerfile).not.toMatch(/^COPY apps\/computer-service\/dist/m);
     expect(containerfile).not.toContain("openbot-agent-exec");
-    expect(await readFile(computerImageAssets.bootstrap, "utf8")).toContain("SOPS_VERSION=3.13.3");
+    expect(containerfile).toContain("/usr/share/novnc/openbot.html");
+    const viewer = await readFile(computerImageAssets.openbotVnc, "utf8");
+    expect(viewer).toContain('import RFB from "./core/rfb.js"');
+    expect(viewer).toContain('type: "openbot:vnc"');
+    expect(viewer).toContain("rfb.resizeSession = false");
+    expect(viewer).not.toContain("noVNC_control_bar");
+    const bootstrap = await readFile(computerImageAssets.bootstrap, "utf8");
+    expect(bootstrap).toContain("SOPS_VERSION=3.13.3");
+    expect(bootstrap).toContain("pcmanfm picom");
+    expect(bootstrap).toContain("tint2");
+    expect(await readFile(computerImageAssets.desktopSession, "utf8")).toContain(
+      "desktop-wallpaper.png",
+    );
+    const taskbar = await readFile(computerImageAssets.tint2, "utf8");
+    expect(taskbar).toContain("openbot-browser.desktop");
+    expect(taskbar).toContain("panel_size = 100% 54");
+    expect(taskbar).toContain("autohide = 0");
   });
 });
 

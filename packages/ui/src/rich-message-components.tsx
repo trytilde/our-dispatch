@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { DownloadIcon, ExternalLinkIcon, XIcon } from "lucide-react";
 import {
   Reasoning,
   ReasoningContent,
@@ -141,31 +142,45 @@ export function FileCard({ part, sessionId, resolveAttachmentUrl, rewriteUrl }: 
   const [resolvedUrl, setResolvedUrl] = useState(directUrl);
   const [viewerOpen, setViewerOpen] = useState(false);
   const retriesRef = useRef(0);
+  const richMedia = /^(image|video|audio)\//.test(mediaType);
 
   useEffect(() => {
-    if (resolvedUrl || !attachmentId || !mediaType.startsWith("image/")) return;
+    if (resolvedUrl || !attachmentId || !richMedia) return;
     let cancelled = false;
+    setLoading(true);
+    setError("");
     void resolveAttachmentUrl(sessionId, attachmentId)
       .then((url) => {
-        if (!cancelled) setResolvedUrl(safeUrl(url));
+        const safe = safeUrl(url);
+        if (!safe) throw new Error("Attachment URL is invalid");
+        if (!cancelled) setResolvedUrl(safe);
       })
-      .catch(() => undefined);
+      .catch(() => {
+        if (!cancelled) setError("Preview unavailable");
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
     return () => {
       cancelled = true;
     };
-  }, [attachmentId, mediaType, resolveAttachmentUrl, resolvedUrl, sessionId]);
+  }, [attachmentId, resolveAttachmentUrl, resolvedUrl, richMedia, sessionId]);
 
-  // Signed download URLs expire; when the image errors, re-resolve a
-  // fresh one from the attachment id instead of staying broken.
-  function retryImage(): void {
-    if (!attachmentId || retriesRef.current >= 2) return;
-    retriesRef.current += 1;
-    setResolvedUrl(undefined);
+  // Signed URLs expire. Refresh them twice before settling into the explicit
+  // unavailable state instead of leaving a broken browser media element.
+  function mediaFailed(): void {
+    if (attachmentId && retriesRef.current < 2) {
+      retriesRef.current += 1;
+      setError("");
+      setResolvedUrl(undefined);
+      return;
+    }
+    setError("Preview unavailable");
   }
 
-  async function open(): Promise<void> {
+  async function open(openViewer = true): Promise<void> {
     if (resolvedUrl) {
-      setViewerOpen(true);
+      if (openViewer) setViewerOpen(true);
       return;
     }
     if (!attachmentId || loading) return;
@@ -176,39 +191,78 @@ export function FileCard({ part, sessionId, resolveAttachmentUrl, rewriteUrl }: 
       const safe = safeUrl(url);
       if (!safe) throw new Error("Attachment URL is invalid");
       setResolvedUrl(safe);
-      setViewerOpen(true);
+      if (openViewer) setViewerOpen(true);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "Download failed");
+      setError(reason instanceof Error ? reason.message : "Attachment unavailable");
     } finally {
       setLoading(false);
     }
   }
 
   const filename = part.filename || "Attachment";
+  const unavailable = Boolean(error) || (!resolvedUrl && !attachmentId && !loading);
+  const detail = `${mediaType}${formatSize(part.size_bytes ?? part.sizeBytes)}`;
   return (
     <>
-      <button
-        className="file-part"
-        disabled={!resolvedUrl && !attachmentId}
-        onClick={() => void open()}
-        title={error || undefined}
-        type="button"
+      <div
+        className={`file-part media-part ${mediaKind(mediaType)} ${unavailable ? "unavailable" : ""}`}
       >
-        {mediaType.startsWith("image/") && resolvedUrl ? (
-          <img alt="" loading="lazy" onError={retryImage} src={resolvedUrl} />
+        {unavailable ? (
+          <div className="media-unavailable" role="status">
+            <FileTypeIcon />
+            <span>
+              <strong>{error || "Attachment unavailable"}</strong>
+              <small>{filename}</small>
+            </span>
+            {attachmentId ? (
+              <button onClick={() => void open(false)} type="button">
+                Retry
+              </button>
+            ) : null}
+          </div>
+        ) : loading && !resolvedUrl ? (
+          <div className="media-loading" role="status">
+            <span />
+            Preparing preview…
+          </div>
+        ) : mediaType.startsWith("image/") && resolvedUrl ? (
+          <button
+            aria-label={`Preview ${filename}`}
+            className="image-preview"
+            onClick={() => setViewerOpen(true)}
+            type="button"
+          >
+            <img alt={filename} loading="lazy" onError={mediaFailed} src={resolvedUrl} />
+          </button>
+        ) : mediaType.startsWith("video/") && resolvedUrl ? (
+          <video controls onError={mediaFailed} preload="metadata" src={resolvedUrl} />
+        ) : mediaType.startsWith("audio/") && resolvedUrl ? (
+          <div className="audio-preview">
+            <FileTypeIcon />
+            <audio controls onError={mediaFailed} preload="metadata" src={resolvedUrl} />
+          </div>
         ) : (
-          <span>↗</span>
+          <button className="document-preview" onClick={() => void open()} type="button">
+            <FileTypeIcon />
+            <span>
+              <strong>{filename}</strong>
+              <small>{loading ? "Preparing preview…" : detail}</small>
+            </span>
+            <span aria-hidden="true">↗</span>
+          </button>
         )}
-        <span>
-          <strong>{filename}</strong>
-          <small>
-            {error ||
-              (loading
-                ? "Preparing download…"
-                : `${mediaType}${formatSize(part.size_bytes ?? part.sizeBytes)}`)}
-          </small>
-        </span>
-      </button>
+        {richMedia && resolvedUrl && !unavailable ? (
+          <div className="media-caption">
+            <span>
+              <strong>{filename}</strong>
+              <small>{detail}</small>
+            </span>
+            <button onClick={() => setViewerOpen(true)} type="button">
+              Preview
+            </button>
+          </div>
+        ) : null}
+      </div>
       {resolvedUrl ? (
         <FileViewer
           mediaType={mediaType}
@@ -220,6 +274,22 @@ export function FileCard({ part, sessionId, resolveAttachmentUrl, rewriteUrl }: 
         />
       ) : null}
     </>
+  );
+}
+
+function mediaKind(mediaType: string): "image" | "video" | "audio" | "document" {
+  if (mediaType.startsWith("image/")) return "image";
+  if (mediaType.startsWith("video/")) return "video";
+  if (mediaType.startsWith("audio/")) return "audio";
+  return "document";
+}
+
+function FileTypeIcon() {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 24 24">
+      <path d="M6.5 2.75h7l4 4v14.5h-11z" />
+      <path d="M13.5 2.75v4h4M9 12h6M9 15.5h4.5" />
+    </svg>
   );
 }
 
@@ -266,11 +336,14 @@ function DocumentFileViewer({ open, title, subtitle, url, mediaType, onClose }: 
             {subtitle ? <small>{subtitle}</small> : null}
           </span>
           <span className="file-viewer-actions">
+            <a aria-label={`Download ${title}`} download={title} href={url}>
+              <DownloadIcon />
+            </a>
             <a aria-label="Open file in new window" href={url} rel="noreferrer" target="_blank">
-              ↗
+              <ExternalLinkIcon />
             </a>
             <button aria-label="Close preview" onClick={onClose} type="button">
-              ×
+              <XIcon />
             </button>
           </span>
         </header>
@@ -316,8 +389,11 @@ export function MediaViewer({ open, items, activeIndex = 0, onClose, onSelect }:
       role="dialog"
     >
       <div className="media-viewer-top-bar">
+        <a aria-label={`Download ${item.title}`} download={item.title} href={item.url}>
+          <DownloadIcon />
+        </a>
         <button aria-label="Close media preview" onClick={onClose} type="button">
-          ×
+          <XIcon />
         </button>
       </div>
       <div className="media-viewer-column">
@@ -409,6 +485,9 @@ export function JsonBlock({ label, value }: { label: string; value: unknown }) {
 
 export function safeUrl(value: string): string | undefined {
   if (value.startsWith("/")) return value;
+  // Legacy screenshot results may contain inline raster bytes. Keep this deliberately narrower
+  // than a general data: allowance: SVG and arbitrary MIME payloads remain rejected.
+  if (/^data:image\/(?:png|jpeg|gif|webp);base64,[a-z0-9+/=]+$/i.test(value)) return value;
   try {
     const url = new URL(value);
     // blob: covers optimistic local previews before the upload lands.

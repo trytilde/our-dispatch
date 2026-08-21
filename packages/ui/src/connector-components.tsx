@@ -36,6 +36,8 @@ export interface ConnectorCredentialSourceView {
 export interface ConnectorSelectionView {
   providerTypeId: string;
   providerName: string;
+  /** Provider branding from Tilde catalog metadata (https or data: URI). */
+  iconUrl?: string;
   prompt?: string;
   accounts: ConnectorAccountView[];
   credentialSources: ConnectorCredentialSourceView[];
@@ -63,6 +65,7 @@ export function connectorSelectionViewFromPart(
   return {
     providerTypeId,
     providerName,
+    ...(asText(record.icon_url) ? { iconUrl: asText(record.icon_url) } : {}),
     ...(asText(record.prompt) ? { prompt: asText(record.prompt) } : {}),
     accounts: record.accounts.flatMap((entry) => {
       const account = asRecord(entry);
@@ -154,7 +157,7 @@ export function ConnectorAccountGrid({
             title={`Use ${account.displayName}`}
             type="button"
           >
-            <ConnectorGlyph name={selection.providerName} />
+            <ConnectorGlyph iconUrl={selection.iconUrl} name={selection.providerName} />
             <span className="connector-select-copy">
               <strong>{selection.providerName}</strong>
               <small>{account.displayName}</small>
@@ -187,7 +190,14 @@ export function ConnectorAccountGrid({
   );
 }
 
-function ConnectorGlyph({ name }: { name: string }) {
+function ConnectorGlyph({ iconUrl, name }: { iconUrl?: string | undefined; name: string }) {
+  if (iconUrl) {
+    return (
+      <span aria-hidden className="connector-glyph">
+        <img alt="" src={iconUrl} />
+      </span>
+    );
+  }
   const initials = name
     .split(/\s+/)
     .map((word) => word.charAt(0))
@@ -210,6 +220,8 @@ export interface ConnectorSetupSubmit {
 
 export interface ConnectorSetupDialogProps {
   providerName: string;
+  /** Provider branding from Tilde catalog metadata (https or data: URI). */
+  providerIconUrl?: string;
   credentialSources: ConnectorCredentialSourceView[];
   submitting?: boolean;
   error?: string;
@@ -222,6 +234,7 @@ export interface ConnectorSetupDialogProps {
 
 export function ConnectorSetupDialog({
   providerName,
+  providerIconUrl,
   credentialSources,
   submitting = false,
   error,
@@ -277,7 +290,10 @@ export function ConnectorSetupDialog({
       role="dialog"
     >
       <form className="connector-setup" onSubmit={handleSubmit}>
-        <h2>Add a {providerName} account</h2>
+        <h2>
+          <ConnectorGlyph iconUrl={providerIconUrl} name={providerName} />
+          Add a {providerName} account
+        </h2>
         {authorizationUrl ? (
           <div className="connector-setup-waiting">
             <p>

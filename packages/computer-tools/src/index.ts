@@ -1,5 +1,4 @@
-import { Buffer } from "node:buffer";
-import type { MediaUploader } from "./attachments.js";
+import type { MediaDownloader, MediaUploader } from "./attachments.js";
 import { createClient } from "@connectrpc/connect";
 import { createConnectTransport } from "@connectrpc/connect-node";
 import { ComputerService } from "@tryopenbot/computer-service-proto";
@@ -13,13 +12,10 @@ export interface ComputerToolOptions {
   agentId: string;
   baseUrl?: ResolvableValue;
   apiKey?: ResolvableValue;
-  /**
-   * Uploads tool-produced media and returns a ChatKit attachment reference. Media tools return
-   * that reference instead of inline bytes, so the owner's client renders a real attachment rather
-   * than the model transcribing an image into markdown. Without it they fall back to base64.
-   */
-  uploadMedia?: MediaUploader;
 }
+
+type UploadingComputerToolOptions = ComputerToolOptions & { uploadMedia: MediaUploader };
+type DownloadingComputerToolOptions = ComputerToolOptions & { downloadMedia: MediaDownloader };
 
 function requiredEnvironment(name: string): string {
   const value = process.env[name]?.trim();
@@ -138,18 +134,16 @@ export function createWriteFileTool(options: ComputerToolOptions) {
   });
 }
 
-export function createCopyToComputerTool(options: ComputerToolOptions) {
+export function createCopyToComputerTool(options: DownloadingComputerToolOptions) {
   return tool({
-    description: "Copy binary data into a file on the shared computer using base64 transfer.",
-    inputSchema: z.object({ path: z.string().min(1), content_base64: z.string().min(1) }),
-    execute: async ({ path, content_base64 }, execution) => {
-      const content = Buffer.from(content_base64, "base64");
-      if (content.toString("base64").replace(/=+$/, "") !== content_base64.replace(/=+$/, ""))
-        throw new Error("content_base64 must be valid base64");
+    description: "Copy a Tilde session attachment into a file on the shared computer.",
+    inputSchema: z.object({ path: z.string().min(1), attachment_id: z.string().uuid() }),
+    execute: async ({ path, attachment_id }, execution) => {
+      const media = await options.downloadMedia(attachment_id);
       const response = await (
         await service(options)
       ).writeFile(
-        { agentId: options.agentId, path, content, mode: 0 },
+        { agentId: options.agentId, path, content: media.bytes, mode: 0 },
         await callOptions(options, execution.abortSignal),
       );
       return { bytes_written: Number(response.bytesWritten) };
@@ -157,9 +151,9 @@ export function createCopyToComputerTool(options: ComputerToolOptions) {
   });
 }
 
-export function createCopyFromComputerTool(options: ComputerToolOptions) {
+export function createCopyFromComputerTool(options: UploadingComputerToolOptions) {
   return tool({
-    description: "Copy a binary file from the shared computer as base64 data.",
+    description: "Copy a binary file from the shared computer into a Tilde session attachment.",
     inputSchema: z.object({ path: z.string().min(1) }),
     execute: async ({ path }, execution) => {
       const response = await (
@@ -168,10 +162,12 @@ export function createCopyFromComputerTool(options: ComputerToolOptions) {
         { agentId: options.agentId, path },
         await callOptions(options, execution.abortSignal),
       );
-      return {
-        content_base64: Buffer.from(response.content).toString("base64"),
-        bytes_read: response.content.byteLength,
-      };
+      const uploaded = await options.uploadMedia({
+        bytes: response.content,
+        filename: path.split(/[\\/]/).pop() || "attachment.bin",
+        mediaType: "application/octet-stream",
+      });
+      return { ...uploaded, bytes_read: response.content.byteLength };
     },
   });
 }
@@ -228,7 +224,7 @@ export function createGrepTool(options: ComputerToolOptions) {
   });
 }
 
-export function createScreenshotTool(options: ComputerToolOptions) {
+export function createScreenshotTool(options: UploadingComputerToolOptions) {
   return tool({
     description: "Capture the current shared computer desktop as a PNG image.",
     inputSchema: z.object({}),
@@ -245,16 +241,10 @@ export function createScreenshotTool(options: ComputerToolOptions) {
   });
 }
 
-/**
- * Media tools hand the owner an attachment reference when an uploader is configured. The base64
- * fallback keeps tools usable outside a ChatKit session, where no attachment can exist.
- */
 async function mediaResult(
-  options: ComputerToolOptions,
+  options: UploadingComputerToolOptions,
   media: { bytes: Uint8Array; mediaType: string; filename: string },
 ) {
-  if (!options.uploadMedia)
-    return { media_type: media.mediaType, data: Buffer.from(media.bytes).toString("base64") };
   const uploaded = await options.uploadMedia(media);
   return {
     attachment_id: uploaded.attachment_id,
@@ -265,7 +255,10 @@ async function mediaResult(
 
 export {
   createTildeMediaUploader,
+  createTildeMediaDownloader,
+  createTildeAttachmentMessageHandlers,
   type MediaUpload,
+  type MediaDownloader,
   type MediaUploader,
   type TildeAttachmentTarget,
   type UploadedMedia,

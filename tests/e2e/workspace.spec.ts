@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 import { seedCompletedOnboarding } from "./onboarding-state.js";
 
 // Every test but the first-run one wants the workspace, so skip onboarding by seeding
@@ -28,8 +28,9 @@ test("requires a Tilde owner session", async ({ browser }) => {
 });
 
 test("loads the bare workspace without setup", async ({ page }) => {
+  await routeDefaultWorkspace(page);
   await page.goto("/");
-  await expect(page.getByRole("heading", { name: "What should OpenBot do?" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "What should OpenBot do?" })).toHaveCount(0);
   await expect(page.locator(".rail")).toHaveCSS("width", "400px");
   await expect(page.locator(".agent-workspace-pane")).toHaveCSS("width", "0px");
   await page.getByRole("button", { name: "Toggle Computer pane" }).click();
@@ -48,6 +49,7 @@ test("loads the bare workspace without setup", async ({ page }) => {
   await page.mouse.move(sidebarHandleX, sidebarHandle.y + 120);
   await page.mouse.down();
   await page.mouse.move(sidebarHandleX + 60, sidebarHandle.y + 120);
+  await expect(page.locator(".workspace-shell")).toHaveCSS("transition-duration", "0s");
   await page.mouse.up();
   await expect(page.locator(".rail")).toHaveCSS("width", "460px");
 
@@ -86,10 +88,11 @@ test("loads the bare workspace without setup", async ({ page }) => {
   await expect(page.locator("body")).toHaveJSProperty("scrollWidth", 820);
 
   await page.goto("/api/setup/unlock");
-  await expect(page.getByRole("heading", { name: "What should OpenBot do?" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "What should OpenBot do?" })).toHaveCount(0);
 });
 
 test("keeps the chat composition inside a mobile viewport", async ({ page }) => {
+  await routeDefaultWorkspace(page);
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/");
 
@@ -112,10 +115,15 @@ test("keeps the chat composition inside a mobile viewport", async ({ page }) => 
 test("streams rich messages and uploads a file through Tilde ChatKit", async ({ page }) => {
   const now = new Date().toISOString();
   let computerPreviewRequests = 0;
+  let researchMessageRequests = 0;
   let releaseComputerPreview = () => {};
+  let releaseResearchMessages = () => {};
   let computerPreviewUnavailable = true;
   const computerPreviewReady = new Promise<void>((resolve) => {
     releaseComputerPreview = resolve;
+  });
+  const researchMessagesReady = new Promise<void>((resolve) => {
+    releaseResearchMessages = resolve;
   });
   let messages: Array<Record<string, unknown>> = [
     {
@@ -136,7 +144,10 @@ test("streams rich messages and uploads a file through Tilde ChatKit", async ({ 
       await route.fulfill({ json: { error: "Computer preview is unavailable" }, status: 503 });
       return;
     }
-    await route.fulfill({ contentType: "text/html", body: "<main>Agent desktop</main>" });
+    await route.fulfill({
+      contentType: "text/html",
+      body: '<main>Agent desktop</main><script>parent.postMessage({type:"openbot:vnc",phase:"connected"},"*")</script>',
+    });
   });
 
   await page.route("**/media/**", async (route) => {
@@ -178,7 +189,16 @@ test("streams rich messages and uploads a file through Tilde ChatKit", async ({ 
               display_name: "Researcher",
               provider_id: "chatkit.http-vercel-ai-sdk",
               status: "enabled",
-              sessions: { items: [] },
+              sessions: {
+                items: [
+                  {
+                    id: "research-session",
+                    title: "Research session",
+                    created_at: now,
+                    updated_at: now,
+                  },
+                ],
+              },
             },
           ],
         },
@@ -186,6 +206,10 @@ test("streams rich messages and uploads a file through Tilde ChatKit", async ({ 
       return;
     }
     if (path.endsWith("/observe")) {
+      if (path.includes("/research-session/")) {
+        await route.fulfill({ contentType: "text/event-stream", body: "" });
+        return;
+      }
       await route.fulfill({
         contentType: "text/event-stream",
         body:
@@ -220,6 +244,26 @@ test("streams rich messages and uploads a file through Tilde ChatKit", async ({ 
       return;
     }
     if (path.endsWith("/messages") && request.method() === "GET") {
+      if (path.includes("/research-session/")) {
+        researchMessageRequests += 1;
+        if (researchMessageRequests > 1) await researchMessagesReady;
+        await route.fulfill({
+          json: {
+            items: [
+              {
+                id: "research-message",
+                type: "ui",
+                role: "assistant",
+                session_id: "research-session",
+                user_display_name: "Researcher",
+                created_at: now,
+                parts: [{ type: "text", text: "Research cached preview" }],
+              },
+            ],
+          },
+        });
+        return;
+      }
       await route.fulfill({ json: { items: messages } });
       return;
     }
@@ -315,7 +359,11 @@ test("streams rich messages and uploads a file through Tilde ChatKit", async ({ 
   await expect(page.locator(".agent-workspace-pane iframe")).toHaveCount(0);
   expect(computerPreviewRequests).toBe(0);
   await expect(page.locator("body")).toHaveCSS("background-color", "rgb(252, 252, 252)");
-  await expect(page.locator(".rail")).toHaveCSS("background-color", "rgb(252, 252, 252)");
+  await expect(page.locator("body")).toHaveCSS(
+    "font-family",
+    /-apple-system|BlinkMacSystemFont|Segoe UI/,
+  );
+  await expect(page.locator(".rail")).toHaveCSS("background-color", "rgb(247, 247, 247)");
   await expect(page.locator("[data-menu-row]").first()).toHaveCSS("height", "54px");
   await expect(page.locator("[data-menu-row]").first()).toHaveCSS("border-radius", "8px");
   await expect(page.locator("[data-menu-row] .avatar").first()).toHaveCSS("width", "36px");
@@ -335,16 +383,27 @@ test("streams rich messages and uploads a file through Tilde ChatKit", async ({ 
   await expect(page.locator("[data-menu-row]").first()).not.toContainText("enabled");
   await expect(page.getByRole("button", { name: "Search", exact: true })).toHaveCSS(
     "font-size",
-    "16px",
+    "13px",
   );
   await expect(page.getByRole("button", { name: "Search", exact: true })).toHaveCSS(
     "line-height",
-    "24px",
+    "18px",
   );
   await expect(page.locator("[data-menu-row] strong").first()).toHaveCSS("font-size", "13px");
   await expect(page.locator("[data-menu-row] small").first()).toHaveCSS("font-size", "12px");
   // Unread is carried by the row's data attribute and its accent dot.
   await expect(page.locator("[data-menu-row][data-unread]").first()).toBeVisible();
+  await page.locator("[data-menu-row]").nth(1).click();
+  await expect(page.locator(".conversation-loading")).toBeVisible();
+  await expect(page.locator("[data-menu-row]").nth(1)).toContainText("Research cached preview");
+  releaseResearchMessages();
+  await expect(
+    page.locator(".message-list").getByText("Research cached preview", { exact: true }),
+  ).toBeVisible();
+  await page.locator("[data-menu-row]").first().click();
+  await expect(
+    page.locator(".message-list").getByText("Ready when you are.", { exact: true }),
+  ).toBeVisible();
   await page.locator("[data-menu-row]").nth(1).hover();
   await expect(page.locator(".bg-hover[aria-hidden]").first()).toHaveCSS("opacity", "1");
   // The rebuilt sidebar renders WorkspaceAccount's default label: nothing passes the
@@ -371,14 +430,22 @@ test("streams rich messages and uploads a file through Tilde ChatKit", async ({ 
   await expect(page.locator("[data-menu-row]").first()).toHaveCSS("width", "52px");
   await expect(page.locator("[data-menu-row]").first()).toHaveCSS("height", "52px");
   await expect(page.locator("[data-menu-row] strong").first()).toBeHidden();
-  // Search is unmounted while collapsed; new agent, settings, and feedback stay as icons.
+  // Search is unmounted while collapsed; add bot, settings, and feedback stay as icons.
   await expect(page.getByRole("button", { name: "Search", exact: true })).toHaveCount(0);
-  await expect(page.getByRole("button", { name: "New agent" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Add bot" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Settings" })).toBeVisible();
   await expect(page.getByRole("link", { name: "Send Feedback" })).toHaveAttribute(
     "href",
-    "mailto:daniel@trytilde.ai",
+    "mailto:opensource@trytilde.ai",
   );
+  for (const control of [
+    page.getByRole("button", { name: "Add bot" }),
+    page.getByRole("button", { name: "Settings" }),
+    page.getByRole("link", { name: "Send Feedback" }),
+  ]) {
+    await expect(control.locator("svg")).toHaveCSS("width", "24px");
+    await expect(control.locator("svg")).toHaveCSS("height", "24px");
+  }
   // The rail footer is the account block now; collapsing keeps it reachable.
   await expect(accountButton).toBeVisible();
   await page.keyboard.press("Control+b");
@@ -386,6 +453,19 @@ test("streams rich messages and uploads a file through Tilde ChatKit", async ({ 
   await expect(page.locator("[data-menu-row] strong").first()).toBeVisible();
   await expect(page.getByText("Working session")).toHaveCount(0);
   await expect(page.getByText("Ready when you are.")).toBeVisible();
+  await expect(page.locator(".message-list")).toHaveCSS("width", /\d+px/);
+  const conversationWidth = await page.locator(".conversation").evaluate((element) => {
+    const style = getComputedStyle(element);
+    return (
+      element.clientWidth -
+      Number.parseFloat(style.paddingLeft) -
+      Number.parseFloat(style.paddingRight)
+    );
+  });
+  const messageListWidth = await page
+    .locator(".message-list")
+    .evaluate((element) => element.clientWidth);
+  expect(Math.abs(messageListWidth - conversationWidth)).toBeLessThanOrEqual(1);
   await expect(page.locator(".message.assistant .message-bubble").first()).toHaveCSS(
     "background-color",
     "rgb(238, 238, 238)",
@@ -395,13 +475,13 @@ test("streams rich messages and uploads a file through Tilde ChatKit", async ({ 
     "18px 18px 18px 6px",
   );
   await expect(page.locator(".composer")).toHaveCSS("background-color", "rgb(252, 252, 252)");
-  await expect(page.locator(".composer")).toHaveCSS("border-radius", "16px");
+  await expect(page.locator(".composer")).toHaveCSS("border-radius", "999px");
   await page.getByRole("button", { name: "Toggle Computer pane" }).click();
   await expect(page.locator(".agent-workspace-pane iframe")).toHaveCount(1);
   await expect.poll(() => computerPreviewRequests).toBe(1);
   await expect(page.locator(".agent-workspace-pane")).toHaveCSS(
     "transition-duration",
-    "0.24s, 0.09s, 0.2s, 0s",
+    "0.09s, 0.2s, 0s",
   );
   // ComputerStagePlaceholder is exported but rendered nowhere in apps/web, so the boot
   // message and its progress bar never appear. Held in the pending test below.
@@ -417,20 +497,15 @@ test("streams rich messages and uploads a file through Tilde ChatKit", async ({ 
     page.getByTitle("Hello World Computer").contentFrame().getByText("Agent desktop"),
   ).toBeVisible();
   const monitorStrip = page.getByRole("group", { name: "Computer screens" });
-  await expect(monitorStrip).toBeVisible();
-  await expect(monitorStrip).toHaveCSS("height", "122px");
-  const researcherMonitor = monitorStrip.getByRole("button", { name: "Switch to Researcher" });
-  await expect(researcherMonitor).toBeVisible();
-  await researcherMonitor.click();
-  await expect(page.getByTitle("Researcher Computer")).toBeVisible();
+  await expect(monitorStrip).toHaveCount(0);
+  await expect(page.getByTitle("Researcher Computer")).toHaveCount(0);
   await expect(page.getByRole("heading", { name: "Hello World" })).toBeVisible();
-  await page.getByRole("button", { name: "Enter full screen" }).click();
+  await page.getByRole("button", { name: "Take control of Hello World's Computer" }).click();
   await expect(page.locator(".agent-workspace-pane")).toHaveClass(/fullscreen/);
   await expect(page.locator(".agent-workspace-pane")).toHaveCSS("width", "1280px");
+  await expect(page.getByRole("button", { name: "Exit full screen" })).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(page.locator(".agent-workspace-pane")).not.toHaveClass(/fullscreen/);
-  await page.getByRole("button", { name: /Click to take over/ }).click();
-  await expect(page.getByRole("button", { name: "Release" })).toBeVisible();
   await expect(
     page.locator(".message-list").getByText("Streaming preview", { exact: true }),
   ).toBeVisible();
@@ -438,12 +513,12 @@ test("streams rich messages and uploads a file through Tilde ChatKit", async ({ 
     page.locator(".message-list").getByText("Streaming preview", { exact: true }),
   ).toHaveCount(1);
   await expect(page.getByText("Queued follow-up")).toBeVisible();
-  await expect(page.getByRole("button", { name: "Run now" })).toBeVisible();
-  await page.getByRole("button", { name: "Edit" }).click();
+  await expect(page.getByRole("button", { name: "Steer queued message" })).toBeVisible();
+  await page.getByRole("button", { name: "Edit queued message" }).click();
   await expect(page.getByRole("textbox", { name: "Message", exact: true })).toHaveValue(
     "Queued follow-up",
   );
-  await page.getByLabel("Attach files").click();
+  await page.getByLabel("Add photos and files").click();
   await page.locator('input[type="file"]').setInputFiles({
     name: "brief.txt",
     mimeType: "text/plain",
@@ -455,21 +530,8 @@ test("streams rich messages and uploads a file through Tilde ChatKit", async ({ 
   await expect(
     page.locator(".message-list").getByText("The file is clear and complete.", { exact: true }),
   ).toBeVisible();
-  await expect(page.locator(".message.user .message-bubble").first()).toHaveCSS(
-    "background-color",
-    "rgb(7, 7, 7)",
-  );
+  await expect(page.getByText("Read this file", { exact: true })).toBeVisible();
   await expect(page.getByText("Read file")).toBeVisible();
-  await expect(page.locator("button.file-part").filter({ hasText: "brief.txt" })).toBeVisible();
-  await page.locator("button.file-part").filter({ hasText: "brief.txt" }).click();
-  await expect(page.getByRole("dialog", { name: "Preview brief.txt" })).toBeVisible();
-  await expect(page.locator(".file-viewer")).toHaveCSS(
-    "background-color",
-    "rgba(20, 20, 20, 0.898)",
-  );
-  await expect(page.locator(".file-viewer-panel")).toHaveCSS("max-width", "1100px");
-  await page.getByRole("button", { name: "Close preview" }).click();
-  await expect(page.getByRole("dialog", { name: "Preview brief.txt" })).toHaveCount(0);
   await page.getByRole("button", { name: /screenshot.png/ }).click();
   const mediaViewer = page.getByRole("dialog", { name: "Media preview" });
   await expect(mediaViewer).toBeVisible();
@@ -515,6 +577,113 @@ test("streams rich messages and uploads a file through Tilde ChatKit", async ({ 
     expect(bounds.x + bounds.width).toBeLessThanOrEqual(390);
   }
   await expect(page.locator("body")).toHaveJSProperty("scrollWidth", 390);
+});
+
+test("picks or creates a bot from the add-bot command palette", async ({ page }) => {
+  const now = new Date().toISOString();
+  let created = false;
+
+  await page.route("**/api/agents", async (route) => {
+    const response = await route.fetch();
+    created = response.ok();
+    await route.fulfill({ response });
+  });
+
+  await page.route("**/api/computer/**", async (route) => {
+    await route.fulfill({ contentType: "text/html", body: "<main>Agent desktop</main>" });
+  });
+  await page.route("**/api/chat/**", async (route) => {
+    const path = new URL(route.request().url()).pathname;
+    if (path.endsWith("/mission-control/sidebar")) {
+      await route.fulfill({
+        json: {
+          items: [
+            {
+              id: "hello-world",
+              display_name: "Hello World",
+              provider_id: "chatkit.http-vercel-ai-sdk",
+              status: "enabled",
+              sessions: {
+                items: [
+                  {
+                    id: "hello-session",
+                    title: "Hello session",
+                    created_at: now,
+                    updated_at: now,
+                  },
+                ],
+              },
+            },
+            {
+              id: "researcher",
+              display_name: "Researcher",
+              provider_id: "chatkit.http-vercel-ai-sdk",
+              status: "enabled",
+              sessions: {
+                items: [
+                  {
+                    id: "research-session",
+                    title: "Research session",
+                    created_at: now,
+                    updated_at: now,
+                  },
+                ],
+              },
+            },
+            ...(created
+              ? [
+                  {
+                    id: "reviewer",
+                    display_name: "Reviewer",
+                    provider_id: "chatkit.http-vercel-ai-sdk",
+                    status: "enabled",
+                    sessions: { items: [] },
+                  },
+                ]
+              : []),
+          ],
+        },
+      });
+      return;
+    }
+    if (path.endsWith("/observe")) {
+      await route.fulfill({ contentType: "text/event-stream", body: "" });
+      return;
+    }
+    if (path.endsWith("/agent-turn-queue")) {
+      await route.fulfill({ json: { items: [] } });
+      return;
+    }
+    if (path.endsWith("/messages")) {
+      await route.fulfill({ json: { items: [] } });
+      return;
+    }
+    await route.fulfill({ json: {} });
+  });
+
+  await page.goto("/");
+  await expect(page.locator("[data-menu-row]")).toHaveCount(2);
+  await page.getByRole("button", { name: "Add bot" }).click();
+
+  const addDialog = page.getByRole("dialog", { name: "Add bot" });
+  await expect(addDialog.getByPlaceholder("Search bots")).toBeFocused();
+  await expect(addDialog.locator("[cmdk-group-heading]")).toHaveCount(0);
+  await expect(addDialog.locator("[cmdk-separator]")).toHaveCount(0);
+  await expect(addDialog.locator("[cmdk-item]").first()).toContainText("Create a new bot");
+  await expect(addDialog.getByText("Hello World", { exact: true })).toBeVisible();
+  await expect(addDialog.getByText("Researcher", { exact: true })).toBeVisible();
+
+  await expect(addDialog.getByText("Create a new bot", { exact: true })).toBeVisible();
+  await addDialog.getByText("Create a new bot", { exact: true }).click();
+  const createDialog = page.getByRole("dialog", { name: "Create bot" });
+  await expect(createDialog.getByPlaceholder("Name your bot")).toBeFocused();
+  await createDialog.getByPlaceholder("Name your bot").fill("Reviewer");
+  await expect(createDialog.getByRole("button", { name: "Create bot" })).toBeEnabled();
+  await createDialog.getByRole("button", { name: "Create bot" }).click();
+
+  await expect(addDialog).toBeHidden();
+  await expect(page.locator('[data-menu-row][aria-current="page"]')).toContainText("Reviewer");
+  await expect(page.getByRole("heading", { name: "Reviewer" })).toBeVisible();
 });
 
 test("queues another turn while the agent is busy", async ({ page }) => {
@@ -679,6 +848,34 @@ test("configures a connector through the in-chat account picker", async ({ page 
       });
       return;
     }
+    if (new URL(request.url()).pathname.endsWith("/api/connectors/providers")) {
+      await route.fulfill({
+        json: {
+          items: [
+            {
+              type_id: "tavily",
+              name: "Tavily",
+              categories: [],
+              credential_sources: [
+                {
+                  type_id: "tavily_api_key",
+                  name: "Use an API key",
+                  requires_brokering: false,
+                  supports_auto_display_name: false,
+                  resource_server_schema: null,
+                  user_credential_schema: {
+                    type: "object",
+                    required: ["api_key"],
+                    properties: { api_key: { type: "string", format: "password" } },
+                  },
+                },
+              ],
+            },
+          ],
+        },
+      });
+      return;
+    }
     await route.fulfill({ json: { items: [] } });
   });
 
@@ -757,8 +954,10 @@ test("configures a connector through the in-chat account picker", async ({ page 
   expect(sentMessages[0]).toContain("tool_group_instance_id=tgi-work");
   expect(sentMessages[0]).toContain("tool_group_source_type_id=tavily");
 
-  // The add-account card opens the schema-driven credential form.
+  // The add-account card opens the schema-driven credential form through a
+  // routable URL so redirects and the back button can target the modal.
   await cards.nth(2).click();
+  await expect(page).toHaveURL(/connector=tavily/);
   const dialog = page.getByRole("dialog", { name: "Add Tavily account" });
   await expect(dialog).toBeVisible();
   await expect(dialog.getByRole("heading", { name: "Add a Tavily account" })).toBeVisible();
@@ -781,6 +980,13 @@ test("configures a connector through the in-chat account picker", async ({ page 
   expect(sentMessages[1]).toContain("tool_group_instance_id=tgi-new");
   expect(sentMessages[1]).not.toContain("tvly-secret");
   await expect(dialog).toHaveCount(0);
+  await expect(page).not.toHaveURL(/connector=/);
+
+  // The modal is directly addressable: loading the URL opens it from the
+  // provider catalog, exactly what an OAuth return or shared link needs.
+  await page.goto("/?connector=tavily");
+  await expect(page.getByRole("dialog", { name: "Add Tavily account" })).toBeVisible();
+  await expect(page.getByRole("dialog").getByPlaceholder("api_key")).toBeVisible();
 });
 
 test("keeps the server healthy", async ({ request }) => {
@@ -798,3 +1004,44 @@ test.fixme("shows the computer boot stage", async ({ page }) => {
   await expect(page.getByText("Booting up the computer")).toBeVisible();
   await expect(page.locator(".computer-stage-progress")).toBeVisible();
 });
+
+async function routeDefaultWorkspace(page: Page): Promise<void> {
+  const now = new Date().toISOString();
+  await page.route("**/api/chat/**", async (route) => {
+    const path = new URL(route.request().url()).pathname;
+    if (path.endsWith("/mission-control/sidebar")) {
+      await route.fulfill({
+        json: {
+          items: [
+            {
+              id: "hello-world",
+              display_name: "Hello World",
+              provider_id: "chatkit.http-vercel-ai-sdk",
+              status: "enabled",
+              sessions: {
+                items: [
+                  {
+                    id: "session-one",
+                    title: "Working session",
+                    created_at: now,
+                    updated_at: now,
+                  },
+                ],
+              },
+            },
+          ],
+        },
+      });
+      return;
+    }
+    if (path.endsWith("/observe")) {
+      await route.fulfill({ contentType: "text/event-stream", body: "" });
+      return;
+    }
+    if (path.endsWith("/agent-turn-queue") || path.endsWith("/messages")) {
+      await route.fulfill({ json: { items: [] } });
+      return;
+    }
+    await route.fulfill({ status: 204 });
+  });
+}

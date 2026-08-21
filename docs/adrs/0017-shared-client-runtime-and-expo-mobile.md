@@ -116,3 +116,15 @@ flowchart TD
 ## Updates
 
 - 2026-08-20T15:36:25Z: Expanded Expo from the initial regular-chat slice to desktop-parity onboarding, assistant-ui native transcript/composer behavior, rich attachments, prompt queues, and guarded Computer take-over while retaining client-runtime and Tilde ownership.
+- 2026-08-20T11:45:00+01:00: Modelled control-service connections as a persisted client workspace
+  registry owned by `client-runtime`. Web stores only public origins, labels, avatar colours, and the
+  active workspace on-device; browser cookies and native credentials remain installation-scoped in
+  their existing platform adapters. Switching hosted web workspaces transfers only that public
+  registry and reloads the destination installation's full application shell.
+- 2026-08-20T12:05:00+01:00: Made the Tilde agent-turn queue authoritative for every owner message.
+  The client reconciles pending turns independently of long-lived send requests, owns optimistic
+  queue mutations, and uses reply IDs rather than wall-clock completion time to order late replies.
+  Vite development also seeds its loopback control server into the persisted workspace registry.
+- 2026-08-20T13:10:00+01:00: Made `queue` an explicit, drift-reconciled concurrency policy for every
+  Tilde agent in development and production. Mission Control's message endpoint remains the sole
+  queue producer; clients reconcile the resulting durable pending turns through the native queue API.

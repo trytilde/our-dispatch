@@ -1,10 +1,15 @@
+import { configHeaders } from "@trytilde/harness-sdk";
 import {
   chatKitEndpoint,
   convertToAiSdkMessages,
-  createChatKitAttachmentFilePartHandler,
   createClient,
   createMCPClient,
 } from "@trytilde/harness-sdk-vercel-ai-node";
+import {
+  createTildeAttachmentMessageHandlers,
+  createTildeMediaDownloader,
+  createTildeMediaUploader,
+} from "@tryopenbot/computer-tools";
 import {
   consumeStream,
   convertToModelMessages,
@@ -33,31 +38,39 @@ const client = createClient({
   orgSubdomain: false,
   teamId: process.env.TILDE_TEAM_ID!,
 });
-const localTools = {
-  await_shell: awaitShell,
-  bash,
-  configure_connector: configureConnector,
-  copy_from_computer: copyFromComputer,
-  copy_to_computer: copyToComputer,
-  glob,
-  grep,
-  read_file: readFile,
-  screenshot,
-  write_file: writeFile,
-} satisfies ToolSet;
-let mcpTools: Promise<ToolSet> | undefined;
+function localTools(sessionId: string): ToolSet {
+  const uploadMedia = createTildeMediaUploader({
+    baseUrl: client.config.baseUrl,
+    headers: () => configHeaders(client.config),
+    sessionId,
+    teamId: process.env.TILDE_TEAM_ID!,
+  });
+  const downloadMedia = createTildeMediaDownloader(client, sessionId);
+  return {
+    await_shell: awaitShell,
+    bash,
+    configure_connector: configureConnector,
+    copy_from_computer: copyFromComputer(uploadMedia),
+    copy_to_computer: copyToComputer(downloadMedia),
+    glob,
+    grep,
+    read_file: readFile,
+    screenshot: screenshot(uploadMedia),
+    write_file: writeFile,
+  } satisfies ToolSet;
+}
 
-async function managedMcpTools(): Promise<ToolSet> {
-  return (mcpTools ??= createMCPClient({
+async function managedMcpTools(
+  sessionId: string,
+): Promise<{ tools: ToolSet; closeMcp: () => Promise<void> }> {
+  const handle = await createMCPClient({
     client,
     serverId: mcpServerId,
-    tools: localTools,
-  }).then(async ({ mcp }) => {
-    // The Tilde wrapper preserves AI SDK tools but exposes a transport-neutral registry type.
-    const tools: Record<string, unknown> = await mcp.tools();
-    assertToolSet(tools);
-    return tools;
-  }));
+    tools: localTools(sessionId),
+  });
+  const tools: Record<string, unknown> = await handle.mcp.tools();
+  assertToolSet(tools);
+  return { tools, closeMcp: () => handle.closeMcp() };
 }
 
 function assertToolSet(tools: Record<string, unknown>): asserts tools is ToolSet {
@@ -66,16 +79,18 @@ function assertToolSet(tools: Record<string, unknown>): asserts tools is ToolSet
       throw new TypeError(`MCP tool ${name} is not a Vercel AI SDK tool`);
 }
 
-function fetchAttachment(input: string | URL | Request, init?: RequestInit): Promise<Response> {
-  const url = new URL(input instanceof Request ? input.url : input.toString(), client.config.baseUrl);
-  if (url.origin === new URL(client.config.baseUrl).origin) return fetch(input, init);
-
-  const headers = new Headers(init?.headers);
-  headers.delete("authorization");
-  headers.delete("x-api-key");
-  headers.delete("x-tilde-org-id");
-  headers.delete("x-tilde-team-id");
-  return fetch(input, { ...init, headers });
+function queuedRequestCutoff(messages: readonly { metadata?: unknown }[]): string | undefined {
+  return messages
+    .map((message) => {
+      if (typeof message.metadata !== "object" || message.metadata === null)
+        return undefined;
+      const metadata = message.metadata as Record<string, unknown>;
+      const value = metadata.createdAt ?? metadata.created_at;
+      return typeof value === "string" ? value : undefined;
+    })
+    .filter((value): value is string => Boolean(value))
+    .sort()
+    .at(-1);
 }
 
 export default chatKitEndpoint({
@@ -84,25 +99,32 @@ export default chatKitEndpoint({
   requestTimeoutMs: 285_000,
   async handler(request, context) {
     const history = await context.session.history();
+    const cutoff = queuedRequestCutoff(context.messages);
+    const requestHistory = cutoff
+      ? history.items.filter((message) => !message.created_at || message.created_at <= cutoff)
+      : history.items;
+    const attachmentHandlers = createTildeAttachmentMessageHandlers(client, context);
     const messages = await convertToAiSdkMessages({
-      messages: [...history.items, ...context.messages],
+      messages: [...requestHistory, ...context.messages],
       chatkit: context.chatkit,
       onUnprocessed: {
-        fileUpload: createChatKitAttachmentFilePartHandler(client, context, {
-          fetch: fetchAttachment,
-        }),
+        fileUpload: attachmentHandlers.fileUpload,
       },
+      onCacheMessage: attachmentHandlers.onCacheMessage,
+      onHydrateMessage: attachmentHandlers.onHydrateMessage,
     });
+    const { tools, closeMcp } = await managedMcpTools(context.sessionId);
     const result = streamText({
       abortSignal: request.signal,
       messages: await convertToModelMessages(messages),
       model: process.env.AI_MODEL ?? "openai/gpt-5.6-sol",
+      onFinish: () => void closeMcp(),
       providerOptions: { openai: { reasoningEffort: "medium" } },
       // Connector configuration workflows chain discovery, schema fetches, and
       // control-plane mutations in one turn, so the step budget must cover them.
       stopWhen: stepCountIs(24),
       system: instructions,
-      tools: await managedMcpTools(),
+      tools,
     });
     return result.toUIMessageStreamResponse({
       consumeSseStream: consumeStream,

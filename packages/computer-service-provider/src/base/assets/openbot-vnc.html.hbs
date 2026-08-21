@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>OpenBot Computer</title>
+    <style>
+      html,
+      body,
+      #screen {
+        width: 100%;
+        height: 100%;
+        margin: 0;
+        overflow: hidden;
+        background: #1f2d43;
+      }
+
+      #screen {
+        display: flex;
+      }
+    </style>
+    <script type="module">
+      import RFB from "./core/rfb.js";
+
+      const parameters = new URLSearchParams(window.location.search);
+      const path = parameters.get("path") || "websockify";
+      const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+      const socketUrl = `${protocol}//${window.location.host}/${path}`;
+      const report = (phase, detail) =>
+        window.parent.postMessage({ type: "openbot:vnc", phase, detail }, "*");
+
+      report("connecting");
+      const rfb = new RFB(document.getElementById("screen"), socketUrl);
+      rfb.scaleViewport = true;
+      // Keep one stable framebuffer while the owner moves between preview and takeover.
+      // Resizing the remote X session here makes the wallpaper, windows, and dock visibly jump.
+      rfb.resizeSession = false;
+      rfb.focusOnClick = true;
+      rfb.viewOnly = false;
+      rfb.showDotCursor = true;
+      rfb.addEventListener("connect", () => report("connected"));
+      rfb.addEventListener("disconnect", (event) =>
+        report("disconnected", event.detail.clean ? "closed" : "connection-lost"),
+      );
+      rfb.addEventListener("securityfailure", () => report("failed", "security"));
+    </script>
+  </head>
+  <body>
+    <div id="screen"></div>
+  </body>
+</html>

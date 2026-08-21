@@ -12,6 +12,7 @@ const connectorPart = {
     connector_selection: {
       provider_type_id: "google_mail",
       provider_name: "Google Mail",
+      icon_url: "https://icons.tilde.test/google-mail.svg",
       prompt: "Select which account to enable for this bot for Google Mail",
       accounts: [
         { id: "tgi-1", display_name: "Work Gmail", status: "active" },
@@ -35,6 +36,7 @@ describe("connectorSelectionViewFromPart", () => {
     expect(view).toMatchObject({
       providerTypeId: "google_mail",
       providerName: "Google Mail",
+      iconUrl: "https://icons.tilde.test/google-mail.svg",
       prompt: "Select which account to enable for this bot for Google Mail",
     });
     expect(view?.accounts.map((account) => account.displayName)).toEqual([

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-BOOTSTRAP_VERSION=2026-08-18.1
+BOOTSTRAP_VERSION=2026-08-20.1
 SOPS_VERSION=3.13.3
 SOPS_SHA256_AMD64=e5bec3346a873ae91d871550f3e698c1aad962aff462a080e40f25fde17fef6b
 SOPS_SHA256_ARM64=53b0abacd38ef1b12a66d6c100956691b9cefce018d91f81e73ddf7438b94d77
@@ -21,8 +21,9 @@ fi
 # Install the common desktop, browser automation, VNC, and diagnostic dependencies.
 apt-get update
 apt-get install -y --no-install-recommends \
-  ca-certificates curl dbus-x11 fonts-liberation git imagemagick jq \
-  novnc openbox passwd procps ripgrep tigervnc-standalone-server util-linux websockify x11-utils xdotool xterm
+  adwaita-icon-theme arc-theme ca-certificates curl dbus-x11 feh fonts-liberation git imagemagick jq librsvg2-bin \
+  novnc openbox passwd pcmanfm picom procps ripgrep tigervnc-standalone-server tint2 \
+  util-linux websockify x11-utils xdotool xterm
 
 # Google publishes a pinned amd64 package; Debian Chromium is the portable fallback.
 architecture="$(dpkg --print-architecture)"

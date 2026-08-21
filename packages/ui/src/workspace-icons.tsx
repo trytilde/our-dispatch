@@ -96,3 +96,22 @@ export function BackIcon(props: SVGProps<SVGSVGElement>) {
     </svg>
   );
 }
+
+export function WorkspaceIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 16 16" {...props}>
+      <rect x="2.25" y="2.25" width="4.75" height="4.75" rx="1.1" />
+      <rect x="9" y="2.25" width="4.75" height="4.75" rx="1.1" />
+      <rect x="2.25" y="9" width="4.75" height="4.75" rx="1.1" />
+      <rect x="9" y="9" width="4.75" height="4.75" rx="1.1" />
+    </svg>
+  );
+}
+
+export function TrashIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 16 16" {...props}>
+      <path d="M3.75 4.75h8.5M6.25 2.75h3.5l.75 2H5.5l.75-2ZM5 4.75l.5 8h5l.5-8M7 7v3.5m2-3.5v3.5" />
+    </svg>
+  );
+}

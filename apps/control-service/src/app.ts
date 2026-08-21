@@ -7,7 +7,7 @@ import { Hono } from "hono";
 import { secureHeaders } from "hono/secure-headers";
 import type { AuthProvider } from "@tryopenbot/auth-provider";
 import type { ComputerProvider } from "@tryopenbot/computer-service-provider";
-import { registerAgentCreation } from "./agent-create.js";
+import { registerAgentCreation, type AgentCreationOptions } from "./agent-create.js";
 import { registerTildeChatProxy, type TildeChatProxyOptions } from "./chat-proxy.js";
 import { registerConnectorRoutes, type ConnectorRouteOptions } from "./connectors.js";
 import { registerComputerPreview } from "./computer-preview.js";
@@ -25,6 +25,7 @@ export interface AppOptions {
   tildeChatProxy?: TildeChatProxyOptions;
   connectors?: ConnectorRouteOptions;
   authProvider?: AuthProvider;
+  agentCreation?: Pick<AgentCreationOptions, "execute">;
 }
 
 export function createApp(options: AppOptions = {}): Hono {
@@ -47,7 +48,7 @@ export function createApp(options: AppOptions = {}): Hono {
     devMode: options.devMode,
     environment: options.environment,
   });
-  registerAgentCreation(app, { environment: options.environment });
+  registerAgentCreation(app, { environment: options.environment, ...options.agentCreation });
   registerTildeChatProxy(app, options.tildeChatProxy);
   registerConnectorRoutes(app, options.connectors);
   if (existsSync(webRoot)) {

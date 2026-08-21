@@ -26,11 +26,14 @@ export async function loadLocalEnvironment(
   return environment;
 }
 
-/** Keep control-plane credentials in the Hono process and out of Vite/Electron children. */
-export function publicDevelopmentEnvironment(environment: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
-  return Object.fromEntries(
-    Object.entries(environment).filter(
-      ([name]) => !/(?:API_?KEY|TOKEN|SECRET|PASSWORD|CREDENTIAL|SOPS_AGE)/i.test(name),
-    ),
-  );
+/**
+ * Development children receive the shell environment plus explicit wiring only. The deployment
+ * configuration, including every decrypted secret, stays in this process: clients discover what
+ * they need from the control service rather than inheriting it.
+ */
+export function developmentChildEnvironment(
+  shellEnvironment: NodeJS.ProcessEnv,
+  wiring: Readonly<Record<string, string>>,
+): NodeJS.ProcessEnv {
+  return { ...shellEnvironment, ...wiring };
 }

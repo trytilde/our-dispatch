@@ -19,11 +19,15 @@ export async function ensureAgentDesktop(
   agentId: string,
   capability?: string,
   signal?: AbortSignal,
+  requestId?: string,
 ): Promise<AgentDesktop> {
   validateAgentId(agentId);
   const current = pending.get(agentId);
-  if (current) return current;
-  const created = ensureAgentDesktopNow(agentId, capability, signal).finally(() => {
+  if (current) {
+    logDesktop("awaiting pending desktop", { agentId, requestId });
+    return current;
+  }
+  const created = ensureAgentDesktopNow(agentId, capability, signal, requestId).finally(() => {
     pending.delete(agentId);
   });
   pending.set(agentId, created);
@@ -34,6 +38,7 @@ async function ensureAgentDesktopNow(
   agentId: string,
   capability?: string,
   signal?: AbortSignal,
+  requestId?: string,
 ): Promise<AgentDesktop> {
   const directory = join(desktopRoot, agentId);
   const statePath = join(directory, "desktop.json");
@@ -42,6 +47,13 @@ async function ensureAgentDesktopNow(
   const saved = await readDesktopState(statePath);
   if (saved && (await displayReady(saved.display))) {
     if (capability) await installCapability(capability, saved.vncPort);
+    logDesktop("reused desktop", {
+      agentId,
+      display: saved.display,
+      hasCapability: Boolean(capability),
+      requestId,
+      vncPort: saved.vncPort,
+    });
     return saved;
   }
 
@@ -49,6 +61,7 @@ async function ensureAgentDesktopNow(
     ? await startAndPersistDesktop(agentId, directory, statePath, saved, signal)
     : await serializeDesktopAllocation(async () => {
         const displayNumber = await allocateDisplay(agentId);
+        logDesktop("allocated display", { agentId, display: `:${displayNumber}`, requestId });
         return await startAndPersistDesktop(
           agentId,
           directory,
@@ -58,7 +71,19 @@ async function ensureAgentDesktopNow(
         );
       });
   if (capability) await installCapability(capability, desktop.vncPort);
+  logDesktop("started desktop", {
+    agentId,
+    display: desktop.display,
+    hasCapability: Boolean(capability),
+    requestId,
+    vncPort: desktop.vncPort,
+  });
   return desktop;
+}
+
+function logDesktop(message: string, fields: Record<string, unknown>): void {
+  if (!fields.requestId) return;
+  console.info(`[openbot-vnc] ${message}`, fields);
 }
 
 async function startAndPersistDesktop(
@@ -112,7 +137,7 @@ async function startDesktop(
     [
       desktop.display,
       "-geometry",
-      process.env.COMPUTER_GEOMETRY ?? "1440x900",
+      process.env.COMPUTER_GEOMETRY ?? "1440x810",
       "-depth",
       "24",
       "-SecurityTypes",
@@ -136,32 +161,17 @@ async function startDesktop(
     ...process.env,
     AGENT_ID: agentId,
     DISPLAY: desktop.display,
+    GTK_THEME: "Arc",
     HOME: directory,
     XDG_RUNTIME_DIR: runtimeDirectory,
   };
-  const session = spawn("dbus-launch", ["--exit-with-session", "openbox-session"], {
+  const session = spawn("dbus-launch", ["--exit-with-session", "/opt/openbot/desktop-session.sh"], {
     detached: true,
     env: environment,
     stdio: "ignore",
   });
   session.once("error", () => undefined);
   session.unref();
-
-  const browser = await availableBrowser();
-  const browserProcess = spawn(
-    browser,
-    [
-      "--no-sandbox",
-      "--disable-dev-shm-usage",
-      "--disable-gpu",
-      `--user-data-dir=${profileDirectory}`,
-      "--start-maximized",
-      "about:blank",
-    ],
-    { detached: true, env: environment, stdio: "ignore" },
-  );
-  browserProcess.once("error", () => undefined);
-  browserProcess.unref();
 }
 
 async function installCapability(capability: string, vncPort: number): Promise<void> {
@@ -219,12 +229,6 @@ async function socketExists(display: number): Promise<boolean> {
   } catch {
     return false;
   }
-}
-
-async function availableBrowser(): Promise<string> {
-  if (await commandSucceeds("sh", ["-c", "command -v google-chrome-stable"]))
-    return "google-chrome-stable";
-  return "chromium";
 }
 
 function commandSucceeds(command: string, arguments_: string[]): Promise<boolean> {

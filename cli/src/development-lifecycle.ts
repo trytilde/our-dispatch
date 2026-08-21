@@ -1,5 +1,7 @@
+import { createHash } from "node:crypto";
 import { watch, type FSWatcher } from "node:fs";
-import { stat } from "node:fs/promises";
+import { lstat, readFile, readdir, readlink, stat } from "node:fs/promises";
+import { relative, resolve } from "node:path";
 import type { OpenBotConfiguration } from "@tryopenbot/configuration";
 import { discoverAgentWorkspaces } from "@tryopenbot/agent-service-provider";
 import {
@@ -121,6 +123,7 @@ export async function watchDevelopmentComputer(
   if (!buildable?.watchPaths) return { close() {} };
   const context = deploymentContext(options, new DeploymentOutputs());
   const paths = [...new Set(await buildable.watchPaths(context))];
+  let fingerprint = await developmentInputFingerprint(paths);
   const watchers: FSWatcher[] = [];
   let timer: NodeJS.Timeout | undefined;
   let pending = Promise.resolve();
@@ -129,8 +132,13 @@ export async function watchDevelopmentComputer(
     if (timer) clearTimeout(timer);
     timer = setTimeout(() => {
       pending = pending.then(async () => {
-        options.onRebuildStarted?.();
         try {
+          const nextFingerprint = await developmentInputFingerprint(paths);
+          // Recursive fs.watch can emit directory metadata events caused by the rebuild itself.
+          // Replacing a live Computer is warranted only when provider input bytes changed.
+          if (nextFingerprint === fingerprint) return;
+          fingerprint = nextFingerprint;
+          options.onRebuildStarted?.();
           await reconcileDevelopmentComputer(options);
           options.onRebuildComplete?.();
         } catch (error) {
@@ -153,6 +161,40 @@ export async function watchDevelopmentComputer(
       for (const watcher of watchers) watcher.close();
     },
   };
+}
+
+/** Stable content identity for files, directories, and symlinks watched by a provider. */
+export async function developmentInputFingerprint(paths: readonly string[]): Promise<string> {
+  const hash = createHash("sha256");
+  for (const root of [...paths].sort()) await hashPath(hash, root, root);
+  return hash.digest("hex");
+}
+
+async function hashPath(
+  hash: ReturnType<typeof createHash>,
+  root: string,
+  path: string,
+): Promise<void> {
+  const metadata = await lstat(path);
+  const name = path === root ? root : relative(root, path);
+  hash.update(name).update("\0");
+  if (metadata.isSymbolicLink()) {
+    hash
+      .update("link\0")
+      .update(await readlink(path))
+      .update("\0");
+    return;
+  }
+  if (metadata.isDirectory()) {
+    hash.update("directory\0");
+    for (const entry of (await readdir(path)).sort())
+      await hashPath(hash, root, resolve(path, entry));
+    return;
+  }
+  hash
+    .update("file\0")
+    .update(await readFile(path))
+    .update("\0");
 }
 
 async function reconcileParticipants(

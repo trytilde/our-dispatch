@@ -28,7 +28,7 @@ All agents share one Computer filesystem and process identity. Populated workspa
 
 - `ComputerProvider`: deploys agent workspaces and the trusted development Computer through the shared lifecycle.
 - `BaseComputerProvider`, `MicrosandboxComputerProvider`, and `VercelSandboxComputerProvider`: concrete lifecycle implementations and their image configuration types.
-- `ComputerProviderError`, call context, Computer specifications, handles, image records, and deployment request types: contracts used by lifecycle implementations.
+- `ComputerProviderError`, call context, Computer specifications, handles, image records, deployment request types, and `ComputerSeedEntry`: contracts used by lifecycle implementations. Seed entries preserve regular files and trusted-development symlinks.
 - `computerServiceApiKey()` and `scopedCapability()`: validate and scope access to the Computer service.
 - `computerImageAssets`, `computerImageWatchPaths()`, and `materializeComputerImageContext()`: expose provider-owned image inputs and render a build context.
 - `developmentSandboxSourceFiles()` and `developmentSandboxConfigurationFiles()`: materialize trusted development Computer files.

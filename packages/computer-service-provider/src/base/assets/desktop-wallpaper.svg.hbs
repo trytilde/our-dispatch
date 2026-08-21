@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="810" viewBox="0 0 1440 810">
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#243b66"/>
+      <stop offset="0.48" stop-color="#5b568f"/>
+      <stop offset="1" stop-color="#b26d7c"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.72" cy="0.22" r="0.72">
+      <stop offset="0" stop-color="#f2b59f" stop-opacity="0.72"/>
+      <stop offset="0.42" stop-color="#a078a5" stop-opacity="0.2"/>
+      <stop offset="1" stop-color="#172848" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="fold" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#93a8d1" stop-opacity="0.05"/>
+      <stop offset="0.55" stop-color="#ecd0ca" stop-opacity="0.28"/>
+      <stop offset="1" stop-color="#604d83" stop-opacity="0.06"/>
+    </linearGradient>
+    <filter id="blur" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="42"/>
+    </filter>
+  </defs>
+  <rect width="1440" height="810" fill="url(#sky)"/>
+  <rect width="1440" height="810" fill="url(#glow)"/>
+  <path d="M-80 735C260 470 438 430 664 514c222 82 369 48 856-264v560H-80Z" fill="#142745" fill-opacity="0.52"/>
+  <path d="M-110 742C248 503 436 489 672 580c261 101 479 19 856-267" fill="none" stroke="url(#fold)" stroke-width="148" filter="url(#blur)"/>
+  <path d="M1040-80c-52 176-11 317 124 420 112 85 199 187 259 332" fill="none" stroke="#f0bbb0" stroke-opacity="0.12" stroke-width="94" filter="url(#blur)"/>
+  <rect width="1440" height="810" fill="#081328" fill-opacity="0.08"/>
+</svg>

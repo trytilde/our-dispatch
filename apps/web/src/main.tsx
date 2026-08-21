@@ -5,6 +5,7 @@ import "@tryopenbot/ui/openbot-ui.css";
 import { initTheme } from "@tryopenbot/ui";
 import { router } from "./router.js";
 import { AuthGate } from "./auth-gate.js";
+import { ClientWorkspaceGate } from "./workspaces.js";
 
 initTheme();
 
@@ -13,8 +14,10 @@ if (!root) throw new Error("OpenBot root element is missing");
 
 createRoot(root).render(
   <StrictMode>
-    <AuthGate>
-      <RouterProvider router={router} />
-    </AuthGate>
+    <ClientWorkspaceGate>
+      <AuthGate skipOnboarding>
+        <RouterProvider router={router} />
+      </AuthGate>
+    </ClientWorkspaceGate>
   </StrictMode>,
 );

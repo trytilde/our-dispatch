@@ -6,6 +6,7 @@ const providersPage = {
     {
       type_id: "google_mail",
       name: "Google Mail",
+      metadata: { icon_url: "https://icons.tilde.test/google-mail.svg" },
       categories: ["email"],
       credential_sources: [
         {
@@ -98,6 +99,18 @@ function catalogResponses(call: UpstreamCall): Response | undefined {
 }
 
 describe("connector routes", () => {
+  it("serves the public OAuth return page and bounces desktop flows to the deep link", async () => {
+    const app = createApp({});
+    const web = await app.request("https://openbot.test/connectors/authorized?client=web");
+    expect(web.status).toBe(200);
+    const webPage = await web.text();
+    expect(webPage).toContain("Authorization complete");
+    expect(webPage).not.toContain("openbot://");
+    const desktop = await app.request("https://openbot.test/connectors/authorized?client=electron");
+    const desktopPage = await desktop.text();
+    expect(desktopPage).toContain("openbot://connectors/authorized");
+  });
+
   it("is unavailable without Tilde credentials", async () => {
     const app = createApp({});
     const response = await app.request("https://openbot.test/api/connectors/providers");
@@ -111,6 +124,8 @@ describe("connector routes", () => {
     const body = (await response.json()) as { items: Record<string, unknown>[] };
     expect(body.items.map((item) => item.type_id)).toEqual(["google_mail", "tavily"]);
     const sources = body.items[0]?.credential_sources as Record<string, unknown>[];
+    expect(body.items[0]).toMatchObject({ icon_url: "https://icons.tilde.test/google-mail.svg" });
+    expect(body.items[1]).not.toHaveProperty("icon_url");
     expect(sources[0]).toMatchObject({
       type_id: "google_mail_managed_oauth",
       name: "Sign in with your browser",

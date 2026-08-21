@@ -2,10 +2,24 @@ import { describe, expect, it } from "vite-plus/test";
 import { resolve } from "node:path";
 import { repositoryRoot } from "../paths.js";
 import {
+  developmentPackageCommand,
   developmentServerCommand,
   developmentServerEnvironment,
   developmentTunnelOptions,
 } from "./dev.js";
+
+describe("development package command", () => {
+  it("keeps child output while suppressing pnpm lifecycle errors on shutdown", () => {
+    expect(developmentPackageCommand("@tryopenbot/web", "dev", ["--port", "4173"])).toEqual([
+      "--reporter=silent",
+      "--filter",
+      "@tryopenbot/web",
+      "dev",
+      "--port",
+      "4173",
+    ]);
+  });
+});
 
 describe("development server command", () => {
   it("uses an absolute entrypoint when the tunnel changes the child cwd", () => {

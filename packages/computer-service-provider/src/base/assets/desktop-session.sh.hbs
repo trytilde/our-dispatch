@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Openbox remains the lightweight window manager; this session adds the familiar desktop
+# affordances owners need when they take control without turning the Computer into a full distro.
+openbox --config-file /opt/openbot/openbox-rc.xml &
+window_manager_pid=$!
+compositor_pid=""
+dock_pid=""
+
+cleanup() {
+  for process_id in "$window_manager_pid" "$compositor_pid" "$dock_pid"; do
+    if [[ -n "$process_id" ]]; then
+      kill "$process_id" 2>/dev/null || true
+    fi
+  done
+}
+trap cleanup EXIT INT TERM
+
+# Give Openbox a moment to claim the root window before applying the wallpaper and dock.
+sleep 0.35
+feh --no-fehbg --bg-fill /opt/openbot/desktop-wallpaper.png >/dev/null 2>&1 || true
+picom --backend xrender --vsync --shadow --fading >/var/log/openbot-picom.log 2>&1 &
+compositor_pid=$!
+tint2 -c /opt/openbot/tint2rc >/var/log/openbot-tint2.log 2>&1 &
+dock_pid=$!
+
+wait "$window_manager_pid"

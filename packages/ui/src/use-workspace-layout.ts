@@ -90,19 +90,26 @@ export function useWorkspaceLayout(): WorkspaceLayout {
       event.preventDefault();
       const originX = event.clientX;
       const originWidth = compact ? SIDEBAR_COLLAPSED : sidebarWidth;
-      beginResize((pointerX) => {
-        const candidate = originWidth + pointerX - originX;
-        if (candidate < SIDEBAR_SNAP) {
-          setSidebarCollapsed(true);
-          writeBoolean(sidebarCollapsedKey, true);
-          return;
-        }
-        const next = clamp(candidate, SIDEBAR_MIN, SIDEBAR_MAX);
-        setSidebarCollapsed(false);
-        setSidebarWidth(next);
-        writeBoolean(sidebarCollapsedKey, false);
-        writeNumber(sidebarWidthKey, next);
-      });
+      let nextCollapsed = compact;
+      let nextWidth = sidebarWidth;
+      beginResize(
+        (pointerX) => {
+          const candidate = originWidth + pointerX - originX;
+          if (candidate < SIDEBAR_SNAP) {
+            nextCollapsed = true;
+            setSidebarCollapsed(true);
+            return;
+          }
+          nextCollapsed = false;
+          nextWidth = clamp(candidate, SIDEBAR_MIN, SIDEBAR_MAX);
+          setSidebarCollapsed(false);
+          setSidebarWidth(nextWidth);
+        },
+        () => {
+          writeBoolean(sidebarCollapsedKey, nextCollapsed);
+          if (!nextCollapsed) writeNumber(sidebarWidthKey, nextWidth);
+        },
+      );
     },
     [compact, sidebarWidth],
   );
@@ -112,11 +119,14 @@ export function useWorkspaceLayout(): WorkspaceLayout {
       event.preventDefault();
       const originX = event.clientX;
       const originWidth = workspaceWidth;
-      beginResize((pointerX) => {
-        const next = clamp(originWidth + originX - pointerX, WORKSPACE_MIN, WORKSPACE_MAX);
-        setWorkspaceWidth(next);
-        writeNumber(workspaceWidthKey, next);
-      });
+      let nextWidth = workspaceWidth;
+      beginResize(
+        (pointerX) => {
+          nextWidth = clamp(originWidth + originX - pointerX, WORKSPACE_MIN, WORKSPACE_MAX);
+          setWorkspaceWidth(nextWidth);
+        },
+        () => writeNumber(workspaceWidthKey, nextWidth),
+      );
     },
     [workspaceWidth],
   );
@@ -141,9 +151,10 @@ export function useWorkspaceLayout(): WorkspaceLayout {
   };
 }
 
-function beginResize(onMove: (clientX: number) => void): void {
+function beginResize(onMove: (clientX: number) => void, onFinish?: () => void): void {
   const handleMove = (event: PointerEvent) => onMove(event.clientX);
   const finish = () => {
+    onFinish?.();
     document.body.classList.remove("resizing-workspace");
     window.removeEventListener("pointermove", handleMove);
     window.removeEventListener("pointerup", finish);

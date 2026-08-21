@@ -6,13 +6,17 @@ Shared React UI components and the vendored Beautiful UI surface used by OpenBot
 
 The package root exports the complete workspace surface:
 
-- Shell and navigation: `WorkspaceShell`, `WorkspaceSidebar`, `AgentListItem`,
-  `AgentSearchDialog`, `WorkspaceAccount`, and `useWorkspaceLayout`.
+- Shell and navigation: `WorkspaceShell`, `WorkspaceSidebar`, `WorkspaceSelector`,
+  `AgentListItem`, `AgentSearchDialog`, `WorkspaceAccount`, `BrandedLoadingState`, and
+  `useWorkspaceLayout`.
 - Chat: `ChatHeader`, `ChatPane`, `ChatComposer`, `ConversationSurface`,
   `ConversationMessage`, `EmptyConversation`, `MessageContent`,
   `ScrollToLatestButton`, `ThinkingIndicator`, `ChatFindBar`, transcript
   loading and error states, unread and new-message markers, message delivery
   notices, and system-event primitives.
+- Connectors: `ConnectorAccountGrid`, `ConnectorSetupDialog`,
+  `connectorSelectionViewFromPart`, and `isConnectorSelectionPart` render the
+  agent's in-chat connector account picker and schema-driven credential setup.
 - Rich content: `MarkdownText`, `JsonBlock`, `ReasoningCard`, `ToolCallCard`,
   `ConnectionCard`, `FileCard`, `FileViewer`, `MediaViewer`, `AudioPlayer`,
   `LinkPreviewCard`, `LinkHoverPreview`, `DiagramCard`, `CodeBlock`,
