@@ -14,18 +14,8 @@ import {
   type ClientWorkspaceRegistry,
   type ClientWorkspaceStorage,
 } from "@tryopenbot/client-runtime";
-import {
-  SelectWorkspaceScreen,
-  WorkspaceSelectorDialog,
-} from "@tryopenbot/ui";
-import {
-  createContext,
-  type ReactNode,
-  useContext,
-  useEffect,
-  useMemo,
-  useState,
-} from "react";
+import { SelectWorkspaceScreen, WorkspaceSelectorDialog } from "@tryopenbot/ui";
+import { createContext, type ReactNode, useContext, useEffect, useMemo, useState } from "react";
 
 const transferParameter = "openbot-workspaces";
 const joinParameter = "openbot-join";
@@ -115,11 +105,7 @@ export function ClientWorkspaceGate({ children }: { children: ReactNode }) {
       );
   }, [registry, shellControlOrigin]);
 
-  async function connect(
-    name: string,
-    value: string,
-    baseRegistry = registry,
-  ): Promise<void> {
+  async function connect(name: string, value: string, baseRegistry = registry): Promise<void> {
     if (!baseRegistry || joining) return;
     setJoining(true);
     setError("");
@@ -259,7 +245,10 @@ function resolveShellControlOrigin(): string {
 
 function workspaceFetch(controlOrigin: string): typeof fetch {
   return (input, init) => {
-    const requested = new URL(input instanceof Request ? input.url : input.toString(), controlOrigin);
+    const requested = new URL(
+      input instanceof Request ? input.url : input.toString(),
+      controlOrigin,
+    );
     const target =
       requested.origin === controlOrigin
         ? `${requested.pathname}${requested.search}`

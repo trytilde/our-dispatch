@@ -6,6 +6,8 @@ import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 import { parse as parseYaml, stringify as stringifyYaml } from "yaml";
 import {
   generateAgeIdentity,
+  builtInRuntimeInitializationProviders,
+  inferenceChoicesForRuntime,
   initializeOpenBot,
   isInitializedOpenBotRepository,
   loadDeploymentConfiguration,
@@ -28,6 +30,18 @@ afterEach(async () => {
 });
 
 describe("OpenBot initialization", () => {
+  it("offers subscription inference for local and Vercel runtimes", () => {
+    expect(inferenceChoicesForRuntime("local").map(({ value }) => value)).toEqual([
+      "vercel",
+      "codex",
+    ]);
+    expect(inferenceChoicesForRuntime("vercel").map(({ value }) => value)).toEqual([
+      "vercel",
+      "codex",
+    ]);
+    expect(builtInRuntimeInitializationProviders("vercel", "codex")).toBeTruthy();
+  });
+
   it("rejects initialization outside an OpenBot repository before writing configuration", async () => {
     const repositoryRoot = await mkdtemp(join(tmpdir(), "not-openbot-init-"));
     temporaryDirectories.push(repositoryRoot);
@@ -100,7 +114,7 @@ describe("OpenBot initialization", () => {
         },
         runWithInputFile: processCommandRunner.runWithInputFile,
       };
-      const selections = ["onepassword", "local"];
+      const selections = ["onepassword", "local", "vercel"];
       const inputs = ["Engineering", "OpenBot owner identity"];
       await initializeOpenBot({
         repositoryRoot,
@@ -297,7 +311,7 @@ describe("OpenBot initialization", () => {
 
   it("stores the owner identity in 1Password and encrypts the sandbox identity", async () => {
     const repositoryRoot = await temporaryRepository();
-    const answers = ["onepassword", "vercel"];
+    const answers = ["onepassword", "vercel", "vercel"];
     const inputs = [
       "Engineering",
       "OpenBot owner identity",

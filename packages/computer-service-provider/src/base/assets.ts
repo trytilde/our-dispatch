@@ -14,13 +14,12 @@ export const computerImageAssets = {
   developmentProfile: resolve(providerAssetDirectory, "development-profile.sh.hbs"),
   developmentSetup: resolve(providerAssetDirectory, "development-setup.sh.hbs"),
   marker: resolve(providerAssetDirectory, "marker.hbs"),
-  openboxConfig: resolve(providerAssetDirectory, "openbox-rc.xml.hbs"),
   openbotBrowser: resolve(providerAssetDirectory, "openbot-browser.sh.hbs"),
   openbotBrowserDesktop: resolve(providerAssetDirectory, "openbot-browser.desktop.hbs"),
   openbotFilesDesktop: resolve(providerAssetDirectory, "openbot-files.desktop.hbs"),
   openbotVnc: resolve(providerAssetDirectory, "openbot-vnc.html.hbs"),
   start: resolve(providerAssetDirectory, "start.sh.hbs"),
-  tint2: resolve(providerAssetDirectory, "tint2rc.hbs"),
+  xfcePanel: resolve(providerAssetDirectory, "xfce4-panel.xml.hbs"),
 } as const;
 
 const sourcePaths = [
@@ -110,10 +109,6 @@ export async function materializeComputerImageContext(
       resolve(assetDestination, "openbot-vnc.html"),
     ),
     materializeFileTemplate(
-      computerImageAssets.openboxConfig,
-      resolve(assetDestination, "openbox-rc.xml"),
-    ),
-    materializeFileTemplate(
       computerImageAssets.openbotBrowser,
       resolve(assetDestination, "openbot-browser.sh"),
     ),
@@ -126,7 +121,10 @@ export async function materializeComputerImageContext(
       resolve(assetDestination, "openbot-files.desktop"),
     ),
     materializeFileTemplate(computerImageAssets.start, resolve(assetDestination, "start.sh")),
-    materializeFileTemplate(computerImageAssets.tint2, resolve(assetDestination, "tint2rc")),
+    materializeFileTemplate(
+      computerImageAssets.xfcePanel,
+      resolve(assetDestination, "xfce4-panel.xml"),
+    ),
   ]);
 
   return {

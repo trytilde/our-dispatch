@@ -25,7 +25,8 @@ RUN cp tsdown.node.config.ts packages/utilities/tsdown.image.config.ts \
     && pnpm --filter @tryopenbot/utilities exec tsdown --config tsdown.image.config.ts \
     && pnpm --filter @tryopenbot/computer-service-proto exec tsc --noEmit \
     && pnpm --filter @tryopenbot/computer-service-proto exec tsdown --config tsdown.image.config.ts \
-    && pnpm --filter @tryopenbot/computer-service exec tsdown
+    && pnpm --filter @tryopenbot/computer-service exec tsdown \
+    && pnpm --filter @tryopenbot/computer-service deploy --prod --legacy /runtime/computer-service
 
 # Node 24 is both the service runtime and the base for the shared computer image.
 FROM node:24-bookworm-slim
@@ -38,9 +39,8 @@ COPY packages/computer-service-provider/src/base/assets/development-profile.sh /
 COPY packages/computer-service-provider/src/base/assets/openbot-browser.sh /usr/local/bin/openbot-browser
 COPY packages/computer-service-provider/src/base/assets/openbot-browser.desktop /usr/share/applications/openbot-browser.desktop
 COPY packages/computer-service-provider/src/base/assets/openbot-files.desktop /usr/share/applications/openbot-files.desktop
-COPY packages/computer-service-provider/src/base/assets/openbox-rc.xml /opt/openbot/openbox-rc.xml
 COPY packages/computer-service-provider/src/base/assets/start.sh /usr/local/bin/start-openbot-computer
-COPY packages/computer-service-provider/src/base/assets/tint2rc /opt/openbot/tint2rc
+COPY packages/computer-service-provider/src/base/assets/xfce4-panel.xml /opt/openbot/xfce4-panel.xml
 
 # Install the desktop stack once while building the shared image.
 RUN chmod 0755 /opt/openbot/bootstrap.sh /opt/openbot/desktop-session.sh /opt/openbot/development-profile.sh /usr/local/bin/openbot-browser /usr/local/bin/setup-openbot-development /usr/local/bin/start-openbot-computer \
@@ -54,10 +54,13 @@ COPY packages/computer-service-provider/src/base/assets/openbot-vnc.html /usr/sh
 
 # Keep service source changes above this lightweight layer so the expensive
 # browser and desktop installation remains cached during normal development.
-COPY --from=computer-service-builder /source/apps/computer-service/dist/index.js /opt/openbot/computer-service.mjs
+COPY --from=computer-service-builder /runtime/computer-service /opt/openbot/computer-service
 COPY --from=computer-service-builder /source/apps/computer-service/src/assets /opt/openbot/assets
 
 ENV DISPLAY=:1 \
+    CUA_DRIVER_BINARY=/usr/local/bin/cua-driver \
+    CUA_DRIVER_RS_TELEMETRY_ENABLED=false \
+    CUA_TELEMETRY_ENABLED=false \
     COMPUTER_SERVICE_PORT=4101 \
     COMPUTER_WORKSPACE=/workspace
 

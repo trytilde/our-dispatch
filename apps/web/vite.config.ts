@@ -14,6 +14,8 @@ export default defineConfig({
       "/api/chat": controlProxy(),
       "/api/computer": controlProxy(),
       "/api/agents": controlProxy(),
+      "/api/connectors": controlProxy(),
+      "/connectors": controlProxy(),
       "/auth": controlProxy(),
     },
   },

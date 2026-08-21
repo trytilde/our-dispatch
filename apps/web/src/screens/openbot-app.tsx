@@ -8,25 +8,34 @@ import {
   useState,
 } from "react";
 import {
-  type ActivityEvent,
   type ChatAgent,
   type ChatMessage,
-  type ChatPart,
-  eventName,
+  connectorAccountCreatedMessage,
+  connectorAccountSelectionMessage,
+  connectorAuthorizedReturnUrl,
+  type ConnectorProvider,
+  type CreateConnectorAccountResult,
   errorMessage,
+  waitForConnectorAccountActive,
   latestMessagePreview,
   messageText,
   type QueuedTurn,
 } from "@tryopenbot/client-runtime";
-import { useNavigate } from "@tanstack/react-router";
+import { useNavigate, useSearch } from "@tanstack/react-router";
 import { useStore } from "zustand";
 import {
   ActivityQueue,
   AddAgentDialog,
+  AgentSetupDialog,
   AgentWorkspacePanel,
   ChatComposer,
   ChatHeader,
   ChatPane,
+  type ConnectorCredentialSourceView,
+  type ConnectorPartActions,
+  type ConnectorSelectionView,
+  ConnectorSetupDialog,
+  type ConnectorSetupSubmit,
   ConversationSkeleton,
   ConversationSurface,
   ConversationMessage,
@@ -42,6 +51,7 @@ import {
   WorkspaceShell,
   useWorkspaceLayout,
 } from "@tryopenbot/ui";
+import type { WorkspaceSearch } from "../router.js";
 import { openBotRuntime } from "../runtime.js";
 import { optimisticParts, type PendingFile, uploadAttachment } from "../web-attachments.js";
 import { useClientWorkspace } from "../workspaces.js";
@@ -49,6 +59,7 @@ import { useClientWorkspace } from "../workspaces.js";
 export function OpenBotApp() {
   const sidebar = useStore(openBotRuntime.store, (state) => state.sidebar);
   const conversation = useStore(openBotRuntime.store, (state) => state.conversation);
+  const agentSetup = useStore(openBotRuntime.store, (state) => state.agentSetup);
   const { agents, nextAgentToken, selectedAgentId: agentId, loading } = sidebar;
   const {
     selectedSessionId: sessionId,
@@ -58,7 +69,6 @@ export function OpenBotApp() {
     loading: loadingMessages,
     submitting,
     agentBusy,
-    streamStatus,
     turnStatus,
     error,
   } = conversation;
@@ -70,8 +80,13 @@ export function OpenBotApp() {
   const [messageMenuId, setMessageMenuId] = useState("");
   const [replyingTo, setReplyingTo] = useState<ChatMessage | null>(null);
   const [threadRootId, setThreadRootId] = useState("");
-  const [createAgentOpen, setCreateAgentOpen] = useState(false);
-  const [creatingAgent, setCreatingAgent] = useState(false);
+  // Modal open-state lives in the URL so redirects and deep links can target
+  // it directly; see WorkspaceSearch in router.tsx.
+  const workspaceSearch = useSearch({ strict: false }) as WorkspaceSearch;
+  const createAgentOpen = workspaceSearch.dialog === "new-agent";
+  const [connectorSetup, setConnectorSetup] = useState<ConnectorSetupState | null>(null);
+  const connectorWatchRef = useRef<AbortController | null>(null);
+  const pendingConnectorSelectionRef = useRef<ConnectorSelectionView | null>(null);
   const conversationRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const composerInputRef = useRef<HTMLTextAreaElement>(null);
@@ -82,6 +97,23 @@ export function OpenBotApp() {
   const [showScrollLatest, setShowScrollLatest] = useState(false);
   const layout = useWorkspaceLayout();
   const navigate = useNavigate();
+  const setCreateAgentOpen = (open: boolean): void => {
+    void navigate({
+      to: "/",
+      search: (current: WorkspaceSearch) => ({
+        ...current,
+        dialog: open ? ("new-agent" as const) : undefined,
+      }),
+      replace: !open,
+    });
+  };
+  const setConnectorRoute = (providerTypeId: string | undefined): void => {
+    void navigate({
+      to: "/",
+      search: (current: WorkspaceSearch) => ({ ...current, connector: providerTypeId }),
+      replace: !providerTypeId,
+    });
+  };
   const clientWorkspace = useClientWorkspace();
 
   const selectedAgent = agents.find((agent) => agent.id === agentId);
@@ -287,6 +319,9 @@ export function OpenBotApp() {
   function handleConversationScroll(): void {
     const element = conversationRef.current;
     if (!element || !sessionId) return;
+    // Chromium can dispatch a layout-driven scroll while an Electron window is inactive.
+    // Preserve the owner's visible jump control until an in-focus scroll or explicit jump.
+    if (!document.hasFocus()) return;
     const distance = Math.max(0, element.scrollHeight - element.clientHeight - element.scrollTop);
     stickToBottomRef.current = distance <= 120;
     setShowScrollLatest(distance > 120);
@@ -356,37 +391,162 @@ export function OpenBotApp() {
     />
   );
 
-  /** Scaffold and register a new agent, then open a fresh conversation with it. */
+  /** Start durable agent setup; the runtime owns readiness polling and selection. */
   async function submitCreateAgent(candidateName: string): Promise<void> {
     const name = candidateName.trim();
-    if (!name || creatingAgent) return;
-    setCreatingAgent(true);
+    if (!name || agentSetup.status === "starting" || agentSetup.status === "setting_up") return;
     openBotRuntime.actions.setError("");
-    try {
-      const created = await openBotRuntime.client.createAgent(name);
-      // The registration is reconciled by the sandbox CLI; wait for the sidebar to surface it.
-      for (let attempt = 0; attempt < 10; attempt += 1) {
-        await openBotRuntime.actions.refreshSidebar();
-        const agent = openBotRuntime.store
-          .getState()
-          .sidebar.agents.find((candidate) => candidate.id === created.id);
-        if (agent) {
-          setCreateAgentOpen(false);
-          await openBotRuntime.actions.selectAgent(agent.id);
-          openBotRuntime.actions.startNewConversation(agent.id);
-          return;
-        }
-        await new Promise((resolveDelay) => window.setTimeout(resolveDelay, 1_500));
-      }
-      setCreateAgentOpen(false);
-      openBotRuntime.actions.setError(
-        `Bot ${created.name} was created but has not appeared yet; refresh shortly.`,
-      );
-    } catch (reason) {
-      openBotRuntime.actions.setError(errorMessage(reason));
-    } finally {
-      setCreatingAgent(false);
+    setCreateAgentOpen(false);
+    await openBotRuntime.actions.startAgentSetup(name);
+  }
+
+  const connectorActions: ConnectorPartActions = {
+    busy: Boolean(connectorSetup?.submitting),
+    onSelectAccount: (selection, account) => {
+      void openBotRuntime.actions.sendMessage({
+        text: connectorAccountSelectionMessage(
+          { provider_type_id: selection.providerTypeId, provider_name: selection.providerName },
+          { id: account.id, display_name: account.displayName },
+        ),
+      });
+    },
+    onAddAccount: (selection) => {
+      // Route the modal open through the URL so back/close and redirects work.
+      pendingConnectorSelectionRef.current = selection;
+      setConnectorRoute(selection.providerTypeId);
+    },
+  };
+
+  function openConnectorSetup(selection: ConnectorSelectionView): void {
+    setConnectorSetup({ selection, loading: selection.credentialSources.length === 0 });
+    if (selection.credentialSources.length > 0) return;
+    // Payloads opened by URL (or older tool outputs) carry no credential
+    // sources; recover them from the catalog.
+    void openBotRuntime.client
+      .listConnectorProviders()
+      .then((providers) => {
+        const provider = providers.find(
+          (candidate) => candidate.type_id === selection.providerTypeId,
+        );
+        setConnectorSetup((current) =>
+          current && current.selection === selection
+            ? {
+                ...current,
+                loading: false,
+                ...(provider
+                  ? {
+                      selection: {
+                        ...selection,
+                        providerName: provider.name,
+                        ...(provider.icon_url ? { iconUrl: provider.icon_url } : {}),
+                        credentialSources: credentialSourceViews(provider),
+                      },
+                    }
+                  : { error: `No connector catalog entry for ${selection.providerName}` }),
+              }
+            : current,
+        );
+      })
+      .catch((reason) => {
+        setConnectorSetup((current) =>
+          current && current.selection === selection
+            ? { ...current, loading: false, error: errorMessage(reason) }
+            : current,
+        );
+      });
+  }
+
+  function closeConnectorSetup(): void {
+    connectorWatchRef.current?.abort();
+    connectorWatchRef.current = null;
+    setConnectorSetup(null);
+  }
+
+  // The `?connector=<provider>` search param is the source of truth for the
+  // setup modal, so OAuth returns and deep links can open it directly and the
+  // back button closes it.
+  useEffect(() => {
+    const providerTypeId = workspaceSearch.connector;
+    if (!providerTypeId) {
+      if (connectorSetup) closeConnectorSetup();
+      return;
     }
+    if (connectorSetup?.selection.providerTypeId === providerTypeId) return;
+    const pending = pendingConnectorSelectionRef.current;
+    pendingConnectorSelectionRef.current = null;
+    openConnectorSetup(
+      pending?.providerTypeId === providerTypeId
+        ? pending
+        : {
+            providerTypeId,
+            providerName: providerTypeId,
+            accounts: [],
+            credentialSources: [],
+          },
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- the URL param drives this modal
+  }, [workspaceSearch.connector]);
+
+  async function submitConnectorSetup(input: ConnectorSetupSubmit): Promise<void> {
+    if (!connectorSetup) return;
+    const selection = connectorSetup.selection;
+    setConnectorSetup({ ...connectorSetup, submitting: true, error: undefined });
+    const desktop = navigator.userAgent.includes("Electron");
+    try {
+      const result = await openBotRuntime.client.createConnectorAccount({
+        providerTypeId: selection.providerTypeId,
+        credentialSourceTypeId: input.credentialSourceTypeId,
+        displayName: input.displayName,
+        ...(input.resourceServerValues ? { resourceServerValues: input.resourceServerValues } : {}),
+        ...(input.userCredentialValues ? { userCredentialValues: input.userCredentialValues } : {}),
+        returnUrl: connectorAuthorizedReturnUrl(
+          window.location.origin,
+          desktop ? "electron" : "web",
+        ),
+      });
+      if (result.status === "authorize" && result.authorization_url) {
+        window.open(result.authorization_url, "_blank", "noopener");
+        setConnectorSetup({
+          selection,
+          submitting: false,
+          result,
+          authorizationUrl: result.authorization_url,
+        });
+        // Close the loop without a manual "Done": once Tilde flips the account
+        // to active after the OAuth return, hand back to the agent directly.
+        const watcher = new AbortController();
+        connectorWatchRef.current?.abort();
+        connectorWatchRef.current = watcher;
+        void waitForConnectorAccountActive(openBotRuntime.client, {
+          providerTypeId: selection.providerTypeId,
+          accountId: result.account.id,
+          signal: watcher.signal,
+        }).then((account) => {
+          if (!account || watcher.signal.aborted) return;
+          finishConnectorSetup(selection, { ...result, status: "created", account });
+        });
+        return;
+      }
+      finishConnectorSetup(selection, result);
+    } catch (reason) {
+      setConnectorSetup((current) =>
+        current ? { ...current, submitting: false, error: errorMessage(reason) } : current,
+      );
+    }
+  }
+
+  function finishConnectorSetup(
+    selection: ConnectorSelectionView,
+    result: CreateConnectorAccountResult,
+  ): void {
+    closeConnectorSetup();
+    setConnectorRoute(undefined);
+    void openBotRuntime.actions.sendMessage({
+      text: connectorAccountCreatedMessage(
+        { provider_type_id: selection.providerTypeId, provider_name: selection.providerName },
+        result,
+      ),
+    });
   }
 
   return (
@@ -406,6 +566,8 @@ export function OpenBotApp() {
               : agent.last_message_preview || "",
           updatedAt: agent.last_user_message_at || agent.sessions.items[0]?.updated_at,
           unread: agent.sessions.items.some((item) => item.unread),
+          busy: sidebar.busyAgentIds.includes(agent.id),
+          status: agent.status,
         }))}
         selectedAgentId={agentId}
         loading={loading}
@@ -417,12 +579,15 @@ export function OpenBotApp() {
         onSearchClose={closeSearch}
         onSelectAgent={(id) => {
           const agent = agents.find((candidate) => candidate.id === id);
-          if (agent) selectAgent(agent);
+          if (agent) {
+            selectAgent(agent);
+          }
         }}
         onLoadMore={() => void loadMoreAgents()}
         onCreateAgent={() => setCreateAgentOpen(true)}
+        onOpenPlugins={() => void navigate({ to: "/settings/plugins" })}
         onOpenSettings={() => void navigate({ to: "/settings" })}
-        onSwitchWorkspace={clientWorkspace.openWorkspaceSelector}
+        onSwitchWorkspace={() => clientWorkspace.openWorkspaceSelector()}
         onResize={layout.beginSidebarResize}
       />
 
@@ -437,11 +602,15 @@ export function OpenBotApp() {
           />
         ) : null}
 
+        {loading && !selectedAgent ? (
+          <ConversationSurface scrollRef={conversationRef} onScroll={handleConversationScroll}>
+            <ConversationSkeleton />
+          </ConversationSurface>
+        ) : null}
+
         {selectedAgent ? (
           <ConversationSurface scrollRef={conversationRef} onScroll={handleConversationScroll}>
-            {loadingMessages ? (
-              <ConversationSkeleton />
-            ) : null}
+            {loadingMessages ? <ConversationSkeleton /> : null}
             {!loadingMessages ? (
               <div className="message-list">
                 {nextMessageToken ? (
@@ -576,6 +745,7 @@ export function OpenBotApp() {
                       rendered.push(
                         <div className="message-block" key={key}>
                           <MessageContent
+                            connectorActions={connectorActions}
                             message={{ ...message, type: "ui", parts: [segment.part] }}
                             resolveAttachmentUrl={resolveAttachmentUrl}
                             rewriteUrl={rewriteUrl}
@@ -612,9 +782,7 @@ export function OpenBotApp() {
                 if (turn) void editQueuedTurn(turn);
               }}
               onReorder={(id, queuePosition) =>
-                void mutateQueue(() =>
-                  openBotRuntime.actions.reorderQueuedTurn(id, queuePosition),
-                )
+                void mutateQueue(() => openBotRuntime.actions.reorderQueuedTurn(id, queuePosition))
               }
               onRemove={(id) => void mutateQueue(() => openBotRuntime.actions.removeQueuedTurn(id))}
               onRunNow={(id) => void mutateQueue(() => openBotRuntime.actions.steerQueuedTurn(id))}
@@ -658,13 +826,39 @@ export function OpenBotApp() {
         onClose={layout.toggleWorkspace}
         onResize={layout.beginWorkspaceResize}
       />
+      {connectorSetup && !connectorSetup.loading ? (
+        <ConnectorSetupDialog
+          providerName={connectorSetup.selection.providerName}
+          {...(connectorSetup.selection.iconUrl
+            ? { providerIconUrl: connectorSetup.selection.iconUrl }
+            : {})}
+          credentialSources={connectorSetup.selection.credentialSources}
+          submitting={connectorSetup.submitting ?? false}
+          {...(connectorSetup.error ? { error: connectorSetup.error } : {})}
+          {...(connectorSetup.authorizationUrl
+            ? { authorizationUrl: connectorSetup.authorizationUrl }
+            : {})}
+          onSubmit={(input) => void submitConnectorSetup(input)}
+          onReopenAuthorization={() => {
+            if (connectorSetup.authorizationUrl)
+              window.open(connectorSetup.authorizationUrl, "_blank", "noopener");
+          }}
+          onClose={() => {
+            if (connectorSetup.result && connectorSetup.authorizationUrl) {
+              finishConnectorSetup(connectorSetup.selection, connectorSetup.result);
+              return;
+            }
+            setConnectorRoute(undefined);
+          }}
+        />
+      ) : null}
       <AddAgentDialog
         agents={agents.map((agent) => ({
           id: agent.id,
           name: agent.display_name,
           lastMessage: agent.last_message_preview || undefined,
         }))}
-        creating={creatingAgent}
+        creating={agentSetup.status === "starting"}
         loading={loading}
         onClose={() => setCreateAgentOpen(false)}
         onCreate={(name) => void submitCreateAgent(name)}
@@ -673,6 +867,14 @@ export function OpenBotApp() {
           if (agent) selectAgent(agent);
         }}
         open={createAgentOpen}
+      />
+      <AgentSetupDialog
+        agentId={agentSetup.agent?.id ?? ""}
+        error={agentSetup.error}
+        name={agentSetup.agent?.name ?? "New bot"}
+        onClose={() => openBotRuntime.actions.dismissAgentSetup()}
+        open={agentSetup.status !== "idle"}
+        status={agentSetup.status === "idle" ? "starting" : agentSetup.status}
       />
     </WorkspaceShell>
   );
@@ -704,11 +906,29 @@ function titleFrom(text: string, files: PendingFile[]): string {
   return value.length > 80 ? `${value.slice(0, 77)}...` : value;
 }
 
-function firstString(value: Record<string, unknown>, ...keys: string[]): string {
-  for (const key of keys) {
-    if (typeof value[key] === "string") return value[key];
-  }
-  return "";
+interface ConnectorSetupState {
+  selection: ConnectorSelectionView;
+  loading?: boolean;
+  submitting?: boolean;
+  error?: string | undefined;
+  authorizationUrl?: string;
+  result?: CreateConnectorAccountResult;
+}
+
+/** Map the runtime's wire-shaped provider onto the UI's credential-source view. */
+function credentialSourceViews(provider: ConnectorProvider): ConnectorCredentialSourceView[] {
+  return provider.credential_sources.map((source) => ({
+    typeId: source.type_id,
+    name: source.name,
+    ...(source.documentation ? { documentation: source.documentation } : {}),
+    requiresBrokering: source.requires_brokering,
+    supportsAutoDisplayName: source.supports_auto_display_name ?? false,
+    ...(source.display_name_description
+      ? { displayNameDescription: source.display_name_description }
+      : {}),
+    resourceServerSchema: source.resource_server_schema,
+    userCredentialSchema: source.user_credential_schema,
+  }));
 }
 
 function queuedTurnText(turn: QueuedTurn): string {
@@ -732,8 +952,4 @@ function record(value: unknown): Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value)
     ? (value as Record<string, unknown>)
     : {};
-}
-
-function stringValue(value: unknown): string {
-  return typeof value === "string" ? value : "";
 }

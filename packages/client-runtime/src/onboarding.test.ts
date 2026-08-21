@@ -35,6 +35,12 @@ describe("onboarding state", () => {
     expect(await loadOnboarding(storage)).toEqual({ completed: true, result });
   });
 
+  it("records completion when a client has no agent preferences to save", async () => {
+    const storage = memoryStorage();
+    await completeOnboarding(storage);
+    expect(await loadOnboarding(storage)).toEqual({ completed: true });
+  });
+
   it("treats malformed stored state as not onboarded rather than throwing", async () => {
     expect(await loadOnboarding(memoryStorage({ "openbot.onboarding": "{not json" }))).toEqual({
       completed: false,

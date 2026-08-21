@@ -10,10 +10,13 @@ import {
   createTildeMediaDownloader,
   createTildeMediaUploader,
 } from "@tryopenbot/computer-tools";
-import { consumeStream, convertToModelMessages, stepCountIs, streamText, type ToolSet } from "ai";
+import { consumeStream, convertToModelMessages, streamText } from "ai";
+import type { ToolSet } from "@ai-sdk/provider-utils";
+import { prepareInference } from "./inference.js";
 import instructions from "./instructions.js";
 import awaitShell from "./tools/await_shell.js";
 import bash from "./tools/bash.js";
+import configureConnector from "./tools/configure_connector.js";
 import copyFromComputer from "./tools/copy_from_computer.js";
 import copyToComputer from "./tools/copy_to_computer.js";
 import glob from "./tools/glob.js";
@@ -42,6 +45,7 @@ function localTools(sessionId: string): ToolSet {
   return {
     await_shell: awaitShell,
     bash,
+    configure_connector: configureConnector,
     copy_from_computer: copyFromComputer(uploadMedia),
     copy_to_computer: copyToComputer(downloadMedia),
     glob,
@@ -74,8 +78,7 @@ function assertToolSet(tools: Record<string, unknown>): asserts tools is ToolSet
 function queuedRequestCutoff(messages: readonly { metadata?: unknown }[]): string | undefined {
   return messages
     .map((message) => {
-      if (typeof message.metadata !== "object" || message.metadata === null)
-        return undefined;
+      if (typeof message.metadata !== "object" || message.metadata === null) return undefined;
       const metadata = message.metadata as Record<string, unknown>;
       const value = metadata.createdAt ?? metadata.created_at;
       return typeof value === "string" ? value : undefined;
@@ -106,15 +109,13 @@ export default chatKitEndpoint({
       onHydrateMessage: attachmentHandlers.onHydrateMessage,
     });
     const { tools, closeMcp } = await managedMcpTools(context.sessionId);
+    const inference = await prepareInference(tools, request.signal);
     const result = streamText({
+      ...inference,
       abortSignal: request.signal,
+      instructions,
       messages: await convertToModelMessages(messages),
-      model: process.env.AI_MODEL ?? "openai/gpt-5.6-sol",
       onFinish: () => void closeMcp(),
-      providerOptions: { openai: { reasoningEffort: "medium" } },
-      stopWhen: stepCountIs(12),
-      system: instructions,
-      tools,
     });
     return result.toUIMessageStreamResponse({
       consumeSseStream: consumeStream,

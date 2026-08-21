@@ -175,6 +175,10 @@ const noPersistence: DeploymentPersistence = {
 export interface DeploymentContext {
   /** Whether this lifecycle is preparing the watched local development environment. */
   devMode: boolean;
+  /** Whether this lifecycle is planning only and must not refresh or persist credentials. */
+  dryRun?: boolean;
+  /** Whether an owner is present to complete an interactive provider action. */
+  interactive?: boolean;
   repositoryRoot: string;
   environment: NodeJS.ProcessEnv;
   /** Values loaded from repository configuration, excluding the inherited host environment. */
@@ -313,6 +317,7 @@ export async function runProviderLifecycleHook<T>(
 export interface DeploymentRunOptions {
   devMode: boolean;
   dryRun: boolean;
+  interactive?: boolean;
   repositoryRoot: string;
   environment?: NodeJS.ProcessEnv;
   configuration?: NodeJS.ProcessEnv;
@@ -332,6 +337,8 @@ export async function buildProviders(
   inputs.merge(options.initialInputs);
   const context: DeploymentContext = {
     devMode: options.devMode,
+    dryRun: options.dryRun,
+    interactive: options.interactive,
     repositoryRoot: options.repositoryRoot,
     environment: options.environment ?? process.env,
     configuration: options.configuration,
@@ -384,6 +391,8 @@ export async function deployProviders(
   inputs.merge(options.initialInputs);
   const context: DeploymentContext = {
     devMode: options.devMode,
+    dryRun: options.dryRun,
+    interactive: options.interactive,
     repositoryRoot: options.repositoryRoot,
     environment: options.environment ?? process.env,
     configuration: options.configuration,

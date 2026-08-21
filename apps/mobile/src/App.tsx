@@ -5,22 +5,29 @@
 // source lives under src/components/ui and whose tokens live in src/theme/colors.ts.
 // Read colors through useColor so every surface resolves in light and dark; never
 // hardcode a hex value here.
-import { createContext, useContext, useEffect, useMemo, useState } from "react";
-import { FlatList, Pressable, StyleSheet } from "react-native";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { PanResponder, Pressable, StyleSheet } from "react-native";
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
+import { useFonts } from "expo-font";
+import { Inter_400Regular } from "@expo-google-fonts/inter/400Regular";
+import { Inter_500Medium } from "@expo-google-fonts/inter/500Medium";
+import { Inter_600SemiBold } from "@expo-google-fonts/inter/600SemiBold";
+import { Inter_700Bold } from "@expo-google-fonts/inter/700Bold";
 import * as SecureStore from "expo-secure-store";
 import { fetch as expoFetch } from "expo/fetch";
 import { useStore } from "zustand";
 import {
+  completeOnboarding,
   errorMessage,
-  messageText,
+  loadOnboarding,
+  queuedTurnText,
   type ChatAgent,
   type ClientInstallation,
   type ChatMessage,
-  type ChatPart,
   type ChatSession,
-  type OpenBotRuntime,
+  type OnboardingStorage,
+  type QueuedTurn,
 } from "@tryopenbot/client-runtime";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { AvoidKeyboard } from "@/components/ui/avoid-keyboard";
@@ -34,20 +41,45 @@ import { Text } from "@/components/ui/text";
 import { View } from "@/components/ui/view";
 import { ModeProvider, useModeContext } from "@/providers/mode-provider";
 import { useColor } from "@/hooks/useColor";
-import { BORDER_RADIUS, SPACING } from "@/theme/globals";
+import { SPACING } from "@/theme/globals";
+import { AssistantMessageList, MobileAssistantProvider } from "./chat/assistant-runtime";
+import {
+  optimisticNativeParts,
+  pickNativeAttachments,
+  type PendingNativeAttachment,
+  uploadNativeAttachment,
+} from "./chat/native-attachments";
+import { MobilePromptBar } from "./chat/prompt-bar";
+import { MobileQueuePanel } from "./chat/queue-panel";
+import { ComputerScreen } from "./computer/computer-screen";
 import { discoverControlService } from "./installation/discovery";
 import { clearControlOrigin, loadControlOrigin, saveControlOrigin } from "./installation/storage";
-import { createMobileRuntime } from "./runtime/openbot-runtime";
+import { MobileOnboarding } from "./onboarding/mobile-onboarding";
+import { shouldClaimChatBackSwipe, shouldFinishChatBackSwipe } from "./navigation/chat-gesture";
+import { createMobileRuntime, type MobileOpenBotRuntime } from "./runtime/openbot-runtime";
 
-type Screen = "sidebar" | "chat";
+type Screen = "sidebar" | "chat" | "computer";
 type BootstrapState =
   | { status: "loading" }
+  | { status: "onboarding" }
   | { status: "selecting"; initialOrigin: string; error: string }
   | { status: "connected"; installation: ClientInstallation };
 
-const RuntimeContext = createContext<OpenBotRuntime | null>(null);
+const RuntimeContext = createContext<MobileOpenBotRuntime | null>(null);
+const mobileOnboardingStorage: OnboardingStorage = {
+  getItem: (key) => SecureStore.getItemAsync(key),
+  setItem: (key, value) => SecureStore.setItemAsync(key, value),
+  removeItem: (key) => SecureStore.deleteItemAsync(key),
+};
 
 export function App() {
+  const [fontsLoaded] = useFonts({
+    Inter_400Regular,
+    Inter_500Medium,
+    Inter_600SemiBold,
+    Inter_700Bold,
+  });
+  if (!fontsLoaded) return null;
   return (
     <SafeAreaProvider>
       {/* SecureStore satisfies ModeProvider's structural storage contract directly. */}
@@ -66,14 +98,15 @@ function AppRoot() {
     void (async () => {
       let origin = "";
       try {
-        origin = (await loadControlOrigin()) ?? "";
+        const onboarding = await loadOnboarding(mobileOnboardingStorage);
         if (!active) return;
-        if (!origin) {
-          setBootstrap({ status: "selecting", initialOrigin: "", error: "" });
+        if (!onboarding.completed) {
+          setBootstrap({ status: "onboarding" });
           return;
         }
-        const installation = await discoverControlService(origin, expoFetch);
-        if (active) setBootstrap({ status: "connected", installation });
+        origin = (await loadControlOrigin()) ?? "";
+        if (!active) return;
+        setBootstrap({ status: "selecting", initialOrigin: origin, error: "" });
       } catch (error) {
         if (active)
           setBootstrap({ status: "selecting", initialOrigin: origin, error: errorMessage(error) });
@@ -85,9 +118,23 @@ function AppRoot() {
   }, []);
 
   if (bootstrap.status === "loading") return <LoadingScreen label="Loading OpenBot…" />;
+  if (bootstrap.status === "onboarding")
+    return (
+      <MobileOnboarding
+        onFinished={(result) => {
+          void completeOnboarding(mobileOnboardingStorage, result).then(async () =>
+            setBootstrap({
+              status: "selecting",
+              initialOrigin: (await loadControlOrigin()) ?? "",
+              error: "",
+            }),
+          );
+        }}
+      />
+    );
   if (bootstrap.status === "selecting")
     return (
-      <ControlServiceScreen
+      <WorkspaceSelectorScreen
         initialOrigin={bootstrap.initialOrigin}
         initialError={bootstrap.error}
         onConnected={(installation) => setBootstrap({ status: "connected", installation })}
@@ -174,23 +221,32 @@ function ConnectedSurface({
           onChangeInstallation={onChangeInstallation}
           onOpenChat={() => setScreen("chat")}
         />
-      ) : (
+      ) : screen === "chat" ? (
         <ChatScreen
           agent={sidebar.agents.find((agent) => agent.id === sidebar.selectedAgentId)}
           messages={conversation.messages}
+          queuedTurns={conversation.queuedTurns}
+          sessionId={conversation.selectedSessionId}
           loading={conversation.loading}
           submitting={conversation.submitting}
           busy={conversation.agentBusy}
           status={conversation.turnStatus || conversation.streamStatus}
           error={conversation.error}
           onBack={() => setScreen("sidebar")}
+          onOpenComputer={() => setScreen("computer")}
+        />
+      ) : (
+        <ComputerScreen
+          agent={sidebar.agents.find((agent) => agent.id === sidebar.selectedAgentId)}
+          runtime={runtime}
+          onBack={() => setScreen("chat")}
         />
       )}
     </SafeAreaView>
   );
 }
 
-function useRuntime(): OpenBotRuntime {
+function useRuntime(): MobileOpenBotRuntime {
   const runtime = useContext(RuntimeContext);
   if (!runtime) throw new Error("OpenBot mobile runtime is unavailable");
   return runtime;
@@ -209,7 +265,7 @@ function AppStatusBar() {
   return <StatusBar style={scheme === "dark" ? "light" : "dark"} />;
 }
 
-function ControlServiceScreen({
+function WorkspaceSelectorScreen({
   initialOrigin,
   initialError,
   onConnected,
@@ -251,18 +307,18 @@ function ControlServiceScreen({
         <Card style={styles.entryCard}>
           <BrandMark />
           <Text variant="title" style={styles.centerText}>
-            Connect OpenBot
+            Choose a workspace
           </Text>
           <Text variant="body" style={[styles.centerText, { color: muted }]}>
-            Enter the address of the OpenBot control service you want to use.
+            Enter the address of the OpenBot workspace you want to use on this device.
           </Text>
           <Input
-            accessibilityLabel="Control service URL"
+            accessibilityLabel="Workspace address"
             autoCapitalize="none"
             autoCorrect={false}
             error={error}
             keyboardType="url"
-            placeholder="https://openbot.example"
+            placeholder="https://workspace.example"
             value={origin}
             variant="outline"
             onChangeText={setOrigin}
@@ -278,7 +334,7 @@ function ControlServiceScreen({
             Connect
           </Button>
           <Text variant="caption" style={[styles.centerText, { color: muted }]}>
-            OpenBot verifies the service before opening sign-in. Use HTTPS for hosted services.
+            OpenBot verifies the workspace before sign-in. Hosted workspaces must use HTTPS.
           </Text>
         </Card>
         <KeyboardSpacer />
@@ -395,7 +451,7 @@ function SidebarScreen({
           <Text variant="caption" style={[styles.eyebrow, { color: muted }]}>
             OPENBOT
           </Text>
-          <Text variant="heading">Agents</Text>
+          <Text variant="heading">Chats</Text>
         </View>
         <View style={styles.headerActions}>
           <Button label="Change service" size="sm" variant="ghost" onPress={onChangeInstallation}>
@@ -511,40 +567,115 @@ function UnreadDot({ unread }: { unread: boolean }) {
 function ChatScreen({
   agent,
   messages,
+  queuedTurns,
+  sessionId,
   loading,
   submitting,
   busy,
   status,
   error,
   onBack,
+  onOpenComputer,
 }: {
   agent?: ChatAgent;
   messages: ChatMessage[];
+  queuedTurns: QueuedTurn[];
+  sessionId: string;
   loading: boolean;
   submitting: boolean;
   busy: boolean;
   status: string;
   error: string;
   onBack: () => void;
+  onOpenComputer: () => void;
 }) {
   const runtime = useRuntime();
-  const [draft, setDraft] = useState("");
+  const [files, setFiles] = useState<PendingNativeAttachment[]>([]);
+  const [uploading, setUploading] = useState(false);
+  const [composerSeed, setComposerSeed] = useState({ revision: 0, text: "" });
   const muted = useColor("textMuted");
-  const card = useColor("card");
-  const destructive = useColor("destructive");
 
-  const send = () => {
-    const text = draft.trim();
-    if (!text || submitting) return;
-    setDraft("");
-    void runtime.actions.sendMessage({ text }).catch(() => setDraft(text));
-  };
+  const send = useCallback(
+    async (authoredText: string) => {
+      const text = authoredText.trim();
+      if ((!text && !files.length) || submitting || uploading) return;
+      setUploading(true);
+      try {
+        const activeSessionId = await runtime.actions.ensureSession(
+          text || files[0]?.name || "New chat",
+        );
+        const attachmentIds: string[] = [];
+        for (const pending of files) {
+          if (pending.attachmentId) {
+            attachmentIds.push(pending.attachmentId);
+            continue;
+          }
+          setFileState(pending.id, { status: "uploading", progress: 0, error: "" });
+          const attachment = await uploadNativeAttachment(
+            runtime.client,
+            activeSessionId,
+            pending,
+            (progress) => setFileState(pending.id, { progress }),
+          );
+          attachmentIds.push(attachment.id);
+          setFileState(pending.id, {
+            attachmentId: attachment.id,
+            progress: 1,
+            status: "uploaded",
+          });
+        }
+        await runtime.actions.sendMessage({
+          text,
+          attachmentIds,
+          optimisticParts: optimisticNativeParts(text, files),
+          title: text || files[0]?.name,
+        });
+        setFiles([]);
+      } catch (reason) {
+        runtime.actions.setError(errorMessage(reason));
+      } finally {
+        setUploading(false);
+      }
+    },
+    [files, runtime, submitting, uploading],
+  );
+
+  function setFileState(id: string, patch: Partial<PendingNativeAttachment>): void {
+    setFiles((current) => current.map((file) => (file.id === id ? { ...file, ...patch } : file)));
+  }
+
+  async function attachFiles(): Promise<void> {
+    try {
+      const picked = await pickNativeAttachments();
+      setFiles((current) => [...current, ...picked].slice(0, 10));
+    } catch (reason) {
+      runtime.actions.setError(errorMessage(reason));
+    }
+  }
+
+  async function removeFile(file: PendingNativeAttachment): Promise<void> {
+    if (file.attachmentId && sessionId)
+      await runtime.client.deleteAttachment(sessionId, file.attachmentId).catch(() => undefined);
+    setFiles((current) => current.filter((candidate) => candidate.id !== file.id));
+  }
+
+  const backSwipe = useMemo(
+    () =>
+      PanResponder.create({
+        onMoveShouldSetPanResponder: (_, gesture) =>
+          shouldClaimChatBackSwipe(gesture.dx, gesture.dy),
+        onPanResponderRelease: (_, gesture) => {
+          if (shouldFinishChatBackSwipe(gesture.dx, gesture.vx)) onBack();
+        },
+      }),
+    [onBack],
+  );
 
   return (
-    <View style={styles.fill}>
+    <View style={styles.fill} {...backSwipe.panHandlers}>
       <View style={styles.chatHeader}>
-        <Button label="Back to agents" size="sm" variant="ghost" onPress={onBack}>
-          ‹ Agents
+        <Button label="Back to chat list" size="sm" variant="ghost" onPress={onBack}>
+          ‹ Chats
         </Button>
         <View style={styles.chatIdentity}>
           <Text numberOfLines={1} variant="subtitle">
@@ -554,88 +685,47 @@ function ChatScreen({
             {status || "Ready"}
           </Text>
         </View>
-        {busy ? (
-          <Button
-            label="Stop"
-            size="sm"
-            variant="ghost"
-            textStyle={{ color: destructive }}
-            onPress={() => void runtime.actions.interrupt()}
-          >
-            Stop
-          </Button>
-        ) : (
-          <View style={styles.headerSpacer} />
-        )}
+        <Button label="Open Computer" size="icon" variant="ghost" onPress={onOpenComputer}>
+          ⌁
+        </Button>
       </View>
       <Separator />
       <InlineError message={error} />
-      {loading ? (
-        <LoadingScreen compact label="Loading conversation…" />
-      ) : (
-        <FlatList
-          contentContainerStyle={styles.messages}
-          data={messages}
-          keyExtractor={(message) => message.id}
-          ListEmptyComponent={
-            <View style={styles.emptyConversation}>
-              <Text variant="title">Start a conversation</Text>
-              <Text variant="body" style={[styles.centerText, { color: muted }]}>
-                Ask your agent to research, build, or inspect something.
-              </Text>
-            </View>
+      <MobileAssistantProvider busy={busy} messages={messages} onSend={send}>
+        <AssistantMessageList loading={loading} runtime={runtime} />
+        <MobileQueuePanel
+          turns={queuedTurns}
+          onEdit={(turn) => {
+            const text = queuedTurnText(turn);
+            void runtime.actions
+              .removeQueuedTurn(turn.id)
+              .then(() =>
+                setComposerSeed((current) => ({
+                  revision: current.revision + 1,
+                  text: text === "Queued agent turn" ? "" : text,
+                })),
+              )
+              .catch(() => undefined);
+          }}
+          onMove={(turn, position) =>
+            void runtime.actions.reorderQueuedTurn(turn.id, position).catch(() => undefined)
           }
-          renderItem={({ item }) => <MessageBubble message={item} />}
+          onRemove={(turn) => void runtime.actions.removeQueuedTurn(turn.id).catch(() => undefined)}
+          onRunNow={(turn) => void runtime.actions.steerQueuedTurn(turn.id).catch(() => undefined)}
         />
-      )}
-      <Separator />
-      <View style={[styles.composer, { backgroundColor: card }]}>
-        <View style={styles.composerInput}>
-          <Input
-            accessibilityLabel="Message"
-            placeholder="Message your agent"
-            rows={2}
-            type="textarea"
-            value={draft}
-            onChangeText={setDraft}
-          />
-        </View>
-        <Button
-          disabled={!draft.trim() || submitting}
-          label="Send message"
-          loading={submitting}
-          size="icon"
-          onPress={send}
-        >
-          ↑
-        </Button>
-      </View>
+        <MobilePromptBar
+          busy={busy}
+          composerSeed={composerSeed}
+          error={error}
+          files={files}
+          submitting={submitting || uploading}
+          onAttach={() => void attachFiles()}
+          onFilesOnly={() => void send("")}
+          onRemoveFile={(file) => void removeFile(file)}
+          onStop={() => void runtime.actions.interrupt()}
+        />
+      </MobileAssistantProvider>
       <KeyboardSpacer />
-    </View>
-  );
-}
-
-function MessageBubble({ message }: { message: ChatMessage }) {
-  const text =
-    messageText(message).trim() || message.parts?.map(partLabel).filter(Boolean).join("\n") || "";
-  const owner = message.role === "user";
-  const card = useColor("card");
-  const primary = useColor("primary");
-  const primaryForeground = useColor("primaryForeground");
-
-  return (
-    <View style={[styles.messageRow, owner && styles.ownerMessageRow]}>
-      <View
-        style={[
-          styles.messageBubble,
-          { backgroundColor: owner ? primary : card },
-          owner ? styles.ownerBubble : styles.agentBubble,
-        ]}
-      >
-        <Text variant="body" style={owner ? { color: primaryForeground } : undefined}>
-          {text}
-        </Text>
-      </View>
     </View>
   );
 }
@@ -672,14 +762,6 @@ function LoadingScreen({ label, compact = false }: { label: string; compact?: bo
       {body}
     </SafeAreaView>
   );
-}
-
-function partLabel(part: ChatPart): string {
-  if (part.type === "reasoning") return part.text || "Thinking…";
-  if (part.type === "tool" || part.type.startsWith("tool-"))
-    return `Used ${part.tool_name || part.toolName || "a tool"}`;
-  if (part.type === "file" || part.type === "image") return part.filename || "Attachment";
-  return part.text || "";
 }
 
 function formatDate(value: string): string {
@@ -779,30 +861,4 @@ const styles = StyleSheet.create({
     paddingVertical: SPACING.xs,
   },
   chatIdentity: { flex: 1, alignItems: "center" },
-  headerSpacer: { width: 82 },
-  messages: { flexGrow: 1, gap: SPACING.sm, padding: SPACING.md },
-  emptyConversation: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    gap: SPACING.sm,
-    padding: SPACING.xl,
-  },
-  messageRow: { flexDirection: "row", justifyContent: "flex-start" },
-  ownerMessageRow: { justifyContent: "flex-end" },
-  messageBubble: {
-    maxWidth: "86%",
-    borderRadius: BORDER_RADIUS,
-    paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.sm,
-  },
-  agentBubble: { borderBottomLeftRadius: SPACING.xs },
-  ownerBubble: { borderBottomRightRadius: SPACING.xs },
-  composer: {
-    flexDirection: "row",
-    alignItems: "flex-end",
-    gap: SPACING.sm,
-    padding: SPACING.sm,
-  },
-  composerInput: { flex: 1 },
 });

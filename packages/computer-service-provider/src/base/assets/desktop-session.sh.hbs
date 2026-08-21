@@ -1,15 +1,27 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Openbox remains the lightweight window manager; this session adds the familiar desktop
-# affordances owners need when they take control without turning the Computer into a full distro.
-openbox --config-file /opt/openbot/openbox-rc.xml &
+# Seed the deliberately small XFCE panel for each agent-owned desktop profile. XFCE persists
+# runtime state below HOME, while the provider asset remains the source of truth on every start.
+panel_configuration="$HOME/.config/xfce4/xfconf/xfce-perchannel-xml/xfce4-panel.xml"
+mkdir -p "$(dirname "$panel_configuration")"
+install -m 0644 /opt/openbot/xfce4-panel.xml "$panel_configuration"
+for launcher in "1:openbot-files.desktop" "2:openbot-browser.desktop"; do
+  launcher_id="${launcher%%:*}"
+  launcher_file="${launcher#*:}"
+  launcher_directory="$HOME/.config/xfce4/panel/launcher-$launcher_id"
+  mkdir -p "$launcher_directory"
+  install -m 0644 "/usr/share/applications/$launcher_file" "$launcher_directory/$launcher_file"
+done
+
+xfsettingsd --replace --no-daemon >/var/log/openbot-xfsettingsd.log 2>&1 &
+settings_pid=$!
+xfwm4 --compositor=on >/var/log/openbot-xfwm4.log 2>&1 &
 window_manager_pid=$!
-compositor_pid=""
-dock_pid=""
+panel_pid=""
 
 cleanup() {
-  for process_id in "$window_manager_pid" "$compositor_pid" "$dock_pid"; do
+  for process_id in "$window_manager_pid" "$settings_pid" "$panel_pid"; do
     if [[ -n "$process_id" ]]; then
       kill "$process_id" 2>/dev/null || true
     fi
@@ -17,12 +29,10 @@ cleanup() {
 }
 trap cleanup EXIT INT TERM
 
-# Give Openbox a moment to claim the root window before applying the wallpaper and dock.
+# Give XFWM a moment to claim the root window before applying the wallpaper and panel.
 sleep 0.35
 feh --no-fehbg --bg-fill /opt/openbot/desktop-wallpaper.png >/dev/null 2>&1 || true
-picom --backend xrender --vsync --shadow --fading >/var/log/openbot-picom.log 2>&1 &
-compositor_pid=$!
-tint2 -c /opt/openbot/tint2rc >/var/log/openbot-tint2.log 2>&1 &
-dock_pid=$!
+xfce4-panel --disable-wm-check >/var/log/openbot-xfce4-panel.log 2>&1 &
+panel_pid=$!
 
 wait "$window_manager_pid"

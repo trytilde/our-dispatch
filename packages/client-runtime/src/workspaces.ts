@@ -10,10 +10,7 @@ import {
   type ClientInstallation,
 } from "./contracts/installation.js";
 
-export type WorkspaceFetch = (
-  input: RequestInfo | URL,
-  init?: RequestInit,
-) => Promise<Response>;
+export type WorkspaceFetch = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
 
 export const clientWorkspaceStorageKey = "openbot.workspaces.v1";
 const emptyRegistry: ClientWorkspaceRegistry = {
@@ -21,14 +18,7 @@ const emptyRegistry: ClientWorkspaceRegistry = {
   active_workspace_id: null,
   workspaces: [],
 };
-const workspaceColors = [
-  "#8d6e62",
-  "#607d8b",
-  "#6d7f5f",
-  "#7b6b8d",
-  "#8a7357",
-  "#596f86",
-] as const;
+const workspaceColors = ["#8d6e62", "#607d8b", "#6d7f5f", "#7b6b8d", "#8a7357", "#596f86"] as const;
 
 export async function loadClientWorkspaces(
   storage: ClientWorkspaceStorage,
@@ -169,15 +159,16 @@ export function mergeClientWorkspaceRegistries(
   return normalizeRegistry({
     version: 1,
     active_workspace_id:
-      (incoming.active_workspace_id
-        ? incomingIds.get(incoming.active_workspace_id)
-        : undefined) ?? local.active_workspace_id,
+      (incoming.active_workspace_id ? incomingIds.get(incoming.active_workspace_id) : undefined) ??
+      local.active_workspace_id,
     workspaces: [...workspaces.values()],
   });
 }
 
 function normalizeRegistry(registry: ClientWorkspaceRegistry): ClientWorkspaceRegistry {
-  const unique = [...new Map(registry.workspaces.map((item) => [item.control_origin, item])).values()];
+  const unique = [
+    ...new Map(registry.workspaces.map((item) => [item.control_origin, item])).values(),
+  ];
   return {
     version: 1,
     active_workspace_id: unique.some((item) => item.id === registry.active_workspace_id)

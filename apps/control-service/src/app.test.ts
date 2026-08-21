@@ -1,9 +1,12 @@
+import { once } from "node:events";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 import { Code, ConnectError } from "@connectrpc/connect";
 import type { ComputerProvider } from "@tryopenbot/computer-service-provider";
+import { WebSocketServer } from "ws";
 import { app, createApp } from "./app.js";
 
 const temporaryRoots: string[] = [];
@@ -33,6 +36,122 @@ describe("bare OpenBot server", () => {
   it("does not expose an API namespace", async () => {
     const response = await app.request("https://openbot.test/api/setup/unlock", { method: "POST" });
     expect(response.status).toBe(404);
+  });
+
+  it("starts agent setup in the trusted development computer and reports readiness", async () => {
+    const jobId = "11111111-1111-4111-8111-111111111111";
+    const execute = vi.fn(async () => ({
+      exitCode: 0,
+      stdout: "",
+      stderr: "",
+      jobId,
+      running: true,
+    }));
+    const awaitExecution = vi.fn(async () => ({
+      exitCode: 0,
+      stdout: '{"ok":true,"agent":{"id":"test","name":"Test"}}\n',
+      stderr: "",
+      jobId,
+      running: false,
+    }));
+    const agentApp = createApp({
+      environment: {
+        COMPUTER_SERVICE_API_KEY: "computer-key",
+        DEVELOPMENT_SANDBOX_SERVICE_URL: "https://computer.test/rpc",
+      },
+      agentCreation: { execute, awaitExecution },
+    });
+
+    const response = await agentApp.request("https://openbot.test/api/agents", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ name: "Test" }),
+    });
+
+    expect(response.status).toBe(202);
+    await expect(response.json()).resolves.toEqual({
+      status: "setting_up",
+      job_id: jobId,
+      agent: { id: "test", name: "Test" },
+    });
+    expect(execute).toHaveBeenCalledWith(
+      expect.objectContaining({
+        agentId: "factory",
+        command: "bash",
+        background: true,
+        arguments: ["-lc", expect.stringContaining("openbot new-agent 'Test' --json")],
+      }),
+      expect.objectContaining({ authorization: "Bearer computer-key" }),
+    );
+
+    const status = await agentApp.request(`https://openbot.test/api/agents/setup/${jobId}`);
+    expect(status.status).toBe(200);
+    await expect(status.json()).resolves.toEqual({
+      status: "ready",
+      agent: { id: "test", name: "Test" },
+    });
+    expect(awaitExecution).toHaveBeenCalledWith(
+      { agentId: "factory", jobId, timeoutMilliseconds: 0 },
+      expect.objectContaining({ authorization: "Bearer computer-key" }),
+    );
+  });
+
+  it("reports a running or failed background agent setup without exposing command details", async () => {
+    const jobId = "22222222-2222-4222-8222-222222222222";
+    const awaitExecution = vi
+      .fn()
+      .mockResolvedValueOnce({
+        exitCode: 0,
+        stdout: "",
+        stderr: "",
+        jobId,
+        running: true,
+      })
+      .mockResolvedValueOnce({
+        exitCode: 1,
+        stdout: '{"error":"Tilde setup failed","stack":"private"}\n',
+        stderr: "",
+        jobId,
+        running: false,
+      });
+    const agentApp = createApp({
+      environment: {
+        COMPUTER_SERVICE_API_KEY: "computer-key",
+        DEVELOPMENT_SANDBOX_SERVICE_URL: "https://computer.test/rpc",
+      },
+      agentCreation: { awaitExecution },
+    });
+
+    const running = await agentApp.request(`https://openbot.test/api/agents/setup/${jobId}`);
+    await expect(running.json()).resolves.toEqual({ status: "setting_up" });
+    const failed = await agentApp.request(`https://openbot.test/api/agents/setup/${jobId}`);
+    await expect(failed.json()).resolves.toEqual({ status: "failed", error: "Tilde setup failed" });
+  });
+
+  it("returns the structured CLI error written to stdout", async () => {
+    const agentApp = createApp({
+      environment: {
+        COMPUTER_SERVICE_API_KEY: "computer-key",
+        DEVELOPMENT_SANDBOX_SERVICE_URL: "https://computer.test/rpc",
+      },
+      agentCreation: {
+        execute: async () => ({
+          exitCode: 1,
+          stdout:
+            '{"error":"Agent test already exists","stack":"internal detail","log":"private path"}\n',
+          stderr: "",
+        }),
+      },
+    });
+
+    const response = await agentApp.request("https://openbot.test/api/agents", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ name: "Test" }),
+    });
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toEqual({ error: "Agent test already exists" });
   });
 
   it("opens only the selected agent's capability-scoped computer preview", async () => {
@@ -144,6 +263,60 @@ describe("bare OpenBot server", () => {
     expect(headers.get("authorization")).toBeNull();
     expect(headers.get("accept-encoding")).toBe("identity");
     expect(headers.get("last-event-id")).toBe("event-one");
+  });
+
+  it("bridges the authenticated Mission Control WebSocket as same-origin SSE", async () => {
+    const upstream = new WebSocketServer({ host: "127.0.0.1", port: 0 });
+    await once(upstream, "listening");
+    const port = (upstream.address() as AddressInfo).port;
+    let upstreamHeaders: Headers | undefined;
+    upstream.once("connection", (socket, request) => {
+      upstreamHeaders = new Headers(
+        Object.entries(request.headers).flatMap(([name, value]) =>
+          value === undefined ? [] : [[name, Array.isArray(value) ? value.join(", ") : value]],
+        ),
+      );
+      socket.send(
+        JSON.stringify({
+          jsonrpc: "2.0",
+          method: "chatkit.message.streaming",
+          params: {
+            event: {
+              id: "event-one",
+              kind: {
+                kind: "message_streaming",
+                session_id: "session-one",
+                message_id: "message-one",
+              },
+            },
+          },
+        }),
+        () => socket.close(),
+      );
+    });
+    const chatApp = createApp({
+      tildeChatProxy: {
+        apiKey: "secret-api-key",
+        orgId: "openbot-org",
+        teamId: "openbot-team",
+        baseUrl: `http://127.0.0.1:${port}`,
+      },
+    });
+
+    const response = await chatApp.request("https://openbot.test/api/chat/mission-control/events", {
+      headers: { authorization: "Bearer browser-token" },
+    });
+    const body = await response.text();
+    await new Promise<void>((resolve) => upstream.close(() => resolve()));
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-type")).toContain("text/event-stream");
+    expect(body).toContain("event: chatkit.message.streaming");
+    expect(body).toContain("id: event-one");
+    expect(upstreamHeaders?.get("x-api-key")).toBe("secret-api-key");
+    expect(upstreamHeaders?.get("x-tilde-org-id")).toBe("openbot-org");
+    expect(upstreamHeaders?.get("x-tilde-team-id")).toBe("openbot-team");
+    expect(upstreamHeaders?.get("authorization")).toBeNull();
   });
 
   it("preserves attachment bytes and rejects paths outside ChatKit", async () => {

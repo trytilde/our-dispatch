@@ -15,11 +15,19 @@ export function parsePort(value: string | undefined): number {
 }
 
 export async function runDevelopmentServer(): Promise<void> {
-  const environment = await loadLocalEnvironment();
+  const environment = await loadLocalEnvironment({ reload: true });
   const port = parsePort(environment.PORT);
   const configuration = await loadDevelopmentConfiguration(environment);
   const combined = new Hono();
-  combined.route("/", await createAgentServiceApp(repositoryRoot, { health: false }));
+  combined.route(
+    "/",
+    await createAgentServiceApp(repositoryRoot, {
+      health: false,
+      refreshEnvironment: async () => {
+        await loadLocalEnvironment({ reload: true });
+      },
+    }),
+  );
   combined.route(
     "/",
     createApp({

@@ -28,7 +28,11 @@ import {
   type ProviderInitializationQuestion,
 } from "@tryopenbot/runtime-provider";
 import { GitHubGitProvider } from "@tryopenbot/git-provider";
-import { VercelInferenceProvider } from "@tryopenbot/inference-provider";
+import {
+  CodexInferenceProvider,
+  type InferenceProvider,
+  VercelInferenceProvider,
+} from "@tryopenbot/inference-provider";
 import { tildePlatform } from "@tryopenbot/platform-integrations";
 import {
   LocalControlServiceProvider,
@@ -187,6 +191,23 @@ export const runtimeChoices: readonly SelectChoice[] = [
   },
 ];
 
+export const inferenceChoices: readonly SelectChoice[] = [
+  {
+    value: "vercel",
+    label: "Vercel AI Gateway",
+    description: "Use API-backed models through the Vercel AI SDK gateway.",
+  },
+  {
+    value: "codex",
+    label: "ChatGPT subscription",
+    description: "Use Codex app-server after signing in with a device code.",
+  },
+];
+
+export function inferenceChoicesForRuntime(_runtime: "local" | "vercel"): readonly SelectChoice[] {
+  return inferenceChoices;
+}
+
 export async function initializeOpenBot(options: InitializationOptions): Promise<void> {
   await assertOpenBotRepositoryRoot(options.repositoryRoot);
   const runner = options.runner ?? processCommandRunner;
@@ -328,7 +349,7 @@ export async function initializeOpenBot(options: InitializationOptions): Promise
     resolve(configurationDirectory, "tsconfig.json"),
     configurationAssets.tsconfig,
   );
-  await scaffoldAgentTemplates(options.repositoryRoot);
+  await scaffoldAgentTemplates(options.repositoryRoot, inferenceTemplateFiles(selectedProviders));
   await scaffoldPrimaryAgent(options.repositoryRoot, "Factory", { existing: "preserve" });
   await rm(configurationIgnorePath, { force: true });
   await runner.run("vp", ["install"], { cwd: options.repositoryRoot });
@@ -424,7 +445,7 @@ async function reconfigureOpenBot(
   );
   await reconcileEnvironmentFile(paths.environmentPath, environmentValues, removedEnvironmentNames);
   await writeFileAtomically(paths.secretsPath, await renderDocument(encrypted), 0o600);
-  await scaffoldAgentTemplates(options.repositoryRoot);
+  await scaffoldAgentTemplates(options.repositoryRoot, inferenceTemplateFiles(providers));
   await createConfiguration(
     resolve(dirname(paths.environmentPath), "tsconfig.json"),
     configurationAssets.tsconfig,
@@ -1282,9 +1303,13 @@ async function createBlankEnvironment(path: string): Promise<void> {
   }
 }
 
-async function createConfiguration(path: string, asset: string): Promise<void> {
+async function createConfiguration(
+  path: string,
+  asset: string,
+  values: Readonly<Record<string, unknown>> = {},
+): Promise<void> {
   try {
-    await materializeFileTemplate(asset, path, {}, { flag: "wx", mode: 0o600 });
+    await materializeFileTemplate(asset, path, values, { flag: "wx", mode: 0o600 });
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
   }
@@ -1307,22 +1332,40 @@ async function initializationProviders(
   const runtime = await prompts.select("Where do you want to deploy OpenBot?", runtimeChoices, {
     id: "runtime",
   });
+  if (runtime !== "local" && runtime !== "vercel")
+    throw new Error(`Unsupported runtime provider: ${runtime}`);
+  const inference = await prompts.select(
+    "How should OpenBot run inference?",
+    inferenceChoicesForRuntime(runtime),
+    {
+      id: "inference",
+      initialValue: "vercel",
+    },
+  );
+  if (inference !== "vercel" && inference !== "codex")
+    throw new Error(`Unsupported inference provider: ${inference}`);
   if (runtime === "local") {
-    await createConfiguration(path, configurationAssets.local);
-    return builtInRuntimeInitializationProviders(runtime);
+    await createConfiguration(path, configurationAssets.local, {
+      CODEX_INFERENCE: inference === "codex",
+    });
+    return builtInRuntimeInitializationProviders(runtime, inference);
   }
   if (runtime === "vercel") {
-    await createConfiguration(path, configurationAssets.vercel);
-    return builtInRuntimeInitializationProviders(runtime);
+    await createConfiguration(path, configurationAssets.vercel, {
+      CODEX_INFERENCE: inference === "codex",
+    });
+    return builtInRuntimeInitializationProviders(runtime, inference);
   }
-  throw new Error(`Unsupported runtime provider: ${runtime}`);
+  throw new Error("Unsupported runtime provider");
 }
 
 function initializationDiscoveryEnvironment(environment: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
   const result = { ...environment };
   const providers = [
-    ...builtInRuntimeInitializationProviders("local"),
-    ...builtInRuntimeInitializationProviders("vercel"),
+    ...builtInRuntimeInitializationProviders("local", "vercel"),
+    ...builtInRuntimeInitializationProviders("local", "codex"),
+    ...builtInRuntimeInitializationProviders("vercel", "vercel"),
+    ...builtInRuntimeInitializationProviders("vercel", "codex"),
   ];
   for (const initialization of collectProviderInitializations(providers)) {
     for (const question of initialization.questions) {
@@ -1341,23 +1384,30 @@ async function importConfiguredOpenBot(
 
 export function builtInRuntimeInitializationProviders(
   runtime: "local" | "vercel",
+  inference: "vercel" | "codex" = "vercel",
 ): readonly InitializableProvider[] {
   return runtime === "local"
     ? applicationInitializationProviders(
         new LocalControlServiceProvider(),
         new LocalAgentServiceProvider(),
         new MicrosandboxComputerProvider(),
+        inferenceProvider(inference),
       )
     : applicationInitializationProviders(
         new VercelControlServiceProvider(),
         new VercelAgentServiceProvider(),
         new VercelSandboxComputerProvider(),
+        inferenceProvider(inference),
       );
 }
 
 function applicationInitializationProviders(
-  ...runtimeProviders: InitializableProvider[]
+  controlService: InitializableProvider,
+  agentService: InitializableProvider,
+  computer: InitializableProvider,
+  inference: InitializableProvider,
 ): InitializableProvider[] {
+  const runtimeProviders = [controlService, agentService, computer];
   return [
     ...runtimeProviders,
     new TildeAuthProvider(tildePlatform),
@@ -1365,9 +1415,26 @@ function applicationInitializationProviders(
       platforms: [tildePlatform],
       initialization: tildeAgentProviderInitialization,
     },
-    new VercelInferenceProvider(),
+    inference,
     new GitHubGitProvider(tildePlatform),
   ];
+}
+
+function inferenceProvider(inference: "vercel" | "codex"): InitializableProvider {
+  return inference === "codex" ? new CodexInferenceProvider() : new VercelInferenceProvider();
+}
+
+function inferenceTemplateFiles(providers: readonly InitializableProvider[]) {
+  const contributions = providers.flatMap((provider) => {
+    if (!("agentTemplate" in provider)) return [];
+    const template = (provider as Partial<InferenceProvider>).agentTemplate;
+    return template ? [template] : [];
+  });
+  if (contributions.length > 1)
+    throw new Error(
+      `OpenBot supports one inference agent template contribution; found ${contributions.length}`,
+    );
+  return contributions[0]?.files ?? [];
 }
 
 async function runInitializationProvisioning(

@@ -101,6 +101,7 @@ export async function buildVercelAgentService(
   return {
     outputs: {
       "agent-service.artifact": root,
+      "agent-service.target": "vercel",
       "agent-service.count": String(agents.length),
       "agent-service.changed-count": String(changed),
       "agent-service.digest": digestValues(digests),

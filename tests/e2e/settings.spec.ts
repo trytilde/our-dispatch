@@ -7,14 +7,16 @@ test.beforeEach(async ({ page }) => {
 
 test("keeps macOS window controls clear of the settings back button", async ({ page }) => {
   await page.addInitScript(() => {
-    window.openbotDesktop = {
-      platform: "mac",
-      controlOrigin: window.location.origin,
-      openExternal: async () => undefined,
-      authStatus: async () => ({ authenticated: true, user: { subject: "e2e-owner" } }),
-      signIn: async () => undefined,
-      signOut: async () => undefined,
-    };
+    Object.assign(window, {
+      openbotDesktop: {
+        platform: "mac",
+        controlOrigin: window.location.origin,
+        openExternal: async () => undefined,
+        authStatus: async () => ({ authenticated: true, user: { subject: "e2e-owner" } }),
+        signIn: async () => undefined,
+        signOut: async () => undefined,
+      },
+    });
   });
 
   await page.goto("/settings");

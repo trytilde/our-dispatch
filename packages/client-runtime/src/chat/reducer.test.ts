@@ -52,6 +52,21 @@ describe("live chat reducer", () => {
 });
 
 describe("event busy state", () => {
+  it("treats Mission Control typing indicators as busy", () => {
+    expect(
+      eventBusyState({
+        type: "InboxInstance.typing_indicator.typing",
+        data: {
+          kind: {
+            kind: "inbox_instance_typing_indicator",
+            session_id: "session-one",
+            status: "typing",
+          },
+        },
+      }),
+    ).toBe(true);
+  });
+
   it("clears busy when a flat streaming delta finishes", () => {
     expect(
       eventBusyState({

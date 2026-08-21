@@ -14,7 +14,6 @@ import {
   type ComputerExecRequest,
   type ComputerHandle,
   type ComputerImageSpec,
-  type ComputerInput,
   type ComputerSpec,
 } from "../core/index.js";
 import type { DeploymentContext } from "@tryopenbot/runtime-provider";
@@ -286,54 +285,6 @@ export class VercelSandboxComputerProvider extends BaseComputerProvider {
     ]);
   }
 
-  async screenshot(id: string, context: ComputerCallContext): Promise<Uint8Array> {
-    if (!context.agentId)
-      throw new ComputerProviderError(
-        "invalid_configuration",
-        "agentId is required for screenshots",
-      );
-    const desktop = await this.ensureAgentDesktop(id, context.agentId, context);
-    const result = await this.exec(
-      id,
-      {
-        command: "import",
-        args: ["-display", desktop.display, "-window", "root", "/tmp/openbot-screenshot.png"],
-      },
-      context,
-    );
-    if (result.exitCode !== 0)
-      throw new ComputerProviderError(
-        "provider_unavailable",
-        `Screenshot failed: ${result.stderr}`,
-      );
-    const content = await (
-      await this.#attach(id, context)
-    ).readFileToBuffer({ path: "/tmp/openbot-screenshot.png" });
-    if (!content)
-      throw new ComputerProviderError("provider_unavailable", "Screenshot output was not created");
-    return content;
-  }
-
-  async input(id: string, input: ComputerInput, context: ComputerCallContext): Promise<void> {
-    if (!context.agentId)
-      throw new ComputerProviderError("invalid_configuration", "agentId is required for input");
-    const desktop = await this.ensureAgentDesktop(id, context.agentId, context);
-    const result = await this.exec(
-      id,
-      {
-        command: "xdotool",
-        args: inputArguments(input),
-        environment: { DISPLAY: desktop.display },
-      },
-      context,
-    );
-    if (result.exitCode !== 0)
-      throw new ComputerProviderError(
-        "provider_unavailable",
-        `Computer input failed: ${result.stderr}`,
-      );
-  }
-
   async vnc(id: string, context: ComputerCallContext) {
     const sandbox = await this.#attach(id, context);
     await this.get(id, context);
@@ -452,12 +403,4 @@ async function startComputer(
       `Could not start /usr/local/bin/start-openbot-computer in Vercel Sandbox: ${error instanceof Error ? error.message : "unknown error"}`,
     );
   }
-}
-
-function inputArguments(input: ComputerInput): string[] {
-  if (input.action === "mouse_move")
-    return ["mousemove", "--sync", String(input.x), String(input.y)];
-  if (input.action === "click") return ["click", String(input.button ?? 1)];
-  if (input.action === "type") return ["type", "--delay", String(input.delayMs ?? 10), input.text];
-  return ["key", input.key];
 }

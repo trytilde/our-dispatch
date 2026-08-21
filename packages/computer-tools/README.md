@@ -13,6 +13,7 @@ may import these tools without depending on a deployment provider package.
   session-scoped Tilde attachments; binary data is never exposed to the model as base64.
 - `createGlobTool()` and `createGrepTool()` for filesystem discovery and search.
 - `createScreenshotTool()` for PNG desktop capture through a session-scoped Tilde attachment.
+- `createCuaTools()` asynchronously loads the runtime Cua catalog and returns one identically named AI SDK tool per entry. It rejects collisions, uses each runtime JSON Schema directly, preserves structured failure/completion metadata, and uploads image results as Tilde attachments.
 
 `createTildeMediaUploader()`, `createTildeMediaDownloader()`, and
 `createTildeAttachmentMessageHandlers()` implement the shared attachment boundary. Browser uploads,

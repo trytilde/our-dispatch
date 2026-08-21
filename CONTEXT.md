@@ -9,7 +9,7 @@ A single deployed or locally running OpenBot instance with its own setup and con
 _Avoid_: deployment, instance, or account when the installation is meant
 
 **OpenBot Workspace**:
-The user-facing place where an owner chats with agents and uses their computer.
+The user-facing place where an owner chats with bots and uses their computer.
 _Avoid_: Tilde workspace
 
 **Owner**:
@@ -34,8 +34,12 @@ The Tilde runtime isolation boundary that owns OpenBot's agents, chats, tools, s
 _Avoid_: workspace
 
 **Tilde Agent**:
-An agent registered in a **Tilde Team** and available for conversation through OpenBot.
-_Avoid_: bot
+The registered runtime resource in a **Tilde Team** that implements a bot.
+_Avoid_: bot when the registered runtime resource is meant
+
+**Bot**:
+The owner-facing name for a **Tilde Agent** available for conversation through OpenBot.
+_Avoid_: agent in owner-facing UI and copy
 
 **ChatKit Session**:
 A Tilde-owned conversation between an owner and a **Tilde Agent**.
@@ -66,7 +70,7 @@ _Avoid_: frontend state library, shared components, or server SDK
   tokens and host-only cookies.
 - An **OpenBot Installation** presents one **OpenBot Workspace**.
 - An **OpenBot Installation** connects to one **Tilde Organization** and **Tilde Team**.
-- A **Tilde Team** owns one or more **Tilde Agents** and their **ChatKit Sessions**.
+- A **Tilde Team** owns one or more **Tilde Agents**, presented to owners as **Bots**, and their **ChatKit Sessions**.
 - An **OpenBot Installation** controls at most one active **OpenBot Computer**.
 - **Control State** belongs to OpenBot; agent and conversation state belongs to the **Tilde Team**.
 - Every OpenBot client reaches an **OpenBot Workspace** through the **Client Runtime**; renderers own
@@ -81,7 +85,7 @@ _Avoid_: frontend state library, shared components, or server SDK
 ## Flagged ambiguities
 
 - "workspace" can mean the **OpenBot Workspace**, a Tilde team, or the computer filesystem; use the explicit term.
-- "agent" can mean a **Tilde Agent** or the software implementing its behavior; use **Tilde Agent** for the registered runtime resource.
+- "agent" can mean a **Tilde Agent** or the software implementing its behavior; use **Tilde Agent** for the registered runtime resource and **Bot** in owner-facing UI.
 - "state" can mean **Control State** or Tilde-owned runtime data; name the owner and kind.
 
 ## Follow-up markers

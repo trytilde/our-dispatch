@@ -1,3 +1,4 @@
+import { fileURLToPath } from "node:url";
 import { VercelPlatform } from "@tryopenbot/platform-integrations";
 import type {
   ProviderInitialization,
@@ -7,6 +8,11 @@ import type { InferenceProvider } from "./core.js";
 
 const AI_GATEWAY_API_KEY = "AI_GATEWAY_API_KEY";
 const AI_GATEWAY_KEY_NAME = "VERCEL_AI_GATEWAY_API_KEY_NAME";
+const AI_MODEL = "AI_MODEL";
+const INFERENCE_PROVIDER = "INFERENCE_PROVIDER";
+
+export const VERCEL_INFERENCE_PROVIDER = "vercel-ai-gateway";
+export const DEFAULT_VERCEL_MODEL = "openai/gpt-5.6-sol";
 
 export const vercelInferenceProviderInitialization: ProviderInitialization = {
   id: "vercel-ai-gateway-inference",
@@ -26,6 +32,14 @@ export const vercelInferenceProviderInitialization: ProviderInitialization = {
 
 export class VercelInferenceProvider implements InferenceProvider {
   readonly initialization = vercelInferenceProviderInitialization;
+  readonly agentTemplate = {
+    files: [
+      {
+        path: "inference.ts.hbs",
+        source: fileURLToPath(new URL("./vercel/assets/inference.ts.hbs", import.meta.url)),
+      },
+    ],
+  } as const;
   readonly platforms;
 
   constructor(private readonly platform = new VercelPlatform()) {
@@ -33,6 +47,17 @@ export class VercelInferenceProvider implements InferenceProvider {
   }
 
   async initialize(context: ProviderInitializationContext): Promise<void> {
+    await context.setEnvironment(
+      INFERENCE_PROVIDER,
+      VERCEL_INFERENCE_PROVIDER,
+      "Inference implementation used by authored agents.",
+    );
+    if (!context.environment[AI_MODEL]?.trim())
+      await context.setEnvironment(
+        AI_MODEL,
+        DEFAULT_VERCEL_MODEL,
+        "Default Vercel AI Gateway model used by authored agents.",
+      );
     if (context.environment[AI_GATEWAY_API_KEY]?.trim()) return;
     const name = context.environment[AI_GATEWAY_KEY_NAME]?.trim();
     if (!name) throw new Error(`${AI_GATEWAY_KEY_NAME} is required`);

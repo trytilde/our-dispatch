@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 import { Code, ConnectError } from "@connectrpc/connect";
 import { execFile } from "node:child_process";
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
@@ -9,7 +9,6 @@ import type {
   ComputerCallContext,
   ComputerExecRequest,
   ComputerHandle,
-  ComputerInput,
   ComputerSpec,
   ComputerProvider,
 } from "./core/index.js";
@@ -115,8 +114,6 @@ class TestComputerProvider extends BaseComputerProvider {
   );
   readFile = vi.fn(async () => new Uint8Array([1, 2, 3]));
   writeFile = vi.fn(async () => undefined);
-  screenshot = vi.fn(async () => new Uint8Array([137, 80, 78, 71]));
-  input = vi.fn(async (_id: string, _input: ComputerInput) => undefined);
   vnc = vi.fn(async () => ({ url: new URL("https://computer.test/vnc"), expiresAt: new Date(1) }));
 }
 
@@ -292,6 +289,62 @@ describe("development sandbox source", () => {
           content: new TextEncoder().encode("present"),
         },
       ]);
+    } finally {
+      await rm(repositoryRoot, { recursive: true, force: true });
+    }
+  });
+
+  it("preserves tracked symlinks so the sandbox keeps the repository layout", async () => {
+    const repositoryRoot = await mkdtemp(join(tmpdir(), "openbot-computer-link-"));
+    try {
+      await execute("git", ["init"], { cwd: repositoryRoot });
+      await mkdir(join(repositoryRoot, ".agents/skills"), { recursive: true });
+      await mkdir(join(repositoryRoot, ".claude"), { recursive: true });
+      await writeFile(join(repositoryRoot, ".agents/skills/tilde.md"), "skill");
+      await writeFile(join(repositoryRoot, "AGENTS.md"), "guide");
+      await symlink("../.agents/skills", join(repositoryRoot, ".claude/skills"));
+      await symlink("AGENTS.md", join(repositoryRoot, "CLAUDE.md"));
+      await execute("git", ["add", "-A"], { cwd: repositoryRoot });
+
+      await expect(developmentSandboxSourceFiles(repositoryRoot)).resolves.toEqual([
+        {
+          path: "openbot/.agents/skills/tilde.md",
+          content: new TextEncoder().encode("skill"),
+        },
+        { path: "openbot/.claude/skills", target: "../.agents/skills" },
+        { path: "openbot/AGENTS.md", content: new TextEncoder().encode("guide") },
+        { path: "openbot/CLAUDE.md", target: "AGENTS.md" },
+      ]);
+    } finally {
+      await rm(repositoryRoot, { recursive: true, force: true });
+    }
+  });
+
+  it("refuses symlinks that would resolve outside the seeded repository", async () => {
+    const repositoryRoot = await mkdtemp(join(tmpdir(), "openbot-computer-escape-"));
+    try {
+      await execute("git", ["init"], { cwd: repositoryRoot });
+      await symlink("../outside", join(repositoryRoot, "escape"));
+      await execute("git", ["add", "-A"], { cwd: repositoryRoot });
+
+      await expect(developmentSandboxSourceFiles(repositoryRoot)).rejects.toThrow(
+        "must stay inside the repository",
+      );
+    } finally {
+      await rm(repositoryRoot, { recursive: true, force: true });
+    }
+  });
+
+  it("refuses absolute symlinks that would leak host paths into the sandbox", async () => {
+    const repositoryRoot = await mkdtemp(join(tmpdir(), "openbot-computer-absolute-"));
+    try {
+      await execute("git", ["init"], { cwd: repositoryRoot });
+      await symlink("/etc/passwd", join(repositoryRoot, "absolute"));
+      await execute("git", ["add", "-A"], { cwd: repositoryRoot });
+
+      await expect(developmentSandboxSourceFiles(repositoryRoot)).rejects.toThrow(
+        "must use a relative target",
+      );
     } finally {
       await rm(repositoryRoot, { recursive: true, force: true });
     }
@@ -568,15 +621,26 @@ describe("computer image lifecycle", () => {
     expect(viewer).not.toContain("noVNC_control_bar");
     const bootstrap = await readFile(computerImageAssets.bootstrap, "utf8");
     expect(bootstrap).toContain("SOPS_VERSION=3.13.3");
-    expect(bootstrap).toContain("pcmanfm picom");
-    expect(bootstrap).toContain("tint2");
-    expect(await readFile(computerImageAssets.desktopSession, "utf8")).toContain(
-      "desktop-wallpaper.png",
+    expect(bootstrap).toContain("apt-get -o Acquire::Retries=3");
+    expect(bootstrap).toContain("apt_retry install -y --no-install-recommends");
+    expect(bootstrap).toContain("thunar");
+    expect(bootstrap).toContain("xfce4-panel xfce4-settings xfwm4");
+    expect(bootstrap).not.toContain("openbox");
+    expect(bootstrap).not.toContain("tint2");
+    const desktopSession = await readFile(computerImageAssets.desktopSession, "utf8");
+    expect(desktopSession).toContain("desktop-wallpaper.png");
+    expect(desktopSession).toContain("xfsettingsd --replace --no-daemon");
+    expect(desktopSession).toContain("xfwm4 --compositor=on");
+    expect(desktopSession).toContain("xfce4-panel --disable-wm-check");
+    expect(desktopSession).toContain(
+      'launcher_directory="$HOME/.config/xfce4/panel/launcher-$launcher_id"',
     );
-    const taskbar = await readFile(computerImageAssets.tint2, "utf8");
-    expect(taskbar).toContain("openbot-browser.desktop");
-    expect(taskbar).toContain("panel_size = 100% 54");
-    expect(taskbar).toContain("autohide = 0");
+    expect(desktopSession).toContain('"/usr/share/applications/$launcher_file"');
+    const taskbar = await readFile(computerImageAssets.xfcePanel, "utf8");
+    expect(taskbar).toContain('name="position" type="string" value="p=10;x=0;y=0"');
+    expect(taskbar).toContain('name="autohide-behavior" type="uint" value="0"');
+    expect(taskbar).toContain('value="openbot-files.desktop"');
+    expect(taskbar).toContain('value="openbot-browser.desktop"');
   });
 });
 

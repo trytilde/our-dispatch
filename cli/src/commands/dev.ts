@@ -31,6 +31,7 @@ export async function runDevelopment(): Promise<never> {
     await reconcileDevelopmentInfrastructure({
       repositoryRoot,
       environment: env,
+      interactive: process.stdin.isTTY && process.stdout.isTTY,
       providers: configuration.providers,
       report: ({ event, details }) => {
         if (event === "provider.command.output" && typeof details?.output === "string") {

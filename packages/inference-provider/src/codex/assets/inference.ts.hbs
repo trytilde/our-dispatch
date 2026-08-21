@@ -1,0 +1,109 @@
+import { randomUUID } from "node:crypto";
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { fileURLToPath } from "node:url";
+import { asSchema, type ToolSet } from "@ai-sdk/provider-utils";
+import {
+  createCodexAppServer,
+  createSdkMcpServer,
+  type LocalTool,
+} from "ai-sdk-provider-codex-cli";
+
+const defaultModel = "gpt-5.6-sol";
+const codexHome = createCodexHome();
+const deployedCodex = fileURLToPath(new URL("./codex", import.meta.url));
+const codex = createCodexAppServer({
+  defaultSettings: {
+    approvalPolicy: "never",
+    sandboxPolicy: "read-only",
+    effort: "medium",
+    env: { CODEX_HOME: codexHome },
+    codexPath: existsSync(deployedCodex) ? deployedCodex : undefined,
+    threadMode: "stateless",
+    configOverrides: {
+      "features.apply_patch_freeform": false,
+      "features.experimental_use_unified_exec_tool": false,
+      "features.shell_tool": false,
+      "features.unified_exec": false,
+      "features.web_search": false,
+      "shell_environment_policy.inherit": "none",
+      web_search: "disabled",
+    },
+  },
+});
+
+export async function prepareInference(tools: ToolSet, abortSignal?: AbortSignal) {
+  const mcp = createSdkMcpServer({
+    name: "openbot-tools",
+    tools: await codexTools(tools, abortSignal),
+  });
+  return {
+    model: codex(process.env.AI_MODEL ?? defaultModel, {
+      mcpServers: { openbot: mcp },
+    }),
+    reasoning: "medium" as const,
+  };
+}
+
+async function codexTools(tools: ToolSet, abortSignal?: AbortSignal): Promise<LocalTool[]> {
+  return Promise.all(
+    Object.entries(tools).map(async ([name, definition]) => {
+      if (!definition.execute)
+        throw new TypeError(`OpenBot tool ${name} must define execute for Codex inference`);
+      const schema = asSchema(definition.inputSchema);
+      const description =
+        typeof definition.description === "function"
+          ? definition.description({ context: undefined })
+          : definition.description;
+      return {
+        name,
+        description: description ?? name,
+        inputSchema: (await schema.jsonSchema) as unknown as Record<string, unknown>,
+        async execute(input: unknown) {
+          const parsed = schema.validate ? await schema.validate(input) : undefined;
+          if (parsed && !parsed.success) throw parsed.error;
+          const output = await definition.execute!(parsed?.value ?? input, {
+            abortSignal,
+            context: undefined,
+            messages: [],
+            toolCallId: randomUUID(),
+          });
+          if (!isAsyncIterable(output)) return output;
+          let latest: unknown;
+          for await (const value of output) latest = value;
+          return latest;
+        },
+      } satisfies LocalTool;
+    }),
+  );
+}
+
+function createCodexHome(): string {
+  const serialized = process.env.CODEX_AUTH_JSON?.trim();
+  if (!serialized) throw new Error("CODEX_AUTH_JSON is missing; run openbot init to authenticate");
+  const parsed: unknown = JSON.parse(serialized);
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed))
+    throw new Error("CODEX_AUTH_JSON must contain a Codex auth document");
+  const directory = mkdtempSync(join(tmpdir(), "openbot-codex-"));
+  mkdirSync(directory, { recursive: true, mode: 0o700 });
+  writeFileSync(join(directory, "auth.json"), `${serialized}\n`, { mode: 0o600 });
+  // Local development imports every authored agent into one process. Keep the
+  // shared source value available so each agent can create its isolated home.
+  writeFileSync(
+    join(directory, "config.toml"),
+    'cli_auth_credentials_store = "file"\nforced_login_method = "chatgpt"\n',
+    { mode: 0o600 },
+  );
+  process.once("exit", () => rmSync(directory, { force: true, recursive: true }));
+  return directory;
+}
+
+function isAsyncIterable(value: unknown): value is AsyncIterable<unknown> {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    Symbol.asyncIterator in value &&
+    typeof value[Symbol.asyncIterator] === "function"
+  );
+}

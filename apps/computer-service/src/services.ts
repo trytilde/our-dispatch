@@ -9,6 +9,7 @@ import { BackgroundExecRegistry } from "./background-exec.js";
 import { validComputerServiceApiKey } from "./capability.js";
 import { applyLifecycleBundle, lifecycleDigest, runLifecycle } from "./lifecycle.js";
 import { ensureAgentDesktop } from "./desktop.js";
+import { callCuaTool as invokeCuaTool, listCuaTools as readCuaTools } from "./cua.js";
 
 const execute = promisify(execFile);
 const backgroundExec = new BackgroundExecRegistry();
@@ -130,33 +131,52 @@ export function registerComputerService(router: ConnectRouter): void {
     },
     async screenshot(request, context) {
       authorized(context);
-      const desktop = await ensureAgentDesktop(request.agentId, undefined, context.signal);
-      const scoped = agentCommand(request.agentId, "import", [
-        "-display",
-        desktop.display,
-        "-window",
-        "root",
-        "png:-",
-      ]);
-      return { png: await executeBytes(scoped, context.signal, 24 * 1024 * 1024) };
+      const result = await invokeCuaTool(
+        request.agentId,
+        "get_desktop_state",
+        "{}",
+        context.signal,
+      );
+      const image = result.content.find((item) => item.content.case === "image");
+      if (!image || image.content.case !== "image")
+        throw new ConnectError("Cua Driver did not return a screenshot", Code.DataLoss);
+      return { png: image.content.value.data };
     },
     async input(request, context) {
       authorized(context);
-      const desktop = await ensureAgentDesktop(request.agentId, undefined, context.signal);
-      const scoped = agentCommand(
+      const input = await cuaCompatibilityInput(
         request.agentId,
-        "xdotool",
-        parseInput(request.action, request.payloadJson),
-        {
-          environment: { DISPLAY: desktop.display },
-        },
+        request.action,
+        request.payloadJson,
+        context.signal,
       );
-      await execute(scoped.command, scoped.arguments, {
-        cwd: scoped.cwd,
-        env: scoped.environment,
-        signal: context.signal,
-      });
-      return { accepted: true };
+      const result = await invokeCuaTool(
+        request.agentId,
+        input.name,
+        JSON.stringify(input.arguments),
+        context.signal,
+      );
+      return { accepted: !result.isError };
+    },
+    async listCuaTools(request, context) {
+      authorized(context);
+      const tools = await readCuaTools(request.agentId, context.signal);
+      return {
+        tools: tools.map((entry) => ({
+          name: entry.name,
+          description: entry.description,
+          inputSchemaJson: JSON.stringify(entry.inputSchema),
+        })),
+      };
+    },
+    async callCuaTool(request, context) {
+      authorized(context);
+      return await invokeCuaTool(
+        request.agentId,
+        request.name,
+        request.argumentsJson,
+        context.signal,
+      );
     },
     async ensureDesktop(request, context) {
       authorized(context);
@@ -280,7 +300,12 @@ function executeWithInput(
   });
 }
 
-function parseInput(action: string, raw: string): string[] {
+async function cuaCompatibilityInput(
+  agentId: string,
+  action: string,
+  raw: string,
+  signal: AbortSignal,
+): Promise<{ name: string; arguments: Record<string, unknown> }> {
   let payload: Record<string, unknown> = {};
   try {
     payload = raw ? (JSON.parse(raw) as Record<string, unknown>) : {};
@@ -288,23 +313,58 @@ function parseInput(action: string, raw: string): string[] {
     throw new ConnectError("Input payload must be JSON", Code.InvalidArgument);
   }
   if (action === "mouse_move")
-    return ["mousemove", "--sync", integer(payload.x), integer(payload.y)];
-  if (action === "click") return ["click", integer(payload.button ?? 1, "Input button")];
+    return {
+      name: "move_cursor",
+      arguments: { x: number(payload.x), y: number(payload.y), scope: "desktop" },
+    };
+  if (action === "click") {
+    const position = await cursorPosition(agentId, signal);
+    const button = payload.button ?? 1;
+    if (button !== 1 && button !== 2 && button !== 3)
+      throw new ConnectError("Input button must be 1, 2, or 3", Code.InvalidArgument);
+    return {
+      name: "click",
+      arguments: {
+        ...position,
+        button: button === 1 ? "left" : button === 2 ? "middle" : "right",
+        scope: "desktop",
+      },
+    };
+  }
   if (action === "type")
-    return [
-      "type",
-      "--delay",
-      integer(payload.delayMs ?? 10, "Input delay"),
-      text(payload.text ?? "", "Input text"),
-    ];
-  if (action === "key") return ["key", text(payload.key ?? "", "Input key")];
+    return {
+      name: "type_text",
+      arguments: { text: text(payload.text ?? "", "Input text"), scope: "desktop" },
+    };
+  if (action === "key")
+    return {
+      name: "press_key",
+      arguments: { key: text(payload.key ?? "", "Input key"), scope: "desktop" },
+    };
   throw new ConnectError(`Unsupported input action: ${action}`, Code.InvalidArgument);
 }
 
-function integer(value: unknown, label = "Input coordinates"): string {
-  if (typeof value !== "number" || !Number.isSafeInteger(value))
-    throw new ConnectError(`${label} must be an integer`, Code.InvalidArgument);
-  return String(value);
+async function cursorPosition(
+  agentId: string,
+  signal: AbortSignal,
+): Promise<{ x: number; y: number }> {
+  const result = await invokeCuaTool(agentId, "get_cursor_position", "{}", signal);
+  for (const candidate of [result.structuredJson, result.rawJson]) {
+    try {
+      const value = JSON.parse(candidate) as { x?: unknown; y?: unknown };
+      if (typeof value.x === "number" && typeof value.y === "number")
+        return { x: value.x, y: value.y };
+    } catch {
+      // Try the next Cua result representation.
+    }
+  }
+  throw new ConnectError("Cua Driver did not return the cursor position", Code.DataLoss);
+}
+
+function number(value: unknown): number {
+  if (typeof value !== "number" || !Number.isFinite(value))
+    throw new ConnectError("Input coordinates must be numbers", Code.InvalidArgument);
+  return value;
 }
 
 function text(value: unknown, label: string): string {

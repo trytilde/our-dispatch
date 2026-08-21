@@ -14,7 +14,6 @@ import {
   type ComputerExecRequest,
   type ComputerExecResult,
   type ComputerHandle,
-  type ComputerInput,
   type ComputerSeedEntry,
   type ComputerImageSpec,
   type ComputerProvider,
@@ -213,8 +212,6 @@ export abstract class BaseComputerProvider implements ComputerProvider {
     content: Uint8Array,
     context: ComputerCallContext,
   ): Promise<void>;
-  abstract screenshot(id: string, context: ComputerCallContext): Promise<Uint8Array>;
-  abstract input(id: string, input: ComputerInput, context: ComputerCallContext): Promise<void>;
   abstract vnc(id: string, context: ComputerCallContext): Promise<ComputerVncEndpoint>;
 
   async previewAgentDesktop(

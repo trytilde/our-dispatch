@@ -4,6 +4,7 @@ import {
   type ToolChipIcon,
   type ToolChipRow,
 } from "./beautiful-ui/blocks/tool-chips-block.js";
+import { isConnectorSelectionPart } from "./connector-components.js";
 import { stringify, type MessagePart } from "./rich-message-components.js";
 
 /* Assistant output is split into standalone blocks: text stays in chat
@@ -27,6 +28,12 @@ export function splitMessageSegments(parts: readonly MessagePart[]): MessageSegm
       if (!text.trim()) continue;
       if (previous?.kind === "text") previous.text += `\n\n${text}`;
       else segments.push({ kind: "text", text });
+      continue;
+    }
+    // A completed connector-selection tool call renders as its own
+    // interactive card row, never as a collapsed tool chip.
+    if (isConnectorSelectionPart(part)) {
+      segments.push({ kind: "other", part });
       continue;
     }
     const attachment = toolAttachmentFilePart(part);
@@ -180,7 +187,8 @@ function isToolPart(part: MessagePart): boolean {
 function toolAttachmentFilePart(part: MessagePart): MessagePart | undefined {
   if (!isToolPart(part)) return undefined;
   const outer = objectValue(part.output);
-  const output = Object.keys(objectValue(outer.image)).length > 0 ? objectValue(outer.image) : outer;
+  const output =
+    Object.keys(objectValue(outer.image)).length > 0 ? objectValue(outer.image) : outer;
   const attachmentId = stringValue(output.attachment_id ?? output.attachmentId);
   const mediaType =
     stringValue(output.media_type ?? output.mediaType) || "application/octet-stream";
@@ -219,8 +227,7 @@ function appendFilePart(segments: MessageSegment[], part: MessagePart): void {
       (segment) =>
         segment.kind === "files" &&
         segment.parts.some(
-          (candidate) =>
-            (candidate.attachment_id ?? candidate.attachmentId) === attachmentId,
+          (candidate) => (candidate.attachment_id ?? candidate.attachmentId) === attachmentId,
         ),
     )
   )

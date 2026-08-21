@@ -117,139 +117,138 @@ export function ChatComposer({
           onFilesAdded(event.dataTransfer.files);
         }}
       >
-      {reply ? (
-        <div className="reply-preview">
-          <ReplyIcon />
-          <span>
-            <strong>{reply.label}</strong>
-            <small>{reply.text}</small>
-          </span>
-          <button aria-label="Cancel reply" onClick={onCancelReply} type="button">
-            ×
-          </button>
-        </div>
-      ) : null}
-      {attachments.length ? (
-        <div className="attachment-tray">
-          {attachments.map((attachment) => (
-            <div className={`pending-file ${attachment.status}`} key={attachment.id}>
-              {attachment.previewUrl ? (
-                <img alt="" className="file-thumb" src={attachment.previewUrl} />
-              ) : (
-                <span className="file-icon">↗</span>
-              )}
-              <span>
-                <strong>{attachment.name}</strong>
-                <small>
-                  {attachment.status === "uploading"
-                    ? `${Math.round(attachment.progress * 100)}%`
-                    : attachment.error || formatBytes(attachment.size)}
-                </small>
-              </span>
-              <button
-                type="button"
-                onClick={() => onRemoveAttachment(attachment.id)}
-                aria-label="Remove file"
-              >
-                ×
-              </button>
-              {attachment.status === "uploading" ? (
-                <i style={{ width: `${attachment.progress * 100}%` }} />
-              ) : null}
-            </div>
-          ))}
-        </div>
-      ) : null}
-      {dragging ? <div className="drop-overlay">Drop files to attach</div> : null}
-      {attachmentMenuOpen ? (
-        <div className="composer-attachment-menu" role="menu" aria-label="Add to message">
-          <button
-            role="menuitem"
-            type="button"
-            onClick={() => {
-              setAttachmentMenuOpen(false);
-              fileInputRef.current?.click();
-            }}
-          >
-            <span className="composer-attachment-menu-icon" aria-hidden="true">
-              ↗
-            </span>
+        {reply ? (
+          <div className="reply-preview">
+            <ReplyIcon />
             <span>
-              <strong>Add photos &amp; files</strong>
-              <small>Upload from your computer</small>
+              <strong>{reply.label}</strong>
+              <small>{reply.text}</small>
             </span>
-          </button>
-        </div>
-      ) : null}
-      <div className="composer-input-grid">
-        <div className="composer-attachment-control">
-          <input
-            hidden
-            multiple
-            ref={fileInputRef}
-            type="file"
-            onChange={(event: ChangeEvent<HTMLInputElement>) => {
-              if (event.target.files) onFilesAdded(event.target.files);
-              event.target.value = "";
+            <button aria-label="Cancel reply" onClick={onCancelReply} type="button">
+              ×
+            </button>
+          </div>
+        ) : null}
+        {attachments.length ? (
+          <div className="attachment-tray">
+            {attachments.map((attachment) => (
+              <div className={`pending-file ${attachment.status}`} key={attachment.id}>
+                {attachment.previewUrl ? (
+                  <img alt="" className="file-thumb" src={attachment.previewUrl} />
+                ) : (
+                  <span className="attachment-glyph">↗</span>
+                )}
+                <span>
+                  <strong>{attachment.name}</strong>
+                  <small>
+                    {attachment.status === "uploading"
+                      ? `${Math.round(attachment.progress * 100)}%`
+                      : attachment.error || formatBytes(attachment.size)}
+                  </small>
+                </span>
+                <button
+                  type="button"
+                  onClick={() => onRemoveAttachment(attachment.id)}
+                  aria-label="Remove file"
+                >
+                  ×
+                </button>
+                {attachment.status === "uploading" ? (
+                  <i style={{ width: `${attachment.progress * 100}%` }} />
+                ) : null}
+              </div>
+            ))}
+          </div>
+        ) : null}
+        {dragging ? <div className="drop-overlay">Drop files to attach</div> : null}
+        {attachmentMenuOpen ? (
+          <div className="composer-attachment-menu" role="menu" aria-label="Add to message">
+            <button
+              role="menuitem"
+              type="button"
+              onClick={() => {
+                setAttachmentMenuOpen(false);
+                fileInputRef.current?.click();
+              }}
+            >
+              <span className="composer-attachment-menu-icon" aria-hidden="true">
+                ↗
+              </span>
+              <span>
+                <strong>Add photos &amp; files</strong>
+                <small>Upload from your computer</small>
+              </span>
+            </button>
+          </div>
+        ) : null}
+        <div className="composer-input-grid">
+          <div className="composer-attachment-control">
+            <input
+              hidden
+              multiple
+              ref={fileInputRef}
+              type="file"
+              onChange={(event: ChangeEvent<HTMLInputElement>) => {
+                if (event.target.files) onFilesAdded(event.target.files);
+                event.target.value = "";
+              }}
+            />
+            <button
+              className="attach-button"
+              type="button"
+              disabled={!agentAvailable || submitting}
+              aria-expanded={attachmentMenuOpen}
+              aria-haspopup="menu"
+              onClick={() => setAttachmentMenuOpen((open) => !open)}
+              aria-label="Add photos and files"
+              title="Add photos and files"
+            >
+              <PlusIcon />
+            </button>
+          </div>
+          <textarea
+            aria-label="Message"
+            disabled={!agentAvailable}
+            ref={inputRef}
+            placeholder={
+              agentAvailable
+                ? busy
+                  ? "Write another message to queue…"
+                  : "Write a message…"
+                : "No agent is available."
+            }
+            value={draft}
+            onChange={(event) => onDraftChange(event.target.value)}
+            onBlur={onBlur}
+            onFocus={onFocus}
+            onKeyDown={(event) => {
+              const modEnter = event.key === "Enter" && (event.metaKey || event.ctrlKey);
+              const plainEnter =
+                event.key === "Enter" &&
+                !event.shiftKey &&
+                !event.metaKey &&
+                !event.ctrlKey &&
+                !event.nativeEvent.isComposing;
+              if (modEnter || plainEnter) {
+                event.preventDefault();
+                event.currentTarget.form?.requestSubmit();
+              }
             }}
           />
-          <button
-            className="attach-button"
-            type="button"
-            disabled={!agentAvailable || submitting}
-            aria-expanded={attachmentMenuOpen}
-            aria-haspopup="menu"
-            onClick={() => setAttachmentMenuOpen((open) => !open)}
-            aria-label="Add photos and files"
-            title="Add photos and files"
-          >
-            <PlusIcon />
-          </button>
-        </div>
-        <textarea
-          aria-label="Message"
-          disabled={!agentAvailable}
-          ref={inputRef}
-          placeholder={
-            agentAvailable
-              ? busy
-                ? "Write another message to queue…"
-                : "Write a message…"
-              : "No agent is available."
-          }
-          value={draft}
-          onChange={(event) => onDraftChange(event.target.value)}
-          onBlur={onBlur}
-          onFocus={onFocus}
-          onKeyDown={(event) => {
-            const modEnter = event.key === "Enter" && (event.metaKey || event.ctrlKey);
-            const plainEnter =
-              event.key === "Enter" &&
-              !event.shiftKey &&
-              !event.metaKey &&
-              !event.ctrlKey &&
-              !event.nativeEvent.isComposing;
-            if (modEnter || plainEnter) {
-              event.preventDefault();
-              event.currentTarget.form?.requestSubmit();
-            }
-          }}
-        />
-        <div className="composer-actions">
-          {busy ? (
-            <button className="stop-button" type="button" onClick={onStop} aria-label="Stop">
-              <span aria-hidden="true" className="composer-stop-glyph" />
-            </button>
-          ) : (
+          <div className="composer-actions">
+            {busy ? (
+              <button className="stop-button" type="button" onClick={onStop} aria-label="Stop">
+                <span aria-hidden="true" className="composer-stop-glyph" />
+              </button>
+            ) : null}
             <button
-              aria-label="Send message"
+              aria-label={busy ? "Queue message" : "Send message"}
               disabled={!agentAvailable || !hasContent || submitting}
             >
               <SendIcon />
             </button>
-          )}
+          </div>
         </div>
-      </div>
       </form>
     </div>
   );

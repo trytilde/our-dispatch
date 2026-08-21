@@ -95,7 +95,6 @@ export function ConversationSkeleton() {
     >
       <span className="sr-only">Loading conversation</span>
       <div className="conversation-skeleton-row assistant" aria-hidden="true">
-        <span className="conversation-skeleton-avatar" />
         <span className="conversation-skeleton-bubble wide">
           <i />
           <i />
@@ -109,7 +108,30 @@ export function ConversationSkeleton() {
         </span>
       </div>
       <div className="conversation-skeleton-row assistant" aria-hidden="true">
-        <span className="conversation-skeleton-avatar" />
+        <span className="conversation-skeleton-bubble medium">
+          <i />
+          <i />
+        </span>
+      </div>
+      <div className="conversation-skeleton-row user" aria-hidden="true">
+        <span className="conversation-skeleton-bubble short">
+          <i />
+        </span>
+      </div>
+      <div className="conversation-skeleton-row assistant" aria-hidden="true">
+        <span className="conversation-skeleton-bubble wide">
+          <i />
+          <i />
+          <i />
+        </span>
+      </div>
+      <div className="conversation-skeleton-row user" aria-hidden="true">
+        <span className="conversation-skeleton-bubble compact">
+          <i />
+          <i />
+        </span>
+      </div>
+      <div className="conversation-skeleton-row assistant" aria-hidden="true">
         <span className="conversation-skeleton-bubble medium">
           <i />
           <i />

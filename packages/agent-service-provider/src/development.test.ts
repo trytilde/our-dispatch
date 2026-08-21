@@ -57,12 +57,64 @@ describe("development agent diagnostics", () => {
       expect.objectContaining({ message: "stream exploded" }),
     );
   });
+
+  it("serves an agent scaffolded after the development app starts", async () => {
+    const root = await agentRoot(
+      `export default async function endpoint() { return new Response("factory") }\n`,
+    );
+    const app = await createAgentServiceApp(root);
+    await writeAgent(
+      join(root, "configuration/agent/subagents/helloy"),
+      `export default async function endpoint() { return new Response("helloy", { status: 202 }) }\n`,
+    );
+
+    const response = await app.request("http://openbot.test/api/agents/helloy", {
+      method: "POST",
+    });
+
+    expect(response.status).toBe(202);
+    await expect(response.text()).resolves.toBe("helloy");
+  });
+
+  it("refreshes persisted environment before importing a late agent", async () => {
+    const root = await agentRoot(
+      `export default async function endpoint() { return new Response("factory") }\n`,
+    );
+    const previous = process.env.AGENT_HELLOY_WEBHOOK_SIGNING_KEY;
+    delete process.env.AGENT_HELLOY_WEBHOOK_SIGNING_KEY;
+    const refreshEnvironment = vi.fn(() => {
+      process.env.AGENT_HELLOY_WEBHOOK_SIGNING_KEY = "fresh-key";
+    });
+    const app = await createAgentServiceApp(root, { refreshEnvironment });
+    await writeAgent(
+      join(root, "configuration/agent/subagents/helloy"),
+      `const key = process.env.AGENT_HELLOY_WEBHOOK_SIGNING_KEY; export default async function endpoint() { return new Response(key) }\n`,
+    );
+
+    try {
+      const response = await app.request("http://openbot.test/api/agents/helloy", {
+        method: "POST",
+      });
+
+      expect(response.status).toBe(200);
+      await expect(response.text()).resolves.toBe("fresh-key");
+      expect(refreshEnvironment).toHaveBeenCalledOnce();
+    } finally {
+      if (previous === undefined) delete process.env.AGENT_HELLOY_WEBHOOK_SIGNING_KEY;
+      else process.env.AGENT_HELLOY_WEBHOOK_SIGNING_KEY = previous;
+    }
+  });
 });
 
 async function agentRoot(source: string): Promise<string> {
   const root = await mkdtemp(join(tmpdir(), "openbot-agent-diagnostics-"));
   roots.push(root);
   const directory = join(root, "configuration/agent");
+  await writeAgent(directory, source);
+  return root;
+}
+
+async function writeAgent(directory: string, source: string): Promise<void> {
   await mkdir(join(directory, "tools"), { recursive: true });
   for (const name of [
     "await_shell",
@@ -77,5 +129,4 @@ async function agentRoot(source: string): Promise<string> {
   ])
     await writeFile(join(directory, "tools", `${name}.ts`), "export default {}\n");
   await writeFile(join(directory, "agent.ts"), source);
-  return root;
 }

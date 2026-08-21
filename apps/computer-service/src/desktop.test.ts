@@ -26,14 +26,14 @@ describe("agent desktops", () => {
     const desktopRoot = join(temporaryDirectory, "desktops");
     const tokenFile = join(temporaryDirectory, "novnc.tokens");
     await mkdir(binaryDirectory);
-    for (const command of ["Xvnc", "xdpyinfo", "dbus-launch"])
+    for (const command of ["Xvnc", "xdpyinfo", "dbus-send", "dbus-daemon"])
       await symlink("/usr/bin/true", join(binaryDirectory, command));
 
     process.env.PATH = `${binaryDirectory}:${originalEnvironment.PATH ?? ""}`;
     process.env.COMPUTER_DESKTOP_ROOT = desktopRoot;
     process.env.COMPUTER_VNC_TOKEN_FILE = tokenFile;
     vi.resetModules();
-    const { ensureAgentDesktop } = await import("./desktop.js");
+    const { agentDesktopEnvironment, ensureAgentDesktop } = await import("./desktop.js");
     const info = vi.spyOn(console, "info").mockImplementation(() => undefined);
 
     const [first, second] = await Promise.all([
@@ -41,19 +41,27 @@ describe("agent desktops", () => {
       ensureAgentDesktop("second-agent", "b".repeat(32)),
     ]);
 
-    expect(first).toEqual({ display: ":10", vncPort: 5910 });
-    expect(second).toEqual({ display: ":11", vncPort: 5911 });
+    expect(new Set([first.display, second.display])).toEqual(new Set([":10", ":11"]));
+    expect(new Set([first.vncPort, second.vncPort])).toEqual(new Set([5910, 5911]));
+    expect(first).not.toEqual(second);
+    expect(agentDesktopEnvironment("first-agent", first)).toMatchObject({
+      DISPLAY: first.display,
+      DBUS_SESSION_BUS_ADDRESS: `unix:path=${join(desktopRoot, "first-agent", "runtime", "bus")}`,
+    });
     await expect(ensureAgentDesktop("first-agent", "a".repeat(32))).resolves.toEqual(first);
     expect((await readFile(tokenFile, "utf8")).trim().split("\n").sort()).toEqual(
-      [`${"a".repeat(32)}: localhost:5910`, `${"b".repeat(32)}: localhost:5911`].sort(),
+      [
+        `${"a".repeat(32)}: localhost:${first.vncPort}`,
+        `${"b".repeat(32)}: localhost:${second.vncPort}`,
+      ].sort(),
     );
     expect(info).toHaveBeenCalledWith(
       "[openbot-vnc] started desktop",
       expect.objectContaining({
         agentId: "first-agent",
-        display: ":10",
+        display: first.display,
         requestId: "preview-one",
-        vncPort: 5910,
+        vncPort: first.vncPort,
       }),
     );
     expect(JSON.stringify(info.mock.calls)).not.toContain("a".repeat(32));

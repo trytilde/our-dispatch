@@ -40,6 +40,7 @@ function withNativeConfiguration(handler: typeof fetch): typeof fetch {
 const cleanups: Array<() => Promise<void>> = [];
 afterEach(async () => {
   electron.openExternal.mockClear();
+  electron.getSelectedStorageBackend.mockClear();
   vi.unstubAllGlobals();
   vi.unstubAllEnvs();
   await Promise.all(cleanups.splice(0).map((cleanup) => cleanup()));
@@ -88,7 +89,7 @@ describe("DesktopAuth", () => {
     vi.stubGlobal(
       "fetch",
       withNativeConfiguration(async (input: URL | RequestInfo, init?: RequestInit) => {
-        expect(String(input)).toBe("https://identity.test/oauth/token");
+        expect(requestUrl(input)).toBe("https://identity.test/oauth/token");
         expect(init?.body).toBeInstanceOf(URLSearchParams);
         const body = init?.body as URLSearchParams;
         expect(body.get("grant_type")).toBe("refresh_token");
@@ -113,7 +114,7 @@ describe("DesktopAuth", () => {
     vi.stubGlobal(
       "fetch",
       vi.fn(async (input: URL | RequestInfo) => {
-        expect(String(input)).toBe(`${controlOrigin}/auth/native-config`);
+        expect(requestUrl(input)).toBe(`${controlOrigin}/auth/native-config`);
         return Response.json(nativeConfiguration);
       }),
     );
@@ -145,6 +146,11 @@ describe("DesktopAuth", () => {
     }
   });
 });
+
+function requestUrl(input: URL | RequestInfo): string {
+  if (typeof input === "string") return input;
+  return input instanceof URL ? input.href : input.url;
+}
 
 async function storedCredentials(expiresIn = 3600): Promise<string> {
   const root = await mkdtemp(join(tmpdir(), "openbot-desktop-auth-"));

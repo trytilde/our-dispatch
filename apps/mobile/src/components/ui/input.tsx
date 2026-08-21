@@ -1,7 +1,7 @@
 import { Icon } from "@/components/ui/icon";
 import { Text } from "@/components/ui/text";
 import { useColor } from "@/hooks/useColor";
-import { BORDER_RADIUS, CORNERS, FONT_SIZE, HEIGHT } from "@/theme/globals";
+import { BORDER_RADIUS, CORNERS, FONT_FAMILY, FONT_SIZE, HEIGHT } from "@/theme/globals";
 import { LucideProps } from "lucide-react-native";
 import React, { forwardRef, ReactElement, useState } from "react";
 import { Pressable, TextInput, TextInputProps, TextStyle, View, ViewStyle } from "react-native";
@@ -97,6 +97,7 @@ export const Input = forwardRef<TextInput, InputProps>(
     const getInputStyle = (): TextStyle => ({
       flex: 1,
       fontSize: FONT_SIZE,
+      fontFamily: FONT_FAMILY,
       lineHeight: isTextarea ? 20 : undefined,
       color: disabled ? muted : error ? danger : textColor,
       paddingVertical: 0, // Remove default padding
@@ -384,7 +385,7 @@ export const GroupedInputItem = forwardRef<TextInput, GroupedInputItemProps>(
       rightComponent,
       inputStyle,
       labelStyle,
-      errorStyle,
+      errorStyle: _errorStyle,
       disabled,
       type = "input",
       rows = 3,
@@ -395,7 +396,7 @@ export const GroupedInputItem = forwardRef<TextInput, GroupedInputItemProps>(
     },
     ref,
   ) => {
-    const [isFocused, setIsFocused] = useState(false);
+    const [, setIsFocused] = useState(false);
 
     const text = useColor("text");
     const muted = useColor("textMuted");

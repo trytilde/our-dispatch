@@ -109,6 +109,7 @@ describe("agent service artifacts", () => {
       ["beta", [".profile"]],
     ]);
     const result = await buildVercelAgentService(context(root));
+    expect(result.outputs?.["agent-service.target"]).toBe("vercel");
     expect(result.outputs?.["agent-service.count"]).toBe("2");
     expect(result.outputs?.["agent-service.changed-count"]).toBe("2");
     for (const slug of ["factory", "beta"]) {

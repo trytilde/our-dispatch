@@ -6,7 +6,6 @@ import {
   type ComputerCallContext,
   type ComputerExecRequest,
   type ComputerHandle,
-  type ComputerInput,
   type ComputerImageSpec,
   type ComputerSpec,
   type PublishedComputerImage,
@@ -183,50 +182,6 @@ export class MicrosandboxComputerProvider extends BaseComputerProvider {
     await this.#requiredInstance(id)
       .fs()
       .write(computerWorkspacePath(path, _context.agentId), Buffer.from(content));
-  }
-
-  async screenshot(id: string, context: ComputerCallContext): Promise<Uint8Array> {
-    if (!context.agentId)
-      throw new ComputerProviderError(
-        "invalid_configuration",
-        "agentId is required for screenshots",
-      );
-    const desktop = await this.ensureAgentDesktop(id, context.agentId, context);
-    const screenshotPath = "/tmp/openbot-tool-screenshot.png";
-    const result = await this.exec(
-      id,
-      {
-        command: "import",
-        args: ["-display", desktop.display, "-window", "root", screenshotPath],
-      },
-      { ...context, agentId: undefined },
-    );
-    if (result.exitCode !== 0)
-      throw new ComputerProviderError(
-        "provider_unavailable",
-        `Screenshot failed: ${result.stderr}`,
-      );
-    return new Uint8Array(await this.#requiredInstance(id).fs().read(screenshotPath));
-  }
-
-  async input(id: string, input: ComputerInput, context: ComputerCallContext): Promise<void> {
-    if (!context.agentId)
-      throw new ComputerProviderError("invalid_configuration", "agentId is required for input");
-    const desktop = await this.ensureAgentDesktop(id, context.agentId, context);
-    const result = await this.exec(
-      id,
-      {
-        command: "xdotool",
-        args: inputArguments(input),
-        environment: { DISPLAY: desktop.display },
-      },
-      context,
-    );
-    if (result.exitCode !== 0)
-      throw new ComputerProviderError(
-        "provider_unavailable",
-        `Computer input failed: ${result.stderr}`,
-      );
   }
 
   async vnc(id: string, context: ComputerCallContext) {
@@ -412,12 +367,4 @@ async function availablePort(start: number): Promise<number> {
     if (available) return port;
   }
   throw new ComputerProviderError("provider_unavailable", "No local computer port is available");
-}
-
-function inputArguments(input: ComputerInput): string[] {
-  if (input.action === "mouse_move")
-    return ["mousemove", "--sync", String(input.x), String(input.y)];
-  if (input.action === "click") return ["click", String(input.button ?? 1)];
-  if (input.action === "type") return ["type", "--delay", String(input.delayMs ?? 10), input.text];
-  return ["key", input.key];
 }

@@ -143,7 +143,7 @@ export function eventBusyState(event: ChatEvent): boolean | undefined {
     )
   )
     return false;
-  if (/^(busy|working|running|streaming|queued|pending|starting|in_progress)$/.test(status))
+  if (/^(busy|working|running|streaming|typing|queued|pending|starting|in_progress)$/.test(status))
     return true;
   if (kind.includes("turn.started")) return true;
   if (kind.includes("turn.completed") || kind.includes("turn.failed")) return false;
@@ -158,7 +158,10 @@ function normalizedEventName(event: ChatEvent): string {
 export function eventName(event: ChatEvent): string {
   const nestedKind = record(record(event.data).kind);
   const named = firstString(nestedKind, "kind") || Object.keys(nestedKind)[0] || event.type;
-  return named.toLowerCase().replaceAll("_", ".");
+  return named
+    .replace(/([a-z0-9])([A-Z])/g, "$1.$2")
+    .toLowerCase()
+    .replaceAll("_", ".");
 }
 
 export function uniqueMessages(messages: ChatMessage[]): ChatMessage[] {
@@ -181,7 +184,8 @@ export function uniqueMessages(messages: ChatMessage[]): ChatMessage[] {
     for (const reply of replies.get(message.id) ?? []) append(reply);
   };
   for (const message of chronological)
-    if (!message.in_reply_to_message_id || !ids.has(message.in_reply_to_message_id)) append(message);
+    if (!message.in_reply_to_message_id || !ids.has(message.in_reply_to_message_id))
+      append(message);
   for (const message of chronological) append(message);
   return ordered;
 }

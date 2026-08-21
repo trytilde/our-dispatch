@@ -5,8 +5,8 @@ import { Configuration } from "@tryopenbot/configuration";
 import { LocalControlServiceProvider } from "@tryopenbot/control-service-provider";
 import { MicrosandboxComputerProvider } from "@tryopenbot/computer-service-provider";
 import { GitHubGitProvider } from "@tryopenbot/git-provider";
-import { VercelInferenceProvider } from "@tryopenbot/inference-provider";
-import { TildePlatform, VercelPlatform } from "@tryopenbot/platform-integrations";
+import { {{#if CODEX_INFERENCE}}CodexInferenceProvider{{else}}VercelInferenceProvider{{/if}} } from "@tryopenbot/inference-provider";
+import { TildePlatform{{#unless CODEX_INFERENCE}}, VercelPlatform{{/unless}} } from "@tryopenbot/platform-integrations";
 
 const tilde = new TildePlatform({
   apiKey: process.env.TILDE_API_KEY!,
@@ -14,7 +14,7 @@ const tilde = new TildePlatform({
   orgId: process.env.TILDE_ORG_ID!,
   teamId: process.env.TILDE_TEAM_ID!,
 });
-const vercel = new VercelPlatform();
+{{#unless CODEX_INFERENCE}}const vercel = new VercelPlatform();{{/unless}}
 
 export default Configuration({
   providers: {
@@ -23,7 +23,7 @@ export default Configuration({
     agentService: new LocalAgentServiceProvider(),
     agent: new TildeAgentProvider(tilde),
     computer: new MicrosandboxComputerProvider(),
-    inference: new VercelInferenceProvider(vercel),
+    inference: new {{#if CODEX_INFERENCE}}CodexInferenceProvider(){{else}}VercelInferenceProvider(vercel){{/if}},
     git: new GitHubGitProvider(tilde),
   },
 });

@@ -83,6 +83,7 @@ export async function runProductionDeploy(argv: readonly string[]): Promise<void
   const controlService = configuration.providers.controlService;
   const auth = configuration.providers.auth;
   const computer = configuration.providers.computer;
+  const inference = configuration.providers.inference;
   const deployAgents = options.service === "all" || options.service === "agents";
   const computerId = deploymentConfiguration.environment.COMPUTER_ID?.trim() || "openbot-computer";
   const developmentSandboxId =
@@ -132,6 +133,16 @@ export async function runProductionDeploy(argv: readonly string[]): Promise<void
             implementation: agentService,
             providerType: "Agent Service Provider",
             provider: { buildable: agentService, deployable: agentService },
+          },
+        ]
+      : []),
+    ...(deployAgents && inference
+      ? [
+          {
+            id: "inference",
+            implementation: inference,
+            providerType: "Inference Provider",
+            provider: inference,
           },
         ]
       : []),
@@ -195,6 +206,7 @@ export async function runProductionDeploy(argv: readonly string[]): Promise<void
   const runOptions = {
     devMode: false,
     dryRun: options.dryRun,
+    interactive: false,
     repositoryRoot,
     environment: deploymentConfiguration.environment,
     configuration: deploymentConfiguration.configuration,

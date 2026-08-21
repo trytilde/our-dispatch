@@ -38,7 +38,7 @@
     "@tryopenbot/runtime-provider": "workspace:*",
     "@tryopenbot/utilities": "workspace:*",
     "@vercel/sandbox": "3.0.0",
-    "ai": "6.0.250",
+    "ai": "7.0.64",
     "microsandbox": "0.6.8",
     "zod": "4.4.3"
   },

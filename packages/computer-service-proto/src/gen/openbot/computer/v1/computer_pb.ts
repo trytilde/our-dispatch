@@ -10,7 +10,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file openbot/computer/v1/computer.proto.
  */
 export const file_openbot_computer_v1_computer: GenFile = /*@__PURE__*/
-  fileDesc("CiJvcGVuYm90L2NvbXB1dGVyL3YxL2NvbXB1dGVyLnByb3RvEhNvcGVuYm90LmNvbXB1dGVyLnYxIg8KDUhlYWx0aFJlcXVlc3QiXwoOSGVhbHRoUmVzcG9uc2USDwoHaGVhbHRoeRgBIAEoCBIPCgd2ZXJzaW9uGAIgASgJEhgKEGxpZmVjeWNsZV9kaWdlc3QYAyABKAkSEQoJdm5jX3JlYWR5GAQgASgIIkwKDUxpZmVjeWNsZUZpbGUSDAoEcGF0aBgBIAEoCRIPCgdjb250ZW50GAIgASgMEgwKBG1vZGUYAyABKA0SDgoGc2hhMjU2GAQgASgJImAKD0xpZmVjeWNsZVNjcmlwdBIKCgJpZBgBIAEoCRIMCgRwYXRoGAIgASgJEjMKBnBoYXNlcxgDIAMoDjIjLm9wZW5ib3QuY29tcHV0ZXIudjEuTGlmZWN5Y2xlUGhhc2UilwEKG0FwcGx5TGlmZWN5Y2xlQnVuZGxlUmVxdWVzdBIOCgZkaWdlc3QYASABKAkSMQoFZmlsZXMYAiADKAsyIi5vcGVuYm90LmNvbXB1dGVyLnYxLkxpZmVjeWNsZUZpbGUSNQoHc2NyaXB0cxgDIAMoCzIkLm9wZW5ib3QuY29tcHV0ZXIudjEuTGlmZWN5Y2xlU2NyaXB0Ij8KHEFwcGx5TGlmZWN5Y2xlQnVuZGxlUmVzcG9uc2USDgoGZGlnZXN0GAEgASgJEg8KB2NoYW5nZWQYAiABKAgiYgoTUnVuTGlmZWN5Y2xlUmVxdWVzdBIyCgVwaGFzZRgBIAEoDjIjLm9wZW5ib3QuY29tcHV0ZXIudjEuTGlmZWN5Y2xlUGhhc2USFwoPZXhwZWN0ZWRfZGlnZXN0GAIgASgJIlcKD0xpZmVjeWNsZVJlc3VsdBIRCglzY3JpcHRfaWQYASABKAkSEQoJZXhpdF9jb2RlGAIgASgFEg4KBnN0ZG91dBgDIAEoCRIOCgZzdGRlcnIYBCABKAkiXQoUUnVuTGlmZWN5Y2xlUmVzcG9uc2USDgoGZGlnZXN0GAEgASgJEjUKB3Jlc3VsdHMYAiADKAsyJC5vcGVuYm90LmNvbXB1dGVyLnYxLkxpZmVjeWNsZVJlc3VsdCL+AQoLRXhlY1JlcXVlc3QSDwoHY29tbWFuZBgBIAEoCRIRCglhcmd1bWVudHMYAiADKAkSCwoDY3dkGAMgASgJEhwKFHRpbWVvdXRfbWlsbGlzZWNvbmRzGAQgASgNEkYKC2Vudmlyb25tZW50GAUgAygLMjEub3BlbmJvdC5jb21wdXRlci52MS5FeGVjUmVxdWVzdC5FbnZpcm9ubWVudEVudHJ5EhAKCGFnZW50X2lkGAYgASgJEhIKCmJhY2tncm91bmQYByABKAgaMgoQRW52aXJvbm1lbnRFbnRyeRILCgNrZXkYASABKAkSDQoFdmFsdWUYAiABKAk6AjgBImIKDEV4ZWNSZXNwb25zZRIRCglleGl0X2NvZGUYASABKAUSDgoGc3Rkb3V0GAIgASgJEg4KBnN0ZGVychgDIAEoCRIOCgZqb2JfaWQYBCABKAkSDwoHcnVubmluZxgFIAEoCCJSChBBd2FpdEV4ZWNSZXF1ZXN0EhAKCGFnZW50X2lkGAEgASgJEg4KBmpvYl9pZBgCIAEoCRIcChR0aW1lb3V0X21pbGxpc2Vjb25kcxgDIAEoDSIxCg9SZWFkRmlsZVJlcXVlc3QSDAoEcGF0aBgBIAEoCRIQCghhZ2VudF9pZBgCIAEoCSIjChBSZWFkRmlsZVJlc3BvbnNlEg8KB2NvbnRlbnQYASABKAwiUQoQV3JpdGVGaWxlUmVxdWVzdBIMCgRwYXRoGAEgASgJEg8KB2NvbnRlbnQYAiABKAwSDAoEbW9kZRgDIAEoDRIQCghhZ2VudF9pZBgEIAEoCSIqChFXcml0ZUZpbGVSZXNwb25zZRIVCg1ieXRlc193cml0dGVuGAEgASgEIiUKEVNjcmVlbnNob3RSZXF1ZXN0EhAKCGFnZW50X2lkGAEgASgJIiEKElNjcmVlbnNob3RSZXNwb25zZRILCgNwbmcYASABKAwiRgoMSW5wdXRSZXF1ZXN0Eg4KBmFjdGlvbhgBIAEoCRIUCgxwYXlsb2FkX2pzb24YAiABKAkSEAoIYWdlbnRfaWQYAyABKAkiIQoNSW5wdXRSZXNwb25zZRIQCghhY2NlcHRlZBgBIAEoCCI8ChRFbnN1cmVEZXNrdG9wUmVxdWVzdBIQCghhZ2VudF9pZBgBIAEoCRISCgpjYXBhYmlsaXR5GAIgASgJIjoKFUVuc3VyZURlc2t0b3BSZXNwb25zZRIPCgdkaXNwbGF5GAEgASgJEhAKCHZuY19wb3J0GAIgASgNIhIKEExpc3RQb3J0c1JlcXVlc3QiJgoEUG9ydBIMCgRwb3J0GAEgASgNEhAKCHByb3RvY29sGAIgASgJIj0KEUxpc3RQb3J0c1Jlc3BvbnNlEigKBXBvcnRzGAEgAygLMhkub3BlbmJvdC5jb21wdXRlci52MS5Qb3J0IjIKEFR1bm5lbFZuY1JlcXVlc3QSDAoEZGF0YRgBIAEoDBIQCghhZ2VudF9pZBgCIAEoCSIhChFUdW5uZWxWbmNSZXNwb25zZRIMCgRkYXRhGAEgASgMKogBCg5MaWZlY3ljbGVQaGFzZRIfChtMSUZFQ1lDTEVfUEhBU0VfVU5TUEVDSUZJRUQQABIfChtMSUZFQ1lDTEVfUEhBU0VfSU1BR0VfQlVJTEQQARIaChZMSUZFQ1lDTEVfUEhBU0VfQ1JFQVRFEAISGAoUTElGRUNZQ0xFX1BIQVNFX1dBS0UQAzLyCAoPQ29tcHV0ZXJTZXJ2aWNlElEKBkhlYWx0aBIiLm9wZW5ib3QuY29tcHV0ZXIudjEuSGVhbHRoUmVxdWVzdBojLm9wZW5ib3QuY29tcHV0ZXIudjEuSGVhbHRoUmVzcG9uc2USewoUQXBwbHlMaWZlY3ljbGVCdW5kbGUSMC5vcGVuYm90LmNvbXB1dGVyLnYxLkFwcGx5TGlmZWN5Y2xlQnVuZGxlUmVxdWVzdBoxLm9wZW5ib3QuY29tcHV0ZXIudjEuQXBwbHlMaWZlY3ljbGVCdW5kbGVSZXNwb25zZRJjCgxSdW5MaWZlY3ljbGUSKC5vcGVuYm90LmNvbXB1dGVyLnYxLlJ1bkxpZmVjeWNsZVJlcXVlc3QaKS5vcGVuYm90LmNvbXB1dGVyLnYxLlJ1bkxpZmVjeWNsZVJlc3BvbnNlEksKBEV4ZWMSIC5vcGVuYm90LmNvbXB1dGVyLnYxLkV4ZWNSZXF1ZXN0GiEub3BlbmJvdC5jb21wdXRlci52MS5FeGVjUmVzcG9uc2USVQoJQXdhaXRFeGVjEiUub3BlbmJvdC5jb21wdXRlci52MS5Bd2FpdEV4ZWNSZXF1ZXN0GiEub3BlbmJvdC5jb21wdXRlci52MS5FeGVjUmVzcG9uc2USVwoIUmVhZEZpbGUSJC5vcGVuYm90LmNvbXB1dGVyLnYxLlJlYWRGaWxlUmVxdWVzdBolLm9wZW5ib3QuY29tcHV0ZXIudjEuUmVhZEZpbGVSZXNwb25zZRJaCglXcml0ZUZpbGUSJS5vcGVuYm90LmNvbXB1dGVyLnYxLldyaXRlRmlsZVJlcXVlc3QaJi5vcGVuYm90LmNvbXB1dGVyLnYxLldyaXRlRmlsZVJlc3BvbnNlEl0KClNjcmVlbnNob3QSJi5vcGVuYm90LmNvbXB1dGVyLnYxLlNjcmVlbnNob3RSZXF1ZXN0Gicub3BlbmJvdC5jb21wdXRlci52MS5TY3JlZW5zaG90UmVzcG9uc2USTgoFSW5wdXQSIS5vcGVuYm90LmNvbXB1dGVyLnYxLklucHV0UmVxdWVzdBoiLm9wZW5ib3QuY29tcHV0ZXIudjEuSW5wdXRSZXNwb25zZRJmCg1FbnN1cmVEZXNrdG9wEikub3BlbmJvdC5jb21wdXRlci52MS5FbnN1cmVEZXNrdG9wUmVxdWVzdBoqLm9wZW5ib3QuY29tcHV0ZXIudjEuRW5zdXJlRGVza3RvcFJlc3BvbnNlEloKCUxpc3RQb3J0cxIlLm9wZW5ib3QuY29tcHV0ZXIudjEuTGlzdFBvcnRzUmVxdWVzdBomLm9wZW5ib3QuY29tcHV0ZXIudjEuTGlzdFBvcnRzUmVzcG9uc2USXgoJVHVubmVsVm5jEiUub3BlbmJvdC5jb21wdXRlci52MS5UdW5uZWxWbmNSZXF1ZXN0GiYub3BlbmJvdC5jb21wdXRlci52MS5UdW5uZWxWbmNSZXNwb25zZSgBMAFiBnByb3RvMw");
+  fileDesc("CiJvcGVuYm90L2NvbXB1dGVyL3YxL2NvbXB1dGVyLnByb3RvEhNvcGVuYm90LmNvbXB1dGVyLnYxIg8KDUhlYWx0aFJlcXVlc3QiXwoOSGVhbHRoUmVzcG9uc2USDwoHaGVhbHRoeRgBIAEoCBIPCgd2ZXJzaW9uGAIgASgJEhgKEGxpZmVjeWNsZV9kaWdlc3QYAyABKAkSEQoJdm5jX3JlYWR5GAQgASgIIkwKDUxpZmVjeWNsZUZpbGUSDAoEcGF0aBgBIAEoCRIPCgdjb250ZW50GAIgASgMEgwKBG1vZGUYAyABKA0SDgoGc2hhMjU2GAQgASgJImAKD0xpZmVjeWNsZVNjcmlwdBIKCgJpZBgBIAEoCRIMCgRwYXRoGAIgASgJEjMKBnBoYXNlcxgDIAMoDjIjLm9wZW5ib3QuY29tcHV0ZXIudjEuTGlmZWN5Y2xlUGhhc2UilwEKG0FwcGx5TGlmZWN5Y2xlQnVuZGxlUmVxdWVzdBIOCgZkaWdlc3QYASABKAkSMQoFZmlsZXMYAiADKAsyIi5vcGVuYm90LmNvbXB1dGVyLnYxLkxpZmVjeWNsZUZpbGUSNQoHc2NyaXB0cxgDIAMoCzIkLm9wZW5ib3QuY29tcHV0ZXIudjEuTGlmZWN5Y2xlU2NyaXB0Ij8KHEFwcGx5TGlmZWN5Y2xlQnVuZGxlUmVzcG9uc2USDgoGZGlnZXN0GAEgASgJEg8KB2NoYW5nZWQYAiABKAgiYgoTUnVuTGlmZWN5Y2xlUmVxdWVzdBIyCgVwaGFzZRgBIAEoDjIjLm9wZW5ib3QuY29tcHV0ZXIudjEuTGlmZWN5Y2xlUGhhc2USFwoPZXhwZWN0ZWRfZGlnZXN0GAIgASgJIlcKD0xpZmVjeWNsZVJlc3VsdBIRCglzY3JpcHRfaWQYASABKAkSEQoJZXhpdF9jb2RlGAIgASgFEg4KBnN0ZG91dBgDIAEoCRIOCgZzdGRlcnIYBCABKAkiXQoUUnVuTGlmZWN5Y2xlUmVzcG9uc2USDgoGZGlnZXN0GAEgASgJEjUKB3Jlc3VsdHMYAiADKAsyJC5vcGVuYm90LmNvbXB1dGVyLnYxLkxpZmVjeWNsZVJlc3VsdCL+AQoLRXhlY1JlcXVlc3QSDwoHY29tbWFuZBgBIAEoCRIRCglhcmd1bWVudHMYAiADKAkSCwoDY3dkGAMgASgJEhwKFHRpbWVvdXRfbWlsbGlzZWNvbmRzGAQgASgNEkYKC2Vudmlyb25tZW50GAUgAygLMjEub3BlbmJvdC5jb21wdXRlci52MS5FeGVjUmVxdWVzdC5FbnZpcm9ubWVudEVudHJ5EhAKCGFnZW50X2lkGAYgASgJEhIKCmJhY2tncm91bmQYByABKAgaMgoQRW52aXJvbm1lbnRFbnRyeRILCgNrZXkYASABKAkSDQoFdmFsdWUYAiABKAk6AjgBImIKDEV4ZWNSZXNwb25zZRIRCglleGl0X2NvZGUYASABKAUSDgoGc3Rkb3V0GAIgASgJEg4KBnN0ZGVychgDIAEoCRIOCgZqb2JfaWQYBCABKAkSDwoHcnVubmluZxgFIAEoCCJSChBBd2FpdEV4ZWNSZXF1ZXN0EhAKCGFnZW50X2lkGAEgASgJEg4KBmpvYl9pZBgCIAEoCRIcChR0aW1lb3V0X21pbGxpc2Vjb25kcxgDIAEoDSIxCg9SZWFkRmlsZVJlcXVlc3QSDAoEcGF0aBgBIAEoCRIQCghhZ2VudF9pZBgCIAEoCSIjChBSZWFkRmlsZVJlc3BvbnNlEg8KB2NvbnRlbnQYASABKAwiUQoQV3JpdGVGaWxlUmVxdWVzdBIMCgRwYXRoGAEgASgJEg8KB2NvbnRlbnQYAiABKAwSDAoEbW9kZRgDIAEoDRIQCghhZ2VudF9pZBgEIAEoCSIqChFXcml0ZUZpbGVSZXNwb25zZRIVCg1ieXRlc193cml0dGVuGAEgASgEIiUKEVNjcmVlbnNob3RSZXF1ZXN0EhAKCGFnZW50X2lkGAEgASgJIiEKElNjcmVlbnNob3RSZXNwb25zZRILCgNwbmcYASABKAwiRgoMSW5wdXRSZXF1ZXN0Eg4KBmFjdGlvbhgBIAEoCRIUCgxwYXlsb2FkX2pzb24YAiABKAkSEAoIYWdlbnRfaWQYAyABKAkiIQoNSW5wdXRSZXNwb25zZRIQCghhY2NlcHRlZBgBIAEoCCInChNMaXN0Q3VhVG9vbHNSZXF1ZXN0EhAKCGFnZW50X2lkGAEgASgJIlEKEUN1YVRvb2xEZWZpbml0aW9uEgwKBG5hbWUYASABKAkSEwoLZGVzY3JpcHRpb24YAiABKAkSGQoRaW5wdXRfc2NoZW1hX2pzb24YAyABKAkiTQoUTGlzdEN1YVRvb2xzUmVzcG9uc2USNQoFdG9vbHMYASADKAsyJi5vcGVuYm90LmNvbXB1dGVyLnYxLkN1YVRvb2xEZWZpbml0aW9uIkwKEkNhbGxDdWFUb29sUmVxdWVzdBIQCghhZ2VudF9pZBgBIAEoCRIMCgRuYW1lGAIgASgJEhYKDmFyZ3VtZW50c19qc29uGAMgASgJIjMKD0N1YUltYWdlQ29udGVudBISCgptZWRpYV90eXBlGAEgASgJEgwKBGRhdGEYAiABKAwiXgoKQ3VhQ29udGVudBIOCgR0ZXh0GAEgASgJSAASNQoFaW1hZ2UYAiABKAsyJC5vcGVuYm90LmNvbXB1dGVyLnYxLkN1YUltYWdlQ29udGVudEgAQgkKB2NvbnRlbnQisQIKE0NhbGxDdWFUb29sUmVzcG9uc2USMAoHY29udGVudBgBIAMoCzIfLm9wZW5ib3QuY29tcHV0ZXIudjEuQ3VhQ29udGVudBIXCg9zdHJ1Y3R1cmVkX2pzb24YAiABKAkSEAoIaXNfZXJyb3IYAyABKAgSEgoKZXJyb3JfY29kZRgEIAEoCRIQCgh2ZXJpZmllZBgFIAEoCBIQCghkZWdyYWRlZBgGIAEoCBIQCghyYXdfanNvbhgHIAEoCRJDChFhY3Rpb25fY29tcGxldGlvbhgIIAEoDjIoLm9wZW5ib3QuY29tcHV0ZXIudjEuQ3VhQWN0aW9uQ29tcGxldGlvbhITCgthY3Rpb25fanNvbhgJIAEoCRIZChF2ZXJpZmljYXRpb25fanNvbhgKIAEoCSI8ChRFbnN1cmVEZXNrdG9wUmVxdWVzdBIQCghhZ2VudF9pZBgBIAEoCRISCgpjYXBhYmlsaXR5GAIgASgJIjoKFUVuc3VyZURlc2t0b3BSZXNwb25zZRIPCgdkaXNwbGF5GAEgASgJEhAKCHZuY19wb3J0GAIgASgNIhIKEExpc3RQb3J0c1JlcXVlc3QiJgoEUG9ydBIMCgRwb3J0GAEgASgNEhAKCHByb3RvY29sGAIgASgJIj0KEUxpc3RQb3J0c1Jlc3BvbnNlEigKBXBvcnRzGAEgAygLMhkub3BlbmJvdC5jb21wdXRlci52MS5Qb3J0IjIKEFR1bm5lbFZuY1JlcXVlc3QSDAoEZGF0YRgBIAEoDBIQCghhZ2VudF9pZBgCIAEoCSIhChFUdW5uZWxWbmNSZXNwb25zZRIMCgRkYXRhGAEgASgMKogBCg5MaWZlY3ljbGVQaGFzZRIfChtMSUZFQ1lDTEVfUEhBU0VfVU5TUEVDSUZJRUQQABIfChtMSUZFQ1lDTEVfUEhBU0VfSU1BR0VfQlVJTEQQARIaChZMSUZFQ1lDTEVfUEhBU0VfQ1JFQVRFEAISGAoUTElGRUNZQ0xFX1BIQVNFX1dBS0UQAyqrAQoTQ3VhQWN0aW9uQ29tcGxldGlvbhIlCiFDVUFfQUNUSU9OX0NPTVBMRVRJT05fVU5TUEVDSUZJRUQQABIlCiFDVUFfQUNUSU9OX0NPTVBMRVRJT05fTk9UX1NUQVJURUQQARIjCh9DVUFfQUNUSU9OX0NPTVBMRVRJT05fQ09NUExFVEVEEAISIQodQ1VBX0FDVElPTl9DT01QTEVUSU9OX1VOS05PV04QAzK5CgoPQ29tcHV0ZXJTZXJ2aWNlElEKBkhlYWx0aBIiLm9wZW5ib3QuY29tcHV0ZXIudjEuSGVhbHRoUmVxdWVzdBojLm9wZW5ib3QuY29tcHV0ZXIudjEuSGVhbHRoUmVzcG9uc2USewoUQXBwbHlMaWZlY3ljbGVCdW5kbGUSMC5vcGVuYm90LmNvbXB1dGVyLnYxLkFwcGx5TGlmZWN5Y2xlQnVuZGxlUmVxdWVzdBoxLm9wZW5ib3QuY29tcHV0ZXIudjEuQXBwbHlMaWZlY3ljbGVCdW5kbGVSZXNwb25zZRJjCgxSdW5MaWZlY3ljbGUSKC5vcGVuYm90LmNvbXB1dGVyLnYxLlJ1bkxpZmVjeWNsZVJlcXVlc3QaKS5vcGVuYm90LmNvbXB1dGVyLnYxLlJ1bkxpZmVjeWNsZVJlc3BvbnNlEksKBEV4ZWMSIC5vcGVuYm90LmNvbXB1dGVyLnYxLkV4ZWNSZXF1ZXN0GiEub3BlbmJvdC5jb21wdXRlci52MS5FeGVjUmVzcG9uc2USVQoJQXdhaXRFeGVjEiUub3BlbmJvdC5jb21wdXRlci52MS5Bd2FpdEV4ZWNSZXF1ZXN0GiEub3BlbmJvdC5jb21wdXRlci52MS5FeGVjUmVzcG9uc2USVwoIUmVhZEZpbGUSJC5vcGVuYm90LmNvbXB1dGVyLnYxLlJlYWRGaWxlUmVxdWVzdBolLm9wZW5ib3QuY29tcHV0ZXIudjEuUmVhZEZpbGVSZXNwb25zZRJaCglXcml0ZUZpbGUSJS5vcGVuYm90LmNvbXB1dGVyLnYxLldyaXRlRmlsZVJlcXVlc3QaJi5vcGVuYm90LmNvbXB1dGVyLnYxLldyaXRlRmlsZVJlc3BvbnNlEl0KClNjcmVlbnNob3QSJi5vcGVuYm90LmNvbXB1dGVyLnYxLlNjcmVlbnNob3RSZXF1ZXN0Gicub3BlbmJvdC5jb21wdXRlci52MS5TY3JlZW5zaG90UmVzcG9uc2USTgoFSW5wdXQSIS5vcGVuYm90LmNvbXB1dGVyLnYxLklucHV0UmVxdWVzdBoiLm9wZW5ib3QuY29tcHV0ZXIudjEuSW5wdXRSZXNwb25zZRJjCgxMaXN0Q3VhVG9vbHMSKC5vcGVuYm90LmNvbXB1dGVyLnYxLkxpc3RDdWFUb29sc1JlcXVlc3QaKS5vcGVuYm90LmNvbXB1dGVyLnYxLkxpc3RDdWFUb29sc1Jlc3BvbnNlEmAKC0NhbGxDdWFUb29sEicub3BlbmJvdC5jb21wdXRlci52MS5DYWxsQ3VhVG9vbFJlcXVlc3QaKC5vcGVuYm90LmNvbXB1dGVyLnYxLkNhbGxDdWFUb29sUmVzcG9uc2USZgoNRW5zdXJlRGVza3RvcBIpLm9wZW5ib3QuY29tcHV0ZXIudjEuRW5zdXJlRGVza3RvcFJlcXVlc3QaKi5vcGVuYm90LmNvbXB1dGVyLnYxLkVuc3VyZURlc2t0b3BSZXNwb25zZRJaCglMaXN0UG9ydHMSJS5vcGVuYm90LmNvbXB1dGVyLnYxLkxpc3RQb3J0c1JlcXVlc3QaJi5vcGVuYm90LmNvbXB1dGVyLnYxLkxpc3RQb3J0c1Jlc3BvbnNlEl4KCVR1bm5lbFZuYxIlLm9wZW5ib3QuY29tcHV0ZXIudjEuVHVubmVsVm5jUmVxdWVzdBomLm9wZW5ib3QuY29tcHV0ZXIudjEuVHVubmVsVm5jUmVzcG9uc2UoATABYgZwcm90bzM");
 
 /**
  * @generated from message openbot.computer.v1.HealthRequest
@@ -519,6 +519,207 @@ export const InputResponseSchema: GenMessage<InputResponse> = /*@__PURE__*/
   messageDesc(file_openbot_computer_v1_computer, 19);
 
 /**
+ * @generated from message openbot.computer.v1.ListCuaToolsRequest
+ */
+export type ListCuaToolsRequest = Message<"openbot.computer.v1.ListCuaToolsRequest"> & {
+  /**
+   * @generated from field: string agent_id = 1;
+   */
+  agentId: string;
+};
+
+/**
+ * Describes the message openbot.computer.v1.ListCuaToolsRequest.
+ * Use `create(ListCuaToolsRequestSchema)` to create a new message.
+ */
+export const ListCuaToolsRequestSchema: GenMessage<ListCuaToolsRequest> = /*@__PURE__*/
+  messageDesc(file_openbot_computer_v1_computer, 20);
+
+/**
+ * @generated from message openbot.computer.v1.CuaToolDefinition
+ */
+export type CuaToolDefinition = Message<"openbot.computer.v1.CuaToolDefinition"> & {
+  /**
+   * @generated from field: string name = 1;
+   */
+  name: string;
+
+  /**
+   * @generated from field: string description = 2;
+   */
+  description: string;
+
+  /**
+   * @generated from field: string input_schema_json = 3;
+   */
+  inputSchemaJson: string;
+};
+
+/**
+ * Describes the message openbot.computer.v1.CuaToolDefinition.
+ * Use `create(CuaToolDefinitionSchema)` to create a new message.
+ */
+export const CuaToolDefinitionSchema: GenMessage<CuaToolDefinition> = /*@__PURE__*/
+  messageDesc(file_openbot_computer_v1_computer, 21);
+
+/**
+ * @generated from message openbot.computer.v1.ListCuaToolsResponse
+ */
+export type ListCuaToolsResponse = Message<"openbot.computer.v1.ListCuaToolsResponse"> & {
+  /**
+   * @generated from field: repeated openbot.computer.v1.CuaToolDefinition tools = 1;
+   */
+  tools: CuaToolDefinition[];
+};
+
+/**
+ * Describes the message openbot.computer.v1.ListCuaToolsResponse.
+ * Use `create(ListCuaToolsResponseSchema)` to create a new message.
+ */
+export const ListCuaToolsResponseSchema: GenMessage<ListCuaToolsResponse> = /*@__PURE__*/
+  messageDesc(file_openbot_computer_v1_computer, 22);
+
+/**
+ * @generated from message openbot.computer.v1.CallCuaToolRequest
+ */
+export type CallCuaToolRequest = Message<"openbot.computer.v1.CallCuaToolRequest"> & {
+  /**
+   * @generated from field: string agent_id = 1;
+   */
+  agentId: string;
+
+  /**
+   * @generated from field: string name = 2;
+   */
+  name: string;
+
+  /**
+   * @generated from field: string arguments_json = 3;
+   */
+  argumentsJson: string;
+};
+
+/**
+ * Describes the message openbot.computer.v1.CallCuaToolRequest.
+ * Use `create(CallCuaToolRequestSchema)` to create a new message.
+ */
+export const CallCuaToolRequestSchema: GenMessage<CallCuaToolRequest> = /*@__PURE__*/
+  messageDesc(file_openbot_computer_v1_computer, 23);
+
+/**
+ * @generated from message openbot.computer.v1.CuaImageContent
+ */
+export type CuaImageContent = Message<"openbot.computer.v1.CuaImageContent"> & {
+  /**
+   * @generated from field: string media_type = 1;
+   */
+  mediaType: string;
+
+  /**
+   * @generated from field: bytes data = 2;
+   */
+  data: Uint8Array;
+};
+
+/**
+ * Describes the message openbot.computer.v1.CuaImageContent.
+ * Use `create(CuaImageContentSchema)` to create a new message.
+ */
+export const CuaImageContentSchema: GenMessage<CuaImageContent> = /*@__PURE__*/
+  messageDesc(file_openbot_computer_v1_computer, 24);
+
+/**
+ * @generated from message openbot.computer.v1.CuaContent
+ */
+export type CuaContent = Message<"openbot.computer.v1.CuaContent"> & {
+  /**
+   * @generated from oneof openbot.computer.v1.CuaContent.content
+   */
+  content: {
+    /**
+     * @generated from field: string text = 1;
+     */
+    value: string;
+    case: "text";
+  } | {
+    /**
+     * @generated from field: openbot.computer.v1.CuaImageContent image = 2;
+     */
+    value: CuaImageContent;
+    case: "image";
+  } | { case: undefined; value?: undefined };
+};
+
+/**
+ * Describes the message openbot.computer.v1.CuaContent.
+ * Use `create(CuaContentSchema)` to create a new message.
+ */
+export const CuaContentSchema: GenMessage<CuaContent> = /*@__PURE__*/
+  messageDesc(file_openbot_computer_v1_computer, 25);
+
+/**
+ * @generated from message openbot.computer.v1.CallCuaToolResponse
+ */
+export type CallCuaToolResponse = Message<"openbot.computer.v1.CallCuaToolResponse"> & {
+  /**
+   * @generated from field: repeated openbot.computer.v1.CuaContent content = 1;
+   */
+  content: CuaContent[];
+
+  /**
+   * @generated from field: string structured_json = 2;
+   */
+  structuredJson: string;
+
+  /**
+   * @generated from field: bool is_error = 3;
+   */
+  isError: boolean;
+
+  /**
+   * @generated from field: string error_code = 4;
+   */
+  errorCode: string;
+
+  /**
+   * @generated from field: bool verified = 5;
+   */
+  verified: boolean;
+
+  /**
+   * @generated from field: bool degraded = 6;
+   */
+  degraded: boolean;
+
+  /**
+   * @generated from field: string raw_json = 7;
+   */
+  rawJson: string;
+
+  /**
+   * @generated from field: openbot.computer.v1.CuaActionCompletion action_completion = 8;
+   */
+  actionCompletion: CuaActionCompletion;
+
+  /**
+   * @generated from field: string action_json = 9;
+   */
+  actionJson: string;
+
+  /**
+   * @generated from field: string verification_json = 10;
+   */
+  verificationJson: string;
+};
+
+/**
+ * Describes the message openbot.computer.v1.CallCuaToolResponse.
+ * Use `create(CallCuaToolResponseSchema)` to create a new message.
+ */
+export const CallCuaToolResponseSchema: GenMessage<CallCuaToolResponse> = /*@__PURE__*/
+  messageDesc(file_openbot_computer_v1_computer, 26);
+
+/**
  * @generated from message openbot.computer.v1.EnsureDesktopRequest
  */
 export type EnsureDesktopRequest = Message<"openbot.computer.v1.EnsureDesktopRequest"> & {
@@ -538,7 +739,7 @@ export type EnsureDesktopRequest = Message<"openbot.computer.v1.EnsureDesktopReq
  * Use `create(EnsureDesktopRequestSchema)` to create a new message.
  */
 export const EnsureDesktopRequestSchema: GenMessage<EnsureDesktopRequest> = /*@__PURE__*/
-  messageDesc(file_openbot_computer_v1_computer, 20);
+  messageDesc(file_openbot_computer_v1_computer, 27);
 
 /**
  * @generated from message openbot.computer.v1.EnsureDesktopResponse
@@ -560,7 +761,7 @@ export type EnsureDesktopResponse = Message<"openbot.computer.v1.EnsureDesktopRe
  * Use `create(EnsureDesktopResponseSchema)` to create a new message.
  */
 export const EnsureDesktopResponseSchema: GenMessage<EnsureDesktopResponse> = /*@__PURE__*/
-  messageDesc(file_openbot_computer_v1_computer, 21);
+  messageDesc(file_openbot_computer_v1_computer, 28);
 
 /**
  * @generated from message openbot.computer.v1.ListPortsRequest
@@ -573,7 +774,7 @@ export type ListPortsRequest = Message<"openbot.computer.v1.ListPortsRequest"> &
  * Use `create(ListPortsRequestSchema)` to create a new message.
  */
 export const ListPortsRequestSchema: GenMessage<ListPortsRequest> = /*@__PURE__*/
-  messageDesc(file_openbot_computer_v1_computer, 22);
+  messageDesc(file_openbot_computer_v1_computer, 29);
 
 /**
  * @generated from message openbot.computer.v1.Port
@@ -595,7 +796,7 @@ export type Port = Message<"openbot.computer.v1.Port"> & {
  * Use `create(PortSchema)` to create a new message.
  */
 export const PortSchema: GenMessage<Port> = /*@__PURE__*/
-  messageDesc(file_openbot_computer_v1_computer, 23);
+  messageDesc(file_openbot_computer_v1_computer, 30);
 
 /**
  * @generated from message openbot.computer.v1.ListPortsResponse
@@ -612,7 +813,7 @@ export type ListPortsResponse = Message<"openbot.computer.v1.ListPortsResponse">
  * Use `create(ListPortsResponseSchema)` to create a new message.
  */
 export const ListPortsResponseSchema: GenMessage<ListPortsResponse> = /*@__PURE__*/
-  messageDesc(file_openbot_computer_v1_computer, 24);
+  messageDesc(file_openbot_computer_v1_computer, 31);
 
 /**
  * @generated from message openbot.computer.v1.TunnelVncRequest
@@ -634,7 +835,7 @@ export type TunnelVncRequest = Message<"openbot.computer.v1.TunnelVncRequest"> &
  * Use `create(TunnelVncRequestSchema)` to create a new message.
  */
 export const TunnelVncRequestSchema: GenMessage<TunnelVncRequest> = /*@__PURE__*/
-  messageDesc(file_openbot_computer_v1_computer, 25);
+  messageDesc(file_openbot_computer_v1_computer, 32);
 
 /**
  * @generated from message openbot.computer.v1.TunnelVncResponse
@@ -651,7 +852,7 @@ export type TunnelVncResponse = Message<"openbot.computer.v1.TunnelVncResponse">
  * Use `create(TunnelVncResponseSchema)` to create a new message.
  */
 export const TunnelVncResponseSchema: GenMessage<TunnelVncResponse> = /*@__PURE__*/
-  messageDesc(file_openbot_computer_v1_computer, 26);
+  messageDesc(file_openbot_computer_v1_computer, 33);
 
 /**
  * @generated from enum openbot.computer.v1.LifecyclePhase
@@ -683,6 +884,37 @@ export enum LifecyclePhase {
  */
 export const LifecyclePhaseSchema: GenEnum<LifecyclePhase> = /*@__PURE__*/
   enumDesc(file_openbot_computer_v1_computer, 0);
+
+/**
+ * @generated from enum openbot.computer.v1.CuaActionCompletion
+ */
+export enum CuaActionCompletion {
+  /**
+   * @generated from enum value: CUA_ACTION_COMPLETION_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED = 0,
+
+  /**
+   * @generated from enum value: CUA_ACTION_COMPLETION_NOT_STARTED = 1;
+   */
+  NOT_STARTED = 1,
+
+  /**
+   * @generated from enum value: CUA_ACTION_COMPLETION_COMPLETED = 2;
+   */
+  COMPLETED = 2,
+
+  /**
+   * @generated from enum value: CUA_ACTION_COMPLETION_UNKNOWN = 3;
+   */
+  UNKNOWN = 3,
+}
+
+/**
+ * Describes the enum openbot.computer.v1.CuaActionCompletion.
+ */
+export const CuaActionCompletionSchema: GenEnum<CuaActionCompletion> = /*@__PURE__*/
+  enumDesc(file_openbot_computer_v1_computer, 1);
 
 /**
  * @generated from service openbot.computer.v1.ComputerService
@@ -759,6 +991,22 @@ export const ComputerService: GenService<{
     methodKind: "unary";
     input: typeof InputRequestSchema;
     output: typeof InputResponseSchema;
+  },
+  /**
+   * @generated from rpc openbot.computer.v1.ComputerService.ListCuaTools
+   */
+  listCuaTools: {
+    methodKind: "unary";
+    input: typeof ListCuaToolsRequestSchema;
+    output: typeof ListCuaToolsResponseSchema;
+  },
+  /**
+   * @generated from rpc openbot.computer.v1.ComputerService.CallCuaTool
+   */
+  callCuaTool: {
+    methodKind: "unary";
+    input: typeof CallCuaToolRequestSchema;
+    output: typeof CallCuaToolResponseSchema;
   },
   /**
    * @generated from rpc openbot.computer.v1.ComputerService.EnsureDesktop

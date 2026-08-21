@@ -6,12 +6,13 @@ import { repositoryRoot } from "./paths.js";
 export async function loadLocalEnvironment(
   options: {
     prompts?: InitializationPrompts;
+    reload?: boolean;
   } = {},
 ): Promise<NodeJS.ProcessEnv> {
   const deploymentEnvironment = process.env.DEPLOYMENT_ENV_FILE;
   if (deploymentEnvironment) config({ path: deploymentEnvironment, quiet: true });
   const environment =
-    process.env.CONFIGURATION_LOADED === "1"
+    process.env.CONFIGURATION_LOADED === "1" && !options.reload
       ? process.env
       : (
           await loadDeploymentConfiguration(repositoryRoot, {

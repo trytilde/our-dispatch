@@ -6,7 +6,7 @@ Build and deployment providers for independently compiled agent entrypoints. It 
 
 ### Functions
 
-- `createAgentServiceApp(repositoryRoot, options?)` creates the development/local Hono app and mounts discovered `agent.ts` endpoints.
+- `createAgentServiceApp(repositoryRoot, options?)` creates the development/local Hono app and mounts discovered `agent.ts` endpoints. Its optional `refreshEnvironment` callback runs before a newly scaffolded agent is loaded through the late-discovery route.
 - `discoverAgents(repositoryRoot)` validates the primary `configuration/agent/agent.ts` and full `configuration/agent/subagents/<id>/agent.ts` entrypoints.
 - `discoverAgentWorkspaces(repositoryRoot)` reads each agent's `sandbox/workspace/**` seed files for computer deployment.
 

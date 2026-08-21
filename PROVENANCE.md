@@ -36,6 +36,7 @@ maintained here. Each row is upstream material, not OpenBot's own work.
 | `packages/ui/src/components/ai-elements/` | Vercel AI Elements, via the `ai-elements` CLI | Apache-2.0 | Modifications recorded in the notices file |
 | `apps/mobile/src/components/ui/` | BNA UI, retrieved 2026-08-17 with `bna-ui` CLI 3.0.0 | MIT | Per-file SHA-256 in the tree's `PROVENANCE.md` |
 | `.agents/skills/` (47 of 66) | Public GitHub skill repositories | Per upstream repository | Source, ref, path, and content hash per skill in `skills-lock.json` |
+| `packages/agent-provider/src/tilde/assets/cua-driver/` | Cua GUI Automation skill, `trycua/cua` commit `70db98d1bcd92890d778f4978e0eb107a4b66c1b` | MIT | `SKILL.md.hbs` SHA-256 `18d28e0a1ca4fda81c5fe8129b45352e031bd19068e8b648a5791380d20823f1`; command reference SHA-256 `8c5d0052b3ab86af9ad74cab6d1871e7c75a4883ec832236fa9ddf54870e1969` |
 
 `glimm` is upstream code too, but it arrives as an ordinary npm dependency of
 `packages/ui` rather than as vendored source, so it needs no entry here beyond

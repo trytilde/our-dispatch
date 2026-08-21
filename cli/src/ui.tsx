@@ -55,8 +55,18 @@ const menuItems = [
   { command: "init", description: "Initialize configuration" },
   { command: "dev", description: "Start local development" },
   { command: "new-agent", description: "Scaffold an agent" },
+  { command: "orchestrate", description: "Run the background software lifecycle" },
+  { command: "deploy", description: "Build and deploy the installation" },
+  { command: "secrets", description: "Manage encrypted configuration secrets" },
+  { command: "env", description: "Manage plaintext configuration values" },
   { command: "check", description: "Validate the repository" },
   { command: "build", description: "Build the application" },
+  { command: "test", description: "Run repository tests" },
+  { command: "e2e", description: "Run the browser Playwright suite" },
+  { command: "desktop", description: "Develop, package, or release the desktop app" },
+  { command: "mobile", description: "Run the Expo mobile developer workflow" },
+  { command: "connect", description: "Tunnel a remote development host" },
+  { command: "remote", description: "Run a task on a remote development host" },
   { command: "help", description: "Show every command" },
 ] as const;
 

@@ -96,6 +96,7 @@ describe("non-interactive initialization prompts", () => {
         "aws-kms-key-arn": "arn:aws:kms:us-east-1:123:key/test",
         "aws-profile": "admin",
         runtime: "vercel",
+        inference: "vercel",
       }),
     ).toThrow("Missing required non-interactive answer: vercel-token");
   });
@@ -108,6 +109,9 @@ describe("non-interactive initialization prompts", () => {
 
     expect(schema.properties["repository-name"]?.description).toContain("GitHub repository");
     expect(schema.properties["owner-identity"]?.description).toContain("SOPS");
+    expect(schema.properties.inference?.oneOf).toEqual([
+      expect.objectContaining({ const: "vercel" }),
+    ]);
     expect(schema.properties["vercel-token"]?.description).toContain("Required for Vercel");
     expect(schema.properties["vercel-token"]?.["x-openbot-provider"]).toBe("Vercel");
     expect(schema.properties["vercel-token"]?.["x-openbot-runtimes"]).toEqual(["local", "vercel"]);

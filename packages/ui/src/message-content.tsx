@@ -1,4 +1,10 @@
 import type { ReactNode } from "react";
+import {
+  ConnectorAccountGrid,
+  connectorSelectionViewFromPart,
+  type ConnectorAccountView,
+  type ConnectorSelectionView,
+} from "./connector-components.js";
 import { ThinkingBlock, ToolsBlock } from "./message-blocks.js";
 import {
   ConnectionCard,
@@ -24,16 +30,25 @@ export interface MessageContentMessage {
   metadata?: unknown;
 }
 
+/** Owner interactions for in-chat connector selection cards. */
+export interface ConnectorPartActions {
+  onSelectAccount: (selection: ConnectorSelectionView, account: ConnectorAccountView) => void;
+  onAddAccount: (selection: ConnectorSelectionView) => void;
+  busy?: boolean;
+}
+
 export interface MessageContentProps {
   message: MessageContentMessage;
   resolveAttachmentUrl: (sessionId: string, attachmentId: string) => Promise<string>;
   rewriteUrl?: (url: string) => string;
+  connectorActions?: ConnectorPartActions;
 }
 
 export function MessageContent({
   message,
   resolveAttachmentUrl,
   rewriteUrl = (url) => url,
+  connectorActions,
 }: MessageContentProps) {
   if (message.type === "ui" && message.parts) {
     const mediaParts = message.parts.filter(
@@ -46,7 +61,14 @@ export function MessageContent({
     return (
       <div className={`message-parts ${imageGallery ? "media-gallery" : ""}`}>
         {message.parts.map((part, index) =>
-          renderPart(part, index, message.session_id, resolveAttachmentUrl, rewriteUrl),
+          renderPart(
+            part,
+            index,
+            message.session_id,
+            resolveAttachmentUrl,
+            rewriteUrl,
+            connectorActions,
+          ),
         )}
       </div>
     );
@@ -81,8 +103,26 @@ function renderPart(
   sessionId: string,
   resolveAttachmentUrl: MessageContentProps["resolveAttachmentUrl"],
   rewriteUrl: NonNullable<MessageContentProps["rewriteUrl"]>,
+  connectorActions?: ConnectorPartActions,
 ): ReactNode {
   const key = `${part.type}-${part.tool_invocation_id ?? part.toolCallId ?? part.attachment_id ?? part.attachmentId ?? index}`;
+  const connectorSelection = connectorSelectionViewFromPart(part);
+  if (connectorSelection) {
+    return (
+      <ConnectorAccountGrid
+        busy={connectorActions?.busy ?? false}
+        key={key}
+        selection={connectorSelection}
+        {...(connectorActions
+          ? {
+              onSelectAccount: (account: ConnectorAccountView) =>
+                connectorActions.onSelectAccount(connectorSelection, account),
+              onAddAccount: () => connectorActions.onAddAccount(connectorSelection),
+            }
+          : {})}
+      />
+    );
+  }
   if (isToolPart(part)) return <ToolsBlock key={key} parts={[part]} />;
   switch (part.type) {
     case "text":

@@ -102,6 +102,7 @@ flowchart LR
 
 ## Updates
 
+- 2026-08-21T13:50:00+01:00: The selected inference provider may seed provider-owned files into the default agent template during initialization; the copied files immediately become fork-owned and existing agents still change only through explicit edits.
 - 2026-08-13T12:53:05+02:00: Strengthened agent filesystem isolation from path translation alone to a private bind-mounted `/workspace` plus Linux-user execution.
 - 2026-08-13T14:29:49+02:00: Kept `sandbox/workspace` solely for Eve layout compatibility, required one typed computer tool file per supported operation, and moved agent-to-user execution enforcement into computer-service.
 - 2026-08-13T14:49:44+02:00: Standardized required scaffolding on Eve's `bash`, `read_file`, `write_file`, `glob`, and `grep`; each tool fixes its agent ID outside model input and routes through computer-service.

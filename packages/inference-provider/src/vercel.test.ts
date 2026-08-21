@@ -26,7 +26,7 @@ describe("VercelInferenceProvider", () => {
     );
   });
 
-  it("does not create another key when one is already configured", async () => {
+  it("records the selection without creating another key when one is configured", async () => {
     const request = vi.fn();
     const provider = new VercelInferenceProvider(new VercelPlatform({ request }));
     const setEnvironment = vi.fn(async () => undefined);
@@ -36,7 +36,11 @@ describe("VercelInferenceProvider", () => {
       setEnvironment,
       setSecret: vi.fn(async () => undefined),
     });
-    expect(setEnvironment).not.toHaveBeenCalled();
+    expect(setEnvironment).toHaveBeenCalledWith(
+      "INFERENCE_PROVIDER",
+      "vercel-ai-gateway",
+      expect.any(String),
+    );
     expect(request).not.toHaveBeenCalled();
   });
 });

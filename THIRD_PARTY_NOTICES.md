@@ -47,3 +47,14 @@ kept outside the upstream directory.
 - License: MIT
 - Used by the vendored Beautiful UI `prompt-bar` component; declared as a
   regular npm dependency of `packages/ui`.
+
+## Cua Driver and GUI Automation skill
+
+- Source: <https://github.com/trycua/cua>
+- Runtime release: `cua-driver-rs-v0.21.0`
+- TypeScript SDK: `@trycua/cua-driver` 0.21.0
+- Bundled skill source commit: `70db98d1bcd92890d778f4978e0eb107a4b66c1b`
+- Bundled files: `packages/agent-provider/src/tilde/assets/cua-driver/`
+- License: MIT
+- OpenBot modifications: none to the bundled canonical skill files; OpenBot's
+  separate computer-use overlay is original OpenBot material.

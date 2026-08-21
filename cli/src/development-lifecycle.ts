@@ -24,6 +24,7 @@ export interface DevelopmentLifecycleOptions {
   environment: NodeJS.ProcessEnv;
   providers: OpenBotConfiguration["providers"];
   report?: DeploymentReporter;
+  interactive?: boolean;
 }
 
 export interface DevelopmentComputerWatcher {
@@ -35,6 +36,16 @@ export async function reconcileDevelopmentInfrastructure(
   options: DevelopmentLifecycleOptions,
 ): Promise<void> {
   await reconcileParticipants(options, [
+    ...(options.providers.inference
+      ? [
+          {
+            id: "inference",
+            implementation: options.providers.inference,
+            providerType: "Inference Provider",
+            provider: options.providers.inference,
+          },
+        ]
+      : []),
     ...(options.providers.git
       ? [
           {
@@ -179,7 +190,10 @@ async function hashPath(
   const name = path === root ? root : relative(root, path);
   hash.update(name).update("\0");
   if (metadata.isSymbolicLink()) {
-    hash.update("link\0").update(await readlink(path)).update("\0");
+    hash
+      .update("link\0")
+      .update(await readlink(path))
+      .update("\0");
     return;
   }
   if (metadata.isDirectory()) {
@@ -188,7 +202,10 @@ async function hashPath(
       await hashPath(hash, root, resolve(path, entry));
     return;
   }
-  hash.update("file\0").update(await readFile(path)).update("\0");
+  hash
+    .update("file\0")
+    .update(await readFile(path))
+    .update("\0");
 }
 
 async function reconcileParticipants(
@@ -202,6 +219,7 @@ async function reconcileParticipants(
     dryRun: false,
     repositoryRoot: options.repositoryRoot,
     environment: options.environment,
+    interactive: options.interactive,
     persistence,
     report,
   } as const;
@@ -234,6 +252,8 @@ function deploymentContext(
 ): DeploymentContext {
   return {
     devMode: true,
+    dryRun: false,
+    interactive: options.interactive,
     repositoryRoot: options.repositoryRoot,
     environment: options.environment,
     persistence: repositoryDeploymentPersistence(options),

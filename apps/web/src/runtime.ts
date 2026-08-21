@@ -2,6 +2,7 @@ import {
   createClientAuthAdapter,
   createOpenBotClient,
   createOpenBotRuntime,
+  type AgentSetupState,
   type ClientAuthAdapter,
 } from "@tryopenbot/client-runtime";
 
@@ -19,4 +20,30 @@ const auth: ClientAuthAdapter = window.openbotDesktop
       },
     });
 
-export const openBotRuntime = createOpenBotRuntime({ client, auth });
+const agentSetupStorageKey = "openbot:agent-setup";
+
+const agentSetupPersistence = {
+  load(): AgentSetupState | null {
+    try {
+      const value = JSON.parse(
+        sessionStorage.getItem(agentSetupStorageKey) ?? "null",
+      ) as Partial<AgentSetupState> | null;
+      if (
+        value?.status !== "setting_up" ||
+        typeof value.jobId !== "string" ||
+        typeof value.agent?.id !== "string" ||
+        typeof value.agent.name !== "string"
+      )
+        return null;
+      return { status: "setting_up", jobId: value.jobId, agent: value.agent, error: "" };
+    } catch {
+      return null;
+    }
+  },
+  save(state: AgentSetupState | null): void {
+    if (state) sessionStorage.setItem(agentSetupStorageKey, JSON.stringify(state));
+    else sessionStorage.removeItem(agentSetupStorageKey);
+  },
+};
+
+export const openBotRuntime = createOpenBotRuntime({ client, auth, agentSetupPersistence });

@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { access, mkdir, readFile, readdir, rename, writeFile } from "node:fs/promises";
+import { access, mkdir, readFile, readdir, rename, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { Code, ConnectError } from "@connectrpc/connect";
@@ -13,6 +13,18 @@ let desktopAllocation = Promise.resolve();
 export interface AgentDesktop {
   display: string;
   vncPort: number;
+}
+
+export function agentDesktopEnvironment(agentId: string, desktop: AgentDesktop) {
+  validateAgentId(agentId);
+  const directory = join(desktopRoot, agentId);
+  return {
+    AGENT_ID: agentId,
+    DISPLAY: desktop.display,
+    HOME: directory,
+    XDG_RUNTIME_DIR: join(directory, "runtime"),
+    DBUS_SESSION_BUS_ADDRESS: `unix:path=${join(directory, "runtime", "bus")}`,
+  };
 }
 
 export async function ensureAgentDesktop(
@@ -159,23 +171,42 @@ async function startDesktop(
 
   const environment = {
     ...process.env,
-    AGENT_ID: agentId,
-    DISPLAY: desktop.display,
+    ...agentDesktopEnvironment(agentId, desktop),
     GTK_THEME: "Arc",
-    HOME: directory,
-    XDG_RUNTIME_DIR: runtimeDirectory,
   };
-  const session = spawn(
-    "dbus-launch",
-    ["--exit-with-session", "/opt/openbot/desktop-session.sh"],
-    {
-      detached: true,
-      env: environment,
-      stdio: "ignore",
-    },
-  );
+  await ensureSessionBus(environment.DBUS_SESSION_BUS_ADDRESS, environment, signal);
+  const session = spawn("/opt/openbot/desktop-session.sh", [], {
+    detached: true,
+    env: environment,
+    stdio: "ignore",
+  });
   session.once("error", () => undefined);
   session.unref();
+}
+
+async function ensureSessionBus(
+  address: string,
+  environment: NodeJS.ProcessEnv,
+  signal?: AbortSignal,
+): Promise<void> {
+  const busPath = address.slice("unix:path=".length);
+  if (
+    await commandSucceeds("dbus-send", [
+      `--address=${address}`,
+      "--type=method_call",
+      "--dest=org.freedesktop.DBus",
+      "/",
+      "org.freedesktop.DBus.ListNames",
+    ])
+  )
+    return;
+  await rm(busPath, { force: true });
+  await commandCompletes(
+    "dbus-daemon",
+    ["--session", "--fork", `--address=${address}`, "--nopidfile"],
+    environment,
+    signal,
+  );
 }
 
 async function installCapability(capability: string, vncPort: number): Promise<void> {
@@ -240,6 +271,23 @@ function commandSucceeds(command: string, arguments_: string[]): Promise<boolean
     const child = spawn(command, arguments_, { stdio: "ignore" });
     child.once("error", () => resolve(false));
     child.once("close", (code) => resolve(code === 0));
+  });
+}
+
+function commandCompletes(
+  command: string,
+  arguments_: string[],
+  environment: NodeJS.ProcessEnv,
+  signal?: AbortSignal,
+): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const child = spawn(command, arguments_, { env: environment, signal, stdio: "ignore" });
+    child.once("error", reject);
+    child.once("close", (code) =>
+      code === 0
+        ? resolve()
+        : reject(new ConnectError(`${command} exited with code ${code}`, Code.Unavailable)),
+    );
   });
 }
 

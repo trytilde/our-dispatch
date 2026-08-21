@@ -1,6 +1,6 @@
 import type { Client } from "@trytilde/harness-sdk";
 import type { ChatKitMessage } from "@trytilde/harness-sdk-vercel-ai-node";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vite-plus/test";
 import { createTildeAttachmentMessageHandlers, createTildeMediaDownloader } from "./attachments.js";
 
 function clientWithAttachment(downloadUrl = "https://objects.example.test/signed-image") {

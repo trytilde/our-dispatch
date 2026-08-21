@@ -8,6 +8,8 @@ Computer provisioning and lifecycle adapters for Microsandbox and Vercel Sandbox
 
 Concrete adapters keep their low-level create, wake, exec, file, desktop, and image operations as implementation details used to fulfill those lifecycles. They are not an authored-agent API.
 
+Programmatic screenshots and input are not provider operations. The Computer image installs the checksum-pinned Cua executable and SDK runtime; computer-service owns all model-facing GUI calls. Providers retain only owner preview routing through noVNC.
+
 Reusable Vercel AI SDK Computer tools live separately in `@tryopenbot/computer-tools`. This package does not depend on or re-export them. Authored agents call those typed tools, which route through the capability-protected Computer service; they never import this provider package or call Microsandbox or Vercel Sandbox directly.
 
 Builds create the Computer service image from provider-owned Handlebars assets. Vercel provisioning creates and publishes to the managed image repository; Microsandbox saves the local content-addressed Docker image into an archive, imports it into its own image cache, and disables registry pulls for Computers. A configured Vercel Sandbox provider delegates its complete development lifecycle to an internal Microsandbox provider, so development never creates Vercel Sandbox or registry resources.
@@ -28,7 +30,7 @@ All agents share one Computer filesystem and process identity. Populated workspa
 
 - `ComputerProvider`: deploys agent workspaces and the trusted development Computer through the shared lifecycle.
 - `BaseComputerProvider`, `MicrosandboxComputerProvider`, and `VercelSandboxComputerProvider`: concrete lifecycle implementations and their image configuration types.
-- `ComputerProviderError`, call context, Computer specifications, handles, image records, and deployment request types: contracts used by lifecycle implementations.
+- `ComputerProviderError`, call context, Computer specifications, handles, image records, deployment request types, and `ComputerSeedEntry`: contracts used by lifecycle implementations. Seed entries preserve regular files and trusted-development symlinks.
 - `computerServiceApiKey()` and `scopedCapability()`: validate and scope access to the Computer service.
 - `computerImageAssets`, `computerImageWatchPaths()`, and `materializeComputerImageContext()`: expose provider-owned image inputs and render a build context.
 - `developmentSandboxSourceFiles()` and `developmentSandboxConfigurationFiles()`: materialize trusted development Computer files.

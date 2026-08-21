@@ -1,5 +1,6 @@
 import { type FormEvent, useEffect, useMemo, useState } from "react";
-import { AnimatePresence, motion } from "motion/react";
+import { DicesIcon } from "lucide-react";
+import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { AgentAvatar, type AgentAvatarState } from "./agent-avatar.js";
 import GlideMenu from "./beautiful-ui/atoms/glide-menu.js";
 import {
@@ -10,6 +11,7 @@ import {
   CommandItem,
   CommandList,
 } from "./components/ui/command.js";
+import { Dialog, DialogContent, DialogTitle } from "./components/ui/dialog.js";
 import { BackIcon, PlusIcon } from "./workspace-icons.js";
 import { getThemePreference, setThemePreference, type ThemePreference } from "./theme.js";
 import {
@@ -25,11 +27,13 @@ export interface SidebarAgent {
   lastMessage?: string;
   updatedAt?: string;
   unread?: boolean;
+  busy?: boolean;
   status?: string;
 }
 
-function avatarState(agent: SidebarAgent, selected: boolean): AgentAvatarState {
-  if (agent.status && /running|working|busy|active/i.test(agent.status)) return "working";
+export function sidebarAvatarState(agent: SidebarAgent, selected: boolean): AgentAvatarState {
+  if (agent.busy || (agent.status && /running|working|busy|active/i.test(agent.status)))
+    return "loading";
   if (selected) return "listening";
   return "idle";
 }
@@ -61,7 +65,7 @@ export function AgentListItem({ agent, selected, onSelect }: AgentListItemProps)
         className="relative flex shrink-0"
         style={{ animation: "pop-in 250ms cubic-bezier(0.23,1,0.32,1) both" }}
       >
-        <AgentAvatar emphasis={hovered} id={agent.id} state={avatarState(agent, selected)} />
+        <AgentAvatar emphasis={hovered} id={agent.id} state={sidebarAvatarState(agent, selected)} />
       </span>
       <span className="sidebar-agent-meta min-w-0 flex-1">
         <span className="flex items-baseline justify-between gap-2">
@@ -81,24 +85,28 @@ export function AgentListItem({ agent, selected, onSelect }: AgentListItemProps)
             </time>
           ) : null}
         </span>
-        {agent.lastMessage ? (
-          <small
-            className={`block truncate text-[12px] leading-snug ${
-              agent.unread ? "text-ink-2" : "text-ink-3"
-            }`}
-          >
-            {agent.lastMessage}
-          </small>
+        {agent.lastMessage || agent.unread ? (
+          <span className="flex min-w-0 items-center justify-between gap-2">
+            {agent.lastMessage ? (
+              <small
+                className={`min-w-0 flex-1 truncate text-[12px] leading-snug ${
+                  agent.unread ? "text-ink-2" : "text-ink-3"
+                }`}
+              >
+                {agent.lastMessage}
+              </small>
+            ) : null}
+            {agent.unread ? (
+              <span
+                aria-label="Has unread messages"
+                className="sidebar-agent-unread ml-auto size-2 shrink-0 rounded-full bg-accent"
+                role="status"
+                style={{ animation: "pop-in 250ms cubic-bezier(0.23,1,0.32,1) both" }}
+              />
+            ) : null}
+          </span>
         ) : null}
       </span>
-      {agent.unread ? (
-        <span
-          aria-label="Has unread messages"
-          role="status"
-          className="sidebar-agent-unread size-2 shrink-0 rounded-full bg-accent"
-          style={{ animation: "pop-in 250ms cubic-bezier(0.23,1,0.32,1) both" }}
-        />
-      ) : null}
     </button>
   );
 }
@@ -276,16 +284,27 @@ export function AddAgentDialog({
   onCreate,
   onSelect,
 }: AddAgentDialogProps) {
-  const [creatingNew, setCreatingNew] = useState(false);
+  const [creatingNew, setCreatingNew] = useState(true);
   const [query, setQuery] = useState("");
+  const [avatarGeneration, setAvatarGeneration] = useState(0);
+  const [hoveredAvatarId, setHoveredAvatarId] = useState("");
+  const [selectedAvatarId, setSelectedAvatarId] = useState("");
+  const reduceMotion = useReducedMotion();
   const matchingAgents = agents.filter((agent) =>
     `${agent.name} ${agent.id}`.toLowerCase().includes(query.trim().toLowerCase()),
+  );
+  const avatarOptions = useMemo(
+    () => Array.from({ length: 5 }, (_, index) => `new-bot-${avatarGeneration}-${index}`),
+    [avatarGeneration],
   );
 
   useEffect(() => {
     if (open) return;
-    setCreatingNew(false);
+    setCreatingNew(true);
     setQuery("");
+    setAvatarGeneration(0);
+    setHoveredAvatarId("");
+    setSelectedAvatarId("");
   }, [open]);
 
   const close = () => {
@@ -299,6 +318,131 @@ export function AddAgentDialog({
     if (name && !creating) onCreate(name);
   };
 
+  if (creatingNew)
+    return (
+      <Dialog
+        onOpenChange={(next) => {
+          if (!next) close();
+        }}
+        open={open}
+      >
+        <DialogContent
+          aria-describedby={undefined}
+          className="workspace-selector-dialog top-[82px] max-w-[520px] translate-y-0 overflow-hidden p-0"
+        >
+          <DialogTitle className="sr-only">Create bot</DialogTitle>
+          <form
+            className="workspace-selector workspace-selector-add create-bot-selector"
+            onSubmit={submit}
+          >
+            <div className="workspace-selector-heading">
+              <span>Create a new bot</span>
+              <small>Name your bot and preview its generated avatars.</small>
+            </div>
+            <div className="workspace-selector-fields">
+              <label className="workspace-selector-field" htmlFor="create-bot-name">
+                <span>Bot name</span>
+                <input
+                  autoFocus
+                  disabled={creating}
+                  id="create-bot-name"
+                  maxLength={72}
+                  onChange={(event) => setQuery(event.target.value)}
+                  placeholder="Name your bot"
+                  type="text"
+                  value={query}
+                />
+              </label>
+              <div className="create-bot-avatar-field">
+                <span>Avatar</span>
+                <div className="create-bot-avatar-options">
+                  <AnimatePresence initial={false} mode="wait">
+                    <motion.div
+                      animate={{ opacity: 1 }}
+                      className="create-bot-avatar-list"
+                      exit={{ opacity: 0 }}
+                      initial={{ opacity: 0 }}
+                      key={avatarGeneration}
+                      transition={{ duration: reduceMotion ? 0 : 0.16, ease: "easeInOut" }}
+                    >
+                      {avatarOptions.map((avatarId, index) => {
+                        const active =
+                          selectedAvatarId === avatarId || hoveredAvatarId === avatarId;
+                        return (
+                          <button
+                            aria-label={`Select avatar ${index + 1}`}
+                            aria-pressed={selectedAvatarId === avatarId}
+                            className="create-bot-avatar-option"
+                            disabled={creating}
+                            key={avatarId}
+                            onBlur={() => setHoveredAvatarId("")}
+                            onClick={() => setSelectedAvatarId(avatarId)}
+                            onFocus={() => setHoveredAvatarId(avatarId)}
+                            onPointerEnter={() => setHoveredAvatarId(avatarId)}
+                            onPointerLeave={() => setHoveredAvatarId("")}
+                            type="button"
+                          >
+                            <AgentAvatar
+                              className="create-bot-avatar"
+                              id={avatarId}
+                              state={active ? "loading" : "idle"}
+                            />
+                          </button>
+                        );
+                      })}
+                    </motion.div>
+                  </AnimatePresence>
+                  <button
+                    aria-label="Roll again"
+                    className="create-bot-avatar-regenerate"
+                    disabled={creating}
+                    onClick={() => {
+                      setHoveredAvatarId("");
+                      setSelectedAvatarId("");
+                      setAvatarGeneration((current) => current + 1);
+                    }}
+                    type="button"
+                  >
+                    <span className="create-bot-avatar-dice" aria-hidden="true">
+                      <DicesIcon />
+                    </span>
+                    <small>Roll again</small>
+                  </button>
+                </div>
+              </div>
+            </div>
+            <div className="workspace-selector-actions">
+              <button
+                className="workspace-selector-back"
+                disabled={creating}
+                onClick={() => {
+                  setCreatingNew(false);
+                  setQuery("");
+                  setAvatarGeneration(0);
+                  setHoveredAvatarId("");
+                  setSelectedAvatarId("");
+                }}
+                type="button"
+              >
+                <BackIcon />
+                Back
+              </button>
+              <button
+                className="workspace-selector-join"
+                disabled={creating || !query.trim()}
+                type="submit"
+              >
+                {creating ? (
+                  <span className="workspace-selector-spinner" aria-hidden="true" />
+                ) : null}
+                {creating ? "Adding…" : "Add"}
+              </button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
+    );
+
   return (
     <CommandDialog
       className="max-w-[520px]"
@@ -307,116 +451,57 @@ export function AddAgentDialog({
         if (!next) close();
       }}
       open={open}
-      title={creatingNew ? "Create bot" : "Add bot"}
+      title="Add bot"
     >
-      {creatingNew ? (
-        <form onSubmit={submit}>
-          <div className="flex items-center gap-1 border-b border-line px-2">
-            <button
-              aria-label="Back to bots"
-              className="flex size-8 shrink-0 items-center justify-center rounded-control text-ink-2
-                transition-colors hover:bg-hover hover:text-ink"
-              disabled={creating}
-              onClick={() => {
-                setCreatingNew(false);
-                setQuery("");
-              }}
-              type="button"
-            >
-              <BackIcon className="size-4 fill-none stroke-current stroke-[1.4]" />
-            </button>
-            <input
-              autoFocus
-              className="h-12 min-w-0 flex-1 bg-transparent px-1 text-[14px] text-ink outline-none
-                placeholder:text-ink-3"
-              disabled={creating}
-              maxLength={72}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder="Name your bot"
-              value={query}
-            />
-          </div>
-          <div className="px-4 py-3 text-[12.5px] leading-relaxed text-ink-3">
-            Create a new bot in this OpenBot workspace.
-          </div>
-          <div className="flex justify-end gap-2 border-t border-line px-3 py-2.5">
-            <button
-              className="h-8 rounded-control px-3 text-[12.5px] text-ink-2 transition-colors
-                hover:bg-hover hover:text-ink"
-              disabled={creating}
-              onClick={close}
-              type="button"
-            >
-              Cancel
-            </button>
-            <button
-              className="h-8 rounded-control bg-accent px-3 text-[12.5px] font-medium
-                text-accent-foreground disabled:opacity-50"
-              disabled={creating || !query.trim()}
-              type="submit"
-            >
-              {creating ? "Creating…" : "Create bot"}
-            </button>
-          </div>
-        </form>
-      ) : (
-        <>
-          <CommandInput
-            autoFocus
-            onValueChange={setQuery}
-            placeholder="Search bots"
-            value={query}
-          />
-          <CommandList>
+      <>
+        <CommandInput autoFocus onValueChange={setQuery} placeholder="Search bots" value={query} />
+        <CommandList>
+          <CommandItem
+            onSelect={() => {
+              setCreatingNew(true);
+              setQuery("");
+            }}
+            value="Create a new bot"
+          >
+            <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-inset text-ink-2">
+              <PlusIcon className="size-4 fill-none stroke-current stroke-[1.4]" />
+            </span>
+            <span className="min-w-0 flex-1">
+              <strong className="block text-[13px] font-medium leading-tight text-ink">
+                Create a new bot
+              </strong>
+              <small className="block text-[12px] leading-snug text-ink-3">Set up a new bot</small>
+            </span>
+          </CommandItem>
+          {!loading && matchingAgents.length === 0 ? (
+            <div className="px-3 py-6 text-center text-[13px] text-ink-3">
+              {agents.length === 0 ? "No bots yet" : "No bots found"}
+            </div>
+          ) : null}
+          {matchingAgents.map((agent) => (
             <CommandItem
+              key={agent.id}
               onSelect={() => {
-                setCreatingNew(true);
-                setQuery("");
+                onClose();
+                onSelect(agent.id);
               }}
-              value="Create a new bot"
+              value={`${agent.name} ${agent.id}`}
             >
-              <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-inset text-ink-2">
-                <PlusIcon className="size-4 fill-none stroke-current stroke-[1.4]" />
-              </span>
+              <AgentAvatar id={agent.id} />
               <span className="min-w-0 flex-1">
-                <strong className="block text-[13px] font-medium leading-tight text-ink">
-                  Create a new bot
+                <strong className="block truncate text-[13px] font-medium leading-tight text-ink">
+                  {agent.name}
                 </strong>
-                <small className="block text-[12px] leading-snug text-ink-3">
-                  Set up a new bot
-                </small>
+                {agent.lastMessage ? (
+                  <small className="block truncate text-[12px] leading-snug text-ink-3">
+                    {agent.lastMessage}
+                  </small>
+                ) : null}
               </span>
             </CommandItem>
-            {!loading && matchingAgents.length === 0 ? (
-              <div className="px-3 py-6 text-center text-[13px] text-ink-3">
-                {agents.length === 0 ? "No bots yet" : "No bots found"}
-              </div>
-            ) : null}
-            {matchingAgents.map((agent) => (
-              <CommandItem
-                key={agent.id}
-                onSelect={() => {
-                  onClose();
-                  onSelect(agent.id);
-                }}
-                value={`${agent.name} ${agent.id}`}
-              >
-                <AgentAvatar id={agent.id} />
-                <span className="min-w-0 flex-1">
-                  <strong className="block truncate text-[13px] font-medium leading-tight text-ink">
-                    {agent.name}
-                  </strong>
-                  {agent.lastMessage ? (
-                    <small className="block truncate text-[12px] leading-snug text-ink-3">
-                      {agent.lastMessage}
-                    </small>
-                  ) : null}
-                </span>
-              </CommandItem>
-            ))}
-          </CommandList>
-        </>
-      )}
+          ))}
+        </CommandList>
+      </>
     </CommandDialog>
   );
 }

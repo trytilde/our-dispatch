@@ -1,9 +1,4 @@
-import {
-  CornerDownRightIcon,
-  GripVerticalIcon,
-  PencilIcon,
-  Trash2Icon,
-} from "lucide-react";
+import { CornerDownRightIcon, GripVerticalIcon, PencilIcon, Trash2Icon } from "lucide-react";
 import { motion, Reorder } from "motion/react";
 import { useEffect, useRef, useState } from "react";
 

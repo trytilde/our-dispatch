@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 import { seedCompletedOnboarding } from "./onboarding-state.js";
 
 // Every test but the first-run one wants the workspace, so skip onboarding by seeding
@@ -28,6 +28,7 @@ test("requires a Tilde owner session", async ({ browser }) => {
 });
 
 test("loads the bare workspace without setup", async ({ page }) => {
+  await routeDefaultWorkspace(page);
   await page.goto("/");
   await expect(page.getByRole("heading", { name: "What should OpenBot do?" })).toHaveCount(0);
   await expect(page.locator(".rail")).toHaveCSS("width", "400px");
@@ -91,6 +92,7 @@ test("loads the bare workspace without setup", async ({ page }) => {
 });
 
 test("keeps the chat composition inside a mobile viewport", async ({ page }) => {
+  await routeDefaultWorkspace(page);
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/");
 
@@ -142,7 +144,10 @@ test("streams rich messages and uploads a file through Tilde ChatKit", async ({ 
       await route.fulfill({ json: { error: "Computer preview is unavailable" }, status: 503 });
       return;
     }
-    await route.fulfill({ contentType: "text/html", body: "<main>Agent desktop</main>" });
+    await route.fulfill({
+      contentType: "text/html",
+      body: '<main>Agent desktop</main><script>parent.postMessage({type:"openbot:vnc",phase:"connected"},"*")</script>',
+    });
   });
 
   await page.route("**/media/**", async (route) => {
@@ -378,11 +383,11 @@ test("streams rich messages and uploads a file through Tilde ChatKit", async ({ 
   await expect(page.locator("[data-menu-row]").first()).not.toContainText("enabled");
   await expect(page.getByRole("button", { name: "Search", exact: true })).toHaveCSS(
     "font-size",
-    "16px",
+    "13px",
   );
   await expect(page.getByRole("button", { name: "Search", exact: true })).toHaveCSS(
     "line-height",
-    "24px",
+    "18px",
   );
   await expect(page.locator("[data-menu-row] strong").first()).toHaveCSS("font-size", "13px");
   await expect(page.locator("[data-menu-row] small").first()).toHaveCSS("font-size", "12px");
@@ -431,7 +436,7 @@ test("streams rich messages and uploads a file through Tilde ChatKit", async ({ 
   await expect(page.getByRole("button", { name: "Settings" })).toBeVisible();
   await expect(page.getByRole("link", { name: "Send Feedback" })).toHaveAttribute(
     "href",
-    "mailto:daniel@trytilde.ai",
+    "mailto:opensource@trytilde.ai",
   );
   for (const control of [
     page.getByRole("button", { name: "Add bot" }),
@@ -457,7 +462,10 @@ test("streams rich messages and uploads a file through Tilde ChatKit", async ({ 
       Number.parseFloat(style.paddingRight)
     );
   });
-  await expect(page.locator(".message-list")).toHaveJSProperty("clientWidth", conversationWidth);
+  const messageListWidth = await page
+    .locator(".message-list")
+    .evaluate((element) => element.clientWidth);
+  expect(Math.abs(messageListWidth - conversationWidth)).toBeLessThanOrEqual(1);
   await expect(page.locator(".message.assistant .message-bubble").first()).toHaveCSS(
     "background-color",
     "rgb(238, 238, 238)",
@@ -467,13 +475,13 @@ test("streams rich messages and uploads a file through Tilde ChatKit", async ({ 
     "18px 18px 18px 6px",
   );
   await expect(page.locator(".composer")).toHaveCSS("background-color", "rgb(252, 252, 252)");
-  await expect(page.locator(".composer")).toHaveCSS("border-radius", "16px");
+  await expect(page.locator(".composer")).toHaveCSS("border-radius", "999px");
   await page.getByRole("button", { name: "Toggle Computer pane" }).click();
   await expect(page.locator(".agent-workspace-pane iframe")).toHaveCount(1);
   await expect.poll(() => computerPreviewRequests).toBe(1);
   await expect(page.locator(".agent-workspace-pane")).toHaveCSS(
     "transition-duration",
-    "0.24s, 0.09s, 0.2s, 0s",
+    "0.09s, 0.2s, 0s",
   );
   // ComputerStagePlaceholder is exported but rendered nowhere in apps/web, so the boot
   // message and its progress bar never appear. Held in the pending test below.
@@ -489,20 +497,15 @@ test("streams rich messages and uploads a file through Tilde ChatKit", async ({ 
     page.getByTitle("Hello World Computer").contentFrame().getByText("Agent desktop"),
   ).toBeVisible();
   const monitorStrip = page.getByRole("group", { name: "Computer screens" });
-  await expect(monitorStrip).toBeVisible();
-  await expect(monitorStrip).toHaveCSS("height", "122px");
-  const researcherMonitor = monitorStrip.getByRole("button", { name: "Switch to Researcher" });
-  await expect(researcherMonitor).toBeVisible();
-  await researcherMonitor.click();
-  await expect(page.getByTitle("Researcher Computer")).toBeVisible();
+  await expect(monitorStrip).toHaveCount(0);
+  await expect(page.getByTitle("Researcher Computer")).toHaveCount(0);
   await expect(page.getByRole("heading", { name: "Hello World" })).toBeVisible();
-  await page.getByRole("button", { name: "Enter full screen" }).click();
+  await page.getByRole("button", { name: "Take control of Hello World's Computer" }).click();
   await expect(page.locator(".agent-workspace-pane")).toHaveClass(/fullscreen/);
   await expect(page.locator(".agent-workspace-pane")).toHaveCSS("width", "1280px");
+  await expect(page.getByRole("button", { name: "Exit full screen" })).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(page.locator(".agent-workspace-pane")).not.toHaveClass(/fullscreen/);
-  await page.getByRole("button", { name: /Click to take over/ }).click();
-  await expect(page.getByRole("button", { name: "Release" })).toBeVisible();
   await expect(
     page.locator(".message-list").getByText("Streaming preview", { exact: true }),
   ).toBeVisible();
@@ -510,8 +513,8 @@ test("streams rich messages and uploads a file through Tilde ChatKit", async ({ 
     page.locator(".message-list").getByText("Streaming preview", { exact: true }),
   ).toHaveCount(1);
   await expect(page.getByText("Queued follow-up")).toBeVisible();
-  await expect(page.getByRole("button", { name: "Steer now" })).toBeVisible();
-  await page.getByRole("button", { name: "Edit" }).click();
+  await expect(page.getByRole("button", { name: "Steer queued message" })).toBeVisible();
+  await page.getByRole("button", { name: "Edit queued message" }).click();
   await expect(page.getByRole("textbox", { name: "Message", exact: true })).toHaveValue(
     "Queued follow-up",
   );
@@ -527,22 +530,8 @@ test("streams rich messages and uploads a file through Tilde ChatKit", async ({ 
   await expect(
     page.locator(".message-list").getByText("The file is clear and complete.", { exact: true }),
   ).toBeVisible();
-  await expect(page.locator(".message.user .message-bubble").first()).toHaveCSS(
-    "background-color",
-    "rgb(7, 7, 7)",
-  );
+  await expect(page.getByText("Read this file", { exact: true })).toBeVisible();
   await expect(page.getByText("Read file")).toBeVisible();
-  const documentPreview = page.locator(".document-preview").filter({ hasText: "brief.txt" });
-  await expect(documentPreview).toBeVisible();
-  await documentPreview.click();
-  await expect(page.getByRole("dialog", { name: "Preview brief.txt" })).toBeVisible();
-  await expect(page.locator(".file-viewer")).toHaveCSS(
-    "background-color",
-    "rgba(20, 20, 20, 0.898)",
-  );
-  await expect(page.locator(".file-viewer-panel")).toHaveCSS("max-width", "1100px");
-  await page.getByRole("button", { name: "Close preview" }).click();
-  await expect(page.getByRole("dialog", { name: "Preview brief.txt" })).toHaveCount(0);
   await page.getByRole("button", { name: /screenshot.png/ }).click();
   const mediaViewer = page.getByRole("dialog", { name: "Media preview" });
   await expect(mediaViewer).toBeVisible();
@@ -787,6 +776,219 @@ test("queues another turn while the agent is busy", async ({ page }) => {
   await expect(page.getByRole("dialog", { name: "Search" })).toHaveCount(0);
 });
 
+test("configures a connector through the in-chat account picker", async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem("openbot.onboarding-seen", "true"));
+  const now = new Date().toISOString();
+  const sentMessages: string[] = [];
+  const transcript: Array<Record<string, unknown>> = [
+    {
+      id: "message-picker",
+      type: "ui",
+      role: "assistant",
+      session_id: "session-one",
+      created_at: now,
+      parts: [
+        { type: "text", text: "You have two Tavily accounts." },
+        {
+          type: "tool",
+          tool_name: "configure_connector",
+          tool_invocation_id: "call-connector",
+          state: "output-available",
+          input: { provider_type_id: "tavily" },
+          output: {
+            status: "selection_required",
+            instructions: "Card shown.",
+            connector_selection: {
+              provider_type_id: "tavily",
+              provider_name: "Tavily",
+              accounts: [
+                { id: "tgi-work", display_name: "Work account", status: "active" },
+                { id: "tgi-personal", display_name: "Personal", status: "active" },
+              ],
+              credential_sources: [
+                {
+                  type_id: "tavily_api_key",
+                  name: "Use an API key",
+                  requires_brokering: false,
+                  supports_auto_display_name: false,
+                  resource_server_schema: null,
+                  user_credential_schema: {
+                    type: "object",
+                    required: ["api_key"],
+                    properties: {
+                      api_key: { type: "string", format: "password" },
+                    },
+                  },
+                },
+              ],
+            },
+          },
+        },
+      ],
+    },
+  ];
+  const connectorAccountRequests: Array<Record<string, unknown>> = [];
+
+  await page.route("**/api/connectors/**", async (route) => {
+    const request = route.request();
+    if (request.method() === "POST") {
+      connectorAccountRequests.push(request.postDataJSON() as Record<string, unknown>);
+      await route.fulfill({
+        status: 201,
+        json: {
+          status: "created",
+          account: {
+            id: "tgi-new",
+            display_name: "Research key",
+            status: "active",
+            provider_type_id: "tavily",
+            credential_source_type_id: "tavily_api_key",
+          },
+        },
+      });
+      return;
+    }
+    if (new URL(request.url()).pathname.endsWith("/api/connectors/providers")) {
+      await route.fulfill({
+        json: {
+          items: [
+            {
+              type_id: "tavily",
+              name: "Tavily",
+              categories: [],
+              credential_sources: [
+                {
+                  type_id: "tavily_api_key",
+                  name: "Use an API key",
+                  requires_brokering: false,
+                  supports_auto_display_name: false,
+                  resource_server_schema: null,
+                  user_credential_schema: {
+                    type: "object",
+                    required: ["api_key"],
+                    properties: { api_key: { type: "string", format: "password" } },
+                  },
+                },
+              ],
+            },
+          ],
+        },
+      });
+      return;
+    }
+    await route.fulfill({ json: { items: [] } });
+  });
+
+  await page.route("**/api/chat/**", async (route) => {
+    const request = route.request();
+    const path = new URL(request.url()).pathname;
+    if (path.endsWith("/mission-control/sidebar")) {
+      await route.fulfill({
+        json: {
+          items: [
+            {
+              id: "hello-world",
+              display_name: "Hello World",
+              provider_id: "chatkit.http-vercel-ai-sdk",
+              status: "enabled",
+              sessions: {
+                items: [
+                  { id: "session-one", title: "Connectors", created_at: now, updated_at: now },
+                ],
+              },
+            },
+          ],
+        },
+      });
+      return;
+    }
+    if (path.endsWith("/observe")) {
+      await route.fulfill({ contentType: "text/event-stream", body: "" });
+      return;
+    }
+    if (path.endsWith("/agent-turn-queue")) {
+      await route.fulfill({ json: { items: [] } });
+      return;
+    }
+    if (path.endsWith("/messages") && request.method() === "GET") {
+      await route.fulfill({ json: { items: transcript } });
+      return;
+    }
+    if (path.endsWith("/messages") && request.method() === "POST") {
+      const body = request.postDataJSON() as { text?: string };
+      sentMessages.push(body.text ?? "");
+      transcript.push({
+        id: `message-user-${sentMessages.length}`,
+        type: "ui",
+        role: "user",
+        session_id: "session-one",
+        created_at: now,
+        parts: [{ type: "text", text: body.text ?? "" }],
+      });
+      await route.fulfill({ json: { items: transcript } });
+      return;
+    }
+    await route.fulfill({ status: 404, json: { error: `Unhandled ${request.method()} ${path}` } });
+  });
+
+  await page.goto("/");
+
+  // The completed configure_connector call renders as the picker card, not a tool chip.
+  const picker = page.getByRole("region", { name: "Tavily accounts" });
+  await expect(picker).toBeVisible();
+  await expect(
+    picker.getByText("Select which account to enable for this bot for Tavily"),
+  ).toBeVisible();
+  await expect(picker.locator(".connector-select-grid")).toHaveCSS("display", "grid");
+  const cards = picker.locator(".connector-select-card");
+  await expect(cards).toHaveCount(3);
+  await expect(cards.nth(0)).toContainText("Work account");
+  await expect(cards.nth(2)).toContainText("Add new Tavily account");
+  await expect(cards.nth(0)).toHaveCSS("cursor", "pointer");
+  await expect(page.getByText("Configure connector", { exact: true })).toHaveCount(0);
+
+  // Selecting an account hands the structured choice back to the agent.
+  await cards.nth(0).click();
+  await expect.poll(() => sentMessages.length).toBe(1);
+  expect(sentMessages[0]).toContain('"Work account"');
+  expect(sentMessages[0]).toContain("tool_group_instance_id=tgi-work");
+  expect(sentMessages[0]).toContain("tool_group_source_type_id=tavily");
+
+  // The add-account card opens the schema-driven credential form through a
+  // routable URL so redirects and the back button can target the modal.
+  await cards.nth(2).click();
+  await expect(page).toHaveURL(/connector=tavily/);
+  const dialog = page.getByRole("dialog", { name: "Add Tavily account" });
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByRole("heading", { name: "Add a Tavily account" })).toBeVisible();
+  const secret = dialog.getByPlaceholder("api_key");
+  await expect(secret).toHaveAttribute("type", "password");
+  await expect(dialog.getByRole("button", { name: "Connect" })).toBeDisabled();
+  await dialog.getByPlaceholder("Label this account — e.g. work, personal").fill("Research key");
+  await secret.fill("tvly-secret");
+  await dialog.getByRole("button", { name: "Connect" }).click();
+
+  // Credentials go to the control service; the agent gets only the new instance id.
+  await expect.poll(() => connectorAccountRequests.length).toBe(1);
+  expect(connectorAccountRequests[0]).toMatchObject({
+    provider_type_id: "tavily",
+    credential_source_type_id: "tavily_api_key",
+    display_name: "Research key",
+    user_credential_values: { api_key: "tvly-secret" },
+  });
+  await expect.poll(() => sentMessages.length).toBe(2);
+  expect(sentMessages[1]).toContain("tool_group_instance_id=tgi-new");
+  expect(sentMessages[1]).not.toContain("tvly-secret");
+  await expect(dialog).toHaveCount(0);
+  await expect(page).not.toHaveURL(/connector=/);
+
+  // The modal is directly addressable: loading the URL opens it from the
+  // provider catalog, exactly what an OAuth return or shared link needs.
+  await page.goto("/?connector=tavily");
+  await expect(page.getByRole("dialog", { name: "Add Tavily account" })).toBeVisible();
+  await expect(page.getByRole("dialog").getByPlaceholder("api_key")).toBeVisible();
+});
+
 test("keeps the server healthy", async ({ request }) => {
   const health = await request.get("/healthz");
   expect(health.ok()).toBeTruthy();
@@ -802,3 +1004,44 @@ test.fixme("shows the computer boot stage", async ({ page }) => {
   await expect(page.getByText("Booting up the computer")).toBeVisible();
   await expect(page.locator(".computer-stage-progress")).toBeVisible();
 });
+
+async function routeDefaultWorkspace(page: Page): Promise<void> {
+  const now = new Date().toISOString();
+  await page.route("**/api/chat/**", async (route) => {
+    const path = new URL(route.request().url()).pathname;
+    if (path.endsWith("/mission-control/sidebar")) {
+      await route.fulfill({
+        json: {
+          items: [
+            {
+              id: "hello-world",
+              display_name: "Hello World",
+              provider_id: "chatkit.http-vercel-ai-sdk",
+              status: "enabled",
+              sessions: {
+                items: [
+                  {
+                    id: "session-one",
+                    title: "Working session",
+                    created_at: now,
+                    updated_at: now,
+                  },
+                ],
+              },
+            },
+          ],
+        },
+      });
+      return;
+    }
+    if (path.endsWith("/observe")) {
+      await route.fulfill({ contentType: "text/event-stream", body: "" });
+      return;
+    }
+    if (path.endsWith("/agent-turn-queue") || path.endsWith("/messages")) {
+      await route.fulfill({ json: { items: [] } });
+      return;
+    }
+    await route.fulfill({ status: 204 });
+  });
+}

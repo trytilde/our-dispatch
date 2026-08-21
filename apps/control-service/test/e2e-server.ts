@@ -4,6 +4,8 @@ import { createApp } from "../src/app.js";
 
 const controlPort = Number(process.env.OPENBOT_E2E_CONTROL_PORT || "4100");
 const computerApiKey = "e2e-computer-service-api-key-000000";
+const agentSetupJobId = "33333333-3333-4333-8333-333333333333";
+let agentSetupChecks = 0;
 
 const authProvider: AuthProvider = {
   nativeClientConfiguration: () => ({
@@ -53,10 +55,27 @@ const app = createApp({
           stdout: "",
           stderr: "Trusted development profile was not loaded",
         };
+      agentSetupChecks = 0;
+      return { exitCode: 0, stderr: "", stdout: "", jobId: agentSetupJobId, running: true };
+    },
+    awaitExecution: async (_request, options) => {
+      if (options.authorization !== `Bearer ${computerApiKey}`)
+        return { exitCode: 1, stdout: "", stderr: "Computer service API key required" };
+      agentSetupChecks += 1;
+      if (agentSetupChecks < 7)
+        return {
+          exitCode: 0,
+          stderr: "",
+          stdout: "",
+          jobId: agentSetupJobId,
+          running: true,
+        };
       return {
         exitCode: 0,
         stderr: "",
         stdout: '{"ok":true,"command":"new-agent","agent":{"id":"reviewer","name":"Reviewer"}}\n',
+        jobId: agentSetupJobId,
+        running: false,
       };
     },
   },

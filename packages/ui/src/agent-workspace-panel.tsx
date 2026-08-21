@@ -90,6 +90,7 @@ export function AgentWorkspacePanel({
       aria-label={fullscreen ? `${previewAgentName} Computer` : "Computer preview"}
       aria-modal={fullscreen || undefined}
     >
+      <div aria-hidden="true" className="computer-window-drag-region" />
       <div
         aria-label="Resize Computer pane"
         className="workspace-resize-handle"

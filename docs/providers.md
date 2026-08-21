@@ -14,7 +14,7 @@ Anything else belongs in the code that actually uses it.
 | Package | Responsibility |
 | --- | --- |
 | `agent-provider` | Reconcile each authored agent's complete external footprint through one idempotent `Deployable`: endpoint, skills, exact registry membership, dynamic MCP server, Tilde control-plane tools, and deployment-platform MCP integrations. |
-| `inference-provider` | Initialize inference accounts and provision credentials such as a Vercel AI Gateway API key. It exposes no model factory to authored agents. |
+| `inference-provider` | Initialize inference accounts, check credentials before builds, and seed SDK-specific files into the default agent template. It exposes no request-time model factory. |
 | `computer-service-provider` | Build and deploy the Computer service image, provision Computers, install agent workspaces, and prepare the trusted development Computer. |
 | `control-service-provider` | Check, build, configure, and deploy the control-service artifact. |
 | `agent-service-provider` | Discover authored agents and check, build, configure, and deploy their service artifacts. |
@@ -34,7 +34,7 @@ Every Tilde agent receives a dynamic MCP server and a team-scoped Tilde control-
 
 ## Authored agents do not use providers
 
-Code under `configuration/agent/`, including `subagents/<id>/`, must not import provider packages or `configuration/index.ts`. Providers do not contribute model objects, prompts, AI SDK tools, arbitrary vendor methods, or generic plugin functions to an agent.
+Code under `configuration/agent/`, including `subagents/<id>/`, must not import provider packages or `configuration/index.ts`. Providers do not contribute live model objects, prompts, AI SDK tools, arbitrary vendor methods, or generic plugin functions to a running agent. An inference provider may contribute source files while init seeds `configuration/templates/agent/`; those files immediately become fork-owned and import the vendor SDK directly.
 
 Integrate the desired SDK directly in the authored agent. For example, an agent may use OpenAI, Anthropic, Tilde, Composio, or a custom API without first extending a provider interface. This keeps agent development unconstrained by OpenBot's control-plane abstractions.
 
@@ -50,7 +50,9 @@ Several providers may share one platform object. Tilde agent, skill-registry, an
 
 Initialization questions are collected once per shared platform. Provider-specific questions remain with the provider or lifecycle that owns the resulting resource.
 
-The default `VercelInferenceProvider` shares the installation's `VercelPlatform`. Init asks for the AI Gateway key name, creates the key only when `AI_GATEWAY_API_KEY` is absent, and persists that canonical secret through SOPS. Agent code passes a `creator/model` string directly to AI SDK so its built-in default provider routes through AI Gateway and reads the canonical key. The provider never crosses into request-time model selection.
+The default `VercelInferenceProvider` shares the installation's `VercelPlatform`. Init asks for the AI Gateway key name, creates the key only when `AI_GATEWAY_API_KEY` is absent, and persists that canonical secret through SOPS. Its template contribution passes a `creator/model` string directly to AI SDK so the built-in default provider routes through AI Gateway.
+
+`CodexInferenceProvider` is available with local and Vercel OpenBot runtimes. It always authenticates through `codex login --device-auth` in an isolated `CODEX_HOME` configured for file credentials. It persists the complete opaque auth document as `CODEX_AUTH_JSON` through SOPS, then uses Codex app-server's account read with refresh during init, development, and non-dry-run deployment checks. Non-interactive deployment never starts a nested login; invalid credentials stop with instructions to run interactive init. Its default-agent contribution uses `ai-sdk-provider-codex-cli` app-server mode and `gpt-5.6-sol`. OpenBot's AI SDK tool definitions are adapted to the package's local MCP tool representation because Codex executes its own tool loop. For Vercel, the inference build runs after the agent-service build, copies the Linux x64 Codex executable into every prebuilt Node function, and persists `VERCEL_SUPPORT_LARGE_FUNCTIONS=1`; the native binary makes Vercel Large Functions a deployment requirement. The provider contract still never crosses into request-time model selection.
 
 ## Adding or changing a provider
 
@@ -58,7 +60,7 @@ The default `VercelInferenceProvider` shares the installation's `VercelPlatform`
 2. Add the narrow operation to the owning domain contract only if that consumer needs it.
 3. Put reusable vendor plumbing in `platform-integrations`; keep domain mapping in the adapter.
 4. Construct the provider explicitly in `configuration/index.ts`.
-5. Inspect `configuration/templates/agent/`, but do not route authored-agent runtime behavior through the provider. Update direct agent/template integrations when needed.
+5. For inference providers, contribute the minimal vendor SDK source needed by the default agent template. For other integrations, inspect `configuration/templates/agent/` and update direct agent/template code when needed. Never route authored-agent runtime calls through a provider object.
 6. Add focused contract and lifecycle tests.
 
 Custom fork-owned providers may live under `configuration/providers/`, but they follow the same limits. If a function is useful only to one authored agent, put it in that agent instead.

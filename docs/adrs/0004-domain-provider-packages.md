@@ -5,6 +5,7 @@
 - Providers serve control APIs, initialization/provisioning, and build/deploy lifecycles.
 - Tilde conversation data is consumed through its native REST/SSE API.
 - One agent provider reconciles the complete external footprint of each authored agent.
+- Inference providers may seed SDK-specific source into the default agent template at init.
 - Authored agents import SDKs directly, never provider packages.
 - Remove unused provider methods. No universal provider SDK.
 
@@ -29,7 +30,7 @@ Tilde owns conversation-facing agent, session, message, attachment, queue, and s
 
 `agent-provider` exposes one idempotent deployment lifecycle for the complete external footprint of an authored agent. Its Tilde adapter owns endpoint lookup, creation, repair, status reconciliation, authored-skill synchronization, exact skill-registry membership, dynamic MCP reconciliation, Tilde control-plane tools, and deployment-platform MCP integrations. These are cohesive internal reconcilers, not separately configurable Skills or Tools Providers. The CLI schedules the aggregate lifecycle once per agent and never contains vendor CRUD.
 
-The old model-facing inference-model provider is removed. A narrow `inference-provider` may own initialization and external credential provisioning, but it exposes no model factory and authored agents still import AI SDK providers directly.
+The old model-facing inference-model provider is removed. A narrow `inference-provider` may own initialization, external credential provisioning, credential readiness checks, provider-owned files that seed the default agent template, and provider-specific runtime files required by a deployment artifact. It exposes no request-time model factory. The CLI copies the selected contribution into `configuration/templates/agent/` during initialization; from then on it is fork-owned source. Authored agents import the selected AI SDK provider directly through that generated source. A deployment build may consume named `agent-service.target` and `agent-service.artifact` handoffs from the agent-service build, as the Codex provider does when it adds the native Linux executable to prebuilt Vercel functions.
 
 Code under `configuration/agent/`, including its `subagents/`, must not import provider packages or `configuration/index.ts`. Agents instantiate model clients, MCP clients, skill clients, Composio, and other SDKs directly. Defaults for future agents live in `configuration/templates/agent/`; existing agents change only through explicit edits.
 
@@ -44,7 +45,9 @@ flowchart LR
   START["Init, dev, and deploy"] --> AP["Agent provider"]
   AP --> RES["Agent, skills, tools, and MCP resources"]
   START --> LP["Build and deploy providers"]
-  AG["Authored agent"] --> SDK["Direct vendor SDKs"]
+  IP["Inference provider at init"] --> TMPL["Fork-owned agent template"]
+  TMPL --> AG["Authored agent"]
+  AG --> SDK["Direct vendor SDKs"]
   AG --> CT["Computer tools"]
   CT --> SVC["Computer service"]
 ```
@@ -54,12 +57,16 @@ flowchart LR
 - Control-plane abstractions stay small and testable.
 - Agent developers are not blocked by generic provider contracts.
 - Adding an agent integration usually changes agent code and its template, not provider interfaces.
+- Selecting an inference provider seeds its runtime adapter into future-agent source without coupling agents to control-plane packages.
+- Provider-owned native runtime files can be added during the build lifecycle without exposing a model factory to authored agents.
 - Shared vendor initialization remains deduplicated without coupling domain providers.
 - Removing a provider operation is expected when no allowed consumer remains.
 - Skills and tools cannot be selected independently from the Tilde agent lifecycle.
 
 ## Updates
 
+- 2026-08-21T13:50:00+01:00: Allowed inference providers to contribute initialization-time agent template files and credential readiness checks while preserving direct vendor SDK imports and prohibiting request-time model factories on provider contracts.
+- 2026-08-21T14:15:00+01:00: Allowed an inference provider build to consume the agent-service artifact handoff and add provider-owned native runtime files for Vercel deployment.
 - 2026-08-14T15:36:00+02:00: Added a provisioning-only inference-provider boundary for Vercel AI Gateway credentials while preserving direct AI SDK imports in authored agents.
 - 2026-08-13T11:12:53+02:00: Removed universal provider packages plus default descriptor, health, verification, and selector-factory requirements in favor of explicit domain interfaces and composition.
 - 2026-08-13T12:09:51+02:00: Removed the unused legacy `contracts` package after control and computer callers moved to their domain service protos.

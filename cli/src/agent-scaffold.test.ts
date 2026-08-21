@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { VercelAgentServiceProvider } from "@tryopenbot/agent-service-provider";
+import { CodexInferenceProvider } from "@tryopenbot/inference-provider";
 import { DeploymentOutputs } from "@tryopenbot/runtime-provider";
 import { afterEach, describe, expect, it } from "vite-plus/test";
 import {
@@ -49,7 +50,9 @@ describe("agent scaffolding", () => {
     expect(agentSource).not.toContain("@tryopenbot/agent-provider");
     expect(agentSource).not.toContain("@tryopenbot/tools-provider");
     expect(agentSource).toContain("AGENT_RESEARCH_ASSISTANT_MCP_SERVER_ID");
-    expect(agentSource).toContain("tools: localTools(sessionId)");
+    expect(agentSource).toContain("tools: await localTools(sessionId)");
+    expect(agentSource).toContain("createCuaTools");
+    expect(agentSource).toContain("existingToolNames: Object.keys(standardTools)");
     expect(agentSource).toContain("createTildeAttachmentMessageHandlers(client, context)");
     expect(agentSource).toContain("createTildeMediaUploader");
     expect(agentSource).toContain("createTildeMediaDownloader");
@@ -58,12 +61,14 @@ describe("agent scaffolding", () => {
     expect(agentSource).not.toContain("function addTools");
     expect(agentSource).not.toContain("searchSkillRegistry");
     expect(agentSource).not.toContain("TILDE_BASE_URL");
-    expect(agentSource).toContain('model: process.env.AI_MODEL ?? "openai/gpt-5.6-sol"');
-    expect(agentSource).toContain('providerOptions: { openai: { reasoningEffort: "medium" } }');
+    expect(agentSource).toContain("prepareInference(tools, request.signal)");
     expect(agentSource).not.toContain("@ai-sdk/openai");
     expect(agentSource).not.toContain("OPENAI_API_KEY");
     expect(agentSource).not.toContain("openai(");
-    expect(agentSource).toContain("system: instructions");
+    expect(agentSource).toContain("instructions,");
+    const inferenceSource = await readFile(join(directory, "inference.ts"), "utf8");
+    expect(inferenceSource).toContain('process.env.AI_MODEL ?? "openai/gpt-5.6-sol"');
+    expect(inferenceSource).toContain('reasoning: "medium"');
     expect(agentSource).not.toContain("Your name is");
     expect(agentSource).not.toContain("lib/identity");
     const instructionsSource = await readFile(join(directory, "instructions.ts"), "utf8");
@@ -99,9 +104,9 @@ describe("agent scaffolding", () => {
     await expect(access(join(directory, "skills/create-agent/SKILL.md"))).rejects.toMatchObject({
       code: "ENOENT",
     });
-    expect(await readFile(join(directory, "skills/self-edit/SKILL.md"), "utf8")).toContain(
-      "configuration/agent/subagents/research-assistant",
-    );
+    const selfEditSkill = await readFile(join(directory, "skills/self-edit/SKILL.md"), "utf8");
+    expect(selfEditSkill).toContain("name: research-assistant-self-edit");
+    expect(selfEditSkill).toContain("configuration/agent/subagents/research-assistant");
     await expect(
       access(join(root, "configuration/agent/skills/self-edit/SKILL.md")),
     ).rejects.toMatchObject({ code: "ENOENT" });
@@ -143,6 +148,51 @@ describe("agent scaffolding", () => {
       ),
     ).toContain("Custom instructions for Custom Agent");
     expect(await readFile(customTemplate, "utf8")).toContain("AGENT_ID_JSON");
+  });
+
+  it("accepts an inference-provider contribution for future agents", async () => {
+    const workspaceRoot = fileURLToPath(new URL("../../", import.meta.url));
+    const root = await mkdtemp(join(workspaceRoot, ".openbot-agent-typecheck-"));
+    temporaryDirectories.push(root);
+    await Promise.all(
+      ["tsconfig.base.json", "tsconfig.node.json"].map((name) =>
+        copyFile(join(workspaceRoot, name), join(root, name)),
+      ),
+    );
+    const provider = new CodexInferenceProvider();
+    await scaffoldAgentTemplates(root, provider.agentTemplate.files);
+    await scaffoldPrimaryAgent(root, "Factory");
+    await writeFile(
+      join(root, "configuration/instrumentation.ts"),
+      "export default { setup() {} };\n",
+      "utf8",
+    );
+
+    const inference = await readFile(join(root, "configuration/agent/inference.ts"), "utf8");
+    expect(inference).toContain("createCodexAppServer");
+    expect(inference).toContain('const defaultModel = "gpt-5.6-sol"');
+    expect(inference).toContain("createSdkMcpServer");
+    await expect(
+      new VercelAgentServiceProvider().check({
+        devMode: true,
+        repositoryRoot: root,
+        environment: process.env,
+        inputs: new DeploymentOutputs(),
+        report: () => undefined,
+      }),
+    ).resolves.toBeUndefined();
+  });
+
+  it("rejects inference-provider templates that escape the agent template directory", async () => {
+    const root = await temporaryRepository();
+    const source = new CodexInferenceProvider().agentTemplate.files[0]!.source;
+
+    await expect(
+      scaffoldAgentTemplates(root, [{ path: "../outside.ts.hbs", source }]),
+    ).rejects.toThrow("Invalid inference agent template path");
+    await expect(access(join(root, "configuration/templates/agent"))).rejects.toMatchObject({
+      code: "ENOENT",
+    });
   });
 
   it("requires init to seed the fork-owned agent template", async () => {

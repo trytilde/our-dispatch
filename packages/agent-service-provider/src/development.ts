@@ -11,24 +11,54 @@ interface InstrumentationModule {
 
 export async function createAgentServiceApp(
   repositoryRoot: string,
-  options: { health?: boolean } = {},
+  options: { health?: boolean; refreshEnvironment?: () => void | Promise<void> } = {},
 ): Promise<Hono> {
   const app = new Hono();
+  const lateEndpoints = new Map<string, Promise<NonNullable<AgentModule["default"]>>>();
   if (options.health !== false)
     app.get("/healthz", (context) => context.json({ ok: true, service: "openbot-agents" }));
   for (const agent of await discoverAgents(repositoryRoot)) {
-    await runInstrumentation(globalInstrumentationPath(repositoryRoot), agent);
-    if (agent.instrumentationPath) await runInstrumentation(agent.instrumentationPath, agent);
-    const module = (await import(
-      `${pathToFileURL(agent.path).href}?openbot=${Date.now()}`
-    )) as AgentModule;
-    if (typeof module.default !== "function")
-      throw new Error(`${agent.path} must default export chatKitEndpoint(...)`);
+    const endpoint = await loadAgentEndpoint(repositoryRoot, agent);
     app.post(`/api/agents/${agent.slug}`, async (context) =>
-      observeAgentResponse(agent.slug, context.req.raw, module.default!),
+      observeAgentResponse(agent.slug, context.req.raw, endpoint),
     );
   }
+  app.post("/api/agents/:agentId", async (context) => {
+    const agentId = context.req.param("agentId");
+    let endpointPromise = lateEndpoints.get(agentId);
+    if (!endpointPromise) {
+      const agent = (await discoverAgents(repositoryRoot)).find(
+        (candidate) => candidate.slug === agentId,
+      );
+      if (!agent) return context.notFound();
+      endpointPromise = (async () => {
+        await options.refreshEnvironment?.();
+        return await loadAgentEndpoint(repositoryRoot, agent);
+      })();
+      lateEndpoints.set(agentId, endpointPromise);
+    }
+    try {
+      return await observeAgentResponse(agentId, context.req.raw, await endpointPromise);
+    } catch (error) {
+      lateEndpoints.delete(agentId);
+      throw error;
+    }
+  });
   return app;
+}
+
+async function loadAgentEndpoint(
+  repositoryRoot: string,
+  agent: AgentSource,
+): Promise<NonNullable<AgentModule["default"]>> {
+  await runInstrumentation(globalInstrumentationPath(repositoryRoot), agent);
+  if (agent.instrumentationPath) await runInstrumentation(agent.instrumentationPath, agent);
+  const module = (await import(
+    `${pathToFileURL(agent.path).href}?openbot=${Date.now()}`
+  )) as AgentModule;
+  if (typeof module.default !== "function")
+    throw new Error(`${agent.path} must default export chatKitEndpoint(...)`);
+  return module.default;
 }
 
 /** Preserve the authored-agent stack, including failures raised after a streaming response starts. */

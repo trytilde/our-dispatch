@@ -2,7 +2,11 @@ import { constants } from "node:fs";
 import { access, chmod, copyFile, lstat, mkdir, readdir, rm } from "node:fs/promises";
 import { dirname, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { materializeFileTemplate } from "@tryopenbot/utilities";
+import { agentIdFromName, materializeFileTemplate } from "@tryopenbot/utilities";
+import {
+  type InferenceAgentTemplateFile,
+  VercelInferenceProvider,
+} from "@tryopenbot/inference-provider";
 import {
   primaryAgentDirectory,
   primaryAgentId,
@@ -16,6 +20,7 @@ const defaultAgentTemplates = [
   ["tools/await_shell.ts", "./assets/agents/factory/tools/await_shell.ts.hbs"],
   ["tools/bash.ts", "./assets/agents/factory/tools/bash.ts.hbs"],
   ["tools/copy_from_computer.ts", "./assets/agents/factory/tools/copy_from_computer.ts.hbs"],
+  ["tools/configure_connector.ts", "./assets/agents/factory/tools/configure_connector.ts.hbs"],
   ["tools/copy_to_computer.ts", "./assets/agents/factory/tools/copy_to_computer.ts.hbs"],
   ["tools/glob.ts", "./assets/agents/factory/tools/glob.ts.hbs"],
   ["tools/grep.ts", "./assets/agents/factory/tools/grep.ts.hbs"],
@@ -24,6 +29,24 @@ const defaultAgentTemplates = [
   ["tools/write_file.ts", "./assets/agents/factory/tools/write_file.ts.hbs"],
   ["sandbox/workspace/.profile", "./assets/agents/factory/sandbox/workspace/.profile.hbs"],
   ["sandbox/workspace/README.md", "./assets/agents/factory/sandbox/workspace/README.md.hbs"],
+  // The eight Tilde platform skills every agent's skill registry carries.
+  [
+    "skills/tilde-connectors/SKILL.md",
+    "./assets/agents/shared/skills/tilde-connectors/SKILL.md.hbs",
+  ],
+  ["skills/tilde-tools/SKILL.md", "./assets/agents/shared/skills/tilde-tools/SKILL.md.hbs"],
+  ["skills/tilde-chatkit/SKILL.md", "./assets/agents/shared/skills/tilde-chatkit/SKILL.md.hbs"],
+  ["skills/tilde-memory/SKILL.md", "./assets/agents/shared/skills/tilde-memory/SKILL.md.hbs"],
+  ["skills/tilde-skills/SKILL.md", "./assets/agents/shared/skills/tilde-skills/SKILL.md.hbs"],
+  ["skills/tilde-state/SKILL.md", "./assets/agents/shared/skills/tilde-state/SKILL.md.hbs"],
+  [
+    "skills/tilde-dev-tunnels/SKILL.md",
+    "./assets/agents/shared/skills/tilde-dev-tunnels/SKILL.md.hbs",
+  ],
+  [
+    "skills/tilde-control-plane/SKILL.md",
+    "./assets/agents/shared/skills/tilde-control-plane/SKILL.md.hbs",
+  ],
 ] as const;
 
 /** Rendered only into scaffolded subagents, never into the primary factory agent. */
@@ -42,10 +65,12 @@ const factoryAgentTemplates = [
 
 const requiredAgentTemplatePaths = [
   "agent.ts.hbs",
+  "inference.ts.hbs",
   "instructions.ts.hbs",
   "tools/await_shell.ts.hbs",
   "tools/bash.ts.hbs",
   "tools/copy_from_computer.ts.hbs",
+  "tools/configure_connector.ts.hbs",
   "tools/copy_to_computer.ts.hbs",
   "tools/glob.ts.hbs",
   "tools/grep.ts.hbs",
@@ -65,12 +90,32 @@ export interface ScaffoldedAgent {
 }
 
 /** Seed the fork-owned agent templates once without replacing owner edits. */
-export async function scaffoldAgentTemplates(repositoryRoot: string): Promise<string> {
-  const directory = await seedTemplateDirectory(
-    repositoryRoot,
-    agentTemplateDirectory,
-    defaultAgentTemplates,
-  );
+export async function scaffoldAgentTemplates(
+  repositoryRoot: string,
+  inferenceFiles: readonly InferenceAgentTemplateFile[] = [],
+): Promise<string> {
+  const selectedInferenceFiles = inferenceFiles.length
+    ? inferenceFiles
+    : new VercelInferenceProvider().agentTemplate.files;
+  const reserved = new Set<string>(defaultAgentTemplates.map(([path]) => path));
+  const inferenceTemplates = selectedInferenceFiles.map(({ path, source }) => {
+    if (
+      !path.endsWith(".hbs") ||
+      path.startsWith("/") ||
+      path.includes("\\") ||
+      path.split("/").some((segment) => !segment || segment === "." || segment === "..")
+    )
+      throw new Error(`Invalid inference agent template path: ${path}`);
+    const outputPath = path.slice(0, -".hbs".length);
+    if (reserved.has(outputPath))
+      throw new Error(`Inference agent template conflicts with a default file: ${path}`);
+    reserved.add(outputPath);
+    return [outputPath, source] as const;
+  });
+  const directory = await seedTemplateDirectory(repositoryRoot, agentTemplateDirectory, [
+    ...defaultAgentTemplates,
+    ...inferenceTemplates,
+  ]);
   await seedTemplateDirectory(repositoryRoot, factoryTemplateDirectory, factoryAgentTemplates);
   await seedTemplateDirectory(repositoryRoot, subagentTemplateDirectory, subagentTemplates);
   return directory;
@@ -101,17 +146,7 @@ async function seedTemplateDirectory(
   return directory;
 }
 
-export function agentIdFromName(name: string): string {
-  const id = name
-    .trim()
-    .normalize("NFKD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
-  if (!id) throw new Error("Agent name must contain at least one letter or number");
-  return id;
-}
+export { agentIdFromName } from "@tryopenbot/utilities";
 
 /** Materialize one complete authored agent without overwriting an existing directory. */
 export async function scaffoldAgent(

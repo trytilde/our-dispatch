@@ -9,6 +9,7 @@ if command -v google-chrome-stable >/dev/null 2>&1; then
     --no-sandbox \
     --disable-dev-shm-usage \
     --disable-gpu \
+    --force-renderer-accessibility \
     --user-data-dir="$profile_directory"
 fi
 
@@ -16,4 +17,5 @@ exec chromium \
   --no-sandbox \
   --disable-dev-shm-usage \
   --disable-gpu \
+  --force-renderer-accessibility \
   --user-data-dir="$profile_directory"

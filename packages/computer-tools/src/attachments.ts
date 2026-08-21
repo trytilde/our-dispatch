@@ -115,9 +115,10 @@ export function createTildeMediaDownloader(
     );
     assertHttpUrl(downloadUrl);
     const apiOrigin = new URL(client.config.baseUrl).origin;
-    const response = await fetchImpl(downloadUrl, {
-      ...(downloadUrl.origin === apiOrigin ? { headers: configHeaders(client.config) } : {}),
-    });
+    const response = await fetchImpl(
+      downloadUrl,
+      downloadUrl.origin === apiOrigin ? { headers: configHeaders(client.config) } : {},
+    );
     if (!response.ok) throw new Error(`Attachment download failed (${response.status})`);
     return {
       bytes: new Uint8Array(await response.arrayBuffer()),

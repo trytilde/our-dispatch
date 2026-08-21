@@ -1,12 +1,15 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-BOOTSTRAP_VERSION=2026-08-20.1
+BOOTSTRAP_VERSION=2026-08-21.1
 SOPS_VERSION=3.13.3
 SOPS_SHA256_AMD64=e5bec3346a873ae91d871550f3e698c1aad962aff462a080e40f25fde17fef6b
 SOPS_SHA256_ARM64=53b0abacd38ef1b12a66d6c100956691b9cefce018d91f81e73ddf7438b94d77
 CHROME_VERSION_AMD64=151.0.7922.137-1
 CHROME_SHA256_AMD64=e6dabf044cf9cd0279cfe86efa431682c18bfc06d06339ce055aaa87ae871727
+CUA_DRIVER_VERSION=0.21.0
+CUA_DRIVER_SHA256_AMD64=cf29bfaad16737e31e72f38dad2a6424f24b21a4ac2edea885e83cb9d5034135
+CUA_DRIVER_SHA256_ARM64=6b3a308c6741dd8291aad22a308bd2ec8eb52eab64687be007ac86ceaf7e3307
 MARKER=/opt/openbot/.computer-image-version
 
 # Keep package installation non-interactive during image builds and idempotent startup checks.
@@ -19,14 +22,42 @@ if [[ -f "$MARKER" ]] && [[ "$(cat "$MARKER")" == "$BOOTSTRAP_VERSION" ]]; then
 fi
 
 # Install the common desktop, browser automation, VNC, and diagnostic dependencies.
-apt-get update
-apt-get install -y --no-install-recommends \
-  adwaita-icon-theme arc-theme ca-certificates curl dbus-x11 feh fonts-liberation git imagemagick jq librsvg2-bin \
-  novnc openbox passwd pcmanfm picom procps ripgrep tigervnc-standalone-server tint2 \
-  util-linux websockify x11-utils xdotool xterm
+apt_retry() {
+  local attempt
+  for attempt in 1 2 3; do
+    if apt-get -o Acquire::Retries=3 "$@"; then
+      return 0
+    fi
+    if [[ "$attempt" -lt 3 ]]; then
+      echo "apt-get failed on attempt $attempt; retrying" >&2
+      sleep "$attempt"
+    fi
+  done
+  return 1
+}
+
+apt_retry update
+apt_retry install -y --no-install-recommends \
+  adwaita-icon-theme arc-theme at-spi2-core ca-certificates curl dbus-x11 feh fonts-liberation git imagemagick jq libxi6 librsvg2-bin \
+  novnc passwd procps ripgrep thunar tigervnc-standalone-server util-linux websockify \
+  x11-utils xdotool xfce4-panel xfce4-settings xfwm4 xterm
 
 # Google publishes a pinned amd64 package; Debian Chromium is the portable fallback.
 architecture="$(dpkg --print-architecture)"
+
+# Install the exact Cua Driver executable paired with the pinned SDK. The
+# binary-only archives avoid installing a second SDK copy into the image.
+case "$architecture" in
+  amd64) cua_arch=x86_64; cua_sha256="$CUA_DRIVER_SHA256_AMD64" ;;
+  arm64) cua_arch=arm64; cua_sha256="$CUA_DRIVER_SHA256_ARM64" ;;
+  *) echo "Unsupported Cua Driver architecture: $architecture" >&2; exit 1 ;;
+esac
+cua_archive="/tmp/cua-driver-${CUA_DRIVER_VERSION}-${cua_arch}.tar.gz"
+curl -fsSL "https://github.com/trycua/cua/releases/download/cua-driver-rs-v${CUA_DRIVER_VERSION}/cua-driver-rs-${CUA_DRIVER_VERSION}-linux-${cua_arch}-binary.tar.gz" -o "$cua_archive"
+echo "$cua_sha256  $cua_archive" | sha256sum -c -
+tar -xzf "$cua_archive" -C /tmp cua-driver
+install -m 0755 /tmp/cua-driver /usr/local/bin/cua-driver
+rm -f "$cua_archive" /tmp/cua-driver
 
 # Install a checksum-pinned SOPS binary so the trusted development sandbox can
 # decrypt configuration in memory using its injected age identity.
@@ -60,10 +91,10 @@ if [[ "$architecture" == "amd64" ]]; then
   chrome_deb=/tmp/google-chrome.deb
   curl -fsSL "https://dl.google.com/linux/chrome/deb/pool/main/g/google-chrome-stable/google-chrome-stable_${CHROME_VERSION_AMD64}_amd64.deb" -o "$chrome_deb"
   echo "$CHROME_SHA256_AMD64  $chrome_deb" | sha256sum -c -
-  apt-get install -y "$chrome_deb"
+  apt_retry install -y "$chrome_deb"
   rm -f "$chrome_deb"
 else
-  apt-get install -y chromium
+  apt_retry install -y chromium
 fi
 
 # Record completion only after every dependency is usable, then trim package caches.

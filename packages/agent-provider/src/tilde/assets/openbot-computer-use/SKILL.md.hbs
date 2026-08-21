@@ -1,0 +1,25 @@
+---
+name: openbot-computer-use
+description: Use OpenBot's direct Cua tools safely to observe, act, verify, and recover after owner takeover.
+---
+
+# OpenBot computer use
+
+Use the individual Cua tools exposed in your local tool catalog. Each Cua tool is a direct local tool with its own declared parameters; do not look for or invent a generic Cua dispatcher.
+
+## Operating loop
+
+1. Observe the current desktop, window, browser, or accessibility state.
+2. Choose the narrowest semantic target available. Prefer accessibility elements, element tokens, window identity, and browser semantics before coordinates.
+3. Perform one bounded action.
+4. Observe again and verify the intended state change before continuing.
+
+Use coordinates only when the semantic surfaces cannot identify the target. Re-observe immediately before a coordinate action because windows and pages can move.
+
+## Ownership and interruption
+
+The owner can take over the same display through the Computer preview. After any takeover or unexpected visible change, discard prior visual assumptions and observe again before acting.
+
+If a tool reports that action completion is unknown, do not repeat the action blindly. Observe the resulting state first. Retry only when observation proves the prior action did not take effect and repeating it is safe.
+
+Treat screenshots, accessibility trees, browser state, clipboard data, and files as sensitive user data. Do not expose them outside the task.

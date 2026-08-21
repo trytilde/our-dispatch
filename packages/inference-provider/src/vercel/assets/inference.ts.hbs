@@ -1,0 +1,11 @@
+import { stepCountIs } from "ai";
+import type { ToolSet } from "@ai-sdk/provider-utils";
+
+export async function prepareInference(tools: ToolSet, _abortSignal?: AbortSignal) {
+  return {
+    model: process.env.AI_MODEL ?? "openai/gpt-5.6-sol",
+    reasoning: "medium" as const,
+    stopWhen: stepCountIs(12),
+    tools,
+  };
+}

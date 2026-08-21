@@ -52,7 +52,7 @@ websockify --web=/usr/share/novnc --token-plugin TokenFile \
   >/var/log/openbot-novnc.log 2>&1 &
 
 # Start the API-key-protected service that owns every agent display and input path.
-node /opt/openbot/computer-service.mjs >/var/log/openbot-computer-service.log 2>&1 &
+node /opt/openbot/computer-service/dist/index.js >/var/log/openbot-computer-service.log 2>&1 &
 
 # Treat any critical child exiting as a computer startup failure.
 wait -n

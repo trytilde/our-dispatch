@@ -37,6 +37,7 @@ describe("TildeToolReconciler", () => {
     });
     let toolkitCreated = false;
     let toolkitEnabled = false;
+    let toolkitMapped = false;
     const mutations: string[] = [];
     vi.stubGlobal(
       "fetch",
@@ -50,8 +51,22 @@ describe("TildeToolReconciler", () => {
             name: "OpenBot scout",
             team_id: "team-one",
             is_dynamic_tool_discovery: true,
-            tools: [],
+            tools: toolkitMapped
+              ? [
+                  {
+                    tool_group_instance_id: "openbot-scout-tilde-control-plane",
+                    tool_group_source_type_id: "tilde_control_plane",
+                    tool_source_type_id: "tilde_whoami",
+                    tool_name: "tilde_whoami",
+                  },
+                ]
+              : [],
           });
+        if (request.method === "POST" && path.endsWith("/mcp-server/openbot-scout/function")) {
+          toolkitMapped = true;
+          mutations.push("map-toolkit-function");
+          return Response.json({});
+        }
         if (request.method === "GET" && path.endsWith("/mcp/tool-group"))
           return Response.json({
             items: toolkitCreated
@@ -119,7 +134,7 @@ describe("TildeToolReconciler", () => {
     const provider = new TildeToolReconciler({ client });
     await provider.deploy(context);
     await provider.deploy(context);
-    expect(mutations).toEqual(["create-toolkit", "enable-toolkit-tool"]);
+    expect(mutations).toEqual(["create-toolkit", "enable-toolkit-tool", "map-toolkit-function"]);
     expect(context.environment).toMatchObject({
       AGENT_SCOUT_MCP_SERVER_ID: "openbot-scout",
       AGENT_SCOUT_TILDE_CONTROL_PLANE_TOOL_GROUP_ID: "openbot-scout-tilde-control-plane",

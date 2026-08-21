@@ -1,5 +1,5 @@
 import { useColor } from "@/hooks/useColor";
-import { FONT_SIZE } from "@/theme/globals";
+import { FONT_FAMILY, FONT_FAMILY_BOLD, FONT_FAMILY_SEMIBOLD, FONT_SIZE } from "@/theme/globals";
 import React, { forwardRef } from "react";
 import { Text as RNText, TextProps as RNTextProps, TextStyle } from "react-native";
 
@@ -27,6 +27,7 @@ export const Text = React.memo(
       const getTextStyle = (): TextStyle => {
         const baseStyle: TextStyle = {
           color: textColor,
+          fontFamily: FONT_FAMILY,
         };
 
         switch (variant) {
@@ -34,39 +35,39 @@ export const Text = React.memo(
             return {
               ...baseStyle,
               fontSize: 28,
-              fontWeight: "700",
+              fontFamily: FONT_FAMILY_BOLD,
             };
           case "title":
             return {
               ...baseStyle,
               fontSize: 24,
-              fontWeight: "700",
+              fontFamily: FONT_FAMILY_BOLD,
             };
           case "subtitle":
             return {
               ...baseStyle,
               fontSize: 19,
-              fontWeight: "600",
+              fontFamily: FONT_FAMILY_SEMIBOLD,
             };
           case "caption":
             return {
               ...baseStyle,
               fontSize: FONT_SIZE,
-              fontWeight: "400",
+              fontFamily: FONT_FAMILY,
               color: mutedColor,
             };
           case "link":
             return {
               ...baseStyle,
               fontSize: FONT_SIZE,
-              fontWeight: "500",
+              fontFamily: FONT_FAMILY_SEMIBOLD,
               textDecorationLine: "underline",
             };
           default: // 'body'
             return {
               ...baseStyle,
               fontSize: FONT_SIZE,
-              fontWeight: "400",
+              fontFamily: FONT_FAMILY,
             };
         }
       };

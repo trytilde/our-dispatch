@@ -60,10 +60,12 @@ Per ADR-0018, every developer workflow is an `openbot` command — repository ga
 - `apps/desktop`: Electron main/preload shell and packaged local server.
 - `apps/computer-service`: API-key-protected ConnectRPC service inside computers.
 - `packages/agent-provider`: aggregate external agent, authored-skill, registry, MCP, and tool-resource reconciliation lifecycle.
-- `packages/inference-provider`: inference-account initialization and credential provisioning; never an authored-agent model factory.
+- `packages/inference-provider`: inference-account initialization, credential readiness, and provider-owned default-agent template contributions; never an authored-agent model factory.
 - `packages/computer-service-provider`: Computer service image, provisioning, workspace installation, and development/production lifecycle adapters.
 - `packages/git-provider`: hosted-git access reconciliation; brokers the GitHub App credential through Tilde and maintains the GitHub REST and git-over-HTTPS reverse-proxy profiles.
 - `packages/computer-tools`: typed Vercel AI SDK tools that call computer-service; this is a runtime utility, not a provider.
+- `packages/connector-tools`: typed Vercel AI SDK tools for in-chat connector (Tilde tool-provider) configuration; a runtime utility, not a provider.
+- `packages/connector-tools`: typed Vercel AI SDK tools for in-chat connector (Tilde tool-provider) configuration; a runtime utility, not a provider.
 - `packages/configuration`: typed contract for the fork-owned composition root.
 - `packages/utilities`: shared utilities, including strict Handlebars rendering for generated source, configuration, service, and deployment files.
 - `configuration`: fork-owned Eve-compatible agent directories, future-agent templates, provider composition, and provider plugins.
@@ -93,7 +95,7 @@ Per ADR-0018, every developer workflow is an `openbot` command — repository ga
 - The Agent Provider owns the complete external footprint of each authored agent. Keep skills, registries, MCP servers, and external tool reconciliation as cohesive internal modules rather than separately configured provider roles.
 - Code under `configuration/agent/`, including its `subagents/`, must not import provider packages or provider composition. Integrate model, tool, prompt, and vendor SDK behavior directly in the authored agent; Composio and other direct integrations do not require a provider abstraction.
 - Providers must not expose model factories, prompt injection, AI SDK tool registration, or arbitrary vendor-specific convenience functions for authored agents. Put non-provider runtime utilities in a purpose-specific package such as `computer-tools`.
-- Inference providers may provision gateway accounts and credentials, but authored agents still import AI SDK providers directly.
+- Inference providers may provision accounts and credentials, check credential readiness, seed provider-owned files into the default agent template during init, and add provider-owned runtime files to a named deployment artifact handoff, but authored agents still import AI SDK providers directly.
 - Define provider contracts in `core.ts` or `core/` inside the owning provider package and keep implementations beside them. Do not expose internal provider interfaces over RPC by default.
 - Use the `implement-provider` skill whenever adding or editing a provider implementation.
 - Keep small implementations in `<provider>.ts`. When one owns multiple responsibilities or runtime files, use `<provider>/index.ts`, cohesive subfiles, and `assets/`.

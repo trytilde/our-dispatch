@@ -7,19 +7,21 @@ import {
 } from "@trytilde/harness-sdk-vercel-ai-node";
 import {
   createTildeAttachmentMessageHandlers,
+  createCuaTools,
   createTildeMediaDownloader,
   createTildeMediaUploader,
 } from "@tryopenbot/computer-tools";
 import {
   consumeStream,
   convertToModelMessages,
-  stepCountIs,
   streamText,
-  type ToolSet,
 } from "ai";
+import type { ToolSet } from "@ai-sdk/provider-utils";
+import { prepareInference } from "./inference.js";
 import instructions from "./instructions.js";
 import awaitShell from "./tools/await_shell.js";
 import bash from "./tools/bash.js";
+import configureConnector from "./tools/configure_connector.js";
 import copyFromComputer from "./tools/copy_from_computer.js";
 import copyToComputer from "./tools/copy_to_computer.js";
 import glob from "./tools/glob.js";
@@ -37,7 +39,7 @@ const client = createClient({
   orgSubdomain: false,
   teamId: process.env.TILDE_TEAM_ID!,
 });
-function localTools(sessionId: string): ToolSet {
+async function localTools(sessionId: string): Promise<ToolSet> {
   const uploadMedia = createTildeMediaUploader({
     baseUrl: client.config.baseUrl,
     headers: () => configHeaders(client.config),
@@ -45,9 +47,10 @@ function localTools(sessionId: string): ToolSet {
     teamId: process.env.TILDE_TEAM_ID!,
   });
   const downloadMedia = createTildeMediaDownloader(client, sessionId);
-  return {
+  const standardTools = {
     await_shell: awaitShell,
     bash,
+    configure_connector: configureConnector,
     copy_from_computer: copyFromComputer(uploadMedia),
     copy_to_computer: copyToComputer(downloadMedia),
     glob,
@@ -56,6 +59,12 @@ function localTools(sessionId: string): ToolSet {
     screenshot: screenshot(uploadMedia),
     write_file: writeFile,
   } satisfies ToolSet;
+  const cuaTools = await createCuaTools({
+    agentId: {{{AGENT_ID_JSON}}},
+    existingToolNames: Object.keys(standardTools),
+    uploadMedia,
+  });
+  return { ...standardTools, ...cuaTools };
 }
 
 async function managedMcpTools(
@@ -64,7 +73,7 @@ async function managedMcpTools(
   const handle = await createMCPClient({
     client,
     serverId: mcpServerId,
-    tools: localTools(sessionId),
+    tools: await localTools(sessionId),
   });
   const tools: Record<string, unknown> = await handle.mcp.tools();
   assertToolSet(tools);
@@ -112,15 +121,13 @@ export default chatKitEndpoint({
       onHydrateMessage: attachmentHandlers.onHydrateMessage,
     });
     const { tools, closeMcp } = await managedMcpTools(context.sessionId);
+    const inference = await prepareInference(tools, request.signal);
     const result = streamText({
+      ...inference,
       abortSignal: request.signal,
+      instructions,
       messages: await convertToModelMessages(messages),
-      model: process.env.AI_MODEL ?? "openai/gpt-5.6-sol",
       onFinish: () => void closeMcp(),
-      providerOptions: { openai: { reasoningEffort: "medium" } },
-      stopWhen: stepCountIs(12),
-      system: instructions,
-      tools,
     });
     return result.toUIMessageStreamResponse({
       consumeSseStream: consumeStream,

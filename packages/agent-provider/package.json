@@ -35,7 +35,7 @@
     "@tryopenbot/runtime-provider": "workspace:*",
     "@trytilde/api-client": "github:trytilde/harness-sdk#c9b64d691486e6d57ff69cd0eb0214ceb6d1c13d&path:packages/api-client",
     "@trytilde/harness-sdk": "0.1.2",
-    "ai": "6.0.250"
+    "ai": "7.0.64"
   },
   "devDependencies": {
     "@types/node": "24.3.0",

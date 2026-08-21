@@ -14,6 +14,10 @@ Shared provider build, initialization, persistence, and phased deployment contra
 
 - `DeploymentOutputs` stores named handoff outputs in memory. `merge`, `get`, `require`, `outputs`, and `result` are its public operations; conflicting or invalid names fail.
 
+Build providers may publish named artifact handoffs for later providers. Agent-service builds publish
+`agent-service.target` and `agent-service.artifact`; inference providers can use those values to add
+provider-owned runtime files without exposing deployment concerns to authored agents.
+
 ### Critical interfaces
 
 - `Buildable` defines `check()` and `build()` for software artifacts, plus optional development `watchPaths()`.

@@ -49,6 +49,7 @@ export async function buildLocalAgentService(
   return {
     outputs: {
       "agent-service.artifact": resolve(context.repositoryRoot, agentLocalArtifact),
+      "agent-service.target": "local",
       "agent-service.count": String(agents.length),
       "agent-service.digest": await digestAgents(agents),
     },

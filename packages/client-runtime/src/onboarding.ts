@@ -28,9 +28,9 @@ export async function loadOnboarding(storage: OnboardingStorage): Promise<Onboar
 /** Records completion. Returns the state the caller should render, persisted or not. */
 export async function completeOnboarding(
   storage: OnboardingStorage,
-  result: OnboardingResult,
+  result?: OnboardingResult,
 ): Promise<OnboardingState> {
-  const state: OnboardingState = { completed: true, result };
+  const state: OnboardingState = { completed: true, ...(result ? { result } : {}) };
   try {
     await storage.setItem(storageKey, JSON.stringify(state));
   } catch {

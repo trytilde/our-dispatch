@@ -12,6 +12,8 @@ service ComputerService {
   rpc WriteFile(WriteFileRequest) returns (WriteFileResponse);
   rpc Screenshot(ScreenshotRequest) returns (ScreenshotResponse);
   rpc Input(InputRequest) returns (InputResponse);
+  rpc ListCuaTools(ListCuaToolsRequest) returns (ListCuaToolsResponse);
+  rpc CallCuaTool(CallCuaToolRequest) returns (CallCuaToolResponse);
   rpc EnsureDesktop(EnsureDesktopRequest) returns (EnsureDesktopResponse);
   rpc ListPorts(ListPortsRequest) returns (ListPortsResponse);
   rpc TunnelVnc(stream TunnelVncRequest) returns (stream TunnelVncResponse);
@@ -122,6 +124,56 @@ message InputRequest {
 }
 
 message InputResponse { bool accepted = 1; }
+
+message ListCuaToolsRequest { string agent_id = 1; }
+
+message CuaToolDefinition {
+  string name = 1;
+  string description = 2;
+  string input_schema_json = 3;
+}
+
+message ListCuaToolsResponse {
+  repeated CuaToolDefinition tools = 1;
+}
+
+message CallCuaToolRequest {
+  string agent_id = 1;
+  string name = 2;
+  string arguments_json = 3;
+}
+
+message CuaImageContent {
+  string media_type = 1;
+  bytes data = 2;
+}
+
+message CuaContent {
+  oneof content {
+    string text = 1;
+    CuaImageContent image = 2;
+  }
+}
+
+enum CuaActionCompletion {
+  CUA_ACTION_COMPLETION_UNSPECIFIED = 0;
+  CUA_ACTION_COMPLETION_NOT_STARTED = 1;
+  CUA_ACTION_COMPLETION_COMPLETED = 2;
+  CUA_ACTION_COMPLETION_UNKNOWN = 3;
+}
+
+message CallCuaToolResponse {
+  repeated CuaContent content = 1;
+  string structured_json = 2;
+  bool is_error = 3;
+  string error_code = 4;
+  bool verified = 5;
+  bool degraded = 6;
+  string raw_json = 7;
+  CuaActionCompletion action_completion = 8;
+  string action_json = 9;
+  string verification_json = 10;
+}
 
 message EnsureDesktopRequest {
   string agent_id = 1;

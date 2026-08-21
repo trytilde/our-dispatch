@@ -48,6 +48,14 @@ export {
   ToolOutput,
 } from "./components/ai-elements/tool.js";
 export {
+  Avatar,
+  AvatarBadge,
+  AvatarFallback,
+  AvatarGroup,
+  AvatarGroupCount,
+  AvatarImage,
+} from "./components/ui/avatar.js";
+export {
   CommandDialog,
   CommandEmpty,
   CommandGroup,
@@ -66,11 +74,17 @@ export {
 } from "./components/ui/dialog.js";
 export {
   DropdownMenu,
+  DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "./components/ui/dropdown-menu.js";
+export {
+  PluginsCatalog,
+  type PluginsCatalogAgent,
+  type PluginsCatalogProps,
+} from "./plugins-catalog.js";
 export { cn } from "./lib/utils.js";
 export { Shimmer, type ShimmerProps } from "./beautiful-ui/atoms/shimmer.js";
 export { StreamText, type StreamTextProps } from "./beautiful-ui/atoms/stream-text.js";
@@ -107,10 +121,8 @@ export {
 } from "./computer-components.js";
 export { useWorkspaceLayout, type WorkspaceLayout } from "./use-workspace-layout.js";
 export { AgentAvatar, type AgentAvatarProps } from "./agent-avatar.js";
-export {
-  BrandedLoadingState,
-  type BrandedLoadingStateProps,
-} from "./branded-loading-state.js";
+export { AgentSetupDialog, type AgentSetupDialogProps } from "./agent-setup-dialog.js";
+export { BrandedLoadingState, type BrandedLoadingStateProps } from "./branded-loading-state.js";
 export {
   WorkspaceSidebar,
   type WorkspaceSidebarAgent,
@@ -135,6 +147,7 @@ export {
   ListIcon,
   MoreIcon,
   PlusIcon,
+  PluginsIcon,
   ReplyIcon,
   SearchIcon,
   SendIcon,
@@ -152,10 +165,26 @@ export {
 } from "./workspace-selector.js";
 export {
   MessageContent,
+  type ConnectorPartActions,
   type MessageContentMessage,
   type MessageContentProps,
   type MessagePart,
 } from "./message-content.js";
+export {
+  CONNECTOR_SELECTION_TOOL_NAME,
+  ConnectorAccountGrid,
+  type ConnectorAccountGridProps,
+  type ConnectorAccountView,
+  type ConnectorCredentialSourceView,
+  ConnectorSetupDialog,
+  type ConnectorSetupDialogProps,
+  type ConnectorSetupField,
+  type ConnectorSetupSubmit,
+  connectorSelectionViewFromPart,
+  connectorSetupFields,
+  isConnectorSelectionPart,
+  type ConnectorSelectionView,
+} from "./connector-components.js";
 export {
   ConnectionCard,
   type ConnectionView,

@@ -3,6 +3,7 @@ import arg from "arg";
 import { Box, Text, render, useApp, useInput } from "ink";
 import {
   builtInRuntimeInitializationProviders,
+  inferenceChoices,
   initializeOpenBot,
   isInitializedOpenBotRepository,
   ownerIdentityChoices,
@@ -155,6 +156,10 @@ export function initializationJsonSchema(): InitializationJsonSchema {
       "Runtime where OpenBot control, agent, and computer services will be deployed.",
       runtimeChoices,
     ),
+    inference: selectSchema(
+      "Inference provider used by authored agents. Non-interactive init supports Vercel; ChatGPT subscription setup requires interactive device-code authentication.",
+      inferenceChoices.filter((choice) => choice.value === "vercel"),
+    ),
     "aws-kms-key-arn": conditionedSchema(
       requiredStringSchema(
         "ARN of an existing AWS KMS key or alias that SOPS will use for owner encryption.",
@@ -217,7 +222,7 @@ export function initializationJsonSchema(): InitializationJsonSchema {
 
   for (const runtime of ["local", "vercel"] as const) {
     const initializations = collectProviderInitializations(
-      builtInRuntimeInitializationProviders(runtime),
+      builtInRuntimeInitializationProviders(runtime, "vercel"),
     );
     const required = new Set<string>();
     for (const initialization of initializations) {
@@ -254,7 +259,13 @@ export function initializationJsonSchema(): InitializationJsonSchema {
     type: "object",
     additionalProperties: false,
     properties,
-    required: ["repository-name", "repository-visibility", "owner-identity", "runtime"],
+    required: [
+      "repository-name",
+      "repository-visibility",
+      "owner-identity",
+      "runtime",
+      "inference",
+    ],
     allOf: conditions,
     "x-openbot-command": "openbot init --non-interactive --json",
   };
@@ -321,7 +332,13 @@ function requiredWhen(field: string, value: string, required: readonly string[])
 export function validateNonInteractiveCoreAnswers(
   answers: Readonly<Record<string, string>>,
 ): Readonly<Record<string, string>> {
-  const required = ["repository-name", "repository-visibility", "owner-identity", "runtime"];
+  const required = [
+    "repository-name",
+    "repository-visibility",
+    "owner-identity",
+    "runtime",
+    "inference",
+  ];
   const ownerRequired: Record<string, readonly string[]> = {
     "aws-kms": ["aws-kms-key-arn"],
     "gcp-kms": ["gcp-kms-resource-id"],
@@ -330,25 +347,28 @@ export function validateNonInteractiveCoreAnswers(
     onepassword: ["onepassword-vault", "onepassword-item-title"],
     "native-age": [],
   };
-  const runtimeRequired = Object.fromEntries(
-    (["local", "vercel"] as const).map((runtime) => [
-      runtime,
-      collectProviderInitializations(builtInRuntimeInitializationProviders(runtime)).flatMap(
-        (initialization) =>
-          initialization.questions
-            .filter((question) => question.required)
-            .map((question) => question.id),
-      ),
-    ]),
-  ) as Record<string, readonly string[]>;
   const owner = answers["owner-identity"];
   const runtime = answers.runtime;
+  const inference = answers.inference;
   if (owner && !ownerRequired[owner])
     throw new Error(`Invalid non-interactive answer for owner-identity: ${owner}`);
-  if (runtime && !runtimeRequired[runtime])
+  if (runtime && runtime !== "local" && runtime !== "vercel")
     throw new Error(`Invalid non-interactive answer for runtime: ${runtime}`);
+  if (inference && inference !== "vercel" && inference !== "codex")
+    throw new Error(`Invalid non-interactive answer for inference: ${inference}`);
+  if (inference === "codex")
+    throw new Error("Codex inference setup requires interactive device-code authentication");
   required.push(...(owner ? (ownerRequired[owner] ?? []) : []));
-  required.push(...(runtime ? (runtimeRequired[runtime] ?? []) : []));
+  if ((runtime === "local" || runtime === "vercel") && inference === "vercel")
+    required.push(
+      ...collectProviderInitializations(
+        builtInRuntimeInitializationProviders(runtime, inference),
+      ).flatMap((initialization) =>
+        initialization.questions
+          .filter((question) => question.required)
+          .map((question) => question.id),
+      ),
+    );
   for (const id of required)
     if (answers[id] === undefined || answers[id] === "")
       throw new Error(`Missing required non-interactive answer: ${id}`);

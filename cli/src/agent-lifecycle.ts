@@ -1,9 +1,5 @@
 import type { AgentProvider } from "@tryopenbot/agent-provider";
-import {
-  discoverAgents,
-  primaryAgentId,
-  type AgentServiceProvider,
-} from "@tryopenbot/agent-service-provider";
+import { discoverAgents, type AgentServiceProvider } from "@tryopenbot/agent-service-provider";
 import {
   DeploymentOutputs,
   persistEnvironment,
@@ -53,6 +49,7 @@ export async function persistAgentSandboxUrls(
 
 export interface ReconcileAgentResourcesOptions {
   repositoryRoot: string;
+  agentIds?: readonly string[];
   environment: NodeJS.ProcessEnv;
   configuration?: NodeJS.ProcessEnv;
   providers: {
@@ -72,7 +69,11 @@ export interface ReconcileAgentResourcesOptions {
 export async function reconcileAgentResources(
   options: ReconcileAgentResourcesOptions,
 ): Promise<void> {
-  const sources = await discoverAgents(options.repositoryRoot);
+  const discoveredSources = await discoverAgents(options.repositoryRoot);
+  const selectedAgentIds = options.agentIds ? new Set(options.agentIds) : undefined;
+  const sources = selectedAgentIds
+    ? discoveredSources.filter((source) => selectedAgentIds.has(source.slug))
+    : discoveredSources;
   const report = options.report ?? (() => undefined);
   const persistence = repositoryDeploymentPersistence(options);
   const agentServiceOrigin = (

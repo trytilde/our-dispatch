@@ -21,7 +21,7 @@ export async function runNewAgent(args: readonly string[] = []): Promise<NewAgen
     );
   }
   const name = suppliedName || (await inkPrompts.input("Agent name", { required: true }));
-  const agent = await scaffoldAgent(repositoryRoot, name);
+  const agent = await scaffoldAgent(repositoryRoot, name, { existing: "preserve" });
   await setEnvironmentValue(
     repositoryRoot,
     `AGENT_${agent.id.replaceAll("-", "_").toUpperCase()}_NAME`,
@@ -32,11 +32,14 @@ export async function runNewAgent(args: readonly string[] = []): Promise<NewAgen
     prompts: process.stdin.isTTY && process.stdout.isTTY ? inkPrompts : undefined,
   });
   const configuration = await loadDevelopmentConfiguration(environment);
+  const liveAgentServiceOrigin = environment.AGENT_SERVICE_ORIGIN?.trim();
   await reconcileAgentResources({
     repositoryRoot,
+    agentIds: [agent.id],
     environment,
     providers: configuration.providers,
     devMode: true,
+    ...(liveAgentServiceOrigin ? { agentServiceOrigin: liveAgentServiceOrigin } : {}),
     report: parsed["--json"]
       ? undefined
       : (event) => {

@@ -1,4 +1,1 @@
-export {
-  discoverControlService,
-  normalizeControlOrigin,
-} from "@tryopenbot/client-runtime";
+export { discoverControlService, normalizeControlOrigin } from "@tryopenbot/client-runtime";

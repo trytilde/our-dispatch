@@ -91,12 +91,6 @@ export interface ComputerExecResult {
   stderr: string;
 }
 
-export type ComputerInput =
-  | { action: "mouse_move"; x: number; y: number }
-  | { action: "click"; button?: 1 | 2 | 3 }
-  | { action: "type"; text: string; delayMs?: number }
-  | { action: "key"; key: string };
-
 export interface ComputerVncEndpoint {
   url: URL;
   expiresAt: Date;

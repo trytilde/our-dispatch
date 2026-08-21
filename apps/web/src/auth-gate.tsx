@@ -82,7 +82,7 @@ export function AuthGate({
             .catch(() => undefined)
             .finally(() => setSigningIn(false));
         }}
-        onSwitchWorkspace={workspace.openWorkspaceSelector}
+        onSwitchWorkspace={() => workspace.openWorkspaceSelector()}
       />
     );
 

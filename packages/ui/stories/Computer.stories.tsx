@@ -139,13 +139,8 @@ export const WorkspacePanel: Story = {
       <AgentWorkspacePanel
         agentId="hello-world"
         agentName="Hello World"
-        monitors={[
-          { id: "hello-world", previewUrl: preview, title: "Hello World" },
-          { id: "research", previewUrl: preview, title: "Research" },
-        ]}
         onClose={noop}
         onResize={noop}
-        onSelectMonitor={noop}
         open
       />
     </div>
