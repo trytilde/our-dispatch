@@ -16,6 +16,11 @@
       "types": "./src/file-template.ts",
       "development": "./src/file-template.ts",
       "import": "./dist/file-template.js"
+    },
+    "./json": {
+      "types": "./src/json.ts",
+      "development": "./src/json.ts",
+      "import": "./dist/json.js"
     }
   },
   "publishConfig": {
@@ -27,6 +32,10 @@
       "./file-template": {
         "types": "./dist/file-template.d.ts",
         "import": "./dist/file-template.js"
+      },
+      "./json": {
+        "types": "./dist/json.d.ts",
+        "import": "./dist/json.js"
       }
     },
     "access": "public"

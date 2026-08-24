@@ -12,12 +12,13 @@ import {
   CommandList,
 } from "./components/ui/command.js";
 import { Dialog, DialogContent, DialogTitle } from "./components/ui/dialog.js";
-import { BackIcon, PlusIcon } from "./workspace-icons.js";
+import { BackIcon, PluginsIcon, PlusIcon, SettingsIcon, WorkspaceIcon } from "./workspace-icons.js";
 import { getThemePreference, setThemePreference, type ThemePreference } from "./theme.js";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "./components/ui/dropdown-menu.js";
 
@@ -271,7 +272,7 @@ export interface AddAgentDialogProps {
   open: boolean;
   creating?: boolean;
   onClose: () => void;
-  onCreate: (name: string) => void;
+  onCreate: (name: string, avatarId: string) => void;
   onSelect: (id: string) => void;
 }
 
@@ -288,7 +289,7 @@ export function AddAgentDialog({
   const [query, setQuery] = useState("");
   const [avatarGeneration, setAvatarGeneration] = useState(0);
   const [hoveredAvatarId, setHoveredAvatarId] = useState("");
-  const [selectedAvatarId, setSelectedAvatarId] = useState("");
+  const [selectedAvatarId, setSelectedAvatarId] = useState("new-bot-0-0");
   const reduceMotion = useReducedMotion();
   const matchingAgents = agents.filter((agent) =>
     `${agent.name} ${agent.id}`.toLowerCase().includes(query.trim().toLowerCase()),
@@ -304,7 +305,7 @@ export function AddAgentDialog({
     setQuery("");
     setAvatarGeneration(0);
     setHoveredAvatarId("");
-    setSelectedAvatarId("");
+    setSelectedAvatarId("new-bot-0-0");
   }, [open]);
 
   const close = () => {
@@ -315,7 +316,7 @@ export function AddAgentDialog({
   const submit = (event: FormEvent) => {
     event.preventDefault();
     const name = query.trim();
-    if (name && !creating) onCreate(name);
+    if (name && !creating) onCreate(name, selectedAvatarId);
   };
 
   if (creatingNew)
@@ -398,8 +399,11 @@ export function AddAgentDialog({
                     disabled={creating}
                     onClick={() => {
                       setHoveredAvatarId("");
-                      setSelectedAvatarId("");
-                      setAvatarGeneration((current) => current + 1);
+                      setAvatarGeneration((current) => {
+                        const next = current + 1;
+                        setSelectedAvatarId(`new-bot-${next}-0`);
+                        return next;
+                      });
                     }}
                     type="button"
                   >
@@ -420,7 +424,7 @@ export function AddAgentDialog({
                   setQuery("");
                   setAvatarGeneration(0);
                   setHoveredAvatarId("");
-                  setSelectedAvatarId("");
+                  setSelectedAvatarId("new-bot-0-0");
                 }}
                 type="button"
               >
@@ -528,16 +532,40 @@ function ThemeActionIcon({ preference }: { preference: ThemePreference }) {
 
 export interface WorkspaceAccountProps {
   collapsed?: boolean;
-  name?: string;
+  account?: {
+    name: string;
+    email?: string;
+    avatarUrl?: string;
+    organizationName?: string;
+    workspaceName?: string;
+  };
+  onOpenPlugins?: () => void;
+  onOpenSettings?: () => void;
+  onSwitchWorkspace?: () => void;
+  onSignOut?: () => void;
 }
 
 export function WorkspaceAccount({
   collapsed = false,
-  name = "Your account",
+  account = { name: "Your account" },
+  onOpenPlugins,
+  onOpenSettings,
+  onSwitchWorkspace,
+  onSignOut,
 }: WorkspaceAccountProps) {
+  const [open, setOpen] = useState(false);
+  const name = account.name?.trim() || account.email?.trim() || "Your account";
+  const detail = account.workspaceName || account.organizationName || account.email;
+
   return (
-    <div className={`mt-auto p-2 ${collapsed ? "sidebar-account-collapsed" : ""}`}>
-      <DropdownMenu>
+    <div
+      className={`mt-auto p-2 ${collapsed ? "sidebar-account-collapsed" : ""}`}
+      onKeyDown={(event) => {
+        if (event.key === "Escape") setOpen(false);
+      }}
+      onPointerMove={() => setOpen(true)}
+    >
+      <DropdownMenu onOpenChange={setOpen} open={open}>
         <DropdownMenuTrigger asChild>
           <button
             aria-label={`Open account menu for ${name}`}
@@ -554,26 +582,72 @@ export function WorkspaceAccount({
               initial={false}
               transition={avatarTransition}
             >
-              {name.charAt(0).toUpperCase()}
+              {account.avatarUrl ? (
+                <img
+                  alt=""
+                  className="size-full rounded-full object-cover"
+                  src={account.avatarUrl}
+                />
+              ) : (
+                name.charAt(0).toUpperCase()
+              )}
             </motion.span>
             <AnimatePresence initial={false}>
               {collapsed ? null : (
                 <motion.span
                   animate={{ opacity: 1, width: "auto" }}
-                  className="min-w-0 flex-1 truncate text-[13px] font-medium text-ink"
+                  className="min-w-0 flex-1"
                   exit={{ opacity: 0, width: 0 }}
                   initial={{ opacity: 0, width: 0 }}
                   key="account-name"
                   transition={avatarTransition}
                 >
-                  {name}
+                  <strong className="block truncate text-[13px] font-medium text-ink">
+                    {name}
+                  </strong>
+                  {detail ? (
+                    <small className="block truncate text-[11px] font-normal text-ink-3">
+                      {detail}
+                    </small>
+                  ) : null}
                 </motion.span>
               )}
             </AnimatePresence>
           </button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent side="top" align="start" className="w-[220px]">
-          <DropdownMenuItem>
+        <DropdownMenuContent
+          align="start"
+          aria-label="Account"
+          className="w-[248px]"
+          onEscapeKeyDown={() => setOpen(false)}
+          side="top"
+        >
+          <div className="px-2.5 py-2">
+            <p className="m-0 truncate text-[13px] font-semibold text-ink">{name}</p>
+            {account.email && account.email !== name ? (
+              <p className="mt-0.5 mb-0 truncate text-[11.5px] text-ink-3">{account.email}</p>
+            ) : null}
+            {account.workspaceName || account.organizationName ? (
+              <p className="mt-1.5 mb-0 truncate text-[11.5px] text-ink-2">
+                {[account.workspaceName, account.organizationName].filter(Boolean).join(" · ")}
+              </p>
+            ) : null}
+          </div>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem onSelect={onOpenPlugins}>
+            <PluginsIcon className="size-4 shrink-0 fill-none stroke-current stroke-[1.3]" />
+            <span>Plugins</span>
+          </DropdownMenuItem>
+          <DropdownMenuItem onSelect={onOpenSettings}>
+            <SettingsIcon className="size-4 shrink-0 fill-none stroke-current stroke-[1.3]" />
+            <span>Settings</span>
+          </DropdownMenuItem>
+          <DropdownMenuItem onSelect={onSwitchWorkspace}>
+            <WorkspaceIcon className="size-4 shrink-0 fill-none stroke-current stroke-[1.3]" />
+            <span>Switch workspace</span>
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem onSelect={onSignOut}>
             <AccountMenuIcon name="logout" />
             <span>Log out</span>
           </DropdownMenuItem>

@@ -25,6 +25,7 @@
   },
   "dependencies": {
     "@hono/node-server": "1.19.1",
+    "@inquirer/checkbox": "5.2.1",
     "@tryopenbot/agent-provider": "workspace:*",
     "@tryopenbot/agent-service-provider": "workspace:*",
     "@tryopenbot/auth-provider": "workspace:*",
@@ -39,8 +40,7 @@
     "@tryopenbot/platform-integrations": "workspace:*",
     "@tryopenbot/runtime-provider": "workspace:*",
     "@tryopenbot/utilities": "workspace:*",
-    "@trytilde/api-client": "github:trytilde/harness-sdk#c9b64d691486e6d57ff69cd0eb0214ceb6d1c13d&path:packages/api-client",
-    "@trytilde/cli": "0.1.0",
+    "@trytilde/sdk": "workspace:*",
     "arg": "5.0.2",
     "dotenv": "17.2.1",
     "hono": "4.13.1",

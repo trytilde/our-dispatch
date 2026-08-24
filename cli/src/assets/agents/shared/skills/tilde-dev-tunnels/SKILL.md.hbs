@@ -14,11 +14,10 @@ Your `tilde_*` tools are team-scoped: never pass `org_id` or `team_id` arguments
 ## Local CLI steps for the human
 
 ```bash
-pnpm add -D @trytilde/cli
-pnpm exec tilde auth login
-pnpm exec tilde tunnel -- pnpm dev
+pnpm exec openbot auth login
+pnpm exec openbot tunnel -- pnpm dev
 ```
 
-Replace `pnpm dev` with the app's normal dev command; `pnpm exec tilde auth set-team` fixes a wrong workspace. The CLI passes the chosen port as `PORT` and `TUNNEL_PORT`, and the process must stay running while Tilde delivers ChatKit messages, webhooks, and tool invocations.
+Replace `pnpm dev` with the app's normal dev command; `pnpm exec openbot auth set-team` fixes a wrong team. The CLI passes the chosen port as `PORT` and `TUNNEL_PORT`, and the process must stay running while Tilde delivers ChatKit messages, webhooks, and tool invocations.
 
 Warn the user: the tunnel exposes every route served by the dev process to the public internet — disable or protect unrelated routes. Signed Harness SDK wrappers such as `chatKitEndpoint` reject requests without a valid Tilde signature, but that protects only the wrapped endpoint.

@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 export interface ActivityQueueItem {
   id: string;
   text: string;
+  queuePosition?: number;
   pending?: boolean;
 }
 
@@ -30,6 +31,20 @@ export interface ActivityQueueProps {
   onRunNow: (id: string) => void;
   onEdit: (id: string) => void;
   onRemove: (id: string) => void;
+}
+
+export function queuePositionForIndex(
+  items: readonly ActivityQueueItem[],
+  destinationIndex: number,
+): number {
+  const previous = items[destinationIndex - 1]?.queuePosition;
+  const next = items[destinationIndex + 1]?.queuePosition;
+  if (typeof previous === "number" && typeof next === "number") {
+    return Math.trunc((previous + next) / 2);
+  }
+  if (typeof next === "number") return next - 1;
+  if (typeof previous === "number") return previous + 1;
+  return destinationIndex;
 }
 
 export function AgentActivity({
@@ -82,7 +97,7 @@ export function ActivityQueue({
       (candidate) => candidate.id === item.id,
     );
     if (sourceIndex < 0 || destinationIndex < 0 || sourceIndex === destinationIndex) return;
-    onReorder(item.id, destinationIndex);
+    onReorder(item.id, queuePositionForIndex(orderedItemsRef.current, destinationIndex));
   };
 
   return (

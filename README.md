@@ -47,6 +47,7 @@ pnpm openbot mobile emulator        # Android emulator, headless on a display-le
 pnpm openbot mobile expo run:ios    # iOS simulator, macOS only
 pnpm openbot mobile release status  # EAS store builds, upstream only; a mobile-v* tag releases
 pnpm openbot connect -- <host>      # tunnel a remote dev host's emulator, Metro, and adb
+pnpm openbot sdk refresh            # regenerate, build, and test the Tilde SDK
 ```
 
 Prerequisites differ per platform and per surface — a JDK 17 or 21 for Android, Xcode 16.1 or
@@ -65,19 +66,36 @@ pnpm deploy:prod -- --yes
 
 `openbot init` creates `configuration/index.ts` and `configuration/.env`, seeds the fork-owned `configuration/templates/agent/` defaults, configures SOPS, generates a dedicated age identity for the trusted development sandbox, and asks for an independent owner identity. Managed owner identities support HashiCorp Vault Transit, Azure Key Vault, Google Cloud KMS, and AWS KMS. Local fallbacks store a generated owner age identity in 1Password or the native operating-system keychain. Provider-contributed questions are saved either to `.env` or `configuration/secrets.enc.yaml`; secret input is never written to command arguments.
 
+Every interactive init run shows React Ink selectors for provider domains with multiple built-in implementations. Each selector includes every available implementation and preselects the provider currently composed in `configuration/index.ts`, so rerunning init can update runtime or inference without editing generated composition by hand. As soon as a provider is selected, init asks and provisions that provider's configuration before showing another provider domain; selecting ChatGPT therefore starts Codex device login before any Tilde setup. Init rewrites only a recognized, canonical built-in composition. A custom or owner-edited composition remains selectable as the current value and must be changed explicitly.
+
 Init offers Vercel AI Gateway or a ChatGPT subscription through Codex for both local and Vercel runtimes; Vercel AI Gateway remains the default. The Gateway path creates a named key stored in SOPS as `AI_GATEWAY_API_KEY` and defaults to `openai/gpt-5.6-sol`. The Codex path always runs device-code login, stores the opaque Codex credential cache in SOPS as `CODEX_AUTH_JSON`, and defaults to `gpt-5.6-sol`. Development checks and refreshes that cache before services start and requests another device login when an owner is present; production deployment refreshes valid credentials but stops with an explicit reauthentication instruction when they are missing, expired, or revoked. Vercel agent functions receive the Linux Codex executable and opt into Vercel Large Functions because the native binary exceeds the standard function bundle limit.
 
-The selected inference provider seeds its SDK-specific `inference.ts.hbs` into the fork-owned default agent template. Generated agents keep the same AI SDK call shape and import vendor SDKs directly. Codex app-server receives the ordinary OpenBot AI SDK tool set through the provider package's local MCP bridge. Sampling controls and strict structured-output behavior remain subject to the community provider's documented limitations.
+The selected inference provider seeds its SDK-specific `inference.ts.hbs` into the fork-owned default agent template. When init changes inference providers, it migrates the future template and existing agents only when each affected file still exactly matches the previous provider scaffold; fork-owned edits stop the switch with an explicit migration error. Generated agents keep the same AI SDK call shape and import vendor SDKs directly. Codex app-server receives the ordinary OpenBot AI SDK tool set through the provider package's local MCP bridge. Sampling controls and strict structured-output behavior remain subject to the community provider's documented limitations.
 
 Root `.env`, `.env.local`, and root SOPS files are intentionally unsupported. Fork configuration comes only from `configuration/.env` and `configuration/secrets.enc.yaml`; contributor machines and CI supply repository-maintenance values through their process environment, so contributor configuration cannot silently propagate into forks.
 
 `openbot dev` checks every runtime provider, starts the shared Computer through Microsandbox, and reconciles Tilde resources for every authored agent before starting the watched control/agent server. Vercel service providers perform no remote development deployment, and a configured Vercel Sandbox provider delegates development to Microsandbox. Computer image inputs are watched; changes rebuild the image and replace the local sandbox while preserving its `/workspace` volume. Tilde creates or updates each local-running Vercel AI SDK endpoint, synchronizes authored skills and an exact registry, creates one dynamic MCP server, and enables the Tilde control-plane toolkit per agent. A Vercel service deployment also enables its proxied MCP connection. Their IDs are maintained as `AGENT_<ID>_*` values in `configuration/.env`; one-time endpoint credentials remain encrypted. Each reconciliation first checks stable identity and current fields, creates missing resources, and updates only drift. Run the command under the Tilde tunnel when ChatKit must reach local agent routes.
 
-OpenBot does not import or export Tilde state during normal lifecycle commands. For a one-time setup or migration to another environment, an operator can manually export state from one Tilde team and import it into another with the Tilde CLI; subsequent OpenBot runs reconcile that imported state through the API.
+OpenBot does not import or export Tilde state during normal lifecycle commands. For a one-time
+setup or migration to another environment, an operator can run `openbot state export` and
+`openbot state import`; subsequent OpenBot runs reconcile that imported state through the API.
+
+## Tilde SDK
+
+This monorepo owns the public Tilde TypeScript SDK packages alongside OpenBot:
+
+- `@trytilde/api-client`: generated API client and URL helpers.
+- `@trytilde/sdk`: stable hand-authored Tilde client, ChatKit, MCP, skill, and reverse-proxy APIs.
+- `@trytilde/sdk-react`: React provider and ChatKit hooks.
+- `@trytilde/sdk-vercel-ai-node` and `@trytilde/sdk-vercel-ai-react`: Vercel AI SDK adapters.
+
+Use `openbot auth`, `openbot state`, `openbot tunnel`, and `openbot plugin`; there is no separate
+Tilde CLI or plugin package. SDK packages version independently from OpenBot's fixed package group.
+Run `openbot sdk refresh` after an intentional Tilde OpenAPI change.
 
 Use `pnpm openbot secrets set NAME --description "Purpose"` and `pnpm openbot secrets unset NAME` to maintain encrypted values without learning SOPS commands. Every secret is stored as `{ description, value }`; SOPS leaves the description readable and encrypts only `value`. Setting a value requires a current SOPS release with `set --value-stdin` support so plaintext never appears in the process list. Use `pnpm openbot env set NAME VALUE --description "Purpose"` and `pnpm openbot env unset NAME` for plaintext configuration; descriptions are rendered as comments immediately above assignments.
 
-Commit `configuration/index.ts`, `.sops.yaml`, and `secrets.enc.yaml` after initialization. Never commit `configuration/.env`. Owner identity lookup metadata is user-specific and lives in `~/.openbot/config.json` under `sops`; it must not be committed. Interactive SOPS-backed commands recover missing lookup metadata through CLI questions, while non-interactive commands fail with instructions to run interactive init. The sandbox age private key is encrypted as `SECRETS_SOPS_AGE_KEY.value`. Trusted-sandbox deployment refreshes `.env`, `.sops.yaml`, and `secrets.enc.yaml`, installs the identity as a mode-`0400` file readable only by the sandbox Linux user, and sources a loader from `.bashrc` and `.bash_profile` to export dotenv and decrypted SOPS values.
+Commit `configuration/index.ts`, `.sops.yaml`, and `secrets.enc.yaml` after initialization. Never commit `configuration/.env` or root `local-user-config.json`. The latter stores this checkout's SOPS owner lookup metadata under `sops` and is gitignored. Interactive SOPS-backed commands such as `dev`, `deploy`, and secret mutation configure it inline when it is absent; non-interactive commands fail with instructions to rerun interactively. The sandbox age private key is encrypted as `SECRETS_SOPS_AGE_KEY.value`. Trusted-sandbox deployment refreshes `.env`, `.sops.yaml`, and `secrets.enc.yaml`, installs the identity as a mode-`0400` file readable only by the sandbox Linux user, and sources a loader from `.bashrc` and `.bash_profile` to export dotenv and decrypted SOPS values.
 
 The CLI checks and builds every selected provider that exposes `buildable`, then plans and deploys providers that expose `deployable`. `openbot deploy --skip-deploy` stops after producing artifacts. `openbot deploy --service agents --yes` builds and deploys the agent project without compiling or redeploying control; `--service control` does the inverse. A configured computer provider builds its shared image before agent functions and the control runtime. For Vercel Sandbox, deployment creates the Vercel projects first and then creates the agent project's VCR repository on the first image push; local Microsandbox keeps the content-tagged Docker image local. Provider lifecycles persist their own environment and encrypted secrets; deployment results retain named handoff outputs.
 
@@ -103,6 +121,7 @@ The production build stages the web app in the control provider's `.vercel/outpu
 ## Current application boundary
 
 - `cli` owns the React Ink `openbot` CLI: operator commands, development process supervision, provider deployment coordination, and the developer workflow — repository gates, Expo runs across local and remote mac/Linux hosts, headless emulators, ssh tunnels, and toolchain doctor — for humans and sandboxed agents alike.
+- `packages/api-client` and `packages/sdk*` own the public Tilde TypeScript integration surface and remain usable outside OpenBot; coding-agent plugin setup belongs to `openbot plugin`.
 - `packages/runtime-provider` owns the optional provider deployment contract and runtime-last coordinator.
 - `packages/control-service-provider` owns local and Vercel control/web builds and deployment.
 - `packages/agent-service-provider` owns Eve-compatible agent-directory discovery, instrumentation startup, concurrent per-agent Vercel bundles, the local agent server, and deployment.

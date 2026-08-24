@@ -12,7 +12,10 @@ test("keeps macOS window controls clear of the settings back button", async ({ p
         platform: "mac",
         controlOrigin: window.location.origin,
         openExternal: async () => undefined,
-        authStatus: async () => ({ authenticated: true, user: { subject: "e2e-owner" } }),
+        authStatus: async () => ({
+          authenticated: true,
+          user: { subject: "e2e-owner", name: "E2E Owner" },
+        }),
         signIn: async () => undefined,
         signOut: async () => undefined,
       },

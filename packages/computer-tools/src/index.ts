@@ -314,9 +314,10 @@ async function buildCuaTools(options: {
       description: definition.description,
       inputSchema: jsonSchema<Record<string, unknown>>(schema),
       execute: async (input, execution) => {
+        const normalizedInput = omitOptionalEmptyStrings(input, schema);
         const result = await options.call(
           definition.name,
-          JSON.stringify(input),
+          JSON.stringify(normalizedInput),
           execution.abortSignal,
         );
         const content = [];
@@ -350,6 +351,22 @@ async function buildCuaTools(options: {
     });
   }
   return tools;
+}
+
+function omitOptionalEmptyStrings(
+  input: Record<string, unknown>,
+  schema: Record<string, unknown>,
+): Record<string, unknown> {
+  const required = new Set(
+    Array.isArray(schema.required)
+      ? schema.required.filter((value): value is string => typeof value === "string")
+      : [],
+  );
+  return Object.fromEntries(
+    Object.entries(input).filter(
+      ([name, value]) => value !== undefined && (value !== "" || required.has(name)),
+    ),
+  );
 }
 
 /** @internal Test seam for runtime catalog conversion without a network service. */

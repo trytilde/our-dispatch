@@ -91,6 +91,104 @@ test("loads the bare workspace without setup", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "What should OpenBot do?" })).toHaveCount(0);
 });
 
+test("shows authenticated account details and account navigation on hover", async ({ page }) => {
+  await routeDefaultWorkspace(page);
+  await page.goto("/");
+
+  const accountButton = page.getByRole("button", {
+    name: "Open account menu for Daniel Blignaut",
+  });
+  await expect(accountButton.getByText("Daniel Blignaut", { exact: true })).toBeVisible();
+  await expect(accountButton.getByText("OpenBot", { exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Plugins" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Settings" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Switch workspace" })).toHaveCount(0);
+
+  await accountButton.hover();
+  const accountMenu = page.getByRole("menu", { name: "Account" });
+  await expect(accountMenu).toBeVisible();
+  await expect(accountMenu.getByText("owner@example.com", { exact: true })).toBeVisible();
+  await expect(accountMenu.getByText("OpenBot · Tilde", { exact: true })).toBeVisible();
+  await expect(accountMenu.getByRole("menuitem")).toHaveText([
+    "Plugins",
+    "Settings",
+    "Switch workspace",
+    "Log out",
+  ]);
+
+  await accountMenu.getByRole("menuitem", { name: "Switch workspace" }).click();
+  await expect(page.getByRole("dialog", { name: "Switch workspace" })).toBeVisible();
+});
+
+test("floats the Computer preview at the bottom-right in Electron", async ({ browser }) => {
+  const context = await browser.newContext({
+    baseURL: "http://127.0.0.1:14173",
+    extraHTTPHeaders: { authorization: "Bearer e2e-owner" },
+    userAgent:
+      "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 OpenBot Electron/43.4.0",
+    viewport: { width: 1280, height: 720 },
+  });
+  const page = await context.newPage();
+  await seedCompletedOnboarding(page);
+  await routeDefaultWorkspace(page);
+  await page.route("**/api/computer/**", async (route) => {
+    await route.fulfill({ contentType: "text/html", body: "<main>Agent desktop</main>" });
+  });
+  await page.goto("/");
+
+  const shell = page.locator(".workspace-shell");
+  const chat = page.locator(".chat-pane");
+  const composer = page.locator(".composer-shell");
+  const preview = page.locator(".agent-workspace-pane");
+  const toggle = page.getByRole("button", { name: "Toggle Computer pane" });
+  const initialChatBounds = await chat.boundingBox();
+  const initialComposerBounds = await composer.boundingBox();
+  if (!initialChatBounds || !initialComposerBounds) {
+    throw new Error("Electron chat layout is not visible");
+  }
+
+  await toggle.click();
+  await expect(shell).toHaveClass(/computer-floating/);
+  await expect(preview).toHaveClass(/floating/);
+  await expect(preview).toHaveCSS("position", "absolute");
+  await expect(preview).toBeVisible();
+  const openChatBounds = await chat.boundingBox();
+  const openComposerBounds = await composer.boundingBox();
+  const previewBounds = await preview.boundingBox();
+  if (!openChatBounds || !openComposerBounds || !previewBounds) {
+    throw new Error("Floating Computer layout is not visible");
+  }
+
+  expect(openChatBounds).toEqual(initialChatBounds);
+  expect(openComposerBounds.width).toBeLessThan(initialComposerBounds.width);
+  await expect
+    .poll(async () => {
+      const bounds = await preview.boundingBox();
+      return bounds ? bounds.x + bounds.width : undefined;
+    })
+    .toBeCloseTo(openChatBounds.x + openChatBounds.width - 16, 0);
+  await expect
+    .poll(async () => {
+      const bounds = await preview.boundingBox();
+      return bounds ? bounds.y + bounds.height : undefined;
+    })
+    .toBeCloseTo(704, 0);
+
+  const close = page.getByRole("button", { name: "Close Computer pane" });
+  await expect(close).toHaveCSS("background-color", "rgba(17, 19, 24, 0.91)");
+  await close.click();
+  await expect(preview).toBeHidden();
+  await expect(shell).toHaveClass(/workspace-closed/);
+  await expect(composer).toHaveCSS("width", `${initialComposerBounds.width}px`);
+
+  await toggle.click();
+  await expect(preview).toBeVisible();
+  await toggle.click();
+  await expect(preview).toBeHidden();
+
+  await context.close();
+});
+
 test("keeps the chat composition inside a mobile viewport", async ({ page }) => {
   await routeDefaultWorkspace(page);
   await page.setViewportSize({ width: 390, height: 844 });
@@ -205,18 +303,14 @@ test("streams rich messages and uploads a file through Tilde ChatKit", async ({ 
       });
       return;
     }
-    if (path.endsWith("/observe")) {
-      if (path.includes("/research-session/")) {
-        await route.fulfill({ contentType: "text/event-stream", body: "" });
-        return;
-      }
+    if (path.endsWith("/mission-control/events")) {
       await route.fulfill({
         contentType: "text/event-stream",
         body:
-          'id: turn-working\nevent: agent_turn_status\ndata: {"status":"working"}\n\n' +
-          'id: shell-running\nevent: shell_started\ndata: {"id":"shell-one","status":"running","label":"Build workspace","summary":"pnpm build"}\n\n' +
+          'id: turn-working\nevent: agent_turn_status\ndata: {"session_id":"session-one","status":"working"}\n\n' +
+          'id: shell-running\nevent: shell_started\ndata: {"session_id":"session-one","id":"shell-one","status":"running","label":"Build workspace","summary":"pnpm build"}\n\n' +
           'id: stream-preview\nevent: message_streaming\ndata: {"kind":{"message_streaming":{"session_id":"session-one","message_id":"stream-one","delta":{"type":"text-delta","delta":"Streaming preview"}}}}\n\n' +
-          'id: turn-idle\nevent: agent_turn_status\ndata: {"status":"idle"}\n\n',
+          'id: turn-idle\nevent: agent_turn_status\ndata: {"session_id":"session-one","status":"idle"}\n\n',
       });
       return;
     }
@@ -406,18 +500,24 @@ test("streams rich messages and uploads a file through Tilde ChatKit", async ({ 
   ).toBeVisible();
   await page.locator("[data-menu-row]").nth(1).hover();
   await expect(page.locator(".bg-hover[aria-hidden]").first()).toHaveCSS("opacity", "1");
-  // The rebuilt sidebar renders WorkspaceAccount's default label: nothing passes the
-  // signed-in owner's name any more, so the account row no longer identifies the session.
-  const accountButton = page.getByRole("button", { name: "Open account menu for Your account" });
+  const accountButton = page.getByRole("button", {
+    name: "Open account menu for Daniel Blignaut",
+  });
   await expect(accountButton).toBeVisible();
-  await expect(page.getByText("OpenBot", { exact: true })).toHaveCount(0);
+  await expect(accountButton.getByText("Daniel Blignaut", { exact: true })).toBeVisible();
+  await expect(accountButton.getByText("OpenBot", { exact: true })).toBeVisible();
   await expect(page.getByText("Connected", { exact: true })).toHaveCount(0);
-  await accountButton.click();
+  await accountButton.hover();
   const accountMenu = page.getByRole("menu", { name: "Account" });
   await expect(accountMenu).toBeVisible();
-  // Settings and Send Feedback are sidebar rows now; the account menu keeps only Log out.
-  await expect(accountMenu.getByRole("menuitem")).toHaveText(["Log out"]);
-  await expect(accountMenu.getByText("Plugins", { exact: true })).toHaveCount(0);
+  await expect(accountMenu.getByText("owner@example.com", { exact: true })).toBeVisible();
+  await expect(accountMenu.getByText("OpenBot · Tilde", { exact: true })).toBeVisible();
+  await expect(accountMenu.getByRole("menuitem")).toHaveText([
+    "Plugins",
+    "Settings",
+    "Switch workspace",
+    "Log out",
+  ]);
   await page.keyboard.press("Escape");
   await expect(accountMenu).toBeHidden();
   await expect(page.locator(".workspace-shell")).toHaveCSS(
@@ -430,17 +530,18 @@ test("streams rich messages and uploads a file through Tilde ChatKit", async ({ 
   await expect(page.locator("[data-menu-row]").first()).toHaveCSS("width", "52px");
   await expect(page.locator("[data-menu-row]").first()).toHaveCSS("height", "52px");
   await expect(page.locator("[data-menu-row] strong").first()).toBeHidden();
-  // Search is unmounted while collapsed; add bot, settings, and feedback stay as icons.
+  // Search is unmounted while collapsed; account actions remain inside the account menu.
   await expect(page.getByRole("button", { name: "Search", exact: true })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Add bot" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Settings" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Plugins" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Settings" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Switch workspace" })).toHaveCount(0);
   await expect(page.getByRole("link", { name: "Send Feedback" })).toHaveAttribute(
     "href",
     "mailto:opensource@trytilde.ai",
   );
   for (const control of [
     page.getByRole("button", { name: "Add bot" }),
-    page.getByRole("button", { name: "Settings" }),
     page.getByRole("link", { name: "Send Feedback" }),
   ]) {
     await expect(control.locator("svg")).toHaveCSS("width", "24px");
@@ -579,9 +680,10 @@ test("streams rich messages and uploads a file through Tilde ChatKit", async ({ 
   await expect(page.locator("body")).toHaveJSProperty("scrollWidth", 390);
 });
 
-test("picks or creates a bot from the add-bot command palette", async ({ page }) => {
+test("creates a bot and sends its first message", async ({ page }) => {
   const now = new Date().toISOString();
   let created = false;
+  let firstMessage = "";
 
   await page.route("**/api/agents", async (route) => {
     const response = await route.fetch();
@@ -593,6 +695,7 @@ test("picks or creates a bot from the add-bot command palette", async ({ page })
     await route.fulfill({ contentType: "text/html", body: "<main>Agent desktop</main>" });
   });
   await page.route("**/api/chat/**", async (route) => {
+    const request = route.request();
     const path = new URL(route.request().url()).pathname;
     if (path.endsWith("/mission-control/sidebar")) {
       await route.fulfill({
@@ -646,7 +749,7 @@ test("picks or creates a bot from the add-bot command palette", async ({ page })
       });
       return;
     }
-    if (path.endsWith("/observe")) {
+    if (path.endsWith("/mission-control/events")) {
       await route.fulfill({ contentType: "text/event-stream", body: "" });
       return;
     }
@@ -654,8 +757,38 @@ test("picks or creates a bot from the add-bot command palette", async ({ page })
       await route.fulfill({ json: { items: [] } });
       return;
     }
+    if (request.method() === "POST" && path.endsWith("/mission-control/agents/reviewer/sessions")) {
+      await route.fulfill({
+        json: {
+          session: {
+            id: "reviewer-session",
+            title: "Hello from the test",
+            created_at: now,
+            updated_at: now,
+          },
+        },
+      });
+      return;
+    }
     if (path.endsWith("/messages")) {
-      await route.fulfill({ json: { items: [] } });
+      if (request.method() === "POST") {
+        const body = request.postDataJSON() as { text?: string };
+        firstMessage = body.text ?? "";
+        await route.fulfill({
+          json: {
+            items: [
+              {
+                id: "reviewer-message",
+                type: "message",
+                role: "user",
+                session_id: "reviewer-session",
+                text: firstMessage,
+                created_at: now,
+              },
+            ],
+          },
+        });
+      } else await route.fulfill({ json: { items: [] } });
       return;
     }
     await route.fulfill({ json: {} });
@@ -665,25 +798,24 @@ test("picks or creates a bot from the add-bot command palette", async ({ page })
   await expect(page.locator("[data-menu-row]")).toHaveCount(2);
   await page.getByRole("button", { name: "Add bot" }).click();
 
-  const addDialog = page.getByRole("dialog", { name: "Add bot" });
-  await expect(addDialog.getByPlaceholder("Search bots")).toBeFocused();
-  await expect(addDialog.locator("[cmdk-group-heading]")).toHaveCount(0);
-  await expect(addDialog.locator("[cmdk-separator]")).toHaveCount(0);
-  await expect(addDialog.locator("[cmdk-item]").first()).toContainText("Create a new bot");
-  await expect(addDialog.getByText("Hello World", { exact: true })).toBeVisible();
-  await expect(addDialog.getByText("Researcher", { exact: true })).toBeVisible();
-
-  await expect(addDialog.getByText("Create a new bot", { exact: true })).toBeVisible();
-  await addDialog.getByText("Create a new bot", { exact: true }).click();
   const createDialog = page.getByRole("dialog", { name: "Create bot" });
   await expect(createDialog.getByPlaceholder("Name your bot")).toBeFocused();
   await createDialog.getByPlaceholder("Name your bot").fill("Reviewer");
-  await expect(createDialog.getByRole("button", { name: "Create bot" })).toBeEnabled();
-  await createDialog.getByRole("button", { name: "Create bot" }).click();
+  await createDialog.getByRole("button", { name: "Select avatar 3" }).click();
+  await expect(createDialog.getByRole("button", { name: "Add", exact: true })).toBeEnabled();
+  await createDialog.getByRole("button", { name: "Add", exact: true }).click();
 
-  await expect(addDialog).toBeHidden();
+  await expect(createDialog).toBeHidden();
+  await expect(page.locator('.agent-setup-content[data-avatar-id="new-bot-0-2"]')).toBeVisible();
   await expect(page.locator('[data-menu-row][aria-current="page"]')).toContainText("Reviewer");
   await expect(page.getByRole("heading", { name: "Reviewer" })).toBeVisible();
+  const composer = page.getByPlaceholder("Write a message…");
+  await composer.fill("Hello from the test");
+  await composer.press("Enter");
+  await expect.poll(() => firstMessage).toBe("Hello from the test");
+  await expect(
+    page.getByLabel("Your message").getByText("Hello from the test", { exact: true }),
+  ).toBeVisible();
 });
 
 test("queues another turn while the agent is busy", async ({ page }) => {
@@ -719,10 +851,10 @@ test("queues another turn while the agent is busy", async ({ page }) => {
       });
       return;
     }
-    if (path.endsWith("/observe")) {
+    if (path.endsWith("/mission-control/events")) {
       await route.fulfill({
         contentType: "text/event-stream",
-        body: 'event: agent_turn_status\ndata: {"status":"working"}\n\n',
+        body: 'event: agent_turn_status\ndata: {"session_id":"busy-session","status":"working"}\n\n',
       });
       return;
     }
@@ -762,9 +894,9 @@ test("queues another turn while the agent is busy", async ({ page }) => {
   });
 
   await page.goto("/");
-  await expect(page.getByLabel("Queue message")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Stop" })).toBeVisible();
   await page.getByRole("textbox", { name: "Message", exact: true }).fill("Do this next");
-  await page.getByLabel("Queue message").click();
+  await page.getByRole("textbox", { name: "Message", exact: true }).press("Enter");
   await page.getByRole("button", { name: "Toggle Computer pane" }).click();
   await expect(page.getByRole("button", { name: "Stop" })).toBeVisible();
 
@@ -902,7 +1034,7 @@ test("configures a connector through the in-chat account picker", async ({ page 
       });
       return;
     }
-    if (path.endsWith("/observe")) {
+    if (path.endsWith("/mission-control/events")) {
       await route.fulfill({ contentType: "text/event-stream", body: "" });
       return;
     }
@@ -958,7 +1090,7 @@ test("configures a connector through the in-chat account picker", async ({ page 
   // routable URL so redirects and the back button can target the modal.
   await cards.nth(2).click();
   await expect(page).toHaveURL(/connector=tavily/);
-  const dialog = page.getByRole("dialog", { name: "Add Tavily account" });
+  const dialog = page.getByRole("dialog", { name: "Add a Tavily account" });
   await expect(dialog).toBeVisible();
   await expect(dialog.getByRole("heading", { name: "Add a Tavily account" })).toBeVisible();
   const secret = dialog.getByPlaceholder("api_key");
@@ -985,7 +1117,7 @@ test("configures a connector through the in-chat account picker", async ({ page 
   // The modal is directly addressable: loading the URL opens it from the
   // provider catalog, exactly what an OAuth return or shared link needs.
   await page.goto("/?connector=tavily");
-  await expect(page.getByRole("dialog", { name: "Add Tavily account" })).toBeVisible();
+  await expect(page.getByRole("dialog", { name: "Add a Tavily account" })).toBeVisible();
   await expect(page.getByRole("dialog").getByPlaceholder("api_key")).toBeVisible();
 });
 
@@ -1034,7 +1166,7 @@ async function routeDefaultWorkspace(page: Page): Promise<void> {
       });
       return;
     }
-    if (path.endsWith("/observe")) {
+    if (path.endsWith("/mission-control/events")) {
       await route.fulfill({ contentType: "text/event-stream", body: "" });
       return;
     }

@@ -7,6 +7,20 @@ export interface OwnerPrincipal {
   scope: readonly string[];
 }
 
+export interface OwnerAccountContext {
+  id: string;
+  name: string;
+  role?: string;
+}
+
+export interface OwnerAccount {
+  name: string;
+  email?: string;
+  avatarUrl?: string;
+  organization?: OwnerAccountContext;
+  workspace?: OwnerAccountContext;
+}
+
 export interface OAuthTokens {
   accessToken: string;
   refreshToken?: string;
@@ -30,6 +44,7 @@ export interface AuthProvider extends DeployableProvider {
   }): Promise<OAuthTokens>;
   refresh(refreshToken: string): Promise<OAuthTokens>;
   verify(accessToken: string): Promise<OwnerPrincipal>;
+  account?(accessToken: string, principal: OwnerPrincipal): Promise<OwnerAccount>;
 }
 
 export class AuthProviderError extends Error {

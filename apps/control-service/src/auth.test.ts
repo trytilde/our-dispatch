@@ -101,6 +101,37 @@ describe("owner authentication", () => {
     expect(response.headers.get("set-cookie")).toContain("openbot_access=fresh-token");
   });
 
+  it("returns account details supplied by the authentication provider", async () => {
+    const provider = stubProvider();
+    provider.account = vi.fn(async () => ({
+      name: "Daniel Blignaut",
+      email: "owner@example.com",
+      organization: { id: "org-one", name: "Tilde", role: "owner" },
+      workspace: { id: "team-one", name: "OpenBot", role: "owner" },
+    }));
+    const app = createApp({ authProvider: provider, webRoot: "/missing" });
+    const response = await app.request("/auth/session", {
+      headers: { authorization: "Bearer valid-token" },
+    });
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("cache-control")).toBe("no-store");
+    await expect(response.json()).resolves.toEqual({
+      authenticated: true,
+      user: {
+        subject: "human-one",
+        name: "Daniel Blignaut",
+        email: "owner@example.com",
+        organization: { id: "org-one", name: "Tilde", role: "owner" },
+        workspace: { id: "team-one", name: "OpenBot", role: "owner" },
+      },
+    });
+    expect(provider.account).toHaveBeenCalledWith(
+      "valid-token",
+      expect.objectContaining({ subject: "human-one" }),
+    );
+  });
+
   it("requires a matching origin for unsafe cookie-authenticated requests", async () => {
     const app = createApp({ authProvider: stubProvider(), webRoot: "/missing" });
     const rejected = await app.request("https://openbot.test/api/computer/missing/preview", {
@@ -176,6 +207,7 @@ function stubProvider() {
     })),
     verify: vi.fn(async () => ({ subject: "human-one", groups: [], scope: ["openbot:control"] })),
   } as unknown as AuthProvider & {
+    account: ReturnType<typeof vi.fn> | undefined;
     authorizationUrl: ReturnType<typeof vi.fn>;
     exchangeCode: ReturnType<typeof vi.fn>;
     verify: ReturnType<typeof vi.fn>;

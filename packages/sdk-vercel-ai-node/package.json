@@ -1,0 +1,68 @@
+{
+  "name": "@trytilde/sdk-vercel-ai-node",
+  "version": "0.1.0",
+  "description": "Node and route-handler helpers for Tilde ChatKit Vercel AI SDK endpoints.",
+  "homepage": "https://github.com/trytilde/openbot/tree/main/packages/sdk-vercel-ai-node#readme",
+  "bugs": {
+    "url": "https://github.com/trytilde/openbot/issues"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/trytilde/openbot.git",
+    "directory": "packages/sdk-vercel-ai-node"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "development": "./src/index.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "publishConfig": {
+    "exports": {
+      ".": {
+        "types": "./dist/index.d.ts",
+        "import": "./dist/index.js"
+      }
+    },
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsc --noEmit && tsdown --config ../../tsdown.node.config.ts",
+    "check": "vp check",
+    "lint": "vp lint",
+    "prepack": "pnpm build",
+    "test": "vp test run",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@ai-sdk/mcp": "2.0.32",
+    "@trytilde/sdk": "workspace:*",
+    "@types/node": "24.3.0",
+    "ai": "7.0.64",
+    "typescript": "5.9.2",
+    "vite-plus": "catalog:",
+    "vitest": "4.1.10",
+    "zod": "4.4.3"
+  },
+  "peerDependencies": {
+    "@ai-sdk/mcp": "^1.0.46 || ^2.0.0",
+    "@trytilde/sdk": "^0.1.0",
+    "ai": ">=5 || >=6 || >=7",
+    "zod": "^4.4.3"
+  },
+  "peerDependenciesMeta": {
+    "ai": {
+      "optional": true
+    }
+  },
+  "engines": {
+    "node": ">=24"
+  }
+}

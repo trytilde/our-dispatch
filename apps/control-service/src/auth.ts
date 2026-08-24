@@ -1,7 +1,12 @@
 import { createHash, randomBytes } from "node:crypto";
 import type { Context, Hono, MiddlewareHandler } from "hono";
 import { deleteCookie, getCookie, setCookie } from "hono/cookie";
-import type { AuthProvider, OAuthTokens, OwnerPrincipal } from "@tryopenbot/auth-provider";
+import type {
+  AuthProvider,
+  OAuthTokens,
+  OwnerAccount,
+  OwnerPrincipal,
+} from "@tryopenbot/auth-provider";
 
 const accessCookie = "openbot_access";
 const refreshCookie = "openbot_refresh";
@@ -59,10 +64,32 @@ export function registerOwnerAuth(
     return context.redirect("/");
   });
   app.get("/auth/session", async (context) => {
+    context.header("cache-control", "no-store");
     const session = await authenticate(context, provider, options);
-    return session
-      ? context.json({ authenticated: true, user: session })
-      : context.json({ authenticated: false }, 401);
+    if (!session) return context.json({ authenticated: false }, 401);
+    let account: OwnerAccount = {
+      name: session.principal.email || session.principal.subject,
+      ...(session.principal.email ? { email: session.principal.email } : {}),
+    };
+    if (provider.account) {
+      try {
+        account = await provider.account(session.accessToken, session.principal);
+      } catch {
+        // Identity verification still establishes a valid session when optional
+        // provider profile enrichment is temporarily unavailable.
+      }
+    }
+    return context.json({
+      authenticated: true,
+      user: {
+        subject: session.principal.subject,
+        name: account.name,
+        ...(account.email ? { email: account.email } : {}),
+        ...(account.avatarUrl ? { avatar_url: account.avatarUrl } : {}),
+        ...(account.organization ? { organization: account.organization } : {}),
+        ...(account.workspace ? { workspace: account.workspace } : {}),
+      },
+    });
   });
   app.post("/auth/logout", (context) => {
     if (!trustedCookieMutation(context, options))
@@ -80,9 +107,9 @@ export function requireOwner(
   return async (context, next) => {
     if (!trustedCookieMutation(context, options))
       return context.json({ error: "Untrusted request origin" }, 403);
-    const principal = await authenticate(context, provider, options);
-    if (!principal) return context.json({ error: "Authentication required" }, 401);
-    context.set("ownerPrincipal", principal);
+    const authenticated = await authenticate(context, provider, options);
+    if (!authenticated) return context.json({ error: "Authentication required" }, 401);
+    context.set("ownerPrincipal", authenticated.principal);
     await next();
   };
 }
@@ -108,13 +135,13 @@ async function authenticate(
   context: Context,
   provider: AuthProvider,
   options: OwnerAuthOptions,
-): Promise<OwnerPrincipal | undefined> {
+): Promise<{ principal: OwnerPrincipal; accessToken: string } | undefined> {
   const authorization = context.req.header("authorization");
   const bearer = authorization?.startsWith("Bearer ") ? authorization.slice(7).trim() : undefined;
   const accessToken = bearer || getCookie(context, accessCookie);
   if (accessToken) {
     try {
-      return await provider.verify(accessToken);
+      return { principal: await provider.verify(accessToken), accessToken };
     } catch {
       /* refresh browser cookies below */
     }
@@ -125,7 +152,10 @@ async function authenticate(
   try {
     const tokens = await provider.refresh(refreshToken);
     setTokenCookies(context, tokens, options);
-    return await provider.verify(tokens.accessToken);
+    return {
+      principal: await provider.verify(tokens.accessToken),
+      accessToken: tokens.accessToken,
+    };
   } catch {
     clearCookie(context, accessCookie);
     clearCookie(context, refreshCookie);

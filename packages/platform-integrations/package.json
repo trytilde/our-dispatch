@@ -86,7 +86,7 @@
   },
   "dependencies": {
     "@tryopenbot/runtime-provider": "workspace:*",
-    "@trytilde/harness-sdk": "0.1.2"
+    "@trytilde/sdk": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "24.3.0",

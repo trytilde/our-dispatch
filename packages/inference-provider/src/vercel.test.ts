@@ -32,7 +32,11 @@ describe("VercelInferenceProvider", () => {
     const setEnvironment = vi.fn(async () => undefined);
     await provider.initialize({
       repositoryRoot: "/repository",
-      environment: { AI_GATEWAY_API_KEY: "existing" },
+      environment: {
+        AI_GATEWAY_API_KEY: "existing",
+        AI_MODEL: "gpt-5.6-sol",
+        INFERENCE_PROVIDER: "codex-subscription",
+      },
       setEnvironment,
       setSecret: vi.fn(async () => undefined),
     });
@@ -41,6 +45,31 @@ describe("VercelInferenceProvider", () => {
       "vercel-ai-gateway",
       expect.any(String),
     );
+    expect(setEnvironment).toHaveBeenCalledWith(
+      "AI_MODEL",
+      "openai/gpt-5.6-sol",
+      expect.any(String),
+    );
     expect(request).not.toHaveBeenCalled();
+  });
+
+  it("preserves an existing model when upgrading an installation without a provider marker", async () => {
+    const provider = new VercelInferenceProvider(new VercelPlatform({ request: vi.fn() }));
+    const setEnvironment = vi.fn(async () => undefined);
+    await provider.initialize({
+      repositoryRoot: "/repository",
+      environment: {
+        AI_GATEWAY_API_KEY: "existing",
+        AI_MODEL: "openai/gpt-5.2",
+      },
+      setEnvironment,
+      setSecret: vi.fn(async () => undefined),
+    });
+
+    expect(setEnvironment).not.toHaveBeenCalledWith(
+      "AI_MODEL",
+      expect.anything(),
+      expect.anything(),
+    );
   });
 });

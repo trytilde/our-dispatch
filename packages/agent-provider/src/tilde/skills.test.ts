@@ -51,7 +51,7 @@ describe("TildeSkillReconciler", () => {
     expect("materializeSkillAssets" in provider).toBe(false);
   });
 
-  it("idempotently syncs authored skills and exact registry membership", async () => {
+  it("idempotently migrates managed Cua IDs while preserving user skills", async () => {
     const root = await mkdtemp(join(tmpdir(), "openbot-agent-skills-"));
     const agentPath = join(root, "configuration", "agent");
     await mkdir(join(agentPath, "skills", "hello"), { recursive: true });
@@ -64,13 +64,22 @@ describe("TildeSkillReconciler", () => {
       id: string;
       skills: Array<Record<string, unknown>>;
     } = { ...registry, skills: [] };
-    let managedCuaAvailable = false;
-    const managedCuaSkill = {
-      id: "managed-cua-skill",
+    let raceComputerOverlayCreation = true;
+    let managedProviderId = "provider-cua-v1";
+    let managedCuaSkill = {
+      id: "managed-cua-skill-v1",
       name: "gui-automation",
       description: "Managed canonical Cua skill.",
       source_path: "skills/gui-automation/SKILL.md",
     };
+    const managedSkillHistory: Array<Record<string, unknown>> = [];
+    const currentManagedRegistrySkill = () => ({
+      ...managedCuaSkill,
+      source_kind: "provider",
+      source_provider_id: managedProviderId,
+      source_repository_url: "https://github.com/trycua/cua.git",
+    });
+    managedSkillHistory.push(currentManagedRegistrySkill());
     const mutations: string[] = [];
     vi.stubGlobal(
       "fetch",
@@ -79,16 +88,14 @@ describe("TildeSkillReconciler", () => {
         const path = new URL(request.url).pathname;
         if (request.method === "GET" && path.endsWith("/skill-providers"))
           return Response.json({
-            items: managedCuaAvailable
-              ? [
-                  {
-                    id: "provider-cua",
-                    trust_status: "trusted",
-                    repository_url: "https://github.com/trycua/cua.git",
-                    skills: [managedCuaSkill],
-                  },
-                ]
-              : [],
+            items: [
+              {
+                id: managedProviderId,
+                trust_status: "trusted",
+                repository_url: "https://github.com/trycua/cua.git",
+                skills: [managedCuaSkill],
+              },
+            ],
           });
         if (request.method === "GET" && path.endsWith("/skill-registry"))
           return Response.json({ items: remoteRegistry.id ? [remoteRegistry] : [] });
@@ -109,7 +116,7 @@ describe("TildeSkillReconciler", () => {
           remoteRegistry = {
             ...remoteRegistry,
             ...body,
-            skills: [...remoteSkills, managedCuaSkill].filter((skill) =>
+            skills: [...remoteSkills, ...managedSkillHistory].filter((skill) =>
               body.skill_ids.includes(skill.id as string),
             ),
           };
@@ -119,7 +126,7 @@ describe("TildeSkillReconciler", () => {
           mutations.push("add-provider-skill");
           remoteRegistry = {
             ...remoteRegistry,
-            skills: [...remoteRegistry.skills, managedCuaSkill],
+            skills: [...remoteRegistry.skills, currentManagedRegistrySkill()],
           };
           return Response.json(remoteRegistry);
         }
@@ -138,6 +145,13 @@ describe("TildeSkillReconciler", () => {
             ...body,
           };
           remoteSkills = [...remoteSkills, skill];
+          if (raceComputerOverlayCreation && body.name === "hello-world-openbot-computer-use") {
+            raceComputerOverlayCreation = false;
+            return Response.json(
+              { message: "repository error: insert skill: db error" },
+              { status: 500 },
+            );
+          }
           return Response.json(skill);
         }
         if (request.method === "DELETE" && path.includes("/skill/")) {
@@ -162,12 +176,16 @@ describe("TildeSkillReconciler", () => {
     const provider = new TildeSkillReconciler(config);
     try {
       await provider.deploy(context);
+      // Older OpenBot releases used a different source identity. Tilde enforces uniqueness by
+      // team skill name, so a repeated deployment must adopt this record rather than re-insert it.
+      const authoredSkill = remoteSkills.find((skill) => skill.name === "hello-world-hello")!;
+      authoredSkill.source_path = "legacy/agent/skills/hello/SKILL.md";
       await provider.deploy(context);
       expect(mutations).toEqual([
         "create-registry",
         "create-skill",
         "create-skill",
-        "create-skill",
+        "add-provider-skill",
         "update-registry",
       ]);
       expect(context.environment.AGENT_HELLO_WORLD_SKILL_REGISTRY_ID).toBe("registry-one");
@@ -177,11 +195,8 @@ describe("TildeSkillReconciler", () => {
         name: "hello-world-hello",
         description: "Say hello.",
         source_kind: "openbot",
-        source_path: "configuration/agent/skills/hello/SKILL.md",
+        source_path: "legacy/agent/skills/hello/SKILL.md",
       });
-      expect(remoteSkills).toContainEqual(
-        expect.objectContaining({ name: "hello-world-gui-automation" }),
-      );
       expect(remoteSkills).toContainEqual(
         expect.objectContaining({ name: "hello-world-openbot-computer-use" }),
       );
@@ -193,9 +208,18 @@ describe("TildeSkillReconciler", () => {
         source_kind: "user",
         source_path: "user/skill.md",
       };
-      remoteSkills.push(userSkill);
-      remoteRegistry.skills.push(userSkill);
-      managedCuaAvailable = true;
+      const bundledFallback = {
+        id: "bundled-cua-fallback",
+        name: "hello-world-gui-automation",
+        description: "Bundled canonical Cua fallback.",
+        source_kind: "openbot",
+        source_path: "configuration/agent/skills/.openbot/cua-driver/SKILL.md",
+      };
+      remoteSkills.push(userSkill, bundledFallback);
+      remoteRegistry.skills.push(userSkill, bundledFallback);
+      managedProviderId = "provider-cua-v2";
+      managedCuaSkill = { ...managedCuaSkill, id: "managed-cua-skill-v2" };
+      managedSkillHistory.push(currentManagedRegistrySkill());
       await provider.deploy(context);
       await provider.deploy(context);
 
@@ -203,25 +227,63 @@ describe("TildeSkillReconciler", () => {
         "create-registry",
         "create-skill",
         "create-skill",
-        "create-skill",
+        "add-provider-skill",
         "update-registry",
         "add-provider-skill",
         "update-registry",
         "delete-skill",
       ]);
       expect(remoteRegistry.skills.map((skill) => skill.id)).toEqual(
-        expect.arrayContaining(["managed-cua-skill", "user-owned-skill"]),
+        expect.arrayContaining(["managed-cua-skill-v2", "user-owned-skill"]),
       );
-      expect(remoteRegistry.skills).not.toContainEqual(
-        expect.objectContaining({ source_path: expect.stringContaining("/.openbot/cua-driver/") }),
-      );
-      expect(remoteSkills).not.toContainEqual(
-        expect.objectContaining({
-          source_path: expect.stringContaining("/.openbot/cua-driver/"),
-        }),
-      );
+      expect(remoteRegistry.skills.map((skill) => skill.id)).not.toContain("managed-cua-skill-v1");
+      expect(remoteRegistry.skills.map((skill) => skill.id)).not.toContain("bundled-cua-fallback");
+      expect(remoteSkills.map((skill) => skill.id)).not.toContain("bundled-cua-fallback");
+
+      const computerOverlay = remoteSkills.find(
+        (skill) => skill.name === "hello-world-openbot-computer-use",
+      )!;
+      computerOverlay.source_kind = "user";
+      computerOverlay.source_path = "user/openbot-computer-use/SKILL.md";
+      computerOverlay.description = "Do not overwrite me.";
+      await expect(provider.deploy(context)).resolves.toBeUndefined();
+      expect(computerOverlay).toMatchObject({
+        id: expect.any(String),
+        description: "Do not overwrite me.",
+        source_kind: "user",
+        source_path: "user/openbot-computer-use/SKILL.md",
+      });
+      expect(mutations).toHaveLength(8);
     } finally {
       await rm(root, { recursive: true });
     }
+  });
+
+  it("fails clearly when the managed Cua skill is unavailable", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: string | URL | Request) => {
+        const request = input instanceof Request ? input : new Request(input);
+        const path = new URL(request.url).pathname;
+        if (request.method === "GET" && path.endsWith(`/skill-registry/${registry.id}`))
+          return Response.json(registry);
+        if (request.method === "GET" && path.endsWith("/skill-providers"))
+          return Response.json({ items: [] });
+        throw new Error(`Unexpected request: ${request.method} ${path}`);
+      }),
+    );
+    const deployment: DeploymentContext = {
+      devMode: true,
+      repositoryRoot: "/repo",
+      environment: { AGENT_SCOUT_SKILL_REGISTRY_ID: registry.id },
+      inputs: new DeploymentOutputs(),
+      agentId: "scout",
+      agentPath: "/repo/configuration/agent/subagents/scout",
+      report: () => undefined,
+    };
+
+    await expect(new TildeSkillReconciler(config).deploy(deployment)).rejects.toThrow(
+      "trusted managed Cua skill provider",
+    );
   });
 });

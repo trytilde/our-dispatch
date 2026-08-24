@@ -141,8 +141,10 @@ async function startDesktop(
 ): Promise<void> {
   const runtimeDirectory = join(directory, "runtime");
   const profileDirectory = join(directory, "browser-profile");
+  const readyPath = join(runtimeDirectory, "desktop-ready");
   await mkdir(runtimeDirectory, { recursive: true, mode: 0o700 });
   await mkdir(profileDirectory, { recursive: true, mode: 0o700 });
+  await rm(readyPath, { force: true });
 
   const xServer = spawn(
     "Xvnc",
@@ -175,13 +177,26 @@ async function startDesktop(
     GTK_THEME: "Arc",
   };
   await ensureSessionBus(environment.DBUS_SESSION_BUS_ADDRESS, environment, signal);
-  const session = spawn("/opt/openbot/desktop-session.sh", [], {
-    detached: true,
-    env: environment,
-    stdio: "ignore",
-  });
+  const session = spawn(
+    process.env.COMPUTER_DESKTOP_SESSION ?? "/opt/openbot/desktop-session.sh",
+    [],
+    {
+      detached: true,
+      env: environment,
+      stdio: "ignore",
+    },
+  );
   session.once("error", () => undefined);
   session.unref();
+  for (let attempt = 0; attempt < 60; attempt += 1) {
+    signal?.throwIfAborted();
+    if (await pathExists(readyPath)) return;
+    await delay(250, undefined, { signal });
+  }
+  throw new ConnectError(
+    `Desktop session ${desktop.display} did not become ready`,
+    Code.Unavailable,
+  );
 }
 
 async function ensureSessionBus(
@@ -258,8 +273,12 @@ async function displayReady(display: string): Promise<boolean> {
 }
 
 async function socketExists(display: number): Promise<boolean> {
+  return await pathExists(`/tmp/.X11-unix/X${display}`);
+}
+
+async function pathExists(path: string): Promise<boolean> {
   try {
-    await access(`/tmp/.X11-unix/X${display}`);
+    await access(path);
     return true;
   } catch {
     return false;

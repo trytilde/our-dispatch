@@ -143,6 +143,59 @@ describe("TildeAgentProvider", () => {
     expect(updates).toEqual([expect.objectContaining({ concurrency_policy: "queue" })]);
   });
 
+  it("reconciles the channel, skills, tools, and persistence concurrently", async () => {
+    let releaseChannel!: () => void;
+    const channelGate = new Promise<void>((resolve) => {
+      releaseChannel = resolve;
+    });
+    const skills = vi.spyOn(TildeSkillReconciler.prototype, "deploy").mockResolvedValue();
+    const tools = vi.spyOn(TildeToolReconciler.prototype, "deploy").mockResolvedValue();
+    skills.mockClear();
+    tools.mockClear();
+    const context = await agentContext("scout");
+    context.environment.AGENT_SCOUT_API_KEY = "existing-key";
+    context.environment.AGENT_SCOUT_WEBHOOK_SIGNING_KEY = "existing-signing-key";
+    const persisted: string[] = [];
+    context.persistence = {
+      setEnvironment: async (name) => {
+        persisted.push(name);
+      },
+      setSecret: async () => undefined,
+      unsetEnvironment: async () => undefined,
+      unsetSecret: async () => undefined,
+    };
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+        const request = input instanceof Request ? input : new Request(input, init);
+        const path = new URL(request.url).pathname;
+        if (request.method === "GET" && path.endsWith("/agents/scout"))
+          return Response.json(agent());
+        if (request.method === "GET" && path.endsWith("/channels")) {
+          await channelGate;
+          return Response.json({
+            items: [
+              {
+                id: "openbot-mission-control-scout",
+                configuration: { default_agent_inbox_id: "scout" },
+              },
+            ],
+          });
+        }
+        throw new Error(`Unexpected request: ${request.method} ${path}`);
+      }),
+    );
+
+    const deployment = new TildeAgentProvider(config).deployable.deploy(context);
+    await vi.waitFor(() => {
+      expect(skills).toHaveBeenCalledOnce();
+      expect(tools).toHaveBeenCalledOnce();
+      expect(persisted).toEqual(["AGENT_SCOUT_AGENT_ID", "AGENT_SCOUT_PROVIDER_ID"]);
+    });
+    releaseChannel();
+    await deployment;
+  });
+
   it("reports the Tilde operation, agent, API detail, and HTTP status", async () => {
     vi.spyOn(TildeSkillReconciler.prototype, "deploy").mockResolvedValue();
     vi.spyOn(TildeToolReconciler.prototype, "deploy").mockResolvedValue();

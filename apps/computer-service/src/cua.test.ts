@@ -1,5 +1,6 @@
 import {
   ActionCompletion,
+  ActionEffect,
   DriverError,
   VerificationStatus,
   type CuaDriverLike,
@@ -93,6 +94,58 @@ describe("Cua worker routing", () => {
       actionCompletion: CuaActionCompletion.COMPLETED,
     });
     expect(result.verificationJson).toContain('"elapsedMs":"1"');
+  });
+
+  it("replaces an idle-expired worker and retries only the not-started call", async () => {
+    const expiredCall = vi.fn(async () => ({
+      text: "The implicit session ended",
+      images: [],
+      isError: true,
+      errorCode: "session_ended",
+      degraded: false,
+      rawJson: "",
+    }));
+    const expiredShutdown = vi.fn(async () => undefined);
+    const expired = fakeDriver({ callTool: expiredCall, shutdown: expiredShutdown });
+    const freshCall = vi.fn(async () => ({
+      text: "captured",
+      images: [{ mimeType: "image/png", dataBase64: Buffer.from("desktop").toString("base64") }],
+      isError: false,
+      degraded: false,
+      rawJson: "",
+    }));
+    const fresh = fakeDriver({ callTool: freshCall });
+    let workers = 0;
+    cuaTesting.reset(async () => (workers++ === 0 ? expired : fresh));
+
+    await expect(callCuaTool("agent", "get_desktop_state", "{}")).resolves.toMatchObject({
+      isError: false,
+      actionCompletion: CuaActionCompletion.COMPLETED,
+    });
+    expect(expiredCall).toHaveBeenCalledTimes(1);
+    expect(expiredShutdown).toHaveBeenCalledTimes(1);
+    expect(freshCall).toHaveBeenCalledTimes(1);
+    expect(workers).toBe(2);
+  });
+
+  it("does not retry ordinary tool refusals and reports that no action started", async () => {
+    const callTool = vi.fn(async () => ({
+      text: "target was refused",
+      images: [],
+      isError: true,
+      errorCode: "target_refused",
+      degraded: false,
+      rawJson: "",
+      action: { effect: ActionEffect.Refused, route: 1 },
+    }));
+    cuaTesting.reset(async () => fakeDriver({ callTool }));
+
+    await expect(callCuaTool("agent", "click", "{}")).resolves.toMatchObject({
+      isError: true,
+      errorCode: "target_refused",
+      actionCompletion: CuaActionCompletion.NOT_STARTED,
+    });
+    expect(callTool).toHaveBeenCalledTimes(1);
   });
 
   it("forwards cancellation and reports an interrupted action without a blind retry", async () => {

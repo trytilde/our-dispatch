@@ -1,5 +1,5 @@
 import type { Platform, ProviderInitialization } from "@tryopenbot/runtime-provider";
-import { createClient, type Client } from "@trytilde/harness-sdk";
+import { createClient, type Client } from "@trytilde/sdk";
 import { tildeFetch } from "./fetch.js";
 
 export interface TildePlatformConfig {

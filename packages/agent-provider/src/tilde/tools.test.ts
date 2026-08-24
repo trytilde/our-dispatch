@@ -1,4 +1,4 @@
-import { createClient } from "@trytilde/harness-sdk";
+import { createClient } from "@trytilde/sdk";
 import { DeploymentOutputs, type DeploymentContext } from "@tryopenbot/runtime-provider";
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 import { TildeToolReconciler } from "./tools.js";
@@ -232,6 +232,7 @@ describe("TildeToolReconciler", () => {
       baseUrl: "https://tilde.test",
     });
     let vercelServer: Record<string, unknown> | undefined;
+    let vercelCredential: Record<string, unknown> | undefined;
     const mutations: string[] = [];
     vi.stubGlobal(
       "fetch",
@@ -262,12 +263,18 @@ describe("TildeToolReconciler", () => {
           });
         if (request.method === "GET" && path.endsWith("/mcp/tools"))
           return Response.json({ items: [] });
+        if (request.method === "GET" && path.endsWith("/resource-server"))
+          return Response.json({ items: vercelCredential ? [vercelCredential] : [] });
         if (request.method === "POST" && path.endsWith("/resource-server/encrypt")) {
           mutations.push("encrypt-vercel-token");
           return Response.json({ encrypted: true });
         }
         if (request.method === "POST" && path.endsWith("/resource-server")) {
           mutations.push("create-vercel-credential");
+          vercelCredential = {
+            id: "credential-one",
+            metadata: { display_name: "OpenBot scout Vercel MCP" },
+          };
           return Response.json({ id: "credential-one" });
         }
         if (request.method === "GET" && path.endsWith("/mcp/proxied-mcp-servers"))
@@ -314,6 +321,8 @@ describe("TildeToolReconciler", () => {
     };
     const provider = new TildeToolReconciler({ client });
     await provider.deploy(context);
+    await provider.deploy(context);
+    context.environment.AGENT_SCOUT_VERCEL_MCP_CREDENTIAL_ID = "rotated-away-credential";
     await provider.deploy(context);
     expect(mutations).toEqual([
       "encrypt-vercel-token",

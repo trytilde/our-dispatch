@@ -1,10 +1,10 @@
-import { configHeaders } from "@trytilde/harness-sdk";
+import { configHeaders } from "@trytilde/sdk";
 import {
   chatKitEndpoint,
   convertToAiSdkMessages,
   createClient,
   createMCPClient,
-} from "@trytilde/harness-sdk-vercel-ai-node";
+} from "@trytilde/sdk-vercel-ai-node";
 import {
   createTildeAttachmentMessageHandlers,
   createCuaTools,

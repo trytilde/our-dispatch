@@ -75,7 +75,7 @@ export async function reconcileAgentResources(
     ? discoveredSources.filter((source) => selectedAgentIds.has(source.slug))
     : discoveredSources;
   const report = options.report ?? (() => undefined);
-  const persistence = repositoryDeploymentPersistence(options);
+  const persistence = serialDeploymentPersistence(repositoryDeploymentPersistence(options));
   const agentServiceOrigin = (
     options.agentServiceOrigin ??
     (
@@ -93,7 +93,7 @@ export async function reconcileAgentResources(
   ).replace(/\/$/, "");
   report({ event: "agent.lifecycle.started", details: { total: sources.length } });
 
-  for (const [index, source] of sources.entries()) {
+  await mapWithConcurrency(sources, 10, async (source, index) => {
     const progress = { agentId: source.slug, index: index + 1, total: sources.length };
     report({ event: "agent.reconcile.started", details: progress });
     const context: DeploymentContext = {
@@ -118,7 +118,7 @@ export async function reconcileAgentResources(
     };
     await runAgentProvider("agent", options.providers.agent, context);
     report({ event: "agent.reconcile.complete", details: progress });
-  }
+  });
 }
 
 async function runAgentProvider(
@@ -190,6 +190,44 @@ export function repositoryDeploymentPersistence(
       ((name) =>
         unsetEncryptedSecret(options.repositoryRoot, name, { environment: options.environment })),
   };
+}
+
+/** Keep repository-backed environment and secret writes ordered while remote work runs in parallel. */
+export function serialDeploymentPersistence(
+  persistence: DeploymentPersistence,
+): DeploymentPersistence {
+  let tail = Promise.resolve();
+  const enqueue = <T>(operation: () => Promise<T>): Promise<T> => {
+    const result = tail.then(operation);
+    tail = result.then(
+      () => undefined,
+      () => undefined,
+    );
+    return result;
+  };
+  return {
+    setEnvironment: (name, value, description) =>
+      enqueue(() => persistence.setEnvironment(name, value, description)),
+    setSecret: (name, value, description) =>
+      enqueue(() => persistence.setSecret(name, value, description)),
+    unsetEnvironment: (name) => enqueue(() => persistence.unsetEnvironment(name)),
+    unsetSecret: (name) => enqueue(() => persistence.unsetSecret(name)),
+  };
+}
+
+async function mapWithConcurrency<T>(
+  values: readonly T[],
+  concurrency: number,
+  operation: (value: T, index: number) => Promise<void>,
+): Promise<void> {
+  let nextIndex = 0;
+  const workers = Array.from({ length: Math.min(concurrency, values.length) }, async () => {
+    while (nextIndex < values.length) {
+      const index = nextIndex++;
+      await operation(values[index]!, index);
+    }
+  });
+  await Promise.all(workers);
 }
 
 /** Render lifecycle progress for humans while leaving JSON/reporting policy with the command. */

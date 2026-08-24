@@ -1,14 +1,23 @@
-import { useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { motion } from "motion/react";
 import { useStore } from "zustand";
 import {
+  connectorAuthorizedReturnUrl,
+  waitForConnectorAccountActive,
+  type ChatAgent,
+  type PluginsCatalog as PluginsCatalogSnapshot,
+} from "@tryopenbot/client-runtime";
+import {
   BackIcon,
+  BotSelectionDialog,
+  ConnectorSetupDialog,
   getThemePreference,
   PluginsIcon,
   PluginsCatalog,
   SettingsIcon,
   setThemePreference,
+  type ConnectorSetupSubmit,
   type ThemePreference,
 } from "@tryopenbot/ui";
 import { openBotRuntime } from "../runtime.js";
@@ -36,13 +45,210 @@ interface SettingsContentProps {
 }
 
 function SettingsContent({ children, width }: SettingsContentProps) {
+  const maxWidth = width === "wide" ? "max-w-[1280px]" : "max-w-[640px]";
   return (
     <div
-      className={`settings-content settings-content--${width} mx-auto w-full px-8 py-10`}
+      className={`${maxWidth} mx-auto w-full px-8 py-10 max-[720px]:px-[18px] max-[720px]:pt-11
+        max-[720px]:pb-9`}
       data-settings-width={width}
     >
       {children}
     </div>
+  );
+}
+
+function PluginsSettings({ agents }: { agents: readonly ChatAgent[] }) {
+  const [catalog, setCatalog] = useState<PluginsCatalogSnapshot>({ tools: [], skills: [] });
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [setup, setSetup] = useState<{
+    providerId: string;
+    submitting: boolean;
+    error?: string;
+    authorizationUrl?: string;
+  } | null>(null);
+  const [createdAccountId, setCreatedAccountId] = useState<string | null>(null);
+  const setupWatcher = useRef<AbortController | null>(null);
+  const agentIds = useMemo(() => agents.map((agent) => agent.id), [agents]);
+  const agentIdsKey = agentIds.join("\0");
+
+  async function refresh(): Promise<void> {
+    setError("");
+    try {
+      setCatalog(await openBotRuntime.client.getPluginsCatalog(agentIds));
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Could not load plugins");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    setLoading(true);
+    void refresh();
+    // Bot identity, not array identity, controls the remote snapshot.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [agentIdsKey]);
+
+  useEffect(
+    () => () => {
+      setupWatcher.current?.abort();
+    },
+    [],
+  );
+
+  function closeSetup(): void {
+    setupWatcher.current?.abort();
+    setupWatcher.current = null;
+    setSetup(null);
+  }
+
+  async function updateTool(accountId: string, agentId: string, enabled: boolean) {
+    try {
+      await openBotRuntime.client.setToolAccountForAgent(accountId, agentId, enabled);
+      await refresh();
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Could not update tool");
+    }
+  }
+
+  async function updateSkill(skillId: string, agentId: string, enabled: boolean) {
+    try {
+      await openBotRuntime.client.setSkillForAgent(skillId, agentId, enabled);
+      await refresh();
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Could not update skill");
+    }
+  }
+
+  async function submitSetup(input: ConnectorSetupSubmit): Promise<void> {
+    if (!setup) return;
+    const current = setup;
+    setSetup({ ...current, submitting: true, error: undefined });
+    try {
+      const result = await openBotRuntime.client.createConnectorAccount({
+        providerTypeId: current.providerId,
+        credentialSourceTypeId: input.credentialSourceTypeId,
+        displayName: input.displayName,
+        ...(input.resourceServerValues ? { resourceServerValues: input.resourceServerValues } : {}),
+        ...(input.userCredentialValues ? { userCredentialValues: input.userCredentialValues } : {}),
+        returnUrl: connectorAuthorizedReturnUrl(
+          window.location.origin,
+          navigator.userAgent.includes("Electron") ? "electron" : "web",
+        ),
+      });
+      if (result.status === "authorize" && result.authorization_url) {
+        window.open(result.authorization_url, "_blank", "noopener");
+        setSetup({ ...current, submitting: false, authorizationUrl: result.authorization_url });
+        setupWatcher.current?.abort();
+        const watcher = new AbortController();
+        setupWatcher.current = watcher;
+        const active = await waitForConnectorAccountActive(openBotRuntime.client, {
+          providerTypeId: current.providerId,
+          accountId: result.account.id,
+          signal: watcher.signal,
+        });
+        if (!active) return;
+      }
+      closeSetup();
+      setCreatedAccountId(result.account.id);
+      void refresh();
+    } catch (reason) {
+      setSetup((value) =>
+        value
+          ? {
+              ...value,
+              submitting: false,
+              error: reason instanceof Error ? reason.message : "Could not add account",
+            }
+          : value,
+      );
+    }
+  }
+
+  const setupProvider = setup
+    ? catalog.tools.find(({ provider }) => provider.type_id === setup.providerId)?.provider
+    : undefined;
+
+  return (
+    <>
+      <PluginsCatalog
+        agents={agents.map((agent) => ({ id: agent.id, name: agent.display_name }))}
+        toolProviders={catalog.tools
+          .filter(({ provider }) => !provider.categories?.includes("system"))
+          .map(({ provider, accounts }) => ({
+            id: provider.type_id,
+            name: provider.name,
+            description: provider.documentation ?? "",
+            categories: provider.categories ?? [],
+            ...(provider.icon_url ? { iconUrl: provider.icon_url } : {}),
+            ...(provider.icon_slug ? { iconKey: provider.icon_slug } : {}),
+            canAddAccount: provider.can_add_account ?? true,
+            accounts: accounts.map((account) => ({
+              id: account.id,
+              accountName: account.display_name,
+              assignedAgentIds: account.assigned_agent_ids,
+            })),
+          }))}
+        skillProviders={catalog.skills.map((provider) => ({
+          id: provider.id,
+          name: provider.name,
+          description: provider.description,
+          categories: provider.categories,
+          ...(provider.icon_url ? { iconUrl: provider.icon_url } : {}),
+          ...(provider.icon_key ? { iconKey: provider.icon_key } : {}),
+          skills: provider.skills.map((skill) => ({
+            id: skill.id,
+            name: skill.name,
+            description: skill.description,
+            assignedAgentIds: skill.assigned_agent_ids,
+          })),
+        }))}
+        loading={loading}
+        {...(error ? { error } : {})}
+        onAddToolAccount={(providerId) => setSetup({ providerId, submitting: false })}
+        onSetSkill={updateSkill}
+        onSetToolAccount={updateTool}
+      />
+      {setup && setupProvider ? (
+        <ConnectorSetupDialog
+          providerName={setupProvider.name}
+          {...(setupProvider.icon_url ? { providerIconUrl: setupProvider.icon_url } : {})}
+          credentialSources={setupProvider.credential_sources.map((source) => ({
+            typeId: source.type_id,
+            name: source.name,
+            requiresBrokering: source.requires_brokering,
+            ...(source.documentation ? { documentation: source.documentation } : {}),
+            supportsAutoDisplayName: source.supports_auto_display_name ?? false,
+            ...(source.display_name_description
+              ? { displayNameDescription: source.display_name_description }
+              : {}),
+            resourceServerSchema: source.resource_server_schema,
+            userCredentialSchema: source.user_credential_schema,
+          }))}
+          submitting={setup.submitting}
+          {...(setup.error ? { error: setup.error } : {})}
+          {...(setup.authorizationUrl ? { authorizationUrl: setup.authorizationUrl } : {})}
+          onClose={closeSetup}
+          onReopenAuthorization={() => {
+            if (setup.authorizationUrl) window.open(setup.authorizationUrl, "_blank", "noopener");
+          }}
+          onSubmit={(input) => void submitSetup(input)}
+        />
+      ) : null}
+      <BotSelectionDialog
+        agents={agents.map((agent) => ({ id: agent.id, name: agent.display_name }))}
+        onClose={() => setCreatedAccountId(null)}
+        onSelect={(agentId) => {
+          if (!createdAccountId) return;
+          const accountId = createdAccountId;
+          setCreatedAccountId(null);
+          void updateTool(accountId, agentId, true);
+        }}
+        open={createdAccountId !== null}
+        title="Add account to bot"
+      />
+    </>
   );
 }
 
@@ -55,20 +261,26 @@ export function SettingsApp({ section = "general" }: SettingsAppProps = {}) {
   return (
     <motion.main
       animate={{ opacity: 1 }}
-      className="settings-shell flex h-screen w-full bg-page text-ink"
+      className="flex h-screen w-full bg-page text-ink"
       initial={{ opacity: 0 }}
       transition={pageTransition}
     >
+      <div
+        aria-hidden="true"
+        className="fixed inset-x-0 top-0 z-[3] h-8"
+        style={{ WebkitAppRegion: "drag" } as CSSProperties}
+      />
       <aside
         className={`flex w-[248px] shrink-0 flex-col gap-1 border-r border-line bg-surface px-3
           pb-3 ${macDesktop ? "pt-[42px]" : "pt-3"}`}
       >
         <button
           aria-label="Back to workspace"
-          className="settings-back-button mb-2 flex h-8 w-full items-center gap-2 rounded-control px-2.5 text-left
+          className="relative z-[4] mb-2 flex h-8 w-full items-center gap-2 rounded-control px-2.5 text-left
             text-[12.5px] font-medium text-ink-2 transition-[background-color,color] duration-150
             hover:bg-hover hover:text-ink"
           onClick={() => void navigate({ to: "/" })}
+          style={{ WebkitAppRegion: "no-drag" } as CSSProperties}
           type="button"
         >
           <BackIcon className="size-4 shrink-0 fill-none stroke-current stroke-[1.3]" />
@@ -98,9 +310,7 @@ export function SettingsApp({ section = "general" }: SettingsAppProps = {}) {
       <section className="min-w-0 flex-1 overflow-y-auto">
         {section === "plugins" ? (
           <SettingsContent width="wide">
-            <PluginsCatalog
-              agents={agents.map((agent) => ({ id: agent.id, name: agent.display_name }))}
-            />
+            <PluginsSettings agents={agents} />
           </SettingsContent>
         ) : (
           <SettingsContent width="constrained">

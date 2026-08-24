@@ -1,8 +1,8 @@
 /** Compose a provider call's cancellation signal into Tilde HTTP requests. */
-export function tildeFetch(signal: AbortSignal): typeof fetch {
+export function tildeFetch(signal: AbortSignal, fetcher: typeof fetch = fetch): typeof fetch {
   return (input, init) => {
     const requestSignal = resolveRequestSignal(input, init);
-    return fetch(input, {
+    return fetcher(input, {
       ...init,
       signal: combineSignals(requestSignal, signal),
     });

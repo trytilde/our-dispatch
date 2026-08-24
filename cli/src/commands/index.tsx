@@ -18,6 +18,9 @@ import { runConnect } from "./connect.js";
 import { runDesktop } from "./desktop/index.js";
 import { runMobile } from "./mobile/index.js";
 import { runRemote } from "./remote.js";
+import { runTildeCommand } from "./tilde.js";
+import { runTildePlugin } from "./plugin.js";
+import { runSdk } from "./sdk.js";
 
 export interface CliInvocation {
   command: string;
@@ -98,6 +101,10 @@ export async function runCommand(command: string, args: readonly string[]): Prom
       );
     return;
   }
+  if (command === "auth" || command === "state" || command === "tunnel")
+    return runTildeCommand(command, args);
+  if (command === "plugin") return reportedExit(await runTildePlugin(args));
+  if (command === "sdk") return runSdk(args);
   if (command === "check" || command === "build" || command === "test")
     return delegate(command, args);
   if (command === "e2e") return delegate("test:e2e", args);

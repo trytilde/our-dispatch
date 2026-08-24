@@ -133,4 +133,43 @@ describe("Cua runtime tools", () => {
       }),
     );
   });
+
+  it("omits empty optional strings instead of forwarding placeholder values", async () => {
+    const call = vi.fn(async () => result());
+    const tools = await cuaToolsTesting.buildCuaTools({
+      definitions: [
+        {
+          ...definitions[0],
+          inputSchemaJson: JSON.stringify({
+            type: "object",
+            properties: {
+              include_screenshot: { type: "boolean" },
+              screenshot_out_file: { type: "string" },
+            },
+            additionalProperties: false,
+          }),
+        },
+      ],
+      uploadMedia: vi.fn(),
+      call,
+    });
+    const execute = tools["get_desktop_state"]?.execute as
+      | ((
+          input: Record<string, unknown>,
+          execution: { toolCallId: string; messages: never[]; abortSignal: AbortSignal },
+        ) => Promise<unknown>)
+      | undefined;
+    if (!execute) throw new Error("get_desktop_state tool has no execute function");
+
+    await execute(
+      { include_screenshot: true, screenshot_out_file: "" },
+      { toolCallId: "call-two", messages: [], abortSignal: new AbortController().signal },
+    );
+
+    expect(call).toHaveBeenCalledWith(
+      "get_desktop_state",
+      '{"include_screenshot":true}',
+      expect.any(AbortSignal),
+    );
+  });
 });

@@ -7,6 +7,8 @@ description: Use OpenBot's direct Cua tools safely to observe, act, verify, and 
 
 Use the individual Cua tools exposed in your local tool catalog. Each Cua tool is a direct local tool with its own declared parameters; do not look for or invent a generic Cua dispatcher.
 
+Pass only arguments whose values you know. Omit optional parameters instead of sending placeholder empty strings, zero process IDs, or guessed window IDs. Use identifiers returned by the latest observation.
+
 ## Operating loop
 
 1. Observe the current desktop, window, browser, or accessibility state.

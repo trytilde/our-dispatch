@@ -1,0 +1,66 @@
+{
+  "name": "@trytilde/sdk-vercel-ai-react",
+  "version": "0.1.0",
+  "description": "React helpers for Tilde ChatKit Vercel AI SDK applications.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/trytilde/openbot.git",
+    "directory": "packages/sdk-vercel-ai-react"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "development": "./src/index.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "publishConfig": {
+    "exports": {
+      ".": {
+        "types": "./dist/index.d.ts",
+        "import": "./dist/index.js"
+      }
+    },
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsc --noEmit && tsdown --config ../../tsdown.browser.config.ts",
+    "check": "vp check",
+    "lint": "vp lint",
+    "prepack": "pnpm build",
+    "test": "vp test run",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@testing-library/react": "16.3.0",
+    "@trytilde/sdk": "workspace:*",
+    "@trytilde/sdk-react": "workspace:*",
+    "@types/react": "19.2.18",
+    "ai": "7.0.64",
+    "happy-dom": "20.10.3",
+    "react": "19.2.8",
+    "typescript": "5.9.2",
+    "vite-plus": "catalog:",
+    "vitest": "4.1.10"
+  },
+  "peerDependencies": {
+    "@trytilde/sdk": "^0.1.0",
+    "@trytilde/sdk-react": "^0.1.0",
+    "ai": ">=5 || >=6 || >=7",
+    "react": ">=18 || >=19"
+  },
+  "peerDependenciesMeta": {
+    "ai": {
+      "optional": true
+    }
+  },
+  "engines": {
+    "node": ">=24"
+  }
+}

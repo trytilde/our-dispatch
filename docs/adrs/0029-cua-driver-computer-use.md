@@ -24,7 +24,7 @@ Computer-service lazily creates one supervised private Cua worker for each valid
 
 `@tryopenbot/computer-tools` loads the complete catalog before an agent starts, converts each JSON Schema with the AI SDK JSON-Schema adapter, rejects name collisions, and exposes one local tool per identical Cua name. Returned images cross the existing session-scoped Tilde attachment boundary rather than becoming model-visible base64.
 
-Agent Provider always reconciles an OpenBot-owned computer-use overlay. It prefers the trusted Tilde-managed `trycua/cua` `skills/gui-automation/SKILL.md` package and otherwise reconciles the provenance-recorded bundled snapshot. Managed availability replaces only OpenBot's fallback; the overlay and user-owned registry skills remain.
+Agent Provider always reconciles an OpenBot-owned computer-use overlay and requires the trusted Tilde-managed `trycua/cua` `skills/gui-automation/SKILL.md` package. It discovers the current provider and skill IDs from repository and source-path identity on every reconciliation. A redeployed managed provider replaces an older managed Cua registry member without duplicating it; the overlay and user-owned registry skills remain.
 
 ```mermaid
 flowchart LR
@@ -48,12 +48,6 @@ flowchart LR
 - No web, mobile, or Electron capability changes in this decision; noVNC behavior remains unchanged.
 
 <FOLLOW UP>
-Owner: packages/agent-provider Cua skill reconciliation
-Trigger: the trytilde/api Cua provider PR is deployed to every supported Tilde environment
-Work: remove the bundled canonical Cua fallback and require the managed provider's canonical cua-driver skill; prove existing registries replace the fallback without duplicate membership
-</FOLLOW UP>
-
-<FOLLOW UP>
 Owner: Computer Service Cua worker policy
 Trigger: sandbox-level Computer permission configuration is designed
 Work: expose explicit per-installation or per-agent Cua permission policy with a safe configurable default and migration; preserve this fork's deliberate unrestricted selection
@@ -70,3 +64,7 @@ Owner: mobile client
 Trigger: the owner-guided demonstration contract exists and mobile gains an owner Computer surface
 Work: add mobile Computer preview and demonstration controls with behavior matching web and desktop
 </FOLLOW UP>
+
+## Updates
+
+- 2026-08-24T16:54:07+01:00: Required the deployed managed Cua skill, removed the bundled snapshot, and made registry migration replace rotated provider and skill IDs by stable repository and source-path identity.

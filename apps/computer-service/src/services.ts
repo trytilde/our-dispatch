@@ -137,8 +137,17 @@ export function registerComputerService(router: ConnectRouter): void {
         "{}",
         context.signal,
       );
+      if (result.isError) {
+        const detail = result.content.find((item) => item.content.case === "text");
+        throw new ConnectError(
+          detail?.content.case === "text"
+            ? `Cua screenshot failed: ${detail.content.value}`
+            : `Cua screenshot failed${result.errorCode ? ` (${result.errorCode})` : ""}`,
+          Code.FailedPrecondition,
+        );
+      }
       const image = result.content.find((item) => item.content.case === "image");
-      if (!image || image.content.case !== "image")
+      if (!image || image.content.case !== "image" || image.content.value.data.byteLength === 0)
         throw new ConnectError("Cua Driver did not return a screenshot", Code.DataLoss);
       return { png: image.content.value.data };
     },

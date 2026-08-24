@@ -1,6 +1,7 @@
 import type { DeploymentContext, DeploymentPlan } from "@tryopenbot/runtime-provider";
 import { persistEnvironment, persistSecret } from "@tryopenbot/runtime-provider";
 import { TildePlatform, type TildePlatformConfig } from "@tryopenbot/platform-integrations";
+import { createClient } from "@trytilde/sdk";
 import {
   tildeErrorStatus,
   tildeHttpErrorMessage,
@@ -18,11 +19,12 @@ import {
   createTildeApiClient,
   InboxStatus,
   type TildeApiClient,
-} from "@trytilde/harness-sdk/api";
+} from "@trytilde/sdk/api";
 import type { AgentProvider } from "../core.js";
 import { AgentProviderError } from "../core.js";
 import { TildeSkillReconciler } from "./skills.js";
 import { TildeToolReconciler, tildeAgentProviderInitialization } from "./tools.js";
+import { fetchWithConcurrency } from "./concurrency.js";
 
 export { tildeAgentProviderInitialization } from "./tools.js";
 
@@ -30,6 +32,7 @@ export interface TildeAgentProviderConfig extends TildePlatformConfig {}
 
 type JsonRecord = Record<string, unknown>;
 const missionControlChannelId = "openbot-mission-control";
+const maxConcurrentRequests = 10;
 
 interface AgentResource {
   id: string;
@@ -70,16 +73,23 @@ export class TildeAgentProvider implements AgentProvider {
         : new TildePlatform(platformOrConfig);
     this.platforms = [this.platform];
     const config = this.platform.connection();
+    const limitedFetch = fetchWithConcurrency(
+      (input, init) => fetch(input, init),
+      maxConcurrentRequests,
+    );
     this.#api = createTildeApiClient({
       baseUrl: config.baseUrl,
       apiKey: config.apiKey,
       orgId: config.orgId,
+      fetch: limitedFetch,
       // Keep generated failures as { error, response } so provider errors retain HTTP context.
       throwOnError: false,
     });
     this.#teamId = config.teamId;
-    this.#skills = new TildeSkillReconciler(this.platform);
-    this.#tools = new TildeToolReconciler({ platform: this.platform });
+    this.#skills = new TildeSkillReconciler({ ...config, fetch: limitedFetch });
+    this.#tools = new TildeToolReconciler({
+      client: createClient({ ...config, orgSubdomain: false, fetch: limitedFetch }),
+    });
   }
 
   async #plan(context: DeploymentContext): Promise<DeploymentPlan> {
@@ -188,7 +198,23 @@ export class TildeAgentProvider implements AgentProvider {
         )) as JsonRecord,
       );
     }
-    await this.#ensureMissionControlChannel(slug, agent.id, context.agentKind ?? "subagent");
+    await Promise.all([
+      this.#ensureMissionControlChannel(slug, agent.id, context.agentKind ?? "subagent"),
+      this.#persistAgentRegistration(context, slug, prefix, agent, createdSecrets),
+      this.#skills.deploy(context),
+      this.#tools.deploy(context),
+    ]);
+  }
+
+  async #persistAgentRegistration(
+    context: DeploymentContext,
+    slug: string,
+    prefix: string,
+    agent: AgentResource,
+    createdSecrets: { apiKey: string; webhookSigningKey: string } | undefined,
+  ): Promise<void> {
+    const apiKeyName = `${prefix}_API_KEY`;
+    const webhookKeyName = `${prefix}_WEBHOOK_SIGNING_KEY`;
     await persistEnvironment(
       context,
       `${prefix}_AGENT_ID`,
@@ -215,8 +241,6 @@ export class TildeAgentProvider implements AgentProvider {
         `Tilde webhook signing key for ${slug}.`,
       );
     }
-    await this.#skills.deploy(context);
-    await this.#tools.deploy(context);
   }
 
   /**

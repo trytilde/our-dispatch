@@ -32,6 +32,7 @@
   },
   "dependencies": {
     "@ai-sdk/provider-utils": "5.0.27",
+    "@tryopenbot/utilities": "workspace:*",
     "ai": "7.0.64",
     "zod": "4.4.3"
   },

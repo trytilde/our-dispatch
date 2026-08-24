@@ -13,6 +13,7 @@ import {
   type AuthProvider,
   type NativeAuthConfiguration,
   type OAuthTokens,
+  type OwnerAccount,
   type OwnerPrincipal,
 } from "./core.js";
 
@@ -31,6 +32,16 @@ interface OpenBotRegistration {
 
 interface JsonWebKeySet {
   keys: Array<JsonWebKey & { kid?: string; alg?: string }>;
+}
+
+interface TildeWhoami {
+  identity?: { type?: string; sub?: string; email?: string | null };
+  organizations?: Array<{
+    organization_id?: string;
+    name?: string | null;
+    role?: string;
+  }>;
+  teams?: Array<{ team_id?: string; name?: string | null; role?: string; org_id?: string }>;
 }
 
 export class TildeAuthProvider implements AuthProvider, InitializableProvider {
@@ -179,6 +190,48 @@ export class TildeAuthProvider implements AuthProvider, InitializableProvider {
         "Access token is not valid for this OpenBot installation",
       );
     return { subject: claims.sub, email: claims.email, groups: claims.groups ?? [], scope };
+  }
+
+  async account(accessToken: string, principal: OwnerPrincipal): Promise<OwnerAccount> {
+    const connection = platformConnection(this.#platform, this.#environment);
+    const response = await this.#request(
+      `${connection.baseUrl.replace(/\/$/, "")}/api/v1/identity/auth/whoami`,
+      { headers: { authorization: `Bearer ${accessToken}` } },
+    );
+    if (!response.ok)
+      throw new AuthProviderError(
+        "invalid_token",
+        `Tilde account lookup failed (${response.status})`,
+      );
+    const whoami = (await response.json()) as TildeWhoami;
+    const identity = whoami.identity;
+    const email = identity?.email?.trim() || principal.email?.trim();
+    const organization = whoami.organizations?.find(
+      ({ organization_id }) => organization_id === connection.orgId,
+    );
+    const workspace = whoami.teams?.find(({ team_id }) => team_id === connection.teamId);
+    return {
+      name: email || identity?.sub?.trim() || principal.subject,
+      ...(email ? { email } : {}),
+      ...(organization?.organization_id
+        ? {
+            organization: {
+              id: organization.organization_id,
+              name: organization.name?.trim() || organization.organization_id,
+              ...(organization.role ? { role: organization.role } : {}),
+            },
+          }
+        : {}),
+      ...(workspace?.team_id
+        ? {
+            workspace: {
+              id: workspace.team_id,
+              name: workspace.name?.trim() || workspace.team_id,
+              ...(workspace.role ? { role: workspace.role } : {}),
+            },
+          }
+        : {}),
+    };
   }
 
   async #register(

@@ -1,6 +1,16 @@
-import { access, copyFile, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import {
+  access,
+  copyFile,
+  mkdir,
+  mkdtemp,
+  readFile,
+  readdir,
+  rm,
+  writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { setImmediate } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
 import { VercelAgentServiceProvider } from "@tryopenbot/agent-service-provider";
 import { CodexInferenceProvider } from "@tryopenbot/inference-provider";
@@ -148,6 +158,40 @@ describe("agent scaffolding", () => {
       ),
     ).toContain("Custom instructions for Custom Agent");
     expect(await readFile(customTemplate, "utf8")).toContain("AGENT_ID_JSON");
+  });
+
+  it("never exposes a partial agent when a late template fails", async () => {
+    const root = await temporaryRepository();
+    await scaffoldAgentTemplates(root);
+    await scaffoldPrimaryAgent(root, "Factory");
+    await writeFile(
+      join(root, "configuration/templates/subagent/broken.ts.hbs"),
+      "export const broken = {{MISSING_VALUE}};\n",
+      "utf8",
+    );
+    const destination = join(root, "configuration/agent/subagents/final-boss");
+    let settled = false;
+    let destinationBecameVisible = false;
+    const outcome = scaffoldAgent(root, "Final Boss")
+      .then(() => undefined)
+      .catch((error: unknown) => error)
+      .finally(() => {
+        settled = true;
+      });
+    while (!settled) {
+      try {
+        await access(destination);
+        destinationBecameVisible = true;
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+      }
+      await setImmediate();
+    }
+
+    await expect(outcome).resolves.toBeInstanceOf(Error);
+    expect(destinationBecameVisible).toBe(false);
+    await expect(access(destination)).rejects.toMatchObject({ code: "ENOENT" });
+    expect(await readdir(join(root, ".cache/agent-scaffolds"))).toEqual([]);
   });
 
   it("accepts an inference-provider contribution for future agents", async () => {

@@ -10,10 +10,11 @@ test-results/
 .data/
 /.env
 /.env.*
-# Fork-owned: configuration/.env (public identifiers, resource IDs, endpoints) and the
-# SOPS-encrypted secrets document are tracked so every checkout has them. Only the
-# decrypted rendering stays local.
+# Fork-owned configuration is tracked, including the SOPS-encrypted secrets document.
+# Plain environment and decrypted secret renderings stay local.
+configuration/.env
 configuration/secrets.yaml
+/local-user-config.json
 .vercel/
 .openbot-deploy/
 .openbot/

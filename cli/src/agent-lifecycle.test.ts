@@ -2,7 +2,11 @@ import type { AgentProvider } from "@tryopenbot/agent-provider";
 import { discoverAgents, type AgentServiceProvider } from "@tryopenbot/agent-service-provider";
 import type { DeployableProvider } from "@tryopenbot/runtime-provider";
 import { describe, expect, it, vi } from "vite-plus/test";
-import { formatAgentLifecycleProgress, reconcileAgentResources } from "./agent-lifecycle.js";
+import {
+  formatAgentLifecycleProgress,
+  reconcileAgentResources,
+  serialDeploymentPersistence,
+} from "./agent-lifecycle.js";
 
 vi.mock("@tryopenbot/agent-service-provider", async (importOriginal) => ({
   ...(await importOriginal()),
@@ -95,6 +99,79 @@ describe("agent resource lifecycle", () => {
     });
 
     expect(deployedAgentIds).toEqual(["research-assistant"]);
+  });
+
+  it("reconciles up to ten authored agents concurrently", async () => {
+    vi.mocked(discoverAgents).mockResolvedValueOnce(
+      Array.from({ length: 12 }, (_, index) => ({
+        slug: `agent-${index}`,
+        kind: "subagent" as const,
+        directory: `/repository/configuration/agent/subagents/agent-${index}`,
+        path: `/repository/configuration/agent/subagents/agent-${index}/agent.ts`,
+      })),
+    );
+    let active = 0;
+    let peak = 0;
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+
+    const deployment = reconcileAgentResources({
+      repositoryRoot: "/repository",
+      environment: {},
+      devMode: true,
+      providers: {
+        agent: {
+          deployable: {
+            plan: async () => ({ summary: "agent" }),
+            deploy: async () => {
+              active += 1;
+              peak = Math.max(peak, active);
+              await gate;
+              active -= 1;
+            },
+          },
+        } as AgentProvider,
+        agentService: {
+          baseUrl: () => new URL("http://127.0.0.1:4100"),
+        } as unknown as AgentServiceProvider,
+      },
+    });
+
+    await vi.waitFor(() => expect(peak).toBe(10));
+    release();
+    await deployment;
+    expect(peak).toBe(10);
+  });
+
+  it("serializes repository persistence without poisoning the queue after a failure", async () => {
+    const calls: string[] = [];
+    let active = 0;
+    let peak = 0;
+    const persistence = serialDeploymentPersistence({
+      setEnvironment: async (name) => {
+        active += 1;
+        peak = Math.max(peak, active);
+        calls.push(name);
+        await Promise.resolve();
+        active -= 1;
+        if (name === "BROKEN") throw new Error("write failed");
+      },
+      setSecret: async () => undefined,
+      unsetEnvironment: async () => undefined,
+      unsetSecret: async () => undefined,
+    });
+
+    const results = await Promise.allSettled([
+      persistence.setEnvironment("FIRST", "one", "first"),
+      persistence.setEnvironment("BROKEN", "two", "broken"),
+      persistence.setEnvironment("LAST", "three", "last"),
+    ]);
+
+    expect(calls).toEqual(["FIRST", "BROKEN", "LAST"]);
+    expect(peak).toBe(1);
+    expect(results.map(({ status }) => status)).toEqual(["fulfilled", "rejected", "fulfilled"]);
   });
 
   it("formats concise per-agent progress", () => {

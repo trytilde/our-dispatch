@@ -54,7 +54,7 @@ describe("OpenBot runtime", () => {
       },
     });
 
-    await runtime.actions.startAgentSetup("Reviewer");
+    await runtime.actions.startAgentSetup("Reviewer", "new-bot-2-4");
     expect(runtime.store.getState().agentSetup.status).toBe("setting_up");
     await vi.waitFor(() => expect(runtime.store.getState().agentSetup.status).toBe("idle"));
     expect(runtime.store.getState().sidebar.selectedAgentId).toBe("reviewer");
@@ -63,6 +63,7 @@ describe("OpenBot runtime", () => {
         status: "setting_up",
         jobId,
         agent: expect.objectContaining({ id: "reviewer" }),
+        avatarId: "new-bot-2-4",
       }),
     );
     expect(persisted.at(-1)).toBeNull();
@@ -75,7 +76,10 @@ describe("OpenBot runtime", () => {
         const url =
           typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
         if (url === "/auth/session")
-          return Response.json({ authenticated: true, user: { subject: "owner-one" } });
+          return Response.json({
+            authenticated: true,
+            user: { subject: "owner-one", name: "Owner One" },
+          });
         if (url.startsWith("/api/chat/mission-control/sidebar"))
           return Response.json({
             items: [
@@ -110,7 +114,10 @@ describe("OpenBot runtime", () => {
         const url =
           typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
         if (url === "/auth/session")
-          return Response.json({ authenticated: true, user: { subject: "owner-one" } });
+          return Response.json({
+            authenticated: true,
+            user: { subject: "owner-one", name: "Owner One" },
+          });
         return Response.json({ error: "Chat unavailable" }, { status: 503 });
       },
     });
@@ -135,7 +142,10 @@ describe("OpenBot runtime", () => {
     });
     const client: OpenBotClient = {
       ...baseClient,
-      getSession: async () => ({ authenticated: true, user: { subject: "owner-one" } }),
+      getSession: async () => ({
+        authenticated: true,
+        user: { subject: "owner-one", name: "Owner One" },
+      }),
       getSidebar: async () => ({
         items: [
           {
@@ -249,7 +259,10 @@ describe("OpenBot runtime", () => {
     });
     const client: OpenBotClient = {
       ...baseClient,
-      getSession: async () => ({ authenticated: true, user: { subject: "owner-one" } }),
+      getSession: async () => ({
+        authenticated: true,
+        user: { subject: "owner-one", name: "Owner One" },
+      }),
       getSidebar: async () => ({
         items: [
           {
@@ -318,6 +331,34 @@ describe("OpenBot runtime", () => {
     expect(runtime.store.getState().conversation.queuedTurns[0]?.trigger_message_ids).toEqual([
       "persisted-second",
     ]);
+    emitEvent({
+      type: "ChatKit.agent_turn.queued",
+      data: {
+        kind: {
+          kind: "agent_turn_queued",
+          queue_item: {
+            id: "durable-queue-one",
+            session_id: "session-one",
+            queue_position: 1_000,
+            status: "pending",
+            chat_request: {
+              messages: [{ role: "user", content: [{ type: "text", text: "second prompt" }] }],
+            },
+            trigger_message_ids: ["persisted-second"],
+            created_at: currentTime.toISOString(),
+          },
+        },
+      },
+    });
+    expect(runtime.store.getState().conversation.queuedTurns).toMatchObject([
+      {
+        id: "durable-queue-one",
+        trigger_message_ids: ["persisted-second"],
+      },
+    ]);
+    expect(runtime.store.getState().conversation.queuedTurns[0]?.id).not.toContain(
+      "optimistic-queue-",
+    );
 
     resolveSend({
       items: runtime.store.getState().conversation.messages,
@@ -344,6 +385,66 @@ describe("OpenBot runtime", () => {
       },
     });
     expect(runtime.store.getState().conversation.queuedTurns).toEqual([]);
+    runtime.dispose();
+  });
+
+  it("reorders a queued turn using its persisted queue position", async () => {
+    let releaseReorder!: () => void;
+    const reorderBarrier = new Promise<void>((resolve) => {
+      releaseReorder = resolve;
+    });
+    const baseClient = createOpenBotClient({
+      fetch: async () => {
+        throw new Error("Unexpected HTTP request");
+      },
+    });
+    const reorderQueuedTurn = vi.fn(async () => reorderBarrier);
+    const client: OpenBotClient = {
+      ...baseClient,
+      reorderQueuedTurn,
+      getQueuedTurns: async () => ({ items: [], next_page_token: null }),
+    };
+    const runtime = createOpenBotRuntime({
+      client,
+      auth: createClientAuthAdapter(client, { signIn: async () => undefined }),
+    });
+    const queuedTurns = [
+      {
+        id: "queued-one",
+        session_id: "session-one",
+        queue_position: 1_000,
+        status: "pending",
+        chat_request: {},
+        created_at: "2026-08-21T10:00:00.000Z",
+      },
+      {
+        id: "queued-two",
+        session_id: "session-one",
+        queue_position: 2_000,
+        status: "pending",
+        chat_request: {},
+        created_at: "2026-08-21T10:00:01.000Z",
+      },
+    ];
+    runtime.store.setState((state) => ({
+      conversation: {
+        ...state.conversation,
+        selectedSessionId: "session-one",
+        queuedTurns,
+      },
+    }));
+
+    const reordering = runtime.actions.reorderQueuedTurn("queued-two", 999);
+
+    expect(reorderQueuedTurn).toHaveBeenCalledWith("queued-two", 999);
+    expect(runtime.store.getState().conversation.queuedTurns.map((turn) => turn.id)).toEqual([
+      "queued-two",
+      "queued-one",
+    ]);
+    expect(runtime.store.getState().conversation.queuedTurns[0]?.queue_position).toBe(999);
+
+    releaseReorder();
+    await reordering;
     runtime.dispose();
   });
 });

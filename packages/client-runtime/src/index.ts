@@ -7,6 +7,7 @@ export * from "./contracts/agents.js";
 export * from "./contracts/auth.js";
 export * from "./contracts/common.js";
 export * from "./contracts/connectors.js";
+export * from "./contracts/plugins.js";
 export * from "./contracts/events.js";
 export * from "./contracts/installation.js";
 export * from "./contracts/messages.js";

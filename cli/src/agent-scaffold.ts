@@ -1,5 +1,15 @@
 import { constants } from "node:fs";
-import { access, chmod, copyFile, lstat, mkdir, readdir, rm } from "node:fs/promises";
+import {
+  access,
+  chmod,
+  copyFile,
+  lstat,
+  mkdir,
+  mkdtemp,
+  readdir,
+  rename,
+  rm,
+} from "node:fs/promises";
 import { dirname, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { agentIdFromName, materializeFileTemplate } from "@tryopenbot/utilities";
@@ -190,6 +200,12 @@ async function materializeAgent(
   name: string,
   createSubagentDirectory: boolean,
 ): Promise<ScaffoldedAgent> {
+  // Build outside configuration/ so the orchestrator cannot discover a half-written agent.
+  // Publishing with one same-filesystem rename makes the complete template visible atomically.
+  const stagingRoot = resolve(repositoryRoot, ".cache/agent-scaffolds");
+  await mkdir(stagingRoot, { recursive: true, mode: 0o700 });
+  const stagingDirectory = await mkdtemp(resolve(stagingRoot, `${id}-`));
+  let published = false;
   const values = {
     AGENT_ID: id,
     AGENT_ID_JSON: JSON.stringify(id),
@@ -204,7 +220,7 @@ async function materializeAgent(
       const relativePath = relative(templateDirectory, template).replaceAll("\\", "/");
       await materializeFileTemplate(
         template,
-        resolve(directory, relativePath.slice(0, -".hbs".length)),
+        resolve(stagingDirectory, relativePath.slice(0, -".hbs".length)),
         values,
         { flag: "wx", mode: 0o600 },
       );
@@ -218,17 +234,19 @@ async function materializeAgent(
         const relativePath = relative(roleTemplateDirectory, template).replaceAll("\\", "/");
         await materializeFileTemplate(
           template,
-          resolve(directory, relativePath.slice(0, -".hbs".length)),
+          resolve(stagingDirectory, relativePath.slice(0, -".hbs".length)),
           values,
           { flag: "wx", mode: 0o600 },
         );
       }
     }
     if (createSubagentDirectory)
-      await mkdir(resolve(directory, "subagents"), { recursive: true, mode: 0o700 });
-  } catch (error) {
-    await rm(directory, { recursive: true, force: true });
-    throw error;
+      await mkdir(resolve(stagingDirectory, "subagents"), { recursive: true, mode: 0o700 });
+    await mkdir(dirname(directory), { recursive: true, mode: 0o700 });
+    await rename(stagingDirectory, directory);
+    published = true;
+  } finally {
+    if (!published) await rm(stagingDirectory, { recursive: true, force: true });
   }
   return { id, name, directory };
 }

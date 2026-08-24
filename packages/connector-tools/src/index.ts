@@ -1,4 +1,5 @@
 import type { Tool } from "@ai-sdk/provider-utils";
+import { isRecord } from "@tryopenbot/utilities/json";
 import { tool } from "ai";
 import { z } from "zod";
 
@@ -73,10 +74,6 @@ function pageItems(page: unknown): Record<string, unknown>[] {
   if (Array.isArray(page.items)) return page.items.filter(isRecord);
   if (Array.isArray(page.data)) return page.data.filter(isRecord);
   return [];
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 function asText(value: unknown): string {

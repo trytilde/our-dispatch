@@ -1,17 +1,24 @@
-import { access, mkdtemp, readFile, rm } from "node:fs/promises";
+import { access, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { spawnSync } from "node:child_process";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+import { CodexInferenceProvider, VercelInferenceProvider } from "@tryopenbot/inference-provider";
+import { renderFileTemplatePath } from "@tryopenbot/utilities";
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 import { parse as parseYaml, stringify as stringifyYaml } from "yaml";
 import {
+  applyFileReplacements,
   generateAgeIdentity,
   builtInRuntimeInitializationProviders,
   inferenceChoicesForRuntime,
   initializeOpenBot,
   isInitializedOpenBotRepository,
+  isOpenBotRepository,
   loadDeploymentConfiguration,
   processCommandRunner,
+  prepareInferenceTemplateMigration,
+  selectInitializationProviders,
   setEncryptedSecret,
   setEnvironmentValue,
   SANDBOX_SOPS_AGE_KEY,
@@ -20,6 +27,7 @@ import {
   unsetEncryptedSecret,
   unsetEnvironmentValue,
 } from "./initialization.js";
+import { scaffoldAgent, scaffoldAgentTemplates, scaffoldPrimaryAgent } from "./agent-scaffold.js";
 
 const temporaryDirectories: string[] = [];
 
@@ -42,6 +50,206 @@ describe("OpenBot initialization", () => {
     expect(builtInRuntimeInitializationProviders("vercel", "codex")).toBeTruthy();
   });
 
+  it("configures ChatGPT immediately after its provider selection", async () => {
+    const repositoryRoot = await temporaryRepository();
+    const events: string[] = [];
+    const request = vi.fn<typeof fetch>();
+    const initializeCodex = vi
+      .spyOn(CodexInferenceProvider.prototype, "initialize")
+      .mockImplementation(async () => {
+        events.push("configure:inference");
+        throw new Error("Codex configuration reached");
+      });
+    const runner: InitializationCommandRunner = {
+      run: vi.fn(async (command, args) => {
+        if (command === "op" && args.includes("template"))
+          return {
+            stdout: JSON.stringify({ fields: [{ id: "password", value: "" }] }),
+            stderr: "",
+          };
+        if (command === "op" || command === "sops")
+          return { stdout: '{"sops":{"mac":"encrypted"}}\n', stderr: "" };
+        return { stdout: "", stderr: "" };
+      }),
+    };
+
+    try {
+      await expect(
+        initializeOpenBot({
+          repositoryRoot,
+          runner,
+          request,
+          userConfigurationPath: testUserConfigurationPath(repositoryRoot),
+          prompts: {
+            select: vi.fn(async (_prompt, _choices, options) => {
+              events.push(`select:${options?.id ?? "unknown"}`);
+              if (options?.id === "owner-identity") return "onepassword";
+              if (options?.id === "runtime") return "local";
+              if (options?.id === "inference") return "codex";
+              return "";
+            }),
+            input: vi.fn(async (_prompt, options) => {
+              events.push(`input:${options?.id ?? "unknown"}`);
+              if (options?.id === "onepassword-vault") return "Engineering";
+              if (options?.id === "onepassword-item-title") return "OpenBot owner identity";
+              return "";
+            }),
+          },
+        }),
+      ).rejects.toThrow("Codex configuration reached");
+    } finally {
+      initializeCodex.mockRestore();
+    }
+
+    expect(events.slice(-2)).toEqual(["select:inference", "configure:inference"]);
+    expect(events).not.toContain("input:tilde-api-key");
+    expect(request).not.toHaveBeenCalled();
+  });
+
+  it("preselects configured providers while offering every built-in alternative", async () => {
+    const workspaceRoot = fileURLToPath(new URL("../../", import.meta.url));
+    const repositoryRoot = await mkdtemp(join(workspaceRoot, ".openbot-provider-selection-"));
+    temporaryDirectories.push(repositoryRoot);
+    const configurationTemplate = fileURLToPath(
+      new URL("./assets/configuration/vercel.ts.hbs", import.meta.url),
+    );
+    const configurationPath = join(repositoryRoot, "configuration/index.ts");
+    await writeFixture(
+      repositoryRoot,
+      "configuration/index.ts",
+      await renderFileTemplatePath(configurationTemplate, { CODEX_INFERENCE: false }),
+    );
+    const selections = new Map<string, { values: string[]; initialValue?: string }>();
+    const prompts: InitializationPrompts = {
+      select: vi.fn(
+        async (
+          _prompt: string,
+          choices: readonly { value: string }[],
+          options?: { id?: string; initialValue?: string },
+        ) => {
+          selections.set(options?.id ?? "", {
+            values: choices.map(({ value }) => value),
+            initialValue: options?.initialValue,
+          });
+          return options?.id === "inference" ? "codex" : (options?.initialValue ?? "");
+        },
+      ),
+      input: vi.fn(async () => ""),
+    };
+
+    const selected = await selectInitializationProviders(configurationPath, prompts, {
+      TILDE_BASE_URL: "https://api.trytilde.ai",
+    });
+
+    expect(selections.get("runtime")).toEqual({
+      values: ["local", "vercel"],
+      initialValue: "vercel",
+    });
+    expect(selections.get("inference")).toEqual({
+      values: ["vercel", "codex"],
+      initialValue: "vercel",
+    });
+    expect(selected.runtime).toBe("vercel");
+    expect(selected.inference).toBe("codex");
+    expect(selected.configurationSource).toContain("new CodexInferenceProvider()");
+    expect(await readFile(configurationPath, "utf8")).toContain(
+      "new VercelInferenceProvider(vercel)",
+    );
+  });
+
+  it("refuses to rewrite an owner-edited built-in composition", async () => {
+    const workspaceRoot = fileURLToPath(new URL("../../", import.meta.url));
+    const repositoryRoot = await mkdtemp(join(workspaceRoot, ".openbot-provider-selection-"));
+    temporaryDirectories.push(repositoryRoot);
+    const configurationTemplate = fileURLToPath(
+      new URL("./assets/configuration/vercel.ts.hbs", import.meta.url),
+    );
+    const configurationPath = join(repositoryRoot, "configuration/index.ts");
+    const canonical = await renderFileTemplatePath(configurationTemplate, {
+      CODEX_INFERENCE: false,
+    });
+    await writeFixture(
+      repositoryRoot,
+      "configuration/index.ts",
+      `${canonical}\n// Owner-specific provider wiring.\n`,
+    );
+
+    await expect(
+      selectInitializationProviders(
+        configurationPath,
+        {
+          select: vi.fn(async (_prompt, _choices, options) =>
+            options?.id === "inference" ? "codex" : (options?.initialValue ?? ""),
+          ),
+          input: vi.fn(async () => ""),
+        },
+        { TILDE_BASE_URL: "https://api.trytilde.ai" },
+      ),
+    ).rejects.toThrow("configuration/index.ts contains fork-owned changes");
+    expect(await readFile(configurationPath, "utf8")).toContain(
+      "// Owner-specific provider wiring.",
+    );
+  });
+
+  it("migrates provider-owned inference source for existing and future agents", async () => {
+    const repositoryRoot = await temporaryRepository();
+    const codex = new CodexInferenceProvider();
+    const vercel = new VercelInferenceProvider();
+    await scaffoldAgentTemplates(repositoryRoot, codex.agentTemplate.files);
+    await scaffoldPrimaryAgent(repositoryRoot, "Factory");
+    await scaffoldAgent(repositoryRoot, "Research Assistant");
+
+    const replacements = await prepareInferenceTemplateMigration(
+      repositoryRoot,
+      codex.agentTemplate.files,
+      vercel.agentTemplate.files,
+      {
+        AGENT_FACTORY_NAME: "Factory",
+        AGENT_RESEARCH_ASSISTANT_NAME: "Research Assistant",
+      },
+    );
+    expect(
+      await readFile(join(repositoryRoot, "configuration/agent/inference.ts"), "utf8"),
+    ).toContain("createCodexAppServer");
+
+    await applyFileReplacements(replacements);
+
+    for (const path of [
+      "configuration/templates/agent/inference.ts.hbs",
+      "configuration/agent/inference.ts",
+      "configuration/agent/subagents/research-assistant/inference.ts",
+    ])
+      expect(await readFile(join(repositoryRoot, path), "utf8")).toContain("stepCountIs(12)");
+  });
+
+  it("refuses inference migration when an existing agent owns the affected file", async () => {
+    const repositoryRoot = await temporaryRepository();
+    const codex = new CodexInferenceProvider();
+    const vercel = new VercelInferenceProvider();
+    await scaffoldAgentTemplates(repositoryRoot, codex.agentTemplate.files);
+    await scaffoldPrimaryAgent(repositoryRoot, "Factory");
+    await writeFixture(
+      repositoryRoot,
+      "configuration/agent/inference.ts",
+      `${await readFile(join(repositoryRoot, "configuration/agent/inference.ts"), "utf8")}\n// Owner edit.\n`,
+    );
+
+    await expect(
+      prepareInferenceTemplateMigration(
+        repositoryRoot,
+        codex.agentTemplate.files,
+        vercel.agentTemplate.files,
+        { AGENT_FACTORY_NAME: "Factory" },
+      ),
+    ).rejects.toThrow("contains fork-owned changes");
+    expect(
+      await readFile(
+        join(repositoryRoot, "configuration/templates/agent/inference.ts.hbs"),
+        "utf8",
+      ),
+    ).toContain("createCodexAppServer");
+  });
+
   it("rejects initialization outside an OpenBot repository before writing configuration", async () => {
     const repositoryRoot = await mkdtemp(join(tmpdir(), "not-openbot-init-"));
     temporaryDirectories.push(repositoryRoot);
@@ -60,6 +268,13 @@ describe("OpenBot initialization", () => {
     await expect(access(join(repositoryRoot, "configuration"))).rejects.toMatchObject({
       code: "ENOENT",
     });
+  });
+
+  it("recognizes a cloned checkout separately from a completed initialization", async () => {
+    const repositoryRoot = await temporaryRepository();
+
+    await expect(isOpenBotRepository(repositoryRoot)).resolves.toBe(true);
+    await expect(isInitializedOpenBotRepository(repositoryRoot)).resolves.toBe(false);
   });
 
   it("generates valid-looking age identities", () => {
@@ -110,6 +325,7 @@ describe("OpenBot initialization", () => {
           }
           if (command === "op" && args.includes("read"))
             return { stdout: ownerIdentity, stderr: "" };
+          if (command === "vp") return { stdout: "", stderr: "" };
           return processCommandRunner.run(command, args, options);
         },
         runWithInputFile: processCommandRunner.runWithInputFile,
@@ -312,21 +528,21 @@ describe("OpenBot initialization", () => {
   it("stores the owner identity in 1Password and encrypts the sandbox identity", async () => {
     const repositoryRoot = await temporaryRepository();
     const answers = ["onepassword", "vercel", "vercel"];
-    const inputs = [
-      "Engineering",
-      "OpenBot owner identity",
-      "vercel-secret",
-      "",
-      "openbot-control",
-      "openbot-agents",
-      "tilde-secret",
-      "tilde-org",
-      "tilde-team",
-      "OpenBot",
-      "",
-      "OpenBot agents",
-    ];
-    const promptInput = vi.fn(async () => inputs.shift() ?? "");
+    const inputs: Record<string, string> = {
+      "onepassword-vault": "Engineering",
+      "onepassword-item-title": "OpenBot owner identity",
+      "vercel-token": "vercel-secret",
+      "vercel-team-id": "",
+      "vercel-control-project": "openbot-control",
+      "vercel-agent-project": "openbot-agents",
+      "vercel-ai-gateway-api-key-name": "OpenBot agents",
+      "tilde-api-key": "tilde-secret",
+      "tilde-org-id": "tilde-org",
+      "tilde-team-id": "tilde-team",
+      "openbot-deployment-name": "OpenBot",
+      "tilde-base-url": "",
+    };
+    const promptInput = vi.fn(async (_prompt, options) => inputs[options?.id ?? ""] ?? "");
     const prompts: InitializationPrompts = {
       select: vi.fn(async () => answers.shift()!),
       input: promptInput,
@@ -510,10 +726,9 @@ export default {
         return { stdout: stringifyYaml({ ...encrypted, sops: { mac: "encrypted" } }), stderr: "" };
       }),
     };
+    const select = vi.fn(async (_prompt, _choices, options) => options?.initialValue ?? "");
     const prompts: InitializationPrompts = {
-      select: vi.fn(async () => {
-        throw new Error("No select prompt expected");
-      }),
+      select,
       input: vi.fn(async (_prompt, options) => {
         defaults.set(options?.id ?? "", options?.initialValue);
         if (options?.id === "tilde-api-key") return "entered-tilde";
@@ -530,6 +745,11 @@ export default {
       userConfigurationPath: testUserConfigurationPath(repositoryRoot),
     });
 
+    expect(select).toHaveBeenCalledTimes(2);
+    for (const call of select.mock.calls) {
+      expect(call[1].map((choice: { value: string }) => choice.value)).toContain("current");
+      expect(call[2]?.initialValue).toBe("current");
+    }
     expect(defaults).toEqual(
       new Map([
         ["tilde-api-key", undefined],
@@ -650,18 +870,14 @@ export default {
       stringifyYaml({ creation_rules: [{ age: ["age1owner"] }] }),
     );
     await writeFixture(repositoryRoot, "configuration/secrets.enc.yaml", "encrypted\n");
-    await writeFixture(repositoryRoot, "user-config.json", '{"version":1}\n');
     const runner: InitializationCommandRunner = { run: vi.fn() };
 
     await expect(
       loadDeploymentConfiguration(repositoryRoot, {
         runner,
         environment: {},
-        userConfigurationPath: testUserConfigurationPath(repositoryRoot),
       }),
-    ).rejects.toThrow(
-      "Run openbot init in an interactive terminal to configure the existing owner identity",
-    );
+    ).rejects.toThrow("local-user-config.json");
     expect(runner.run).not.toHaveBeenCalled();
   });
 
@@ -690,8 +906,9 @@ export default {
         };
       }),
     };
+    const select = vi.fn(async () => "onepassword");
     const prompts: InitializationPrompts = {
-      select: vi.fn(async () => "onepassword"),
+      select,
       input: vi.fn(async () => "op://Engineering/OpenBot owner identity/password"),
     };
 
@@ -699,10 +916,11 @@ export default {
       runner,
       environment: {},
       prompts,
-      userConfigurationPath: testUserConfigurationPath(repositoryRoot),
     });
 
-    expect(JSON.parse(await readFile(testUserConfigurationPath(repositoryRoot), "utf8"))).toEqual({
+    expect(
+      JSON.parse(await readFile(join(repositoryRoot, "local-user-config.json"), "utf8")),
+    ).toEqual({
       version: 1,
       sops: {
         ownerIdentity: {
@@ -711,7 +929,7 @@ export default {
         },
       },
     });
-    expect(prompts.select).toHaveBeenCalledTimes(1);
+    expect(select).toHaveBeenCalledTimes(1);
   });
 
   it("sets and unsets encrypted secrets by re-using the existing data key", async () => {
@@ -819,8 +1037,6 @@ function testUserConfigurationPath(repositoryRoot: string): string {
 }
 
 async function writeFixture(root: string, relativePath: string, contents: string): Promise<void> {
-  const { mkdir, writeFile } = await import("node:fs/promises");
-  const { dirname } = await import("node:path");
   const path = join(root, relativePath);
   await mkdir(dirname(path), { recursive: true });
   await writeFile(path, contents);

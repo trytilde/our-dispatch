@@ -19,3 +19,31 @@ export async function mapWithConcurrency<T, R>(
   await Promise.all(workers);
   return results;
 }
+
+/** Share one request ceiling across independently parallel Tilde reconcilers. */
+export function fetchWithConcurrency(fetcher: typeof fetch, concurrency: number): typeof fetch {
+  if (!Number.isInteger(concurrency) || concurrency < 1)
+    throw new Error("Concurrency must be a positive integer");
+  let active = 0;
+  const waiting: Array<() => void> = [];
+  const acquire = async (): Promise<void> => {
+    if (active < concurrency) {
+      active += 1;
+      return;
+    }
+    await new Promise<void>((resolve) => waiting.push(resolve));
+  };
+  const release = (): void => {
+    const next = waiting.shift();
+    if (next) next();
+    else active -= 1;
+  };
+  return async (input, init) => {
+    await acquire();
+    try {
+      return await fetcher(input, init);
+    } finally {
+      release();
+    }
+  };
+}

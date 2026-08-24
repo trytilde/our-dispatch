@@ -35,7 +35,13 @@ const agentSetupPersistence = {
         typeof value.agent.name !== "string"
       )
         return null;
-      return { status: "setting_up", jobId: value.jobId, agent: value.agent, error: "" };
+      return {
+        status: "setting_up",
+        jobId: value.jobId,
+        agent: value.agent,
+        avatarId: typeof value.avatarId === "string" ? value.avatarId : "",
+        error: "",
+      };
     } catch {
       return null;
     }

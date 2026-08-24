@@ -53,7 +53,7 @@ describe("DesktopAuth", () => {
       expect(new Headers(init?.headers).get("authorization")).toMatch(/^Bearer /);
       return Response.json({
         authenticated: true,
-        user: { subject: "user-1", email: "owner@example.com" },
+        user: { subject: "user-1", name: "Owner", email: "owner@example.com" },
       });
     });
     vi.stubGlobal("fetch", request);
@@ -62,7 +62,7 @@ describe("DesktopAuth", () => {
 
     await expect(auth.status("https://openbot.example")).resolves.toEqual({
       authenticated: true,
-      user: { subject: "user-1", email: "owner@example.com" },
+      user: { subject: "user-1", name: "Owner", email: "owner@example.com" },
     });
     expect(request).toHaveBeenCalledWith(
       new URL("https://openbot.example/auth/session"),

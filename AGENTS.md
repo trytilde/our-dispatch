@@ -67,12 +67,14 @@ Per ADR-0018, every developer workflow is an `openbot` command — repository ga
 - `packages/connector-tools`: typed Vercel AI SDK tools for in-chat connector (Tilde tool-provider) configuration; a runtime utility, not a provider.
 - `packages/connector-tools`: typed Vercel AI SDK tools for in-chat connector (Tilde tool-provider) configuration; a runtime utility, not a provider.
 - `packages/configuration`: typed contract for the fork-owned composition root.
-- `packages/utilities`: shared utilities, including strict Handlebars rendering for generated source, configuration, service, and deployment files.
+- `packages/utilities`: shared OpenBot utilities, including strict Handlebars rendering and domain-neutral JSON guards/accessors. Import browser-safe JSON helpers through `@tryopenbot/utilities/json`.
 - `configuration`: fork-owned Eve-compatible agent directories, future-agent templates, provider composition, and provider plugins.
 - `packages/runtime-provider`: shared build and phased deployment contracts and coordinator.
 - `packages/control-service-provider`, `packages/agent-service-provider`: independent local and Vercel service artifacts and deployment.
 - `packages/ui`: shared React UI and vendored Beautiful UI components.
 - `packages/client-runtime`: framework-neutral UI contracts, Tilde REST/SSE client, reducers, and Zustand vanilla state.
+- `packages/api-client`: generated Tilde OpenAPI client. Regenerate; never hand-edit.
+- `packages/sdk`, `packages/sdk-react`, `packages/sdk-vercel-ai-node`, and `packages/sdk-vercel-ai-react`: public Tilde SDK and framework adapters.
 - `scripts/`: non-interactive build helpers that do not belong to the operator CLI.
 - `docs/adrs`: concise records of durable architecture, code, and product design decisions.
 
@@ -131,8 +133,11 @@ Per ADR-0018, every developer workflow is an `openbot` command — repository ga
 ### Tilde and AI runtime
 
 - Use the canonical Tilde skill and `https://trytilde.ai/llms.txt` for current Tilde behavior.
+- Use `openbot sdk refresh` after intentional Tilde OpenAPI changes. Generated source lives only under `packages/api-client/src/generated/`; public SDK behavior belongs in hand-authored `packages/sdk/src/` wrappers.
+- Public SDK names are `@trytilde/sdk*`; do not reintroduce Harness package names, a standalone Tilde CLI, or a plugin helper package. `openbot auth|state|tunnel|plugin` owns those commands.
+- Tilde SDK JSON types, guards, and accessors belong in `@trytilde/sdk/json`; SDK packages must not depend on `@tryopenbot/utilities`.
 - Keep ChatKit webhook verification, history conversion, streaming, and credentials server-side.
-- Reconcile Tilde resources through the typed API client inside idempotent provider lifecycles. OpenBot does not use a Tilde state file during normal operation; operators may use the Tilde CLI directly for one-time team-to-team state migration.
+- Reconcile Tilde resources through the typed API client inside idempotent provider lifecycles. OpenBot does not use a Tilde state file during normal operation; operators may use `openbot state` for one-time team-to-team state migration.
 - Do not guess Tilde identifiers or expose one-time API/webhook keys.
 - The agent loop uses Vercel AI SDK. Verify current SDK signatures before changing them.
 - Agent model, MCP, skill, and other external integrations are ordinary authored code. Keep the matching defaults in `configuration/templates/agent/`; migrate existing agents explicitly.
@@ -205,4 +210,5 @@ For browser-visible changes, verify the real route, console, network, and visibl
 - `implement-provider`: provider implementation structure, assets, lifecycles, and tests.
 - `edit-openbot-configuration`: fork-owned composition, custom providers, and future-agent templates.
 - `vercel`, `tilde`: platform-specific work.
+- `update-openapi-generated-client`, `add-sdk-wrapper`, `expose-api-change`: generated Tilde API refresh and stable SDK wrapper work.
 - `safe-refactor`, `surgical-patch`, `migration`, `lean-build`, `verify-and-stop`: scope-specific engineering workflows.

@@ -8,14 +8,7 @@ import {
   WorkspaceAccount,
 } from "./sidebar-components.js";
 import GlideMenu from "./beautiful-ui/atoms/glide-menu.js";
-import {
-  FeedbackIcon,
-  PlusIcon,
-  PluginsIcon,
-  SearchIcon,
-  SettingsIcon,
-  WorkspaceIcon,
-} from "./workspace-icons.js";
+import { FeedbackIcon, PlusIcon, SearchIcon } from "./workspace-icons.js";
 
 export type WorkspaceSidebarAgent = SidebarAgent;
 
@@ -41,6 +34,14 @@ export interface WorkspaceSidebarProps {
   onOpenPlugins?: () => void;
   onOpenSettings?: () => void;
   onSwitchWorkspace?: () => void;
+  account?: {
+    name: string;
+    email?: string;
+    avatarUrl?: string;
+    organizationName?: string;
+    workspaceName?: string;
+  };
+  onSignOut?: () => void;
   /** Address the "Send Feedback" row opens in the owner's mail client. */
   feedbackEmail?: string;
   onResize: (event: ReactPointerEvent<HTMLDivElement>) => void;
@@ -63,6 +64,8 @@ export function WorkspaceSidebar({
   onOpenPlugins,
   onOpenSettings,
   onSwitchWorkspace,
+  account,
+  onSignOut,
   feedbackEmail = "opensource@trytilde.ai",
   onResize,
 }: WorkspaceSidebarProps) {
@@ -179,30 +182,19 @@ export function WorkspaceSidebar({
           ) : null}
           <SidebarUtilityRow
             collapsed={collapsed}
-            icon={<PluginsIcon className={collapsed ? collapsedIcon : expandedIcon} />}
-            label="Plugins"
-            onClick={onOpenPlugins}
-          />
-          <SidebarUtilityRow
-            collapsed={collapsed}
-            icon={<SettingsIcon className={collapsed ? collapsedIcon : expandedIcon} />}
-            label="Settings"
-            onClick={onOpenSettings}
-          />
-          <SidebarUtilityRow
-            collapsed={collapsed}
             href={`mailto:${feedbackEmail}`}
             icon={<FeedbackIcon className={collapsed ? collapsedIcon : expandedIcon} />}
             label="Send Feedback"
           />
-          <SidebarUtilityRow
-            collapsed={collapsed}
-            icon={<WorkspaceIcon className={collapsed ? collapsedIcon : expandedIcon} />}
-            label="Switch workspace"
-            onClick={onSwitchWorkspace}
-          />
         </div>
-        <WorkspaceAccount collapsed={collapsed} />
+        <WorkspaceAccount
+          account={account}
+          collapsed={collapsed}
+          onOpenPlugins={onOpenPlugins}
+          onOpenSettings={onOpenSettings}
+          onSignOut={onSignOut}
+          onSwitchWorkspace={onSwitchWorkspace}
+        />
         <div
           aria-label="Drag to resize the sidebar"
           className="sidebar-resize-handle"

@@ -1,5 +1,6 @@
 import {
   ActionCompletion,
+  ActionEffect,
   CuaDriver,
   DriverError,
   SessionPermissionMode,
@@ -10,6 +11,7 @@ import {
 import { spawn } from "node:child_process";
 import { Code, ConnectError } from "@connectrpc/connect";
 import { CuaActionCompletion } from "@tryopenbot/computer-service-proto";
+import { isRecord } from "@tryopenbot/utilities/json";
 import { agentDesktopEnvironment, ensureAgentDesktop } from "./desktop.js";
 
 export interface CuaToolCatalogEntry {
@@ -144,11 +146,16 @@ export async function callCuaTool(
   } catch {
     throw new ConnectError("Cua tool arguments must be JSON", Code.InvalidArgument);
   }
-  const driver = await driverFor(agentId, signal);
+  let driver = await driverFor(agentId, signal);
   try {
-    return mapToolResult(
-      await driver.callTool(name, argumentsJson, signal ? { signal } : undefined),
-    );
+    let result = await driver.callTool(name, argumentsJson, signal ? { signal } : undefined);
+    if (sessionHasEnded(result)) {
+      await discardDriver(agentId, driver);
+      signal?.throwIfAborted();
+      driver = await driverFor(agentId, signal);
+      result = await driver.callTool(name, argumentsJson, signal ? { signal } : undefined);
+    }
+    return mapToolResult(result);
   } catch (error) {
     if (DriverError.ActionInterrupted.instanceOf(error)) {
       const completion = error.inner.completion;
@@ -232,10 +239,18 @@ function mapToolResult(result: ToolResult): CuaCallResult {
     verified: result.verification?.status === VerificationStatus.Satisfied,
     degraded: result.degraded,
     rawJson: result.rawJson,
-    actionCompletion: CuaActionCompletion.COMPLETED,
+    actionCompletion: result.isError
+      ? result.action && result.action.effect !== ActionEffect.Refused
+        ? CuaActionCompletion.COMPLETED
+        : CuaActionCompletion.NOT_STARTED
+      : CuaActionCompletion.COMPLETED,
     actionJson: stringify(result.action),
     verificationJson: stringify(result.verification),
   };
+}
+
+function sessionHasEnded(result: ToolResult): boolean {
+  return result.isError && result.errorCode === "session_ended" && result.action === undefined;
 }
 
 function mapCompletion(completion: ActionCompletion): CuaActionCompletion {
@@ -250,10 +265,6 @@ function stringify(value: unknown): string {
     : JSON.stringify(value, (_key, nested) =>
         typeof nested === "bigint" ? nested.toString() : nested,
       );
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 async function discardDriver(agentId: string, driver: CuaDriverLike): Promise<void> {

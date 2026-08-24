@@ -55,8 +55,10 @@ import type { WorkspaceSearch } from "../router.js";
 import { openBotRuntime } from "../runtime.js";
 import { optimisticParts, type PendingFile, uploadAttachment } from "../web-attachments.js";
 import { useClientWorkspace } from "../workspaces.js";
+import { shouldExpandComposer } from "./composer-layout.js";
 
 export function OpenBotApp() {
+  const auth = useStore(openBotRuntime.store, (state) => state.auth);
   const sidebar = useStore(openBotRuntime.store, (state) => state.sidebar);
   const conversation = useStore(openBotRuntime.store, (state) => state.conversation);
   const agentSetup = useStore(openBotRuntime.store, (state) => state.agentSetup);
@@ -95,7 +97,8 @@ export function OpenBotApp() {
   const stickToBottomRef = useRef(true);
   const previousMessageIdRef = useRef("");
   const [showScrollLatest, setShowScrollLatest] = useState(false);
-  const layout = useWorkspaceLayout();
+  const electron = navigator.userAgent.includes("Electron");
+  const layout = useWorkspaceLayout({ floatingWorkspace: electron });
   const navigate = useNavigate();
   const setCreateAgentOpen = (open: boolean): void => {
     void navigate({
@@ -118,8 +121,7 @@ export function OpenBotApp() {
 
   const selectedAgent = agents.find((agent) => agent.id === agentId);
   const hasContent = Boolean(draft.trim() || files.length);
-  const composerExpanded =
-    draft.includes("\n") || draft.length > 80 || files.length > 0 || Boolean(replyingTo);
+  const composerExpanded = shouldExpandComposer(draft, files.length > 0, Boolean(replyingTo));
 
   useLayoutEffect(() => {
     const input = composerInputRef.current;
@@ -392,12 +394,12 @@ export function OpenBotApp() {
   );
 
   /** Start durable agent setup; the runtime owns readiness polling and selection. */
-  async function submitCreateAgent(candidateName: string): Promise<void> {
+  async function submitCreateAgent(candidateName: string, avatarId: string): Promise<void> {
     const name = candidateName.trim();
     if (!name || agentSetup.status === "starting" || agentSetup.status === "setting_up") return;
     openBotRuntime.actions.setError("");
     setCreateAgentOpen(false);
-    await openBotRuntime.actions.startAgentSetup(name);
+    await openBotRuntime.actions.startAgentSetup(name, avatarId);
   }
 
   const connectorActions: ConnectorPartActions = {
@@ -491,7 +493,6 @@ export function OpenBotApp() {
     if (!connectorSetup) return;
     const selection = connectorSetup.selection;
     setConnectorSetup({ ...connectorSetup, submitting: true, error: undefined });
-    const desktop = navigator.userAgent.includes("Electron");
     try {
       const result = await openBotRuntime.client.createConnectorAccount({
         providerTypeId: selection.providerTypeId,
@@ -501,7 +502,7 @@ export function OpenBotApp() {
         ...(input.userCredentialValues ? { userCredentialValues: input.userCredentialValues } : {}),
         returnUrl: connectorAuthorizedReturnUrl(
           window.location.origin,
-          desktop ? "electron" : "web",
+          electron ? "electron" : "web",
         ),
       });
       if (result.status === "authorize" && result.authorization_url) {
@@ -553,9 +554,27 @@ export function OpenBotApp() {
     <WorkspaceShell
       sidebarCollapsed={layout.sidebarCollapsed}
       computerOpen={layout.workspaceOpen && Boolean(selectedAgent)}
+      computerFloating={electron}
       style={layout.style}
     >
       <WorkspaceSidebar
+        account={
+          auth.session
+            ? {
+                name: auth.session.user.name,
+                ...(auth.session.user.email ? { email: auth.session.user.email } : {}),
+                ...(auth.session.user.avatar_url
+                  ? { avatarUrl: auth.session.user.avatar_url }
+                  : {}),
+                ...(auth.session.user.organization
+                  ? { organizationName: auth.session.user.organization.name }
+                  : {}),
+                ...(auth.session.user.workspace
+                  ? { workspaceName: auth.session.user.workspace.name }
+                  : {}),
+              }
+            : undefined
+        }
         collapsed={layout.sidebarCollapsed}
         agents={filteredAgents.map((agent) => ({
           id: agent.id,
@@ -588,6 +607,7 @@ export function OpenBotApp() {
         onOpenPlugins={() => void navigate({ to: "/settings/plugins" })}
         onOpenSettings={() => void navigate({ to: "/settings" })}
         onSwitchWorkspace={() => clientWorkspace.openWorkspaceSelector()}
+        onSignOut={() => void openBotRuntime.actions.signOut()}
         onResize={layout.beginSidebarResize}
       />
 
@@ -775,6 +795,7 @@ export function OpenBotApp() {
               items={queuedTurns.map((turn) => ({
                 id: turn.id,
                 text: queuedTurnText(turn),
+                queuePosition: turn.queue_position,
                 pending: turn.id.startsWith("optimistic-queue-"),
               }))}
               onEdit={(id) => {
@@ -822,6 +843,7 @@ export function OpenBotApp() {
       <AgentWorkspacePanel
         agentId={agentId}
         agentName={selectedAgent?.display_name || "Agent"}
+        floating={electron}
         open={layout.workspaceOpen && Boolean(selectedAgent)}
         onClose={layout.toggleWorkspace}
         onResize={layout.beginWorkspaceResize}
@@ -861,7 +883,7 @@ export function OpenBotApp() {
         creating={agentSetup.status === "starting"}
         loading={loading}
         onClose={() => setCreateAgentOpen(false)}
-        onCreate={(name) => void submitCreateAgent(name)}
+        onCreate={(name, avatarId) => void submitCreateAgent(name, avatarId)}
         onSelect={(id) => {
           const agent = agents.find((candidate) => candidate.id === id);
           if (agent) selectAgent(agent);
@@ -870,6 +892,7 @@ export function OpenBotApp() {
       />
       <AgentSetupDialog
         agentId={agentSetup.agent?.id ?? ""}
+        avatarId={agentSetup.avatarId}
         error={agentSetup.error}
         name={agentSetup.agent?.name ?? "New bot"}
         onClose={() => openBotRuntime.actions.dismissAgentSetup()}

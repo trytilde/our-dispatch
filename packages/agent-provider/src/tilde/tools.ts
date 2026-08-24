@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { type Client, type McpServer } from "@trytilde/harness-sdk";
+import { type Client, type McpServer } from "@trytilde/sdk";
 import { TildePlatform } from "@tryopenbot/platform-integrations";
 import { tildeErrorMessage } from "@tryopenbot/platform-integrations/tilde/errors";
 import type { ProviderInitialization } from "@tryopenbot/runtime-provider";
@@ -12,16 +12,17 @@ import {
   createToolGroupInstance,
   getMcpServerInstance,
   deleteProxiedMcpServer,
-  deleteResourceServerCredential,
   enableProxiedMcpServer,
   enableTool,
   encryptResourceServerConfiguration,
   listAvailableToolGroups,
   listProxiedMcpServers,
+  listResourceServerCredentials,
   listToolGroupInstances,
   listTools,
   ProxiedMcpAuthMode,
   type ProxiedMcpServerListItem,
+  type ResourceServerCredentialSerialized,
   updateToolGroupInstance,
 } from "@trytilde/api-client";
 import type {
@@ -124,10 +125,13 @@ export class TildeToolReconciler {
       server.id,
       `Tilde MCP server ID for ${id}.`,
     );
-    await this.#reconcileTildeControlPlane(context, id, prefix, server.id);
-    if (context.agentKind === "primary") await this.#reconcileGitHubTools(context);
-    if (context.platformIds?.includes("vercel"))
-      await this.#reconcileVercelMcp(context, id, prefix);
+    await Promise.all([
+      this.#reconcileTildeControlPlane(context, id, prefix, server.id),
+      context.agentKind === "primary" ? this.#reconcileGitHubTools(context) : undefined,
+      context.platformIds?.includes("vercel")
+        ? this.#reconcileVercelMcp(context, id, prefix)
+        : undefined,
+    ]);
   }
 
   /** Enable every GitHub tool on the git-provider's brokered tool group for the primary agent. */
@@ -309,8 +313,18 @@ export class TildeToolReconciler {
     const serverIdName = `${prefix}_VERCEL_MCP_SERVER_ID`;
     const tokenHash = createHash("sha256").update(token).digest("hex");
     const previousCredentialId = context.environment[credentialIdName]?.trim();
-    let credentialId = previousCredentialId;
-    if (!credentialId || context.environment[tokenHashName] !== tokenHash) {
+    const credentialDisplayName = `OpenBot ${agentId} Vercel MCP`;
+    const { data: credentials } = await listResourceServerCredentials({
+      client: this.#api,
+      path: { team_id: this.#teamId },
+      query: { page_size: 100 },
+      throwOnError: true,
+    });
+    let credentialId =
+      context.environment[tokenHashName] === tokenHash
+        ? findVercelCredential(credentials.items, previousCredentialId, credentialDisplayName)?.id
+        : undefined;
+    if (!credentialId) {
       const { data: encrypted } = await encryptResourceServerConfiguration({
         client: this.#api,
         path: { team_id: this.#teamId, credential_source_type_id: "api_key" },
@@ -325,7 +339,7 @@ export class TildeToolReconciler {
         path: { team_id: this.#teamId, credential_source_type_id: "api_key" },
         body: {
           dek_alias: `team:${this.#teamId}:default`,
-          metadata: { display_name: `OpenBot ${agentId} Vercel MCP` },
+          metadata: { display_name: credentialDisplayName },
           resource_server_configuration: encrypted,
         },
         throwOnError: true,
@@ -404,14 +418,18 @@ export class TildeToolReconciler {
       existing.tool_group_instance.id,
       `Tilde proxied Vercel MCP server ID for ${agentId}.`,
     );
-    if (previousCredentialId && previousCredentialId !== credentialId) {
-      await deleteResourceServerCredential({
-        client: this.#api,
-        path: { team_id: this.#teamId, id: previousCredentialId },
-        throwOnError: true,
-      });
-    }
   }
+}
+
+function findVercelCredential(
+  credentials: readonly ResourceServerCredentialSerialized[],
+  configuredId: string | undefined,
+  displayName: string,
+): ResourceServerCredentialSerialized | undefined {
+  return (
+    credentials.find((credential) => credential.id === configuredId) ??
+    credentials.find((credential) => credential.metadata.display_name === displayName)
+  );
 }
 
 function findVercelServer(

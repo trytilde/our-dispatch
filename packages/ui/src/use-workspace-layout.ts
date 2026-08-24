@@ -32,7 +32,13 @@ export interface WorkspaceLayout {
   beginWorkspaceResize: (event: ReactPointerEvent<HTMLDivElement>) => void;
 }
 
-export function useWorkspaceLayout(): WorkspaceLayout {
+export interface WorkspaceLayoutOptions {
+  floatingWorkspace?: boolean;
+}
+
+export function useWorkspaceLayout({
+  floatingWorkspace = false,
+}: WorkspaceLayoutOptions = {}): WorkspaceLayout {
   const [sidebarWidth, setSidebarWidth] = useState(() =>
     readNumber(sidebarWidthKey, SIDEBAR_DEFAULT, SIDEBAR_MIN, SIDEBAR_MAX),
   );
@@ -55,7 +61,8 @@ export function useWorkspaceLayout(): WorkspaceLayout {
 
   const autoCollapsed =
     !sidebarCollapsed &&
-    viewportWidth < sidebarWidth + CHAT_MIN + (workspaceOpen ? workspaceWidth : 0);
+    viewportWidth <
+      sidebarWidth + CHAT_MIN + (workspaceOpen && !floatingWorkspace ? workspaceWidth : 0);
   const compact = sidebarCollapsed || autoCollapsed;
 
   const toggleSidebar = useCallback(() => {
@@ -135,9 +142,9 @@ export function useWorkspaceLayout(): WorkspaceLayout {
     () =>
       ({
         "--sidebar-width": `${compact ? SIDEBAR_COLLAPSED : sidebarWidth}px`,
-        "--workspace-width": `${workspaceOpen ? workspaceWidth : 0}px`,
+        "--workspace-width": `${workspaceOpen && !floatingWorkspace ? workspaceWidth : 0}px`,
       }) as CSSProperties,
-    [compact, sidebarWidth, workspaceOpen, workspaceWidth],
+    [compact, floatingWorkspace, sidebarWidth, workspaceOpen, workspaceWidth],
   );
 
   return {

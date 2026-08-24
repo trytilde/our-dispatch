@@ -52,6 +52,7 @@ export async function runOrchestrator(): Promise<never> {
   env.AGENT_SERVICE_ORIGIN = server.agentServiceOrigin;
 
   let state: RuntimeState = "deployed";
+  let flipInFlight: Promise<void> | undefined;
   let epoch = 0;
   let settleTimer: NodeJS.Timeout | undefined;
 
@@ -71,13 +72,22 @@ export async function runOrchestrator(): Promise<never> {
 
   const flipLive = async (): Promise<void> => {
     if (state === "live") return;
-    state = "live";
-    console.log("Edits detected: routing every agent through the local-runtime tunnel");
+    if (flipInFlight) return await flipInFlight;
+    flipInFlight = (async () => {
+      console.log("Edits detected: routing every agent through the local-runtime tunnel");
+      try {
+        await reconcile(true);
+        state = "live";
+        console.log("All agents live on the tunnel (hot reload active)");
+      } catch (error) {
+        state = "deployed";
+        console.error(`Tunnel flip failed: ${message(error)}`);
+      }
+    })();
     try {
-      await reconcile(true);
-      console.log("All agents live on the tunnel (hot reload active)");
-    } catch (error) {
-      console.error(`Tunnel flip failed: ${message(error)}`);
+      await flipInFlight;
+    } finally {
+      flipInFlight = undefined;
     }
   };
 

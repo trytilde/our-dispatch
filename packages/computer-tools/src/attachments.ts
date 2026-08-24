@@ -1,13 +1,14 @@
 import { Buffer } from "node:buffer";
 import { createHash } from "node:crypto";
-import { configHeaders, type Client, type JsonObject } from "@trytilde/harness-sdk";
+import { isJsonObject } from "@tryopenbot/utilities/json";
+import { configHeaders, type Client, type JsonObject } from "@trytilde/sdk";
 import type {
   ChatKitEndpointContext,
   ChatKitUiFilePart,
   ConvertToAiSdkCacheHandler,
   ConvertToAiSdkFileUploadHandler,
   ConvertToAiSdkHydrateHandler,
-} from "@trytilde/harness-sdk-vercel-ai-node";
+} from "@trytilde/sdk-vercel-ai-node";
 import type { UIMessage } from "ai";
 
 /** Reference the browser can resolve through the control service's attachment routes. */
@@ -197,10 +198,6 @@ function containsInlineData(value: unknown): boolean {
   if (typeof value === "string") return value.startsWith("data:");
   if (Array.isArray(value)) return value.some(containsInlineData);
   return isJsonObject(value) && Object.values(value).some(containsInlineData);
-}
-
-function isJsonObject(value: unknown): value is JsonObject {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 function chatKitAttachmentId(part: ChatKitUiFilePart): string | undefined {

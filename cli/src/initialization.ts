@@ -7,6 +7,7 @@ import { fileURLToPath } from "node:url";
 import { parse as parseDotenv } from "dotenv";
 import { parse as parseYaml, stringify as stringifyYaml } from "yaml";
 import {
+  discoverAgents,
   LocalAgentServiceProvider,
   VercelAgentServiceProvider,
 } from "@tryopenbot/agent-service-provider";
@@ -25,12 +26,16 @@ import {
   collectProviderInitializations,
   initializeProviders,
   type InitializableProvider,
+  type ProviderInitialization,
   type ProviderInitializationQuestion,
 } from "@tryopenbot/runtime-provider";
 import { GitHubGitProvider } from "@tryopenbot/git-provider";
 import {
+  CODEX_INFERENCE_PROVIDER,
   CodexInferenceProvider,
+  type InferenceAgentTemplateFile,
   type InferenceProvider,
+  VERCEL_INFERENCE_PROVIDER,
   VercelInferenceProvider,
 } from "@tryopenbot/inference-provider";
 import { tildePlatform } from "@tryopenbot/platform-integrations";
@@ -39,7 +44,11 @@ import {
   VercelControlServiceProvider,
 } from "@tryopenbot/control-service-provider";
 import { materializeFileTemplate, renderFileTemplatePath } from "@tryopenbot/utilities";
-import { scaffoldAgentTemplates, scaffoldPrimaryAgent } from "./agent-scaffold.js";
+import {
+  agentTemplateDirectory,
+  scaffoldAgentTemplates,
+  scaffoldPrimaryAgent,
+} from "./agent-scaffold.js";
 import { loadConfigurationModule } from "./configuration-loader.js";
 
 export const SANDBOX_SOPS_AGE_KEY = "SOPS_AGE_KEY";
@@ -90,16 +99,16 @@ export interface CommandResult {
 }
 
 export interface InitializationCommandRunner {
-  run(
+  run: (
     command: string,
     args: readonly string[],
     options?: { cwd?: string; environment?: NodeJS.ProcessEnv; input?: string },
-  ): Promise<CommandResult>;
-  runWithInputFile?(
+  ) => Promise<CommandResult>;
+  runWithInputFile?: (
     command: string,
     args: readonly string[],
     options: { cwd?: string; environment?: NodeJS.ProcessEnv; input: string },
-  ): Promise<CommandResult>;
+  ) => Promise<CommandResult>;
 }
 
 export interface InitializationOptions {
@@ -204,6 +213,32 @@ export const inferenceChoices: readonly SelectChoice[] = [
   },
 ];
 
+type RuntimeChoice = "local" | "vercel";
+type InferenceChoice = "vercel" | "codex";
+
+interface InitializationProviderSelection {
+  providers: readonly InitializableProvider[];
+  runtime: RuntimeChoice | "current";
+  inference: InferenceChoice | "current";
+  previousInference?: InferenceChoice;
+  configurationSource?: string;
+}
+
+interface InitializationProviderStage {
+  domain: "runtime" | "inference";
+  providers: readonly InitializableProvider[];
+  inference?: InferenceChoice | "current";
+  previousInference?: InferenceChoice;
+}
+
+type InitializationProviderStageHandler = (stage: InitializationProviderStage) => Promise<void>;
+
+interface InitializationStageState {
+  initializations: Map<string, ProviderInitialization>;
+  questions: Map<string, ProviderInitializationQuestion>;
+  initializedProviders: Set<string>;
+}
+
 export function inferenceChoicesForRuntime(_runtime: "local" | "vercel"): readonly SelectChoice[] {
   return inferenceChoices;
 }
@@ -257,20 +292,24 @@ export async function initializeOpenBot(options: InitializationOptions): Promise
     options.repositoryRoot,
     ownerEncryptionEnvironment,
   );
-  await storeUserOwnerIdentity(owner.metadata, options.environment ?? process.env, {
+  await storeUserOwnerIdentity(options.repositoryRoot, owner.metadata, {
     path: options.userConfigurationPath,
   });
 
-  const selectedProviders = await initializationProviders(configurationPath, options.prompts);
-  const initializations = collectProviderInitializations(selectedProviders);
-
   const environmentValues: Record<string, DescribedValue> = {};
   const secretValues: Record<string, DescribedValue> = {};
-  for (const question of uniqueInitializationQuestions(
-    initializations.flatMap((initialization) => initialization.questions),
-  )) {
+  const stageState = createInitializationStageState();
+  const provisioningValues = {
+    baseEnvironment: options.environment ?? process.env,
+    environmentValues,
+    interactive: options.interactive !== false,
+    report: options.report,
+    request: options.request,
+    secretValues,
+  };
+  const ask = async (question: ProviderInitializationQuestion) => {
     const value = await askProviderQuestion(options.prompts, question);
-    if (!value) continue;
+    if (!value) return;
     const described = {
       description: question.description ?? question.prompt,
       value,
@@ -278,15 +317,28 @@ export async function initializeOpenBot(options: InitializationOptions): Promise
     if (question.destination.kind === "environment")
       environmentValues[question.destination.key] = described;
     else secretValues[question.destination.key] = described;
-  }
-  await runInitializationProvisioning(selectedProviders, options.repositoryRoot, {
-    baseEnvironment: options.environment ?? process.env,
-    environmentValues,
-    interactive: options.interactive !== false,
-    report: options.report,
-    request: options.request,
-    secretValues,
-  });
+  };
+  const selection = await selectInitializationProviders(
+    configurationPath,
+    options.prompts,
+    undefined,
+    async ({ providers }) =>
+      configureInitializationStage(
+        providers,
+        options.repositoryRoot,
+        stageState,
+        provisioningValues,
+        ask,
+      ),
+  );
+  const selectedProviders = selection.providers;
+  await configureInitializationStage(
+    selectedProviders,
+    options.repositoryRoot,
+    stageState,
+    provisioningValues,
+    ask,
+  );
   secretValues[COMPUTER_SERVICE_SECRET] ??= {
     description: "Shared bearer key for computer-service RPC authentication.",
     value: randomBytes(32).toString("base64url"),
@@ -341,6 +393,8 @@ export async function initializeOpenBot(options: InitializationOptions): Promise
   );
   await writeFileAtomically(secretsPath, await renderDocument(encrypted.stdout), 0o600);
   await updateEnvironmentFile(environmentPath, environmentValues);
+  if (selection.configurationSource)
+    await writeFileAtomically(configurationPath, selection.configurationSource, 0o600);
   await createConfiguration(
     resolve(configurationDirectory, "instrumentation.ts"),
     configurationAssets.instrumentation,
@@ -356,16 +410,21 @@ export async function initializeOpenBot(options: InitializationOptions): Promise
 }
 
 export async function isInitializedOpenBotRepository(repositoryRoot: string): Promise<boolean> {
-  try {
-    await assertOpenBotRepositoryRoot(repositoryRoot);
-  } catch {
-    return false;
-  }
+  if (!(await isOpenBotRepository(repositoryRoot))) return false;
   const configurationDirectory = resolve(repositoryRoot, "configuration");
   const markers = await Promise.all(
     [".sops.yaml", "secrets.enc.yaml"].map((name) => exists(resolve(configurationDirectory, name))),
   );
   return markers.every(Boolean);
+}
+
+export async function isOpenBotRepository(repositoryRoot: string): Promise<boolean> {
+  try {
+    await assertOpenBotRepositoryRoot(repositoryRoot);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 async function reconfigureOpenBot(
@@ -379,18 +438,25 @@ async function reconfigureOpenBot(
   },
 ): Promise<void> {
   const state = await loadExistingInitializationState(options, runner, paths);
-  const providers = await initializationProviders(
-    paths.configurationPath,
-    options.prompts,
-    state.providerEnvironment,
-  );
-  const questions = uniqueInitializationQuestions(
-    collectProviderInitializations(providers).flatMap((initialization) => initialization.questions),
-  );
   const environmentValues: Record<string, DescribedValue> = {};
   const removedEnvironmentNames = new Set<string>();
-
-  for (const question of questions) {
+  const stageState = createInitializationStageState();
+  const allEnvironmentValues: Record<string, DescribedValue> = Object.fromEntries(
+    Object.entries(state.environmentValues).map(([name, value]) => [
+      name,
+      { description: "Existing OpenBot environment value.", value },
+    ]),
+  );
+  const provisioningValues = {
+    baseEnvironment: options.environment ?? process.env,
+    environmentValues: allEnvironmentValues,
+    secretValues: state.secretValues,
+    environmentUpdates: environmentValues,
+    interactive: options.interactive !== false,
+    report: options.report,
+    request: options.request,
+  };
+  const ask = async (question: ProviderInitializationQuestion) => {
     const secretName = repositorySecretName(question.destination.key);
     const initialValue =
       question.destination.kind === "environment"
@@ -399,14 +465,17 @@ async function reconfigureOpenBot(
     const value = await askProviderQuestion(options.prompts, question, initialValue);
     if (question.destination.kind === "environment") {
       if (value) {
-        environmentValues[question.destination.key] = {
+        const described = {
           description: question.description ?? question.prompt,
           value,
         };
+        environmentValues[question.destination.key] = described;
+        allEnvironmentValues[question.destination.key] = described;
       } else {
         removedEnvironmentNames.add(question.destination.key);
+        delete allEnvironmentValues[question.destination.key];
       }
-      continue;
+      return;
     }
     if (value) {
       state.secretValues[secretName] = {
@@ -416,25 +485,51 @@ async function reconfigureOpenBot(
     } else {
       delete state.secretValues[secretName];
     }
-  }
-
-  await runInitializationProvisioning(providers, options.repositoryRoot, {
-    baseEnvironment: options.environment ?? process.env,
-    environmentValues: {
-      ...Object.fromEntries(
-        Object.entries(state.environmentValues).map(([name, value]) => [
-          name,
-          { description: "Existing OpenBot environment value.", value },
-        ]),
-      ),
-      ...environmentValues,
+  };
+  let inferenceMigration: FileReplacement[] = [];
+  const selection = await selectInitializationProviders(
+    paths.configurationPath,
+    options.prompts,
+    state.providerEnvironment,
+    async (stage) => {
+      if (
+        stage.domain === "inference" &&
+        stage.previousInference &&
+        stage.inference &&
+        stage.inference !== "current" &&
+        stage.previousInference !== stage.inference
+      ) {
+        allEnvironmentValues.INFERENCE_PROVIDER ??= {
+          description: "Previous inference implementation selected by this installation.",
+          value:
+            stage.previousInference === "codex"
+              ? CODEX_INFERENCE_PROVIDER
+              : VERCEL_INFERENCE_PROVIDER,
+        };
+        inferenceMigration = await prepareInferenceTemplateMigration(
+          options.repositoryRoot,
+          inferenceProvider(stage.previousInference).agentTemplate.files,
+          inferenceProvider(stage.inference).agentTemplate.files,
+          state.providerEnvironment,
+        );
+      }
+      await configureInitializationStage(
+        stage.providers,
+        options.repositoryRoot,
+        stageState,
+        provisioningValues,
+        ask,
+      );
     },
-    secretValues: state.secretValues,
-    environmentUpdates: environmentValues,
-    interactive: options.interactive !== false,
-    report: options.report,
-    request: options.request,
-  });
+  );
+  const providers = selection.providers;
+  await configureInitializationStage(
+    providers,
+    options.repositoryRoot,
+    stageState,
+    provisioningValues,
+    ask,
+  );
 
   const encrypted = await encryptSecretsDocument(
     runner,
@@ -445,6 +540,9 @@ async function reconfigureOpenBot(
   );
   await reconcileEnvironmentFile(paths.environmentPath, environmentValues, removedEnvironmentNames);
   await writeFileAtomically(paths.secretsPath, await renderDocument(encrypted), 0o600);
+  await applyFileReplacements(inferenceMigration);
+  if (selection.configurationSource)
+    await writeFileAtomically(paths.configurationPath, selection.configurationSource, 0o600);
   await scaffoldAgentTemplates(options.repositoryRoot, inferenceTemplateFiles(providers));
   await createConfiguration(
     resolve(dirname(paths.environmentPath), "tsconfig.json"),
@@ -886,12 +984,11 @@ async function storeInNativeKeychain(
 
 async function loadStoredOwnerMetadata(
   repositoryRoot: string,
-  environment: NodeJS.ProcessEnv,
   prompts: InitializationPrompts | undefined,
   platform: NodeJS.Platform,
   userConfigurationPath?: string,
 ): Promise<SopsOwnerIdentityConfiguration> {
-  const path = resolveUserConfigurationPath(environment, userConfigurationPath);
+  const path = resolveUserConfigurationPath(repositoryRoot, userConfigurationPath);
   const configuration = await readUserConfiguration(path);
   if (configuration?.sops?.ownerIdentity) return configuration.sops.ownerIdentity;
 
@@ -944,7 +1041,7 @@ async function loadStoredOwnerMetadata(
     throw new Error("configuration/.sops.yaml does not contain a supported owner identity");
   }
 
-  await storeUserOwnerIdentity(ownerIdentity, environment, { path });
+  await storeUserOwnerIdentity(repositoryRoot, ownerIdentity, { path });
   return ownerIdentity;
 }
 
@@ -959,14 +1056,9 @@ async function readSopsCreationRule(repositoryRoot: string): Promise<SopsCreatio
   return rule as SopsCreationRule;
 }
 
-function resolveUserConfigurationPath(
-  environment: NodeJS.ProcessEnv,
-  explicitPath?: string,
-): string {
+function resolveUserConfigurationPath(repositoryRoot: string, explicitPath?: string): string {
   if (explicitPath) return resolve(explicitPath);
-  const home = environment.HOME?.trim() || environment.USERPROFILE?.trim();
-  if (!home) throw new Error("Cannot locate ~/.openbot/config.json because HOME is not configured");
-  return resolve(home, ".openbot/config.json");
+  return resolve(repositoryRoot, "local-user-config.json");
 }
 
 async function readUserConfiguration(path: string): Promise<UserConfiguration | undefined> {
@@ -1014,11 +1106,11 @@ function isSopsOwnerIdentityConfiguration(value: unknown): value is SopsOwnerIde
 }
 
 async function storeUserOwnerIdentity(
+  repositoryRoot: string,
   ownerIdentity: SopsOwnerIdentityConfiguration,
-  environment: NodeJS.ProcessEnv,
   options: { path?: string } = {},
 ): Promise<void> {
-  const path = resolveUserConfigurationPath(environment, options.path);
+  const path = resolveUserConfigurationPath(repositoryRoot, options.path);
   const existing = (await readUserConfiguration(path)) ?? { version: 1, sops: {} };
   const configuration: UserConfiguration = {
     ...existing,
@@ -1030,7 +1122,7 @@ async function storeUserOwnerIdentity(
 
 function missingUserSopsConfigurationError(path: string): Error {
   return new Error(
-    `SOPS owner configuration is missing from ${path}. Run openbot init in an interactive terminal to configure the existing owner identity; non-interactive commands cannot choose it safely.`,
+    `SOPS owner configuration is missing from ${path}. Run this command in an interactive terminal (or run openbot init) to configure the existing owner identity; non-interactive commands cannot choose it safely.`,
   );
 }
 
@@ -1088,10 +1180,8 @@ async function sopsCommandEnvironment(
   // An explicitly provided age identity decrypts on its own; skip owner-identity resolution
   // even when KMS recipients exist, since SOPS needs only one successful key group.
   if (hasAgeIdentity) return { ...options.environment };
-  const creationRule = await readSopsCreationRule(repositoryRoot);
   const metadata = await loadStoredOwnerMetadata(
     repositoryRoot,
-    options.environment,
     options.prompts,
     options.platform,
     options.userConfigurationPath,
@@ -1315,11 +1405,12 @@ async function createConfiguration(
   }
 }
 
-async function initializationProviders(
+export async function selectInitializationProviders(
   path: string,
   prompts: InitializationPrompts,
   environment?: NodeJS.ProcessEnv,
-): Promise<readonly InitializableProvider[]> {
+  onSelected?: InitializationProviderStageHandler,
+): Promise<InitializationProviderSelection> {
   if (await exists(path)) {
     const module = await importConfiguredOpenBot(
       path,
@@ -1327,13 +1418,91 @@ async function initializationProviders(
     );
     if (!module.default)
       throw new Error("configuration/index.ts must export the OpenBot configuration as default");
-    return configuredInitializationProviders(module.default);
+    const currentGroups = configuredInitializationProviderGroups(module.default);
+    const currentProviders = [
+      ...currentGroups.runtime,
+      ...currentGroups.inference,
+      ...currentGroups.shared,
+    ];
+    const currentRuntime = configuredRuntimeChoice(module.default);
+    const currentInference = configuredInferenceChoice(module.default);
+    const runtime = await selectProviderChoice(
+      prompts,
+      "Where should OpenBot run?",
+      "runtime",
+      runtimeChoices,
+      currentRuntime,
+      "Current custom runtime providers",
+    );
+    const runtimeChanged = runtime !== (currentRuntime ?? "current");
+    if (runtimeChanged) {
+      if (runtime === "current" || !currentRuntime || !currentInference)
+        throw new Error(
+          "OpenBot cannot automatically rewrite a custom provider composition. Keep the current selections or edit configuration/index.ts explicitly.",
+        );
+      await assertCanonicalBuiltInConfiguration(path, currentRuntime, currentInference);
+    }
+    const runtimeProviders =
+      runtime === "current" || runtime === currentRuntime
+        ? currentGroups.runtime
+        : builtInRuntimeProviderGroup(runtime);
+    await onSelected?.({ domain: "runtime", providers: runtimeProviders });
+
+    const inference = await selectProviderChoice(
+      prompts,
+      "How should OpenBot run inference?",
+      "inference",
+      inferenceChoices,
+      currentInference,
+      "Current custom inference provider",
+    );
+    const inferenceChanged = inference !== (currentInference ?? "current");
+    if (inferenceChanged) {
+      if (inference === "current" || !currentRuntime || !currentInference)
+        throw new Error(
+          "OpenBot cannot automatically rewrite a custom provider composition. Keep the current selections or edit configuration/index.ts explicitly.",
+        );
+      if (!runtimeChanged)
+        await assertCanonicalBuiltInConfiguration(path, currentRuntime, currentInference);
+    }
+    const inferenceProviders =
+      inference === "current" || inference === currentInference
+        ? currentGroups.inference
+        : [inferenceProvider(inference)];
+    await onSelected?.({
+      domain: "inference",
+      providers: inferenceProviders,
+      inference,
+      previousInference: currentInference,
+    });
+
+    if (runtime === (currentRuntime ?? "current") && inference === (currentInference ?? "current"))
+      return {
+        providers: currentProviders,
+        runtime,
+        inference,
+        previousInference: currentInference,
+      };
+    if (runtime === "current" || inference === "current")
+      throw new Error(
+        "OpenBot cannot automatically rewrite a custom provider composition. Keep the current selections or edit configuration/index.ts explicitly.",
+      );
+    return {
+      providers: [...runtimeProviders, ...inferenceProviders, ...builtInSharedProviderGroup()],
+      runtime,
+      inference,
+      previousInference: currentInference,
+      configurationSource: await renderBuiltInConfiguration(runtime, inference),
+    };
   }
   const runtime = await prompts.select("Where do you want to deploy OpenBot?", runtimeChoices, {
     id: "runtime",
+    initialValue: "vercel",
   });
   if (runtime !== "local" && runtime !== "vercel")
     throw new Error(`Unsupported runtime provider: ${runtime}`);
+  const runtimeProviders = builtInRuntimeProviderGroup(runtime);
+  await onSelected?.({ domain: "runtime", providers: runtimeProviders });
   const inference = await prompts.select(
     "How should OpenBot run inference?",
     inferenceChoicesForRuntime(runtime),
@@ -1344,19 +1513,66 @@ async function initializationProviders(
   );
   if (inference !== "vercel" && inference !== "codex")
     throw new Error(`Unsupported inference provider: ${inference}`);
-  if (runtime === "local") {
-    await createConfiguration(path, configurationAssets.local, {
-      CODEX_INFERENCE: inference === "codex",
-    });
-    return builtInRuntimeInitializationProviders(runtime, inference);
-  }
-  if (runtime === "vercel") {
-    await createConfiguration(path, configurationAssets.vercel, {
-      CODEX_INFERENCE: inference === "codex",
-    });
-    return builtInRuntimeInitializationProviders(runtime, inference);
-  }
-  throw new Error("Unsupported runtime provider");
+  const inferenceProviders = [inferenceProvider(inference)];
+  await onSelected?.({ domain: "inference", providers: inferenceProviders, inference });
+  return {
+    providers: [...runtimeProviders, ...inferenceProviders, ...builtInSharedProviderGroup()],
+    runtime,
+    inference,
+    configurationSource: await renderBuiltInConfiguration(runtime, inference),
+  };
+}
+
+async function assertCanonicalBuiltInConfiguration(
+  path: string,
+  runtime: RuntimeChoice,
+  inference: InferenceChoice,
+): Promise<void> {
+  const currentSource = await readFile(path, "utf8");
+  const canonicalCurrent = await renderBuiltInConfiguration(runtime, inference);
+  if (currentSource.trimEnd() !== canonicalCurrent.trimEnd())
+    throw new Error(
+      "configuration/index.ts contains fork-owned changes. Keep the current providers or update the composition explicitly so init does not overwrite those changes.",
+    );
+}
+
+async function selectProviderChoice<T extends string>(
+  prompts: InitializationPrompts,
+  prompt: string,
+  id: string,
+  choices: readonly SelectChoice[],
+  current: T | undefined,
+  customLabel: string,
+): Promise<T | "current"> {
+  const offeredChoices = current
+    ? choices
+    : [
+        {
+          value: "current",
+          label: customLabel,
+          description:
+            "Preserve the provider composition already authored in configuration/index.ts.",
+        },
+        ...choices,
+      ];
+  const selected = await prompts.select(prompt, offeredChoices, {
+    id,
+    initialValue: current ?? "current",
+  });
+  if (selected === "current") return selected;
+  if (!choices.some((choice) => choice.value === selected))
+    throw new Error(`Unsupported ${id} provider: ${selected}`);
+  return selected as T;
+}
+
+async function renderBuiltInConfiguration(
+  runtime: RuntimeChoice,
+  inference: InferenceChoice,
+): Promise<string> {
+  return renderFileTemplatePath(
+    runtime === "local" ? configurationAssets.local : configurationAssets.vercel,
+    { CODEX_INFERENCE: inference === "codex" },
+  );
 }
 
 function initializationDiscoveryEnvironment(environment: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
@@ -1386,41 +1602,39 @@ export function builtInRuntimeInitializationProviders(
   runtime: "local" | "vercel",
   inference: "vercel" | "codex" = "vercel",
 ): readonly InitializableProvider[] {
+  return [
+    ...builtInRuntimeProviderGroup(runtime),
+    inferenceProvider(inference),
+    ...builtInSharedProviderGroup(),
+  ];
+}
+
+function builtInRuntimeProviderGroup(runtime: RuntimeChoice): InitializableProvider[] {
   return runtime === "local"
-    ? applicationInitializationProviders(
+    ? [
         new LocalControlServiceProvider(),
         new LocalAgentServiceProvider(),
         new MicrosandboxComputerProvider(),
-        inferenceProvider(inference),
-      )
-    : applicationInitializationProviders(
+      ]
+    : [
         new VercelControlServiceProvider(),
         new VercelAgentServiceProvider(),
         new VercelSandboxComputerProvider(),
-        inferenceProvider(inference),
-      );
+      ];
 }
 
-function applicationInitializationProviders(
-  controlService: InitializableProvider,
-  agentService: InitializableProvider,
-  computer: InitializableProvider,
-  inference: InitializableProvider,
-): InitializableProvider[] {
-  const runtimeProviders = [controlService, agentService, computer];
+function builtInSharedProviderGroup(): InitializableProvider[] {
   return [
-    ...runtimeProviders,
     new TildeAuthProvider(tildePlatform),
     {
       platforms: [tildePlatform],
       initialization: tildeAgentProviderInitialization,
     },
-    inference,
     new GitHubGitProvider(tildePlatform),
   ];
 }
 
-function inferenceProvider(inference: "vercel" | "codex"): InitializableProvider {
+function inferenceProvider(inference: InferenceChoice): InferenceProvider {
   return inference === "codex" ? new CodexInferenceProvider() : new VercelInferenceProvider();
 }
 
@@ -1435,6 +1649,109 @@ function inferenceTemplateFiles(providers: readonly InitializableProvider[]) {
       `OpenBot supports one inference agent template contribution; found ${contributions.length}`,
     );
   return contributions[0]?.files ?? [];
+}
+
+interface FileReplacement {
+  path: string;
+  contents?: string;
+}
+
+export async function prepareInferenceTemplateMigration(
+  repositoryRoot: string,
+  previousFiles: readonly InferenceAgentTemplateFile[],
+  nextFiles: readonly InferenceAgentTemplateFile[],
+  environment: NodeJS.ProcessEnv,
+): Promise<FileReplacement[]> {
+  const previous = inferenceTemplateMap(previousFiles);
+  const next = inferenceTemplateMap(nextFiles);
+  const paths = [...new Set([...previous.keys(), ...next.keys()])].sort();
+  const agents = await discoverAgents(repositoryRoot);
+  const replacements: FileReplacement[] = [];
+
+  for (const relativePath of paths) {
+    const previousFile = previous.get(relativePath);
+    const nextFile = next.get(relativePath);
+    const templatePath = resolve(repositoryRoot, agentTemplateDirectory, relativePath);
+    await prepareFileReplacement(
+      templatePath,
+      previousFile ? await readFile(previousFile.source, "utf8") : undefined,
+      nextFile ? await readFile(nextFile.source, "utf8") : undefined,
+      replacements,
+    );
+
+    const outputPath = relativePath.slice(0, -".hbs".length);
+    for (const agent of agents) {
+      const nameKey = `AGENT_${agent.slug.replaceAll("-", "_").toUpperCase()}_NAME`;
+      const name =
+        environment[nameKey]?.trim() || (agent.kind === "primary" ? "Factory" : agent.slug);
+      const values = {
+        AGENT_ID: agent.slug,
+        AGENT_ID_JSON: JSON.stringify(agent.slug),
+        AGENT_NAME: name,
+        AGENT_NAME_JSON: JSON.stringify(name),
+        AGENT_ENV_PREFIX: agent.slug.replaceAll("-", "_").toUpperCase(),
+      };
+      await prepareFileReplacement(
+        resolve(agent.directory, outputPath),
+        previousFile ? await renderFileTemplatePath(previousFile.source, values) : undefined,
+        nextFile ? await renderFileTemplatePath(nextFile.source, values) : undefined,
+        replacements,
+      );
+    }
+  }
+  return replacements;
+}
+
+function inferenceTemplateMap(files: readonly InferenceAgentTemplateFile[]) {
+  const result = new Map<string, (typeof files)[number]>();
+  for (const file of files) {
+    if (
+      !file.path.endsWith(".hbs") ||
+      file.path.startsWith("/") ||
+      file.path.includes("\\") ||
+      file.path.split("/").some((segment) => !segment || segment === "." || segment === "..")
+    )
+      throw new Error(`Invalid inference agent template path: ${file.path}`);
+    if (result.has(file.path))
+      throw new Error(`Duplicate inference agent template path: ${file.path}`);
+    result.set(file.path, file);
+  }
+  return result;
+}
+
+async function prepareFileReplacement(
+  path: string,
+  expected: string | undefined,
+  replacement: string | undefined,
+  result: FileReplacement[],
+): Promise<void> {
+  const current = await readOptionalFile(path);
+  if (expected === undefined ? current !== undefined : current !== expected)
+    throw new Error(
+      `Cannot switch inference providers because ${path} contains fork-owned changes. Preserve those changes with an explicit migration first.`,
+    );
+  result.push({ path, ...(replacement === undefined ? {} : { contents: replacement }) });
+}
+
+export async function applyFileReplacements(
+  replacements: readonly FileReplacement[],
+): Promise<void> {
+  for (const replacement of replacements) {
+    if (replacement.contents === undefined) {
+      await rm(replacement.path, { force: true });
+      continue;
+    }
+    await writeFileAtomically(replacement.path, replacement.contents, 0o600);
+  }
+}
+
+async function readOptionalFile(path: string): Promise<string | undefined> {
+  try {
+    return await readFile(path, "utf8");
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return undefined;
+    throw error;
+  }
 }
 
 async function runInitializationProvisioning(
@@ -1469,7 +1786,9 @@ async function runInitializationProvisioning(
     interactive: values.interactive === true,
     report: values.report ?? plainInitializationReporter,
     async setEnvironment(name, value, description) {
-      (values.environmentUpdates ?? values.environmentValues)[name] = { description, value };
+      const described = { description, value };
+      values.environmentValues[name] = described;
+      if (values.environmentUpdates) values.environmentUpdates[name] = described;
       environment[name] = value;
     },
     async setSecret(name, value, description) {
@@ -1477,6 +1796,58 @@ async function runInitializationProvisioning(
       environment[name] = value;
     },
   });
+}
+
+async function configureInitializationStage(
+  providers: readonly InitializableProvider[],
+  repositoryRoot: string,
+  state: InitializationStageState,
+  values: Parameters<typeof runInitializationProvisioning>[2],
+  ask: (question: ProviderInitializationQuestion) => Promise<void>,
+): Promise<void> {
+  const initializations = collectProviderInitializations(providers);
+  for (const initialization of initializations) {
+    const previous = state.initializations.get(initialization.id);
+    if (previous && JSON.stringify(previous) !== JSON.stringify(initialization))
+      throw new Error(
+        `Providers define conflicting initialization dependency: ${initialization.id}`,
+      );
+    state.initializations.set(initialization.id, initialization);
+  }
+
+  for (const question of uniqueInitializationQuestions(
+    initializations.flatMap((initialization) => initialization.questions),
+  )) {
+    const key = `${question.destination.kind}:${question.destination.key}`;
+    const previous = state.questions.get(key);
+    if (previous && JSON.stringify(previous) !== JSON.stringify(question))
+      throw new Error(
+        `Providers define conflicting initialization questions for ${question.destination.key}`,
+      );
+    if (previous) continue;
+    state.questions.set(key, question);
+    await ask(question);
+  }
+
+  const pending = providers.filter((provider) => {
+    if (!provider.initialize) return true;
+    const id = provider.initialization?.id;
+    if (!id) throw new Error("Provider initializers require stable initialization metadata");
+    return !state.initializedProviders.has(id);
+  });
+  await runInitializationProvisioning(pending, repositoryRoot, values);
+  for (const provider of pending) {
+    if (provider.initialize && provider.initialization)
+      state.initializedProviders.add(provider.initialization.id);
+  }
+}
+
+function createInitializationStageState(): InitializationStageState {
+  return {
+    initializations: new Map(),
+    questions: new Map(),
+    initializedProviders: new Set(),
+  };
 }
 
 /** Plain standard-output rendering of provider provisioning events. */
@@ -1528,23 +1899,60 @@ function uniqueInitializationQuestions(
   return [...result.values()];
 }
 
-function configuredProviders(configuration: OpenBotConfiguration): InitializableProvider[] {
-  const providers: Array<InitializableProvider | undefined> = [
-    configuration.providers.auth,
-    configuration.providers.controlService,
-    configuration.providers.agentService,
-    configuration.providers.agent,
-    configuration.providers.computer,
-    configuration.providers.inference,
-    configuration.providers.git,
-  ];
-  return providers.filter((provider): provider is InitializableProvider => provider !== undefined);
+function configuredInitializationProviderGroups(configuration: OpenBotConfiguration): {
+  runtime: InitializableProvider[];
+  inference: InitializableProvider[];
+  shared: InitializableProvider[];
+} {
+  const compatible = (provider: InitializableProvider | undefined) =>
+    provider ? [compatibleInitializationProvider(provider)] : [];
+  return {
+    runtime: [
+      ...compatible(configuration.providers.controlService),
+      ...compatible(configuration.providers.agentService),
+      ...compatible(configuration.providers.computer),
+    ],
+    inference: compatible(configuration.providers.inference),
+    shared: [
+      ...compatible(configuration.providers.auth),
+      ...compatible(configuration.providers.agent),
+      ...compatible(configuration.providers.git),
+    ],
+  };
 }
 
-function configuredInitializationProviders(
+function configuredRuntimeChoice(configuration: OpenBotConfiguration): RuntimeChoice | undefined {
+  const constructors = [
+    constructorName(configuration.providers.controlService),
+    constructorName(configuration.providers.agentService),
+    constructorName(configuration.providers.computer),
+  ];
+  if (
+    constructors[0] === "LocalControlServiceProvider" &&
+    constructors[1] === "LocalAgentServiceProvider" &&
+    constructors[2] === "MicrosandboxComputerProvider"
+  )
+    return "local";
+  if (
+    constructors[0] === "VercelControlServiceProvider" &&
+    constructors[1] === "VercelAgentServiceProvider" &&
+    constructors[2] === "VercelSandboxComputerProvider"
+  )
+    return "vercel";
+  return undefined;
+}
+
+function configuredInferenceChoice(
   configuration: OpenBotConfiguration,
-): InitializableProvider[] {
-  return configuredProviders(configuration).map(compatibleInitializationProvider);
+): InferenceChoice | undefined {
+  switch (constructorName(configuration.providers.inference)) {
+    case "VercelInferenceProvider":
+      return "vercel";
+    case "CodexInferenceProvider":
+      return "codex";
+    default:
+      return undefined;
+  }
 }
 
 function compatibleInitializationProvider(provider: InitializableProvider): InitializableProvider {
@@ -1669,11 +2077,11 @@ function convertBits(data: Uint8Array, from: number, to: number): number[] {
 }
 
 function hrpExpand(hrp: string): number[] {
-  return [...hrp]
+  return Array.from(hrp)
     .map((character) => character.charCodeAt(0) >>> 5)
     .concat(
       [0],
-      [...hrp].map((character) => character.charCodeAt(0) & 31),
+      Array.from(hrp).map((character) => character.charCodeAt(0) & 31),
     );
 }
 

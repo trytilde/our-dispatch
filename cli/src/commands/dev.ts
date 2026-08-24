@@ -2,7 +2,7 @@ import { resolve } from "node:path";
 import type { ChildProcess } from "node:child_process";
 import type { OpenBotConfiguration } from "@tryopenbot/configuration";
 import { waitForHealth } from "@tryopenbot/control-service-provider";
-import { runLocalRuntimeTunnelCommand } from "@trytilde/cli";
+import { runLocalRuntimeTunnelCommand } from "../tilde/runtime-tunnel.js";
 import { formatAgentLifecycleProgress, reconcileAgentResources } from "../agent-lifecycle.js";
 import { loadConfigurationModule } from "../configuration-loader.js";
 import {

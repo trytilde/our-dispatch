@@ -61,6 +61,34 @@ describe("TildeAuthProvider", () => {
     await expect(provider.verify(wrongAudience)).rejects.toThrow("not valid for this OpenBot");
   });
 
+  it("loads the signed-in account and selected workspace from whoami", async () => {
+    const request = vi.fn<typeof fetch>(async (input, init) => {
+      const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+      expect(url).toBe("https://api.trytilde.ai/api/v1/identity/auth/whoami");
+      expect(new Headers(init?.headers).get("authorization")).toBe("Bearer owner-token");
+      return Response.json({
+        identity: { type: "human", sub: "human-one", email: "owner@example.com" },
+        organizations: [{ organization_id: "org-one", name: "Tilde", role: "owner" }],
+        teams: [{ team_id: "team-one", org_id: "org-one", name: "OpenBot", role: "owner" }],
+        groups: [],
+      });
+    });
+
+    await expect(
+      providerWith({ request, environment }).account("owner-token", {
+        subject: "human-one",
+        email: "token@example.com",
+        groups: [],
+        scope: ["openbot:control"],
+      }),
+    ).resolves.toEqual({
+      name: "owner@example.com",
+      email: "owner@example.com",
+      organization: { id: "org-one", name: "Tilde", role: "owner" },
+      workspace: { id: "team-one", name: "OpenBot", role: "owner" },
+    });
+  });
+
   it("registers once during init and persists public OIDC metadata", async () => {
     const request = vi.fn<typeof fetch>(async (_input, init) => {
       expect(init?.headers).toMatchObject({ "x-api-key": "tilde-key" });

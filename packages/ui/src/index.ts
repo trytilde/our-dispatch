@@ -81,9 +81,14 @@ export {
   DropdownMenuTrigger,
 } from "./components/ui/dropdown-menu.js";
 export {
+  BotSelectionDialog,
+  type BotSelectionDialogProps,
   PluginsCatalog,
   type PluginsCatalogAgent,
   type PluginsCatalogProps,
+  type PluginsCatalogSkill,
+  type PluginsCatalogToolAccount,
+  type PluginsCatalogToolProvider,
 } from "./plugins-catalog.js";
 export { cn } from "./lib/utils.js";
 export { Shimmer, type ShimmerProps } from "./beautiful-ui/atoms/shimmer.js";
@@ -119,7 +124,11 @@ export {
   type ComputerUnreachableDialogProps,
   getComputerRebuildProgress,
 } from "./computer-components.js";
-export { useWorkspaceLayout, type WorkspaceLayout } from "./use-workspace-layout.js";
+export {
+  useWorkspaceLayout,
+  type WorkspaceLayout,
+  type WorkspaceLayoutOptions,
+} from "./use-workspace-layout.js";
 export { AgentAvatar, type AgentAvatarProps } from "./agent-avatar.js";
 export { AgentSetupDialog, type AgentSetupDialogProps } from "./agent-setup-dialog.js";
 export { BrandedLoadingState, type BrandedLoadingStateProps } from "./branded-loading-state.js";

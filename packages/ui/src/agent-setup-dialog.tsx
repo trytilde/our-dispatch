@@ -28,6 +28,7 @@ function randomNextPhrase(current: number): number {
 
 export interface AgentSetupDialogProps {
   agentId: string;
+  avatarId?: string;
   error?: string;
   name: string;
   onClose: () => void;
@@ -37,6 +38,7 @@ export interface AgentSetupDialogProps {
 
 export function AgentSetupDialog({
   agentId,
+  avatarId,
   error,
   name,
   onClose,
@@ -46,6 +48,7 @@ export function AgentSetupDialog({
   const [phraseIndex, setPhraseIndex] = useState(0);
   const reduceMotion = useReducedMotion();
   const failed = status === "failed";
+  const displayedAvatarId = avatarId || agentId || name;
 
   useEffect(() => {
     if (!open || failed) return;
@@ -74,9 +77,9 @@ export function AgentSetupDialog({
           if (!failed) event.preventDefault();
         }}
       >
-        <div className="agent-setup-content">
+        <div className="agent-setup-content" data-avatar-id={displayedAvatarId}>
           <div className="agent-setup-avatar-stage">
-            <AgentAvatar className="agent-setup-avatar" id={agentId || name} state="idle" />
+            <AgentAvatar className="agent-setup-avatar" id={displayedAvatarId} state="idle" />
           </div>
           <DialogTitle className="sr-only">{name}</DialogTitle>
           <div className="agent-setup-message-frame" id="agent-setup-message" role="status">

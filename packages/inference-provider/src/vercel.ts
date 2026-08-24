@@ -47,12 +47,16 @@ export class VercelInferenceProvider implements InferenceProvider {
   }
 
   async initialize(context: ProviderInitializationContext): Promise<void> {
+    const selectedProvider = context.environment[INFERENCE_PROVIDER]?.trim();
+    const providerChanged = Boolean(
+      selectedProvider && selectedProvider !== VERCEL_INFERENCE_PROVIDER,
+    );
     await context.setEnvironment(
       INFERENCE_PROVIDER,
       VERCEL_INFERENCE_PROVIDER,
       "Inference implementation used by authored agents.",
     );
-    if (!context.environment[AI_MODEL]?.trim())
+    if (providerChanged || !context.environment[AI_MODEL]?.trim())
       await context.setEnvironment(
         AI_MODEL,
         DEFAULT_VERCEL_MODEL,

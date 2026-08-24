@@ -641,6 +641,11 @@ describe("computer image lifecycle", () => {
     expect(taskbar).toContain('name="autohide-behavior" type="uint" value="0"');
     expect(taskbar).toContain('value="openbot-files.desktop"');
     expect(taskbar).toContain('value="openbot-browser.desktop"');
+    expect(desktopSession).toContain(
+      "xdg-mime default openbot-browser.desktop x-scheme-handler/https",
+    );
+    expect(desktopSession).toContain('touch "$desktop_ready_file"');
+    expect(desktopSession).toContain("xprop -root _XROOTPMAP_ID");
   });
 });
 

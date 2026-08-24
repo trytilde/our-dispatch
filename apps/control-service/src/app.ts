@@ -40,6 +40,8 @@ export function createApp(options: AppOptions = {}): Hono {
     app.use("/api/computer/*", middleware);
     app.use("/api/agents", middleware);
     app.use("/api/connectors/*", middleware);
+    app.use("/api/plugins/*", middleware);
+    app.use("/api/plugins", middleware);
     app.use("/api/agents/*", middleware);
   } else
     app.get("/auth/native-config", (context) =>

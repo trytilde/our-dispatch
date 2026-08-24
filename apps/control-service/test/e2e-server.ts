@@ -34,6 +34,12 @@ const authProvider: AuthProvider = {
       scope: ["openbot:control"],
     };
   },
+  account: async () => ({
+    name: "Daniel Blignaut",
+    email: "owner@example.com",
+    organization: { id: "org-one", name: "Tilde", role: "owner" },
+    workspace: { id: "team-one", name: "OpenBot", role: "owner" },
+  }),
 };
 
 const app = createApp({

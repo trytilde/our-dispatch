@@ -6,6 +6,7 @@ import {
   inferenceChoices,
   initializeOpenBot,
   isInitializedOpenBotRepository,
+  isOpenBotRepository,
   ownerIdentityChoices,
   plainInitializationReporter,
   processCommandRunner,
@@ -67,7 +68,7 @@ export async function runInitialization(
         initialized ? answers : validateNonInteractiveCoreAnswers(answers),
       )
     : inkPrompts;
-  if (!initialized)
+  if (!initialized && !(await isOpenBotRepository(repositoryRoot)))
     await bootstrapOpenBotRepository({
       destination: repositoryRoot,
       prompts,

@@ -240,13 +240,14 @@ export function ChatComposer({
               <button className="stop-button" type="button" onClick={onStop} aria-label="Stop">
                 <span aria-hidden="true" className="composer-stop-glyph" />
               </button>
-            ) : null}
-            <button
-              aria-label={busy ? "Queue message" : "Send message"}
-              disabled={!agentAvailable || !hasContent || submitting}
-            >
-              <SendIcon />
-            </button>
+            ) : (
+              <button
+                aria-label="Send message"
+                disabled={!agentAvailable || !hasContent || submitting}
+              >
+                <SendIcon />
+              </button>
+            )}
           </div>
         </div>
       </form>

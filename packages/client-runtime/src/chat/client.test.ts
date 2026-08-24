@@ -95,6 +95,49 @@ describe("OpenBot client", () => {
     ]);
   });
 
+  it("loads and mutates plugin configuration through the control service", async () => {
+    const calls: { method: string; url: string }[] = [];
+    const client = createOpenBotClient({
+      fetch: async (input, init) => {
+        const url = requestUrl(input);
+        calls.push({ method: init?.method ?? "GET", url });
+        if (url.startsWith("/api/plugins?"))
+          return Response.json({
+            tools: [
+              {
+                provider: {
+                  type_id: "github",
+                  name: "GitHub",
+                  credential_sources: [],
+                },
+                accounts: [
+                  {
+                    id: "github-work",
+                    display_name: "Work",
+                    status: "active",
+                    assigned_agent_ids: ["agent-one"],
+                  },
+                ],
+              },
+            ],
+            skills: [],
+          });
+        return Response.json({ ok: true });
+      },
+    });
+
+    await expect(client.getPluginsCatalog(["agent-one", "agent-two"])).resolves.toMatchObject({
+      tools: [{ accounts: [{ assigned_agent_ids: ["agent-one"] }] }],
+    });
+    await client.setToolAccountForAgent("github-work", "agent-two", true);
+    await client.setSkillForAgent("skill-one", "agent-one", false);
+    expect(calls).toEqual([
+      { method: "GET", url: "/api/plugins?agent_id=agent-one&agent_id=agent-two" },
+      { method: "POST", url: "/api/plugins/tools/github-work/agents/agent-two" },
+      { method: "DELETE", url: "/api/plugins/skills/skill-one/agents/agent-one" },
+    ]);
+  });
+
   it("rewrites Tilde attachment URLs through the configured bridge", () => {
     const client = createOpenBotClient({ baseUrl: "https://openbot.test" });
     expect(

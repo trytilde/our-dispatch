@@ -34,7 +34,7 @@ export type SopsOwnerIdentityConfiguration =
   | { kind: "azure-key-vault" }
   | { kind: "vault-transit" };
 
-/** User-local OpenBot settings. Stored at ~/.openbot/config.json, never in a fork. */
+/** User-local OpenBot settings. Stored in the gitignored root local-user-config.json. */
 export interface UserConfiguration {
   version: 1;
   sops?: {

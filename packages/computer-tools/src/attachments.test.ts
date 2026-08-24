@@ -1,5 +1,5 @@
-import type { Client } from "@trytilde/harness-sdk";
-import type { ChatKitMessage } from "@trytilde/harness-sdk-vercel-ai-node";
+import type { Client } from "@trytilde/sdk";
+import type { ChatKitMessage } from "@trytilde/sdk-vercel-ai-node";
 import { describe, expect, it, vi } from "vite-plus/test";
 import { createTildeAttachmentMessageHandlers, createTildeMediaDownloader } from "./attachments.js";
 

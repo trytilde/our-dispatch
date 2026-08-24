@@ -1,5 +1,8 @@
 import { useMemo, useState, type FormEvent } from "react";
 import { connectorSetupFields, type ConnectorSetupField } from "@tryopenbot/client-runtime";
+import { ExternalLinkIcon, KeyRoundIcon, ShieldCheckIcon, UserRoundIcon } from "lucide-react";
+import { Button } from "./beautiful-ui/atoms/button.js";
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from "./components/ui/dialog.js";
 import type { MessagePart } from "./rich-message-components.js";
 
 export { connectorSetupFields, type ConnectorSetupField };
@@ -259,9 +262,9 @@ export function ConnectorSetupDialog({
     [source],
   );
   const fields = [...resourceFields, ...userFields];
-  const nameRequired = !(source?.supportsAutoDisplayName ?? false);
   const missingRequired =
-    (nameRequired && !displayName.trim()) ||
+    !source ||
+    !displayName.trim() ||
     fields.some((field) => field.required && !values[field.key]?.trim());
 
   function handleSubmit(event: FormEvent) {
@@ -277,123 +280,195 @@ export function ConnectorSetupDialog({
     const userCredentialValues = bucket(userFields);
     onSubmit({
       credentialSourceTypeId: source.typeId,
-      displayName: displayName.trim() || `${providerName} account`,
+      displayName: displayName.trim(),
       ...(resourceServerValues ? { resourceServerValues } : {}),
       ...(userCredentialValues ? { userCredentialValues } : {}),
     });
   }
 
   return (
-    <div
-      aria-label={`Add ${providerName} account`}
-      className="connector-setup-overlay"
-      role="dialog"
+    <Dialog
+      open
+      onOpenChange={(open) => {
+        if (!open && !submitting) onClose();
+      }}
     >
-      <form className="connector-setup" onSubmit={handleSubmit}>
-        <h2>
-          <ConnectorGlyph iconUrl={providerIconUrl} name={providerName} />
-          Add a {providerName} account
-        </h2>
-        {authorizationUrl ? (
-          <div className="connector-setup-waiting">
-            <p>
-              Waiting for {providerName} authorization… Finish signing in with your browser, then
-              return here.
-            </p>
-            <div className="connector-setup-actions">
-              <button onClick={() => onReopenAuthorization?.()} type="button">
-                Reopen authorization
-              </button>
-              <button className="primary" onClick={onClose} type="button">
-                Done
-              </button>
+      <DialogContent className="max-h-[80vh] max-w-[460px] overflow-y-auto p-[22px]">
+        <form className="grid gap-4" onSubmit={handleSubmit}>
+          <header className="flex items-start gap-3">
+            <ConnectorGlyph iconUrl={providerIconUrl} name={providerName} />
+            <div className="min-w-0 flex-1">
+              <DialogTitle className="m-0 text-base font-semibold text-ink">
+                Add a {providerName} account
+              </DialogTitle>
+              <DialogDescription className="mt-1 text-[12.5px] leading-[18px] text-ink-3">
+                Name this account and provide the information required to connect it.
+              </DialogDescription>
             </div>
-          </div>
-        ) : (
-          <>
-            {credentialSources.length > 1 ? (
-              <label className="connector-setup-field">
-                <span>Sign-in method</span>
-                <select
-                  onChange={(event) => {
-                    setSourceTypeId(event.target.value);
-                    setValues({});
-                  }}
-                  value={source?.typeId ?? ""}
-                >
-                  {credentialSources.map((candidate) => (
-                    <option key={candidate.typeId} value={candidate.typeId}>
-                      {candidate.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            ) : null}
-            {source?.documentation ? (
-              <p className="connector-setup-hint">{source.documentation}</p>
-            ) : null}
-            {nameRequired ? (
-              <label className="connector-setup-field">
-                <span>Account name</span>
+          </header>
+
+          {authorizationUrl ? (
+            <div className="grid gap-4">
+              <div className="flex gap-3 rounded-xl bg-inset p-3 text-[12.5px] text-ink-2">
+                <ExternalLinkIcon aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
+                <p className="m-0 leading-[18px]">
+                  Waiting for {providerName} authorization. Finish signing in with your browser,
+                  then return here.
+                </p>
+              </div>
+              <div className="flex justify-end gap-2">
+                <Button onClick={() => onReopenAuthorization?.()} variant="secondary">
+                  <ExternalLinkIcon aria-hidden="true" className="size-3.5" />
+                  Reopen authorization
+                </Button>
+                <Button onClick={onClose}>Done</Button>
+              </div>
+            </div>
+          ) : (
+            <>
+              {credentialSources.length > 1 ? (
+                <label className="grid gap-1.5">
+                  <span className="flex items-center gap-1.5 text-xs font-medium text-ink-2">
+                    <ShieldCheckIcon aria-hidden="true" className="size-3.5" />
+                    Sign-in method
+                  </span>
+                  <select
+                    className="h-9 rounded-lg border-[0.5px] border-line-strong bg-field px-3
+                      text-[12.5px] text-ink shadow-inset-field outline-none focus:border-accent"
+                    onChange={(event) => {
+                      setSourceTypeId(event.target.value);
+                      setValues({});
+                    }}
+                    value={source?.typeId ?? ""}
+                  >
+                    {credentialSources.map((candidate) => (
+                      <option key={candidate.typeId} value={candidate.typeId}>
+                        {candidate.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              ) : source ? (
+                <div className="flex gap-3 rounded-xl bg-inset p-3">
+                  <ShieldCheckIcon
+                    aria-hidden="true"
+                    className="mt-0.5 size-4 shrink-0 text-ink-2"
+                  />
+                  <div className="min-w-0">
+                    <p className="m-0 text-xs font-medium text-ink">{source.name}</p>
+                    <p className="mt-0.5 mb-0 text-[11.5px] leading-4 text-ink-3">
+                      {source.requiresBrokering
+                        ? "Secure provider authorization managed by Tilde."
+                        : "Enter the credentials required by this provider."}
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <p className="m-0 rounded-xl bg-red-tint p-3 text-xs text-red">
+                  No connection methods are available for this provider.
+                </p>
+              )}
+
+              <label className="grid gap-1.5">
+                <span className="flex items-center gap-1.5 text-xs font-medium text-ink-2">
+                  <UserRoundIcon aria-hidden="true" className="size-3.5" />
+                  Account name
+                </span>
                 <input
                   autoFocus
+                  className="h-9 rounded-lg border-[0.5px] border-line-strong bg-field px-3
+                    text-[12.5px] text-ink shadow-inset-field outline-none placeholder:text-ink-3
+                    focus:border-accent"
                   onChange={(event) => setDisplayName(event.target.value)}
                   placeholder={
                     source?.displayNameDescription || "Label this account — e.g. work, personal"
                   }
+                  required
                   value={displayName}
                 />
-              </label>
-            ) : null}
-            {fields.map((field) => (
-              <label className="connector-setup-field" key={field.key}>
-                <span>
-                  {field.label}
-                  {field.required ? null : <em> (optional)</em>}
+                <span className="text-[11px] leading-4 text-ink-3">
+                  Used to identify this account when choosing it for a bot.
                 </span>
-                {field.multiline ? (
-                  <textarea
-                    onChange={(event) =>
-                      setValues((current) => ({ ...current, [field.key]: event.target.value }))
-                    }
-                    rows={5}
-                    spellCheck={false}
-                    value={values[field.key] ?? ""}
-                  />
-                ) : (
-                  <input
-                    onChange={(event) =>
-                      setValues((current) => ({ ...current, [field.key]: event.target.value }))
-                    }
-                    placeholder={field.description ?? field.key}
-                    spellCheck={false}
-                    type={field.secret ? "password" : "text"}
-                    value={values[field.key] ?? ""}
-                  />
-                )}
               </label>
-            ))}
-            {source?.requiresBrokering && fields.length === 0 ? (
-              <p className="connector-setup-hint">
-                You will sign in with your browser to authorize this account.
-              </p>
-            ) : null}
-            {error ? <p className="connector-setup-error">{error}</p> : null}
-            <div className="connector-setup-actions">
-              <button disabled={submitting} onClick={onClose} type="button">
-                Cancel
-              </button>
-              <button className="primary" disabled={submitting || missingRequired} type="submit">
-                {submitting
-                  ? "Connecting…"
-                  : source?.requiresBrokering
-                    ? "Allow access"
-                    : "Connect"}
-              </button>
-            </div>
-          </>
-        )}
-      </form>
-    </div>
+
+              {fields.map((field) => (
+                <label className="grid gap-1.5" key={field.key}>
+                  <span className="flex items-center gap-1.5 text-xs font-medium text-ink-2">
+                    <KeyRoundIcon aria-hidden="true" className="size-3.5" />
+                    {field.label}
+                    {field.required ? null : (
+                      <em className="font-normal text-ink-3 not-italic">(optional)</em>
+                    )}
+                  </span>
+                  {field.multiline ? (
+                    <textarea
+                      className="min-h-24 resize-y rounded-lg border-[0.5px] border-line-strong
+                        bg-field px-3 py-2 text-[12.5px] text-ink shadow-inset-field outline-none
+                        placeholder:text-ink-3 focus:border-accent"
+                      onChange={(event) =>
+                        setValues((current) => ({ ...current, [field.key]: event.target.value }))
+                      }
+                      placeholder={field.description ?? field.key}
+                      required={field.required}
+                      rows={5}
+                      spellCheck={false}
+                      value={values[field.key] ?? ""}
+                    />
+                  ) : (
+                    <input
+                      className="h-9 rounded-lg border-[0.5px] border-line-strong bg-field px-3
+                        text-[12.5px] text-ink shadow-inset-field outline-none placeholder:text-ink-3
+                        focus:border-accent"
+                      onChange={(event) =>
+                        setValues((current) => ({ ...current, [field.key]: event.target.value }))
+                      }
+                      placeholder={field.description ?? field.key}
+                      required={field.required}
+                      spellCheck={false}
+                      type={field.secret ? "password" : "text"}
+                      value={values[field.key] ?? ""}
+                    />
+                  )}
+                </label>
+              ))}
+
+              {source?.requiresBrokering ? (
+                <div
+                  className="flex gap-3 rounded-xl border-[0.5px] border-line bg-surface p-3
+                  text-[11.5px] leading-4 text-ink-2"
+                >
+                  <ExternalLinkIcon aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
+                  <p className="m-0">
+                    You’ll continue in your browser to sign in and authorize this account.
+                  </p>
+                </div>
+              ) : null}
+
+              {error ? (
+                <p className="m-0 rounded-lg bg-red-tint px-3 py-2 text-xs text-red">{error}</p>
+              ) : null}
+
+              <div className="flex justify-end gap-2 pt-1">
+                <Button disabled={submitting} onClick={onClose} variant="secondary">
+                  Cancel
+                </Button>
+                <Button disabled={submitting || missingRequired} type="submit">
+                  {submitting ? (
+                    "Connecting…"
+                  ) : source?.requiresBrokering ? (
+                    <>
+                      Continue
+                      <ExternalLinkIcon aria-hidden="true" className="size-3.5" />
+                    </>
+                  ) : (
+                    "Connect"
+                  )}
+                </Button>
+              </div>
+            </>
+          )}
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 }

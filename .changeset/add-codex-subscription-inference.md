@@ -21,4 +21,4 @@
 "@tryopenbot/inference-provider": minor
 ---
 
-Add optional local and Vercel-hosted ChatGPT subscription inference with Codex device-code authentication, provider-owned agent templates and deployment assets, and AI SDK 7 support.
+Add optional local and Vercel-hosted ChatGPT subscription inference with Codex device-code authentication, provider-owned agent templates and deployment assets, AI SDK 7 support, resumable staged init selectors that immediately configure the selected provider while offering every built-in alternative, checkout-scoped gitignored user configuration, and correct separation of provider-managed and team-owned Tilde registry membership.

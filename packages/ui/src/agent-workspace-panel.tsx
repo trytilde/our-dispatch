@@ -7,6 +7,7 @@ export interface AgentWorkspacePanelProps {
   agentId: string;
   agentName: string;
   open: boolean;
+  floating?: boolean;
   onClose: () => void;
   onResize: (event: ReactPointerEvent<HTMLDivElement>) => void;
 }
@@ -15,6 +16,7 @@ export function AgentWorkspacePanel({
   agentId,
   agentName,
   open,
+  floating = false,
   onClose,
   onResize,
 }: AgentWorkspacePanelProps) {
@@ -84,19 +86,21 @@ export function AgentWorkspacePanel({
   return (
     <section
       aria-hidden={!open && !fullscreen}
-      className={`work-pane agent-workspace-pane ${open ? "open" : "closed"} ${fullscreen ? "fullscreen" : ""}`}
+      className={`work-pane agent-workspace-pane ${open ? "open" : "closed"} ${floating ? "floating" : ""} ${fullscreen ? "fullscreen" : ""}`}
       inert={!open && !fullscreen}
       role={fullscreen ? "dialog" : "complementary"}
       aria-label={fullscreen ? `${previewAgentName} Computer` : "Computer preview"}
       aria-modal={fullscreen || undefined}
     >
       <div aria-hidden="true" className="computer-window-drag-region" />
-      <div
-        aria-label="Resize Computer pane"
-        className="workspace-resize-handle"
-        onPointerDown={onResize}
-        role="separator"
-      />
+      {!floating ? (
+        <div
+          aria-label="Resize Computer pane"
+          className="workspace-resize-handle"
+          onPointerDown={onResize}
+          role="separator"
+        />
+      ) : null}
       <button
         aria-label="Close Computer pane"
         className="computer-collapse"

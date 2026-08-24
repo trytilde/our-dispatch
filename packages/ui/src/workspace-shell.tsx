@@ -4,6 +4,7 @@ import { ArrowDownIcon } from "lucide-react";
 export interface WorkspaceShellProps {
   sidebarCollapsed: boolean;
   computerOpen: boolean;
+  computerFloating?: boolean;
   style: CSSProperties;
   children: ReactNode;
 }
@@ -11,12 +12,13 @@ export interface WorkspaceShellProps {
 export function WorkspaceShell({
   sidebarCollapsed,
   computerOpen,
+  computerFloating = false,
   style,
   children,
 }: WorkspaceShellProps) {
   return (
     <main
-      className={`workspace-shell rich-chat ${sidebarCollapsed ? "sidebar-collapsed" : ""} ${computerOpen ? "workspace-open" : "workspace-closed"}`}
+      className={`workspace-shell rich-chat ${sidebarCollapsed ? "sidebar-collapsed" : ""} ${computerOpen ? "workspace-open" : "workspace-closed"} ${computerFloating ? "computer-floating" : ""}`}
       style={style}
     >
       {children}

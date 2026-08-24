@@ -1,0 +1,76 @@
+{
+  "name": "@trytilde/sdk",
+  "version": "0.1.0",
+  "description": "Core TypeScript SDK for Tilde APIs.",
+  "homepage": "https://github.com/trytilde/openbot/tree/main/packages/sdk#readme",
+  "bugs": {
+    "url": "https://github.com/trytilde/openbot/issues"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/trytilde/openbot.git",
+    "directory": "packages/sdk"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "development": "./src/index.ts",
+      "import": "./dist/index.js"
+    },
+    "./api": {
+      "types": "./src/api.ts",
+      "development": "./src/api.ts",
+      "import": "./dist/api.js"
+    },
+    "./json": {
+      "types": "./src/json.ts",
+      "development": "./src/json.ts",
+      "import": "./dist/json.js"
+    }
+  },
+  "publishConfig": {
+    "exports": {
+      ".": {
+        "types": "./dist/index.d.ts",
+        "import": "./dist/index.js"
+      },
+      "./api": {
+        "types": "./dist/api.d.ts",
+        "import": "./dist/api.js"
+      },
+      "./json": {
+        "types": "./dist/json.d.ts",
+        "import": "./dist/json.js"
+      }
+    },
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsc --noEmit && tsdown --config ../../tsdown.node.config.ts",
+    "check": "vp check",
+    "lint": "vp lint",
+    "prepack": "pnpm build",
+    "test": "vp test run --config vitest.config.ts",
+    "test:e2e": "vitest run --config vitest.e2e.config.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@trytilde/api-client": "workspace:*",
+    "nice-grpc": "2.1.16"
+  },
+  "devDependencies": {
+    "@types/node": "24.3.0",
+    "typescript": "5.9.2",
+    "vite-plus": "catalog:",
+    "vitest": "4.1.10"
+  },
+  "engines": {
+    "node": ">=24"
+  }
+}

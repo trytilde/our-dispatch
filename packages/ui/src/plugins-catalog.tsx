@@ -1,8 +1,15 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
-import { ChevronDownIcon, PlusIcon, SearchIcon, XIcon } from "lucide-react";
+import { useEffect, useId, useMemo, useState } from "react";
+import { ChevronDownIcon, PlusIcon, SearchIcon, Trash2Icon, XIcon } from "lucide-react";
 import { AgentAvatar } from "./agent-avatar.js";
+import { Button } from "./beautiful-ui/atoms/button.js";
 import { Avatar, AvatarGroup, AvatarGroupCount } from "./components/ui/avatar.js";
-import { Dialog, DialogContent, DialogDescription, DialogTitle } from "./components/ui/dialog.js";
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogTitle,
+} from "./components/ui/dialog.js";
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -17,6 +24,8 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "./components/ui/tooltip.js";
+import { Spinner } from "./components/ui/spinner.js";
+import { cn } from "./lib/utils.js";
 
 export interface PluginsCatalogAgent {
   id: string;
@@ -25,183 +34,145 @@ export interface PluginsCatalogAgent {
 
 export interface PluginsCatalogProps {
   agents: readonly PluginsCatalogAgent[];
+  toolProviders: readonly PluginsCatalogToolProvider[];
+  skillProviders: readonly PluginsCatalogSkillProvider[];
+  loading?: boolean;
+  error?: string;
+  onAddToolAccount: (providerId: string) => void | Promise<void>;
+  onSetToolAccount: (accountId: string, agentId: string, enabled: boolean) => void | Promise<void>;
+  onSetSkill: (skillId: string, agentId: string, enabled: boolean) => void | Promise<void>;
 }
 
 type CatalogKind = "tools" | "skills";
 
-interface ToolProvider {
+export interface PluginsCatalogToolProvider {
   id: string;
   name: string;
   description: string;
-  mark: string;
-  color: string;
+  categories: readonly string[];
+  iconUrl?: string;
+  iconKey?: string;
+  canAddAccount?: boolean;
+  accounts: readonly PluginsCatalogToolAccount[];
 }
 
-interface ToolConnection {
+export interface PluginsCatalogToolAccount {
   id: string;
-  providerId: string;
   accountName: string;
+  assignedAgentIds: readonly string[];
 }
 
-interface SkillDefinition {
+export interface PluginsCatalogSkill {
   id: string;
   name: string;
   description: string;
-  mark: string;
-  color: string;
+  assignedAgentIds: readonly string[];
+  assignedSkillIdByAgentId?: Readonly<Record<string, string>>;
 }
+
+export interface PluginsCatalogSkillProvider {
+  id: string;
+  name: string;
+  description: string;
+  categories: readonly string[];
+  iconUrl?: string;
+  iconKey?: string;
+  skills: readonly PluginsCatalogSkill[];
+}
+
+type DetailTarget = { kind: "tools" | "skills"; providerId: string };
 
 interface AssignmentTarget {
   kind: CatalogKind;
   id: string;
-  providerId?: string;
+  returnToDetail?: DetailTarget;
 }
 
-const toolProviders: readonly ToolProvider[] = [
-  {
-    id: "github",
-    name: "GitHub",
-    description: "Issues, pull requests, repositories, and code search.",
-    mark: "GH",
-    color: "#24292f",
-  },
-  {
-    id: "google-drive",
-    name: "Google Drive",
-    description: "Find and work with files across shared drives.",
-    mark: "GD",
-    color: "#2f7cf6",
-  },
-  {
-    id: "slack",
-    name: "Slack",
-    description: "Search channels and coordinate with your team.",
-    mark: "SL",
-    color: "#8c4a91",
-  },
-  {
-    id: "linear",
-    name: "Linear",
-    description: "Plan work, update issues, and follow projects.",
-    mark: "LI",
-    color: "#5e6ad2",
-  },
-  {
-    id: "notion",
-    name: "Notion",
-    description: "Read and update team docs and databases.",
-    mark: "NO",
-    color: "#3d3d3d",
-  },
-  {
-    id: "sentry",
-    name: "Sentry",
-    description: "Inspect production errors, traces, and releases.",
-    mark: "SE",
-    color: "#6f4ca5",
-  },
-  {
-    id: "figma",
-    name: "Figma",
-    description: "Inspect designs, components, and design variables.",
-    mark: "FI",
-    color: "#e64f3d",
-  },
-  {
-    id: "browser",
-    name: "Browser",
-    description: "Open pages and interact with web applications.",
-    mark: "BR",
-    color: "#1084fe",
-  },
-];
+interface PendingAssignment {
+  kind: CatalogKind;
+  id: string;
+  agentId: string;
+}
 
-const skillDefinitions: readonly SkillDefinition[] = [
-  {
-    id: "code-review",
-    name: "Code review",
-    description: "Review changes for correctness, clarity, and risk.",
-    mark: "CR",
-    color: "#315fdd",
-  },
-  {
-    id: "frontend-design",
-    name: "Frontend design",
-    description: "Shape distinctive interfaces and interaction systems.",
-    mark: "FD",
-    color: "#d45b7c",
-  },
-  {
-    id: "browser-qa",
-    name: "Browser QA",
-    description: "Exercise browser workflows and capture visual evidence.",
-    mark: "QA",
-    color: "#12866d",
-  },
-  {
-    id: "incident-diagnosis",
-    name: "Incident diagnosis",
-    description: "Investigate failures with evidence-ranked hypotheses.",
-    mark: "ID",
-    color: "#c26a17",
-  },
-  {
-    id: "pdf",
-    name: "PDF",
-    description: "Create, inspect, render, and verify PDF documents.",
-    mark: "PDF",
-    color: "#bc3c3c",
-  },
-  {
-    id: "spreadsheets",
-    name: "Spreadsheets",
-    description: "Create, analyze, and verify workbook files.",
-    mark: "SS",
-    color: "#26804a",
-  },
-];
-
-const initialConnections: readonly ToolConnection[] = [
-  { id: "github-work", providerId: "github", accountName: "Work" },
-  { id: "github-personal", providerId: "github", accountName: "Personal" },
-  { id: "google-drive-team", providerId: "google-drive", accountName: "Team" },
-];
-
-export function PluginsCatalog({ agents }: PluginsCatalogProps) {
+export function PluginsCatalog({
+  agents,
+  toolProviders,
+  skillProviders,
+  loading = false,
+  error,
+  onAddToolAccount,
+  onSetToolAccount,
+  onSetSkill,
+}: PluginsCatalogProps) {
+  const catalogHeadingId = useId();
   const [kind, setKind] = useState<CatalogKind>("tools");
   const [query, setQuery] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [selectedAgentIds, setSelectedAgentIds] = useState<readonly string[]>([]);
-  const [connections, setConnections] = useState<readonly ToolConnection[]>(initialConnections);
-  const [assignments, setAssignments] = useState<Record<string, readonly string[]>>(() =>
-    initialAssignments(agents),
-  );
   const [target, setTarget] = useState<AssignmentTarget | null>(null);
-  const assignmentsSeeded = useRef(agents.length > 0);
-
-  useEffect(() => {
-    if (assignmentsSeeded.current || agents.length === 0) return;
-    assignmentsSeeded.current = true;
-    setAssignments((current) => ({ ...current, ...initialAssignments(agents) }));
-  }, [agents]);
+  const [detailTarget, setDetailTarget] = useState<DetailTarget | null>(null);
+  const [pendingAssignments, setPendingAssignments] = useState<readonly PendingAssignment[]>([]);
 
   const normalizedQuery = query.trim().toLowerCase();
-  const filteredConnections = useMemo(() => {
-    const byProvider = new Map<string, ToolConnection[]>();
-    for (const connection of connections) {
-      const current = byProvider.get(connection.providerId) ?? [];
-      current.push(connection);
-      byProvider.set(connection.providerId, current);
-    }
-    return byProvider;
-  }, [connections]);
-
-  const matchingSkills = skillDefinitions.filter((skill) => {
-    const matchesSearch = `${skill.name} ${skill.description}`
+  const groupedSkillProviders = skillProviders.map((provider) => ({
+    ...provider,
+    skills: groupSkillsByName(provider.skills),
+  }));
+  const availableCategories = [
+    ...new Set(
+      kind === "tools"
+        ? toolProviders.flatMap((provider) => provider.categories)
+        : groupedSkillProviders.flatMap((provider) => provider.categories),
+    ),
+  ].sort(compareCategories);
+  const visibleToolProviders = toolProviders
+    .filter(
+      (provider) => selectedCategory === null || provider.categories.includes(selectedCategory),
+    )
+    .map((provider) => {
+      const connections = provider.accounts.filter((connection) => {
+        const text =
+          `${provider.name} ${connection.accountName} ${provider.description}`.toLowerCase();
+        return (
+          text.includes(normalizedQuery) &&
+          matchesSelectedAgents(connection.assignedAgentIds, selectedAgentIds)
+        );
+      });
+      const providerMatches = `${provider.name} ${provider.description}`
+        .toLowerCase()
+        .includes(normalizedQuery);
+      return {
+        provider,
+        connections,
+        visible: (selectedAgentIds.length === 0 && providerMatches) || connections.length > 0,
+      };
+    })
+    .filter(({ visible }) => visible);
+  const visibleSkillProviders = groupedSkillProviders.filter((provider) => {
+    const matchesSearch = `${provider.name} ${provider.description} ${provider.skills
+      .map((skill) => `${skill.name} ${skill.description}`)
+      .join(" ")}`
       .toLowerCase()
       .includes(normalizedQuery);
-    const matchesAgent = matchesSelectedAgents(assignments[skill.id], selectedAgentIds);
-    return matchesSearch && matchesAgent;
+    const matchesAgent =
+      selectedAgentIds.length === 0 ||
+      provider.skills.some((skill) =>
+        matchesSelectedAgents(skill.assignedAgentIds, selectedAgentIds),
+      );
+    const matchesCategory =
+      selectedCategory === null || provider.categories.includes(selectedCategory);
+    return matchesSearch && matchesAgent && matchesCategory;
   });
+  const toolGroups = groupToolProvidersByCategory(visibleToolProviders, selectedCategory);
+  const skillGroups = groupSkillProvidersByCategory(visibleSkillProviders, selectedCategory);
+  const detailProvider =
+    detailTarget?.kind === "tools"
+      ? toolProviders.find((provider) => provider.id === detailTarget.providerId)
+      : undefined;
+  const detailSkill =
+    detailTarget?.kind === "skills"
+      ? groupedSkillProviders.find((provider) => provider.id === detailTarget.providerId)
+      : undefined;
 
   function toggleAgentFilter(agentId: string): void {
     setSelectedAgentIds((current) =>
@@ -213,47 +184,57 @@ export function PluginsCatalog({ agents }: PluginsCatalogProps) {
 
   function assignToAgent(agentId: string): void {
     if (!target) return;
-    if (target.kind === "tools" && target.providerId) {
-      const providerConnections = connections.filter(
-        (connection) => connection.providerId === target.providerId,
-      );
-      const id = `${target.providerId}-${crypto.randomUUID()}`;
-      const accountName =
-        providerConnections.length === 0 ? "Default" : `Account ${providerConnections.length + 1}`;
-      setConnections((current) => [
-        ...current,
-        { id, providerId: target.providerId!, accountName },
-      ]);
-      setAssignments((current) => ({ ...current, [id]: [agentId] }));
-    } else {
-      setAssignments((current) => ({
-        ...current,
-        [target.id]: unique([...(current[target.id] ?? []), agentId]),
-      }));
+    const assignment = target;
+    setTarget(null);
+    if (assignment.returnToDetail) setDetailTarget(assignment.returnToDetail);
+
+    const pending = { kind: assignment.kind, id: assignment.id, agentId };
+    setPendingAssignments((current) => [...current, pending]);
+    const finish = () => {
+      setPendingAssignments((current) => current.filter((candidate) => candidate !== pending));
+    };
+    try {
+      const mutation =
+        assignment.kind === "tools"
+          ? onSetToolAccount(assignment.id, agentId, true)
+          : onSetSkill(assignment.id, agentId, true);
+      void Promise.resolve(mutation).then(finish, finish);
+    } catch {
+      finish();
     }
+  }
+
+  function closeBotSelection(): void {
+    if (target?.returnToDetail) setDetailTarget(target.returnToDetail);
     setTarget(null);
   }
 
-  function removeAssignment(itemId: string, agentId: string): void {
-    setAssignments((current) => ({
-      ...current,
-      [itemId]: (current[itemId] ?? []).filter((candidate) => candidate !== agentId),
-    }));
-  }
-
   return (
-    <section aria-label="Plugins" className="plugin-library">
-      <div className="plugin-library__frame">
-        <div className="plugin-library__controls">
-          <div aria-label="Plugin type" className="plugin-library__tabs" role="tablist">
+    <section aria-label="Plugins" className="min-h-full min-w-0 bg-page text-ink">
+      <div className="w-full">
+        <div
+          className="flex min-h-[58px] items-center justify-between gap-[22px]
+            max-[980px]:flex-col max-[980px]:items-start max-[980px]:gap-2 max-[980px]:py-2.5
+            max-[980px]:pb-3"
+        >
+          <div aria-label="Plugin type" className="flex gap-6" role="tablist">
             {(["tools", "skills"] as const).map((option) => (
               <button
                 aria-selected={kind === option}
-                className={kind === option ? "is-active" : ""}
+                className={cn(
+                  "relative h-[38px] cursor-pointer bg-transparent px-px text-[13px] font-medium",
+                  "after:absolute after:inset-x-0 after:-bottom-px after:h-0.5 after:origin-center",
+                  "after:bg-ink after:opacity-0 after:transition-[opacity,transform] after:duration-150",
+                  "after:content-['']",
+                  kind === option
+                    ? "text-ink after:scale-x-100 after:opacity-100"
+                    : "text-ink-3 after:scale-x-40",
+                )}
                 key={option}
                 onClick={() => {
                   setKind(option);
                   setQuery("");
+                  setSelectedCategory(null);
                 }}
                 role="tab"
                 type="button"
@@ -263,17 +244,31 @@ export function PluginsCatalog({ agents }: PluginsCatalogProps) {
             ))}
           </div>
 
-          <div className="plugin-library__toolbar">
+          <div
+            className="flex items-center gap-2.5 max-[980px]:w-full max-[720px]:flex-col
+              max-[720px]:items-stretch"
+          >
             <BotFilter
               agents={agents}
               selectedAgentIds={selectedAgentIds}
               onClear={() => setSelectedAgentIds([])}
               onToggle={toggleAgentFilter}
             />
-            <label className="plugin-library__search">
-              <SearchIcon aria-hidden="true" />
+            <CategoryFilter
+              categories={availableCategories}
+              selectedCategory={selectedCategory}
+              onSelect={setSelectedCategory}
+            />
+            <label
+              className="flex h-[34px] w-[min(32vw,280px)] min-w-0 flex-[0_1_280px] items-center
+                gap-2 rounded-lg border-[0.5px] border-line-strong bg-surface text-ink-3
+                shadow-inset-field focus-within:border-[color-mix(in_srgb,var(--accent)_55%,var(--line-strong))]
+                focus-within:shadow-[0_0_0_2px_var(--accent-tint)] max-[980px]:w-full"
+            >
+              <SearchIcon aria-hidden="true" className="ml-2.5 size-[15px] stroke-[1.5]" />
               <span className="sr-only">Search {kind}</span>
               <input
+                className="h-full w-full min-w-0 bg-transparent pr-2.5 text-[12.5px] text-ink outline-none"
                 onChange={(event) => setQuery(event.target.value)}
                 placeholder={`Search ${kind}`}
                 type="search"
@@ -283,97 +278,147 @@ export function PluginsCatalog({ agents }: PluginsCatalogProps) {
           </div>
         </div>
 
-        <div className="plugin-library__section-heading">
-          <h2>{kind === "tools" ? "All tools" : "All skills"}</h2>
-        </div>
+        <section
+          aria-label={kind === "tools" ? "Tool providers" : undefined}
+          aria-labelledby={kind === "skills" ? catalogHeadingId : undefined}
+          className="mt-4"
+        >
+          {kind === "skills" ? (
+            <h2 className="sr-only" id={catalogHeadingId}>
+              All skills
+            </h2>
+          ) : null}
 
-        {kind === "tools" ? (
-          <div className="plugin-library__grid">
-            {toolProviders.flatMap((provider) => {
-              const providerConnections = filteredConnections.get(provider.id) ?? [];
-              const connectionCards = providerConnections
-                .filter((connection) => {
-                  const text =
-                    `${provider.name} ${connection.accountName} ${provider.description}`.toLowerCase();
-                  return (
-                    text.includes(normalizedQuery) &&
-                    matchesSelectedAgents(assignments[connection.id], selectedAgentIds)
-                  );
-                })
-                .map((connection) => (
-                  <CapabilityCard
-                    agents={agents}
-                    assignedAgentIds={assignments[connection.id] ?? []}
-                    color={provider.color}
-                    description={provider.description}
-                    key={connection.id}
-                    mark={provider.mark}
-                    name={`${provider.name} (${connection.accountName})`}
-                    onAdd={() => setTarget({ kind: "tools", id: connection.id })}
-                    onRemove={(agentId) => removeAssignment(connection.id, agentId)}
-                  />
-                ));
-              const addMatchesSearch = `${provider.name} ${provider.description}`
-                .toLowerCase()
-                .includes(normalizedQuery);
-              const addCard =
-                selectedAgentIds.length === 0 && addMatchesSearch ? (
-                  <CapabilityCard
-                    actionLabel={providerConnections.length > 0 ? "Add new account" : "Add"}
-                    agents={agents}
-                    assignedAgentIds={[]}
-                    color={provider.color}
-                    description={provider.description}
-                    key={`${provider.id}-add`}
-                    mark={provider.mark}
-                    name={provider.name}
-                    onAction={() =>
-                      setTarget({ kind: "tools", id: provider.id, providerId: provider.id })
-                    }
-                  />
-                ) : null;
-              return [...connectionCards, addCard].filter(Boolean);
-            })}
-          </div>
-        ) : (
-          <div className="plugin-library__grid">
-            {matchingSkills.map((skill) => (
-              <CapabilityCard
-                agents={agents}
-                assignedAgentIds={assignments[skill.id] ?? []}
-                color={skill.color}
-                description={skill.description}
-                key={skill.id}
-                mark={skill.mark}
-                name={skill.name}
-                onAdd={() => setTarget({ kind: "skills", id: skill.id })}
-                onRemove={(agentId) => removeAssignment(skill.id, agentId)}
-              />
-            ))}
-          </div>
-        )}
+          {error ? (
+            <div className="mx-2 mb-2 rounded-lg bg-red-500/10 px-3 py-2 text-xs text-red-700 dark:text-red-300">
+              {error}
+            </div>
+          ) : null}
+          {loading ? <CatalogSkeleton kind={kind} /> : null}
 
-        {(kind === "skills" && matchingSkills.length === 0) ||
-        (kind === "tools" &&
-          !toolProviders.some((provider) =>
-            `${provider.name} ${provider.description}`.toLowerCase().includes(normalizedQuery),
-          )) ? (
-          <div className="plugin-library__empty">
-            No {kind} match this search and bot selection.
-          </div>
-        ) : null}
+          {!loading && kind === "tools" ? (
+            <div className="space-y-3">
+              {toolGroups.map(([category, categoryProviders]) => (
+                <section aria-labelledby={`tool-category-${slugify(category)}`} key={category}>
+                  <h3
+                    className="m-0 px-2 pt-2 pb-1.5 text-[13px] leading-[18px] font-medium text-ink-3"
+                    id={`tool-category-${slugify(category)}`}
+                  >
+                    {categoryLabel(category)}
+                  </h3>
+                  <ul
+                    className="m-0 grid list-none grid-cols-2 gap-x-2 gap-y-0.5 p-0
+                      max-[980px]:grid-cols-1"
+                  >
+                    {categoryProviders.map(({ provider, connections }) => (
+                      <CatalogSummaryRow
+                        agents={agents}
+                        assignedAgentIds={unique(
+                          connections.flatMap((connection) => connection.assignedAgentIds),
+                        )}
+                        color={capabilityColor(provider.id)}
+                        description={provider.description}
+                        {...(provider.iconUrl ? { iconUrl: provider.iconUrl } : {})}
+                        {...(provider.iconKey ? { iconKey: provider.iconKey } : {})}
+                        key={provider.id}
+                        mark={capabilityMark(provider.name)}
+                        name={provider.name}
+                        platformFallbacks={[provider.id, provider.name]}
+                        onOpen={() => setDetailTarget({ kind: "tools", providerId: provider.id })}
+                      />
+                    ))}
+                  </ul>
+                </section>
+              ))}
+            </div>
+          ) : !loading ? (
+            <div className="space-y-3">
+              {skillGroups.map(([category, categoryProviders]) => (
+                <section aria-labelledby={`skill-category-${slugify(category)}`} key={category}>
+                  <h3
+                    className="m-0 px-2 pt-2 pb-1.5 text-[13px] leading-[18px] font-medium text-ink-3"
+                    id={`skill-category-${slugify(category)}`}
+                  >
+                    {categoryLabel(category)}
+                  </h3>
+                  <ul
+                    className="m-0 grid list-none grid-cols-2 gap-x-2 gap-y-0.5 p-0
+                      max-[980px]:grid-cols-1"
+                  >
+                    {categoryProviders.map((provider) => (
+                      <CatalogSummaryRow
+                        agents={agents}
+                        assignedAgentIds={unique(
+                          provider.skills.flatMap((skill) => skill.assignedAgentIds),
+                        )}
+                        color={capabilityColor(provider.id)}
+                        description={`${provider.skills.length} ${
+                          provider.skills.length === 1 ? "skill" : "skills"
+                        } · ${provider.description}`}
+                        {...(provider.iconUrl ? { iconUrl: provider.iconUrl } : {})}
+                        {...(provider.iconKey ? { iconKey: provider.iconKey } : {})}
+                        key={provider.id}
+                        mark={capabilityMark(provider.name)}
+                        name={provider.name}
+                        platformFallbacks={[provider.id, provider.name]}
+                        onOpen={() => setDetailTarget({ kind: "skills", providerId: provider.id })}
+                      />
+                    ))}
+                  </ul>
+                </section>
+              ))}
+            </div>
+          ) : null}
+
+          {!loading &&
+          ((kind === "skills" && visibleSkillProviders.length === 0) ||
+            (kind === "tools" && visibleToolProviders.length === 0)) ? (
+            <div
+              className="mt-2.5 rounded-xl border border-dashed border-line-strong p-9 text-center
+                text-[12.5px] text-ink-3"
+            >
+              No {kind} match these filters.
+            </div>
+          ) : null}
+        </section>
       </div>
 
       <BotSelectionDialog
         agents={agents}
-        onClose={() => setTarget(null)}
+        onClose={closeBotSelection}
         onSelect={assignToAgent}
         open={target !== null}
-        title={
-          target?.kind === "tools" && target.providerId
-            ? "Add account to bot"
-            : `Add ${target?.kind === "skills" ? "skill" : "tool"} to bot`
-        }
+        title={`Add ${target?.kind === "skills" ? "skill" : "tool"} to bot`}
+      />
+      <PluginDetailDialog
+        agents={agents}
+        onAddSkill={(skillId) => {
+          setDetailTarget(null);
+          setTarget({
+            kind: "skills",
+            id: skillId,
+            returnToDetail: { kind: "skills", providerId: detailSkill?.id ?? "" },
+          });
+        }}
+        onAddToolAccount={(accountId) => {
+          setDetailTarget(null);
+          setTarget({
+            kind: "tools",
+            id: accountId,
+            returnToDetail: { kind: "tools", providerId: detailProvider?.id ?? "" },
+          });
+        }}
+        onAddToolProvider={(providerId) => {
+          setDetailTarget(null);
+          void onAddToolAccount(providerId);
+        }}
+        onClose={() => setDetailTarget(null)}
+        onRemoveSkill={(skillId, agentId) => onSetSkill(skillId, agentId, false)}
+        onRemoveToolAccount={(accountId, agentId) => onSetToolAccount(accountId, agentId, false)}
+        open={detailTarget !== null}
+        pendingAssignments={pendingAssignments}
+        provider={detailProvider}
+        skillProvider={detailSkill}
       />
     </section>
   );
@@ -395,32 +440,38 @@ function BotFilter({ agents, selectedAgentIds, onClear, onToggle }: BotFilterPro
           aria-label={
             selected.length > 0
               ? `Filtered by ${selected.map((agent) => agent.name).join(", ")}`
-              : "Show all"
+              : "Enabled for bot"
           }
-          className="plugin-library__bot-filter"
+          className="flex h-[34px] min-w-28 cursor-pointer items-center justify-between gap-2.5
+            rounded-lg border-[0.5px] border-line-strong bg-surface px-2.5 text-xs font-medium
+            text-ink-2 shadow-inset-field max-[720px]:w-full"
           type="button"
         >
           {selected.length === 0 ? (
-            <span>Show all</span>
+            <span>Enabled for bot</span>
           ) : (
             <AvatarGroup aria-hidden="true">
               {selected.slice(0, 4).map((agent) => (
-                <Avatar className="plugin-library__filter-avatar" key={agent.id} size="sm">
-                  <AgentAvatar id={agent.id} paused />
+                <Avatar
+                  className="size-[22px] border-[1.5px] border-surface bg-surface text-[9px]"
+                  key={agent.id}
+                  size="sm"
+                >
+                  <AgentAvatar className="!size-full" id={agent.id} paused />
                 </Avatar>
               ))}
               {selected.length > 4 ? (
-                <AvatarGroupCount className="plugin-library__filter-avatar">
+                <AvatarGroupCount className="size-[22px] border-[1.5px] border-surface text-[9px]">
                   +{selected.length - 4}
                 </AvatarGroupCount>
               ) : null}
             </AvatarGroup>
           )}
-          <ChevronDownIcon aria-hidden="true" />
+          <ChevronDownIcon aria-hidden="true" className="size-3.5 stroke-[1.5]" />
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="min-w-[230px]">
-        <DropdownMenuItem onSelect={onClear}>Show all</DropdownMenuItem>
+        <DropdownMenuItem onSelect={onClear}>Enabled for bot</DropdownMenuItem>
         <DropdownMenuSeparator />
         {agents.map((agent) => (
           <DropdownMenuCheckboxItem
@@ -429,8 +480,8 @@ function BotFilter({ agents, selectedAgentIds, onClear, onToggle }: BotFilterPro
             onCheckedChange={() => onToggle(agent.id)}
             onSelect={(event) => event.preventDefault()}
           >
-            <Avatar className="size-5" size="sm">
-              <AgentAvatar id={agent.id} paused />
+            <Avatar className="size-5 bg-surface" size="sm">
+              <AgentAvatar className="!size-full" id={agent.id} paused />
             </Avatar>
             <span className="truncate">{agent.name}</span>
           </DropdownMenuCheckboxItem>
@@ -443,49 +494,242 @@ function BotFilter({ agents, selectedAgentIds, onClear, onToggle }: BotFilterPro
   );
 }
 
-interface CapabilityCardProps {
+interface CategoryFilterProps {
+  categories: readonly string[];
+  selectedCategory: string | null;
+  onSelect: (category: string | null) => void;
+}
+
+function CategoryFilter({ categories, selectedCategory, onSelect }: CategoryFilterProps) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          aria-label={
+            selectedCategory ? `Category: ${categoryLabel(selectedCategory)}` : "Category"
+          }
+          className="flex h-[34px] min-w-28 cursor-pointer items-center justify-between gap-2.5
+            rounded-lg border-[0.5px] border-line-strong bg-surface px-2.5 text-xs font-medium
+            text-ink-2 shadow-inset-field max-[720px]:w-full"
+          type="button"
+        >
+          <span className="max-w-32 truncate">
+            {selectedCategory ? categoryLabel(selectedCategory) : "Category"}
+          </span>
+          <ChevronDownIcon aria-hidden="true" className="size-3.5 stroke-[1.5]" />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="min-w-[200px]">
+        <DropdownMenuItem onSelect={() => onSelect(null)}>All categories</DropdownMenuItem>
+        <DropdownMenuSeparator />
+        {categories.map((category) => (
+          <DropdownMenuCheckboxItem
+            checked={selectedCategory === category}
+            key={category}
+            onCheckedChange={() => onSelect(selectedCategory === category ? null : category)}
+          >
+            {categoryLabel(category)}
+          </DropdownMenuCheckboxItem>
+        ))}
+        {categories.length === 0 ? (
+          <DropdownMenuItem disabled>No categories available</DropdownMenuItem>
+        ) : null}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
+interface CapabilityRowProps {
   actionLabel?: string;
   agents: readonly PluginsCatalogAgent[];
   assignedAgentIds: readonly string[];
   color: string;
   description: string;
+  iconUrl?: string;
+  iconKey?: string;
   mark: string;
   name: string;
+  pendingAgentIds?: readonly string[];
+  platformFallbacks?: readonly string[];
   onAction?: () => void;
   onAdd?: () => void;
   onRemove?: (agentId: string) => void;
 }
 
-function CapabilityCard({
+interface CatalogSummaryRowProps {
+  agents: readonly PluginsCatalogAgent[];
+  assignedAgentIds: readonly string[];
+  color: string;
+  description: string;
+  iconUrl?: string;
+  iconKey?: string;
+  mark: string;
+  name: string;
+  onOpen: () => void;
+  platformFallbacks?: readonly string[];
+}
+
+function CatalogSummaryRow({
+  agents,
+  assignedAgentIds,
+  color,
+  description,
+  iconUrl,
+  iconKey,
+  mark,
+  name,
+  onOpen,
+  platformFallbacks,
+}: CatalogSummaryRowProps) {
+  const assignedAgents = agents.filter((agent) => assignedAgentIds.includes(agent.id));
+  return (
+    <li className="min-w-0">
+      <button
+        className="flex w-full min-w-0 cursor-pointer items-center gap-3 rounded-2xl bg-transparent
+          px-3 py-[9.5px] text-left hover:bg-[color-mix(in_srgb,var(--ink)_5%,transparent)]
+          focus-visible:bg-[color-mix(in_srgb,var(--ink)_5%,transparent)]
+          focus-visible:outline-none"
+        onClick={onOpen}
+        type="button"
+      >
+        <CapabilityIcon
+          color={color}
+          {...(iconUrl ? { iconUrl } : {})}
+          {...(iconKey ? { iconKey } : {})}
+          mark={mark}
+          platformFallbacks={platformFallbacks}
+        />
+        <div className="flex min-w-0 flex-1 flex-col gap-px">
+          <h3 className="m-0 truncate text-[13px] leading-[18px] font-medium text-ink">{name}</h3>
+          <p className="m-0 truncate text-[13px] leading-[18px] text-ink-2">{description}</p>
+        </div>
+        <StaticAvatarGroup agents={assignedAgents} />
+      </button>
+    </li>
+  );
+}
+
+function CapabilityIcon({
+  color,
+  iconUrl,
+  iconKey,
+  mark,
+  platformFallbacks = [],
+}: {
+  color: string;
+  iconUrl?: string;
+  iconKey?: string;
+  mark: string;
+  platformFallbacks?: readonly string[];
+}) {
+  const candidates = useMemo(
+    () => platformIconCandidates(iconUrl, iconKey, ...platformFallbacks),
+    [iconKey, iconUrl, platformFallbacks],
+  );
+  const candidateKey = candidates.join("\0");
+  const [candidateIndex, setCandidateIndex] = useState(0);
+  useEffect(() => setCandidateIndex(0), [candidateKey]);
+  const candidate = candidates[candidateIndex];
+  return (
+    <span
+      aria-hidden="true"
+      className={cn(
+        "grid size-[45px] shrink-0 place-items-center rounded-[10px] text-[11px] font-bold",
+        "tracking-[-0.02em] text-white",
+        candidate && "bg-surface",
+      )}
+      style={candidate ? undefined : { backgroundColor: color }}
+    >
+      {candidate ? (
+        <img
+          alt=""
+          className="h-auto max-h-8 w-auto max-w-8 object-contain"
+          onError={() => setCandidateIndex((current) => current + 1)}
+          src={candidate}
+        />
+      ) : (
+        mark
+      )}
+    </span>
+  );
+}
+
+function StaticAvatarGroup({ agents }: { agents: readonly PluginsCatalogAgent[] }) {
+  if (agents.length === 0) return null;
+  return (
+    <AvatarGroup aria-label={`Enabled for ${agents.map((agent) => agent.name).join(", ")}`}>
+      {agents.slice(0, 4).map((agent) => (
+        <Avatar
+          className="size-[30px] border-2 border-surface bg-surface
+            shadow-[0_0_0_0.5px_var(--line-strong)]"
+          key={agent.id}
+        >
+          <AgentAvatar className="!size-full" id={agent.id} paused />
+        </Avatar>
+      ))}
+      {agents.length > 4 ? (
+        <AvatarGroupCount className="size-[30px] border-2 border-surface text-[10px]">
+          +{agents.length - 4}
+        </AvatarGroupCount>
+      ) : null}
+    </AvatarGroup>
+  );
+}
+
+function CapabilityRow({
   actionLabel,
   agents,
   assignedAgentIds,
   color,
   description,
+  iconUrl,
+  iconKey,
   mark,
   name,
   onAction,
   onAdd,
   onRemove,
-}: CapabilityCardProps) {
-  const assignedAgents = agents.filter((agent) => assignedAgentIds.includes(agent.id));
+  pendingAgentIds = [],
+  platformFallbacks,
+}: CapabilityRowProps) {
+  const visibleAgentIds = unique([...assignedAgentIds, ...pendingAgentIds]);
+  const assignedAgents = agents.filter((agent) => visibleAgentIds.includes(agent.id));
   return (
-    <article className={`plugin-library__card ${actionLabel ? "is-action" : ""}`}>
-      <span className="plugin-library__mark" style={{ "--plugin-mark": color } as CSSProperties}>
-        {mark}
-      </span>
-      <div className="plugin-library__card-copy">
-        <h3>{name}</h3>
-        <p>{description}</p>
+    <li
+      className="flex min-w-0 items-center gap-3 rounded-2xl bg-transparent px-3 py-[9.5px]
+        hover:bg-[color-mix(in_srgb,var(--ink)_5%,transparent)] max-[720px]:flex-wrap
+        max-[720px]:items-start"
+    >
+      <CapabilityIcon
+        color={color}
+        {...(iconUrl ? { iconUrl } : {})}
+        {...(iconKey ? { iconKey } : {})}
+        mark={mark}
+        platformFallbacks={platformFallbacks}
+      />
+      <div className="flex min-w-0 flex-1 flex-col gap-px">
+        <h3 className="m-0 truncate text-[13px] leading-[18px] font-medium text-ink">{name}</h3>
+        <p className="m-0 truncate text-[13px] leading-[18px] text-ink-2">{description}</p>
       </div>
       {actionLabel ? (
-        <button className="plugin-library__add-account" onClick={onAction} type="button">
+        <Button
+          className="shrink-0 max-[720px]:ml-[52px]"
+          onClick={onAction}
+          size="sm"
+          type="button"
+          variant="secondary"
+        >
           {actionLabel}
-        </button>
+        </Button>
       ) : (
-        <BotAvatarActions agents={assignedAgents} onAdd={onAdd} onRemove={onRemove} />
+        <BotAvatarActions
+          agents={assignedAgents}
+          pendingAgentIds={pendingAgentIds}
+          onAdd={onAdd}
+          onRemove={onRemove}
+        />
       )}
-    </article>
+    </li>
   );
 }
 
@@ -493,45 +737,82 @@ function BotAvatarActions({
   agents,
   onAdd,
   onRemove,
+  pendingAgentIds,
 }: {
   agents: readonly PluginsCatalogAgent[];
   onAdd?: () => void;
   onRemove?: (agentId: string) => void;
+  pendingAgentIds: readonly string[];
 }) {
   return (
     <TooltipProvider delayDuration={180}>
-      <AvatarGroup className="plugin-library__avatars">
-        {agents.map((agent) => (
-          <Tooltip key={agent.id}>
-            <TooltipTrigger asChild>
-              <button
-                aria-label={`Remove from ${agent.name}`}
-                className="plugin-library__avatar-action"
-                onClick={() => onRemove?.(agent.id)}
-                type="button"
-              >
-                <Avatar>
-                  <AgentAvatar id={agent.id} paused />
-                </Avatar>
-                <span aria-hidden="true">
-                  <XIcon />
-                </span>
-              </button>
-            </TooltipTrigger>
-            <TooltipContent side="top" sideOffset={7}>
-              {agent.name}
-            </TooltipContent>
-          </Tooltip>
-        ))}
+      <AvatarGroup
+        className="-space-x-1.5 justify-self-end pl-2 max-[720px]:ml-[52px]
+          max-[720px]:pl-0"
+      >
+        {agents.map((agent) => {
+          const pending = pendingAgentIds.includes(agent.id);
+          return (
+            <Tooltip key={agent.id}>
+              <TooltipTrigger asChild>
+                <button
+                  aria-label={pending ? `Adding to ${agent.name}` : `Remove from ${agent.name}`}
+                  className="group/avatar-control relative z-[1] grid size-[30px] shrink-0 cursor-pointer
+                  place-items-center rounded-full bg-transparent p-0 hover:z-[4] focus-visible:z-[4]
+                  focus-visible:outline-none"
+                  disabled={pending}
+                  onClick={() => {
+                    if (!pending) onRemove?.(agent.id);
+                  }}
+                  type="button"
+                >
+                  <Avatar
+                    className="size-[30px] border-2 border-surface bg-surface
+                    shadow-[0_0_0_0.5px_var(--line-strong)]"
+                  >
+                    <AgentAvatar className="!size-full" id={agent.id} paused />
+                  </Avatar>
+                  {pending ? (
+                    <span
+                      className="absolute inset-0 grid place-items-center rounded-full
+                      bg-[color-mix(in_srgb,var(--surface)_72%,transparent)] text-ink"
+                    >
+                      <Spinner className="size-4" />
+                    </span>
+                  ) : (
+                    <span
+                      aria-hidden="true"
+                      className="absolute inset-0 grid place-items-center rounded-full
+                      bg-red text-white opacity-0 transition-opacity duration-100
+                      group-hover/avatar-control:opacity-100
+                      group-focus-visible/avatar-control:opacity-100"
+                    >
+                      <Trash2Icon className="size-[13px] stroke-2" />
+                    </span>
+                  )}
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="top" sideOffset={7}>
+                {pending ? `Adding to ${agent.name}` : agent.name}
+              </TooltipContent>
+            </Tooltip>
+          );
+        })}
         <Tooltip>
           <TooltipTrigger asChild>
             <button
               aria-label="Add to bot"
-              className="plugin-library__avatar-add"
+              className="group/avatar-add relative z-0 grid size-[30px] shrink-0 cursor-pointer
+                place-items-center rounded-full bg-transparent p-0 hover:z-[4] focus-visible:z-[4]
+                focus-visible:outline-none"
               onClick={onAdd}
               type="button"
             >
-              <AvatarGroupCount>
+              <AvatarGroupCount
+                className="size-[30px] border-2 border-surface bg-field text-ink-2
+                  shadow-[0_0_0_0.5px_var(--line-strong)] group-hover/avatar-add:bg-hover-2
+                  group-hover/avatar-add:text-ink"
+              >
                 <PlusIcon />
               </AvatarGroupCount>
             </button>
@@ -545,19 +826,33 @@ function BotAvatarActions({
   );
 }
 
-function BotSelectionDialog({
+function PluginDetailDialog({
   agents,
+  onAddSkill,
+  onAddToolAccount,
+  onAddToolProvider,
   onClose,
-  onSelect,
+  onRemoveSkill,
+  onRemoveToolAccount,
   open,
-  title,
+  pendingAssignments,
+  provider,
+  skillProvider,
 }: {
   agents: readonly PluginsCatalogAgent[];
+  onAddSkill: (skillId: string) => void;
+  onAddToolAccount: (accountId: string) => void;
+  onAddToolProvider: (providerId: string) => void;
   onClose: () => void;
-  onSelect: (agentId: string) => void;
+  onRemoveSkill: (skillId: string, agentId: string) => void;
+  onRemoveToolAccount: (accountId: string, agentId: string) => void;
   open: boolean;
-  title: string;
+  pendingAssignments: readonly PendingAssignment[];
+  provider?: PluginsCatalogToolProvider;
+  skillProvider?: PluginsCatalogSkillProvider;
 }) {
+  const title = provider?.name ?? skillProvider?.name ?? "Plugin";
+  const description = provider?.description ?? skillProvider?.description ?? "";
   return (
     <Dialog
       open={open}
@@ -565,37 +860,143 @@ function BotSelectionDialog({
         if (!next) onClose();
       }}
     >
-      <DialogContent className="plugin-library__dialog">
-        <DialogTitle>{title}</DialogTitle>
-        <DialogDescription>Choose the bot that should receive this capability.</DialogDescription>
-        <div className="plugin-library__bot-list">
-          {agents.map((agent) => (
-            <button key={agent.id} onClick={() => onSelect(agent.id)} type="button">
-              <Avatar>
-                <AgentAvatar id={agent.id} paused />
-              </Avatar>
-              <span>{agent.name}</span>
-            </button>
-          ))}
-          {agents.length === 0 ? <p>No bots are available yet.</p> : null}
-        </div>
+      <DialogContent className="max-w-[520px] p-[22px]">
+        <DialogClose asChild>
+          <button
+            aria-label="Close"
+            className="absolute top-3 right-3 grid size-7 cursor-pointer place-items-center
+              rounded-md bg-transparent text-ink-3 hover:bg-hover hover:text-ink
+              focus-visible:bg-hover focus-visible:text-ink focus-visible:outline-none"
+            type="button"
+          >
+            <XIcon className="size-3.5" />
+          </button>
+        </DialogClose>
+        <DialogTitle className="m-0 text-base font-semibold">{title}</DialogTitle>
+        <DialogDescription className="mt-1.5 mb-[18px] text-[12.5px] text-ink-3">
+          {description || "Manage which bots can use this capability."}
+        </DialogDescription>
+
+        {provider ? (
+          <div className="grid gap-2">
+            <ul className="m-0 grid list-none gap-0.5 p-0">
+              {provider.accounts.map((account) => (
+                <CapabilityRow
+                  agents={agents}
+                  assignedAgentIds={account.assignedAgentIds}
+                  color={capabilityColor(provider.id)}
+                  description="Connected account"
+                  {...(provider.iconUrl ? { iconUrl: provider.iconUrl } : {})}
+                  {...(provider.iconKey ? { iconKey: provider.iconKey } : {})}
+                  key={account.id}
+                  mark={capabilityMark(provider.name)}
+                  name={account.accountName}
+                  pendingAgentIds={pendingAssignments
+                    .filter(({ kind, id }) => kind === "tools" && id === account.id)
+                    .map(({ agentId }) => agentId)}
+                  platformFallbacks={[provider.id, provider.name]}
+                  onAdd={() => onAddToolAccount(account.id)}
+                  onRemove={(agentId) => onRemoveToolAccount(account.id, agentId)}
+                />
+              ))}
+            </ul>
+            {provider.canAddAccount !== false ? (
+              <button
+                className="flex h-10 w-full cursor-pointer items-center gap-2 rounded-lg
+                  bg-transparent px-3 text-left text-xs font-medium text-ink-2 hover:bg-hover
+                  focus-visible:bg-hover focus-visible:outline-none"
+                onClick={() => onAddToolProvider(provider.id)}
+                type="button"
+              >
+                <span className="grid size-6 place-items-center rounded-md bg-field text-ink-2">
+                  <PlusIcon className="size-3.5" />
+                </span>
+                {provider.accounts.length > 0 ? "Add new account" : "Add account"}
+              </button>
+            ) : null}
+          </div>
+        ) : null}
+
+        {skillProvider ? (
+          <ul className="m-0 grid list-none gap-0.5 p-0">
+            {skillProvider.skills.map((skill) => (
+              <CapabilityRow
+                agents={agents}
+                assignedAgentIds={skill.assignedAgentIds}
+                color={capabilityColor(skillProvider.id)}
+                description={skill.description}
+                {...(skillProvider.iconUrl ? { iconUrl: skillProvider.iconUrl } : {})}
+                {...(skillProvider.iconKey ? { iconKey: skillProvider.iconKey } : {})}
+                key={skill.id}
+                mark={capabilityMark(skillProvider.name)}
+                name={skill.name}
+                pendingAgentIds={pendingAssignments
+                  .filter(({ kind, id }) => kind === "skills" && id === skill.id)
+                  .map(({ agentId }) => agentId)}
+                platformFallbacks={[skillProvider.id, skillProvider.name]}
+                onAdd={() => onAddSkill(skill.id)}
+                onRemove={(agentId) =>
+                  onRemoveSkill(skill.assignedSkillIdByAgentId?.[agentId] ?? skill.id, agentId)
+                }
+              />
+            ))}
+          </ul>
+        ) : null}
       </DialogContent>
     </Dialog>
   );
 }
 
-function initialAssignments(
-  agents: readonly PluginsCatalogAgent[],
-): Record<string, readonly string[]> {
-  const first = agents[0]?.id;
-  const second = agents[1]?.id ?? first;
-  return {
-    "github-work": first ? [first] : [],
-    "github-personal": second ? [second] : [],
-    "google-drive-team": first && second ? unique([first, second]) : [],
-    "code-review": first ? [first] : [],
-    "frontend-design": second ? [second] : [],
-  };
+export interface BotSelectionDialogProps {
+  agents: readonly PluginsCatalogAgent[];
+  onClose: () => void;
+  onSelect: (agentId: string) => void;
+  open: boolean;
+  title: string;
+}
+
+export function BotSelectionDialog({
+  agents,
+  onClose,
+  onSelect,
+  open,
+  title,
+}: BotSelectionDialogProps) {
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        if (!next) onClose();
+      }}
+    >
+      <DialogContent className="max-w-[560px] p-[22px]">
+        <DialogTitle className="m-0 text-base font-semibold">{title}</DialogTitle>
+        <DialogDescription className="mt-1.5 mb-[18px] text-[12.5px] text-ink-3">
+          Choose the bot that should receive this capability.
+        </DialogDescription>
+        <div className="grid grid-cols-2 gap-[5px]">
+          {agents.map((agent) => (
+            <button
+              className="flex h-[46px] w-full cursor-pointer items-center gap-2.5 rounded-lg
+                bg-transparent px-2.5 text-left text-[12.5px] font-medium text-ink hover:bg-hover
+                focus-visible:bg-hover focus-visible:outline-none"
+              key={agent.id}
+              onClick={() => onSelect(agent.id)}
+              type="button"
+            >
+              <Avatar className="bg-surface">
+                <AgentAvatar className="!size-full" id={agent.id} paused />
+              </Avatar>
+              <span className="truncate">{agent.name}</span>
+            </button>
+          ))}
+          {agents.length === 0 ? (
+            <p className="text-xs text-ink-3">No bots are available yet.</p>
+          ) : null}
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
 }
 
 function matchesSelectedAgents(
@@ -605,10 +1006,198 @@ function matchesSelectedAgents(
   return selected.length === 0 || selected.some((agentId) => assigned?.includes(agentId));
 }
 
-function unique(values: readonly string[]): readonly string[] {
+function sentenceCase(value: string): string {
+  return value.charAt(0).toUpperCase() + value.slice(1);
+}
+
+function categoryLabel(value: string): string {
+  return sentenceCase(value.replaceAll(/[_-]+/g, " "));
+}
+
+function unique(values: readonly string[]): string[] {
   return [...new Set(values)];
 }
 
-function sentenceCase(value: string): string {
-  return value.charAt(0).toUpperCase() + value.slice(1);
+function slugify(value: string): string {
+  return value
+    .toLowerCase()
+    .replaceAll(/[^a-z0-9]+/g, "-")
+    .replaceAll(/^-|-$/g, "");
+}
+
+function groupSkillProvidersByCategory(
+  providers: readonly PluginsCatalogSkillProvider[],
+  selectedCategory: string | null,
+): [string, PluginsCatalogSkillProvider[]][] {
+  const groups = new Map<string, PluginsCatalogSkillProvider[]>();
+  for (const provider of providers) {
+    const category = selectedCategory ?? provider.categories[0] ?? "Other";
+    const group = groups.get(category) ?? [];
+    group.push(provider);
+    groups.set(category, group);
+  }
+  return [...groups].sort(([left], [right]) => compareCategories(left, right));
+}
+
+function groupToolProvidersByCategory(
+  providers: readonly {
+    provider: PluginsCatalogToolProvider;
+    connections: readonly PluginsCatalogToolAccount[];
+  }[],
+  selectedCategory: string | null,
+): [string, typeof providers][] {
+  const groups = new Map<string, (typeof providers)[number][]>();
+  for (const provider of providers) {
+    const category = selectedCategory ?? provider.provider.categories[0] ?? "Other";
+    const group = groups.get(category) ?? [];
+    group.push(provider);
+    groups.set(category, group);
+  }
+  return [...groups].sort(([left], [right]) => compareCategories(left, right));
+}
+
+function compareCategories(left: string, right: string): number {
+  const leftIsOther = left.trim().toLowerCase() === "other";
+  const rightIsOther = right.trim().toLowerCase() === "other";
+  if (leftIsOther !== rightIsOther) return leftIsOther ? 1 : -1;
+  return left.localeCompare(right);
+}
+
+function groupSkillsByName(skills: readonly PluginsCatalogSkill[]): PluginsCatalogSkill[] {
+  const groups = new Map<string, PluginsCatalogSkill>();
+  for (const skill of skills) {
+    const key = skill.name.trim().toLocaleLowerCase();
+    const existing = groups.get(key);
+    if (!existing) {
+      groups.set(key, {
+        ...skill,
+        assignedAgentIds: unique(skill.assignedAgentIds),
+        assignedSkillIdByAgentId: Object.fromEntries(
+          skill.assignedAgentIds.map((agentId) => [
+            agentId,
+            skill.assignedSkillIdByAgentId?.[agentId] ?? skill.id,
+          ]),
+        ),
+      });
+      continue;
+    }
+
+    const assignedSkillIdByAgentId: Record<string, string> = {
+      ...existing.assignedSkillIdByAgentId,
+    };
+    for (const agentId of skill.assignedAgentIds) {
+      assignedSkillIdByAgentId[agentId] ??= skill.assignedSkillIdByAgentId?.[agentId] ?? skill.id;
+    }
+    groups.set(key, {
+      ...existing,
+      assignedAgentIds: unique([...existing.assignedAgentIds, ...skill.assignedAgentIds]),
+      assignedSkillIdByAgentId,
+    });
+  }
+  return [...groups.values()];
+}
+
+function capabilityMark(name: string): string {
+  return name
+    .split(/\s+/)
+    .map((word) => word[0])
+    .join("")
+    .slice(0, 3)
+    .toUpperCase();
+}
+
+const platformIconAliases: Readonly<Record<string, string>> = {
+  "amazon s3": "aws-s3",
+  "aws s3": "aws-s3",
+  "aws s3 bucket": "aws-s3",
+  "google bigquery": "google-bigquery",
+  "google gmail": "gmail",
+  "google mail": "gmail",
+  "mongo db": "mongodb",
+  "open ai": "openai",
+  postgres: "postgresql",
+};
+
+const modalIconUrl =
+  "https://cdn.jsdelivr.net/gh/glincker/thesvg@main/public/icons/modal/default.svg";
+const e2bIconUrl =
+  "https://raw.githubusercontent.com/e2b-dev/E2B/main/readme-assets/logo-circle.png";
+const platformIconOverrides: Readonly<Record<string, string>> = {
+  e2b: e2bIconUrl,
+  "e2b sandbox": e2bIconUrl,
+  modal: modalIconUrl,
+  "modal sandbox": modalIconUrl,
+};
+
+function platformIconCandidates(
+  iconUrl: string | undefined,
+  iconKey: string | undefined,
+  ...fallbacks: readonly string[]
+): string[] {
+  return unique(
+    [
+      isImageUrl(iconUrl) ? iconUrl : undefined,
+      ...[iconKey, ...fallbacks].map(platformIconUrl),
+    ].filter((candidate): candidate is string => Boolean(candidate)),
+  );
+}
+
+function platformIconUrl(value: string | undefined): string | undefined {
+  if (!value) return undefined;
+  const normalized = value
+    .toLowerCase()
+    .replaceAll(/[_./:]+/g, " ")
+    .replaceAll(/\s+/g, " ")
+    .trim();
+  if (!normalized || /^(?:tilde|debug|message internal)\b/.test(normalized)) return undefined;
+  const override = platformIconOverrides[normalized];
+  if (override) return override;
+  const slug =
+    platformIconAliases[normalized] ??
+    normalized.replaceAll(/[^a-z0-9]+/g, "-").replaceAll(/^-|-$/g, "");
+  return slug ? `https://thesvg.org/icons/${slug}/default.svg` : undefined;
+}
+
+function isImageUrl(value: string | undefined): value is string {
+  return Boolean(value && /^(?:https?:\/\/|data:image\/)/.test(value));
+}
+
+function capabilityColor(id: string): string {
+  let hash = 0;
+  for (const character of id) hash = (hash * 31 + character.charCodeAt(0)) >>> 0;
+  return `hsl(${hash % 360} 48% 43%)`;
+}
+
+function CatalogSkeleton({ kind }: { kind: CatalogKind }) {
+  return (
+    <div
+      aria-label={`Loading ${kind}`}
+      className="grid grid-cols-2 gap-x-2 gap-y-0.5 max-[980px]:grid-cols-1"
+      role="status"
+    >
+      {Array.from({ length: 6 }, (_, index) => (
+        <div
+          aria-hidden="true"
+          className="flex h-16 min-w-0 animate-pulse items-center gap-3 rounded-2xl px-3 py-[9.5px]
+            motion-reduce:animate-none"
+          key={index}
+        >
+          <span className="size-[45px] shrink-0 rounded-[10px] bg-hover-2" />
+          <span className="min-w-0 flex-1 space-y-2">
+            <span
+              className={cn(
+                "block h-2.5 rounded-full bg-hover-2",
+                index % 3 === 0 ? "w-28" : index % 3 === 1 ? "w-36" : "w-24",
+              )}
+            />
+            <span className="block h-2 w-[min(90%,240px)] rounded-full bg-hover" />
+          </span>
+          <span className="flex -space-x-1.5 pl-2">
+            <span className="size-[30px] rounded-full border-2 border-surface bg-hover-2" />
+            <span className="size-[30px] rounded-full border-2 border-surface bg-field" />
+          </span>
+        </div>
+      ))}
+    </div>
+  );
 }

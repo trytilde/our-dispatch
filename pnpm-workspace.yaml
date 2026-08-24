@@ -12,7 +12,6 @@ supportedArchitectures:
     - x64
 
 onlyBuiltDependencies:
-  - "@trytilde/api-client"
   - "@bufbuild/buf"
   - electron
   - esbuild
@@ -22,16 +21,9 @@ catalog:
   vitest: 4.1.10
   vite-plus: 0.2.9
 overrides:
-  "@trytilde/harness-sdk-vercel-ai-node>@ai-sdk/mcp": "2.0.32"
+  "@trytilde/sdk-vercel-ai-node>@ai-sdk/mcp": "2.0.32"
   vite: "catalog:"
   vitest: "catalog:"
-packageExtensions:
-  "@trytilde/api-client@*":
-    dependencies:
-      "@types/node": "24.3.0"
-      typescript: "5.9.3"
-      vite: "8.0.16"
-      vite-plugin-dts: "4.5.4"
 peerDependencyRules:
   allowAny:
     - vite

@@ -35,8 +35,7 @@ maintained here. Each row is upstream material, not OpenBot's own work.
 | `packages/ui/src/components/ui/` | shadcn/ui, via the shadcn registry CLI | MIT | Registry config pinned in `packages/ui/components.json` |
 | `packages/ui/src/components/ai-elements/` | Vercel AI Elements, via the `ai-elements` CLI | Apache-2.0 | Modifications recorded in the notices file |
 | `apps/mobile/src/components/ui/` | BNA UI, retrieved 2026-08-17 with `bna-ui` CLI 3.0.0 | MIT | Per-file SHA-256 in the tree's `PROVENANCE.md` |
-| `.agents/skills/` (47 of 66) | Public GitHub skill repositories | Per upstream repository | Source, ref, path, and content hash per skill in `skills-lock.json` |
-| `packages/agent-provider/src/tilde/assets/cua-driver/` | Cua GUI Automation skill, `trycua/cua` commit `70db98d1bcd92890d778f4978e0eb107a4b66c1b` | MIT | `SKILL.md.hbs` SHA-256 `18d28e0a1ca4fda81c5fe8129b45352e031bd19068e8b648a5791380d20823f1`; command reference SHA-256 `8c5d0052b3ab86af9ad74cab6d1871e7c75a4883ec832236fa9ddf54870e1969` |
+| `.agents/skills/` (47 of 69) | Public GitHub skill repositories | Per upstream repository | Source, ref, path, and content hash per skill in `skills-lock.json` |
 
 `glimm` is upstream code too, but it arrives as an ordinary npm dependency of
 `packages/ui` rather than as vendored source, so it needs no entry here beyond
@@ -54,7 +53,7 @@ license status:
   carry no borrowed provenance.
 - `packages/ui/src/beautiful-ui/blocks/` — OpenBot-authored composition built on
   the vendored primitives.
-- The 19 skills under `.agents/skills/` with no entry in `skills-lock.json`.
+- The 22 skills under `.agents/skills/` with no entry in `skills-lock.json`.
   Absence from the lockfile is the test: anything listed there is vendored with a
   recorded hash, anything else is OpenBot's own.
 
@@ -70,9 +69,18 @@ and outside formatter and linter ownership:
 
 | Path | Generated from | Command |
 | --- | --- | --- |
+| `packages/api-client/src/generated/` | `packages/api-client/specs/openapi.cloud.json` | `pnpm openbot sdk refresh` |
+| `packages/sdk/src/generated/schema.d.ts` | `packages/api-client/specs/openapi.cloud.json` | `pnpm openbot sdk refresh` |
 | `packages/computer-service-proto/src/gen/` | `proto/openbot/computer/v1/computer.proto` | `pnpm contracts:generate` |
 | `apps/web/src/routeTree.gen.ts` | the TanStack route files | the Vite dev/build pipeline |
 | `apps/mobile/android/`, `apps/mobile/ios/` | `app.json` and config plugins | Expo prebuild; gitignored build output |
+
+## First-party source consolidation
+
+The `packages/api-client` and `packages/sdk*` source, the Tilde command implementations under `cli/src/tilde/`, and
+the three SDK coding-agent skills were consolidated from the public `trytilde/harness-sdk`
+repository at `f0d77de4ebaff204c40149320296ceeb93cdfa20`. They are now first-party OpenBot monorepo source,
+maintained and licensed under this repository's MIT license rather than a vendored upstream tree.
 
 ## Working with any of this
 

@@ -19,6 +19,11 @@ import {
 } from "../contracts/connectors.js";
 import type { ChatEvent } from "../contracts/events.js";
 import {
+  PluginMutationResultSchema,
+  PluginsCatalogSchema,
+  type PluginsCatalog,
+} from "../contracts/plugins.js";
+import {
   AgentSetupStartedSchema,
   AgentSetupStatusSchema,
   type AgentSetupStarted,
@@ -87,6 +92,9 @@ export interface OpenBotClient {
   listConnectorProviders(): Promise<ConnectorProvider[]>;
   listConnectorAccounts(providerTypeId?: string): Promise<ConnectorAccount[]>;
   createConnectorAccount(input: CreateConnectorAccountInput): Promise<CreateConnectorAccountResult>;
+  getPluginsCatalog(agentIds: readonly string[]): Promise<PluginsCatalog>;
+  setToolAccountForAgent(accountId: string, agentId: string, enabled: boolean): Promise<void>;
+  setSkillForAgent(skillId: string, agentId: string, enabled: boolean): Promise<void>;
   createAttachment(sessionId: string, input: CreateAttachmentInput): Promise<AttachmentUpload>;
   completeAttachment(
     sessionId: string,
@@ -322,6 +330,26 @@ export function createOpenBotClient(options: OpenBotClientOptions = {}): OpenBot
           return_url: input.returnUrl ?? null,
         }),
       }),
+    getPluginsCatalog(agentIds) {
+      const parameters = new URLSearchParams();
+      for (const agentId of agentIds) parameters.append("agent_id", agentId);
+      const query = parameters.size > 0 ? `?${parameters}` : "";
+      return json(`/api/plugins${query}`, PluginsCatalogSchema);
+    },
+    async setToolAccountForAgent(accountId, agentId, enabled) {
+      await json(
+        `/api/plugins/tools/${encodeURIComponent(accountId)}/agents/${encodeURIComponent(agentId)}`,
+        PluginMutationResultSchema,
+        { method: enabled ? "POST" : "DELETE" },
+      );
+    },
+    async setSkillForAgent(skillId, agentId, enabled) {
+      await json(
+        `/api/plugins/skills/${encodeURIComponent(skillId)}/agents/${encodeURIComponent(agentId)}`,
+        PluginMutationResultSchema,
+        { method: enabled ? "POST" : "DELETE" },
+      );
+    },
     createAttachment: (sessionId, input) =>
       json(
         chatPath(`session/${encodeURIComponent(sessionId)}/attachment/upload`),

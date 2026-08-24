@@ -132,11 +132,11 @@ describe("non-interactive initialization prompts", () => {
       "vercel-token",
       "vercel-control-project",
       "vercel-agent-project",
+      "vercel-ai-gateway-api-key-name",
       "tilde-api-key",
       "tilde-org-id",
       "tilde-team-id",
       "openbot-deployment-name",
-      "vercel-ai-gateway-api-key-name",
       "github-app-name",
     ]);
   });

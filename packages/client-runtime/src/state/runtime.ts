@@ -17,7 +17,7 @@ import type {
 } from "../contracts/auth.js";
 import type { ActivityEvent } from "../contracts/events.js";
 import type { ChatMessage, ChatPart } from "../contracts/messages.js";
-import type { QueuedTurn } from "../contracts/queue.js";
+import { QueuedTurnSchema, type QueuedTurn } from "../contracts/queue.js";
 import type {
   AgentSortOrder,
   ChatAgent,
@@ -59,6 +59,7 @@ export interface AgentSetupState {
   status: "idle" | "starting" | "setting_up" | "failed";
   jobId: string;
   agent: CreatedAgent | null;
+  avatarId: string;
   error: string;
 }
 
@@ -100,7 +101,7 @@ export interface OpenBotActions {
   removeQueuedTurn(id: string): Promise<void>;
   reorderQueuedTurn(id: string, queuePosition: number): Promise<void>;
   steerQueuedTurn(id: string): Promise<void>;
-  startAgentSetup(name: string): Promise<void>;
+  startAgentSetup(name: string, avatarId?: string): Promise<void>;
   dismissAgentSetup(): void;
   setError(message: string): void;
 }
@@ -132,6 +133,7 @@ const idleAgentSetup: AgentSetupState = {
   status: "idle",
   jobId: "",
   agent: null,
+  avatarId: "",
   error: "",
 };
 
@@ -329,11 +331,10 @@ export function createOpenBotRuntime(options: OpenBotRuntimeOptions): OpenBotRun
     const previous = store.getState().conversation.queuedTurns;
     const target = previous.find((turn) => turn.id === id);
     if (!target) return;
-    const reordered = previous.filter((turn) => turn.id !== id);
-    const insertion = Math.max(0, Math.min(reordered.length, queuePosition));
-    reordered.splice(insertion, 0, target);
     updateConversation({
-      queuedTurns: reordered.map((turn, index) => ({ ...turn, queue_position: index })),
+      queuedTurns: previous
+        .map((turn) => (turn.id === id ? { ...turn, queue_position: queuePosition } : turn))
+        .sort((left, right) => left.queue_position - right.queue_position),
     });
     try {
       await options.client.reorderQueuedTurn(id, queuePosition);
@@ -424,10 +425,17 @@ export function createOpenBotRuntime(options: OpenBotRuntimeOptions): OpenBotRun
                 state.conversation.messages,
                 reduction.messages,
               );
-              if (name.includes("dequeued")) {
+              const dequeued = name.includes("dequeued");
+              const queueItem = name.includes("queue") ? queueEventQueuedTurn(event.data) : null;
+              if (name.includes("queued") && !dequeued && queueItem) {
+                queuedTurns = reconcileQueuedEvent(queuedTurns, queueItem);
+              }
+              if (dequeued) {
                 const dequeuedTriggerIds = new Set(queueEventTriggerMessageIds(event.data));
                 queuedTurns = queuedTurns.filter(
-                  (turn) => !turn.trigger_message_ids?.some((id) => dequeuedTriggerIds.has(id)),
+                  (turn) =>
+                    turn.id !== queueItem?.id &&
+                    !turn.trigger_message_ids?.some((id) => dequeuedTriggerIds.has(id)),
                 );
               }
               updateConversation({
@@ -440,7 +448,8 @@ export function createOpenBotRuntime(options: OpenBotRuntimeOptions): OpenBotRun
                 turnStatus: eventStatus(event) || state.conversation.turnStatus,
                 ...(busy === undefined ? {} : { agentBusy: busy }),
               });
-              if (name.includes("queue")) void refreshQueue(sessionId).catch(() => undefined);
+              if (name.includes("queue") && !queueItem)
+                void refreshQueue(sessionId).catch(() => undefined);
               if (refreshTimer) cancelScheduled(refreshTimer);
               if (!reduction.streaming) {
                 refreshTimer = schedule(() => {
@@ -718,13 +727,14 @@ export function createOpenBotRuntime(options: OpenBotRuntimeOptions): OpenBotRun
     })();
   }
 
-  async function startAgentSetup(name: string): Promise<void> {
+  async function startAgentSetup(name: string, avatarId = ""): Promise<void> {
     if (store.getState().agentSetup.status === "starting") return;
     agentSetupObserver?.abort();
     const starting: AgentSetupState = {
       status: "starting",
       jobId: "",
       agent: { id: name, name },
+      avatarId,
       error: "",
     };
     updateAgentSetup(starting);
@@ -734,6 +744,7 @@ export function createOpenBotRuntime(options: OpenBotRuntimeOptions): OpenBotRun
         status: "setting_up",
         jobId: started.job_id,
         agent: started.agent,
+        avatarId,
         error: "",
       };
       updateAgentSetup(setup);
@@ -937,6 +948,23 @@ function reconcileQueuedTurns(
   );
 }
 
+function reconcileQueuedEvent(currentTurns: QueuedTurn[], durableTurn: QueuedTurn): QueuedTurn[] {
+  const durableTriggerIds = new Set(durableTurn.trigger_message_ids ?? []);
+  const optimisticIndex = currentTurns.findIndex(
+    (turn) =>
+      turn.id.startsWith(optimisticQueuePrefix) &&
+      (turn.trigger_message_ids?.some((id) => durableTriggerIds.has(id)) ||
+        (turn.session_id === durableTurn.session_id &&
+          queuedTurnText(turn) === queuedTurnText(durableTurn))),
+  );
+  return [
+    ...currentTurns.filter(
+      (turn, index) => turn.id !== durableTurn.id && index !== optimisticIndex,
+    ),
+    durableTurn,
+  ].sort((left, right) => left.queue_position - right.queue_position);
+}
+
 function queuedTurnText(turn: QueuedTurn): string {
   const messages = turn.chat_request.messages;
   if (!Array.isArray(messages)) return "";
@@ -959,11 +987,16 @@ function record(value: unknown): Record<string, unknown> {
     : {};
 }
 
-function queueEventTriggerMessageIds(value: unknown): string[] {
+function queueEventQueuedTurn(value: unknown): QueuedTurn | null {
+  const parsed = QueuedTurnSchema.safeParse(queueEventItem(value));
+  return parsed.success ? parsed.data : null;
+}
+
+function queueEventItem(value: unknown): unknown {
   const data = record(value);
   const kind = record(data.kind);
   const namedKind = typeof kind.kind === "string" ? kind.kind.toLowerCase() : "";
-  const payload =
+  return (
     record(kind.agent_turn_queued).queue_item ??
     record(kind.AgentTurnQueued).queue_item ??
     record(kind.agent_turn_dequeued).queue_item ??
@@ -971,8 +1004,12 @@ function queueEventTriggerMessageIds(value: unknown): string[] {
     (namedKind === "agent_turn_queued" || namedKind === "agent_turn_dequeued"
       ? kind.queue_item
       : undefined) ??
-    data.queue_item;
-  const ids = record(payload).trigger_message_ids;
+    data.queue_item
+  );
+}
+
+function queueEventTriggerMessageIds(value: unknown): string[] {
+  const ids = record(queueEventItem(value)).trigger_message_ids;
   return Array.isArray(ids) ? ids.filter((id): id is string => typeof id === "string") : [];
 }
 

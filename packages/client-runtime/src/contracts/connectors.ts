@@ -44,8 +44,12 @@ export const ConnectorProviderSchema = z
     documentation: z.string().optional(),
     /** Provider branding straight from Tilde catalog metadata (https or data: URI). */
     icon_url: z.string().optional(),
+    /** Tilde platform icon identifier, resolved by the presentation layer. */
+    icon_slug: z.string().optional(),
     categories: z.array(z.string()).optional(),
     credential_sources: z.array(ConnectorCredentialSourceSchema),
+    /** Proxied MCP URL groups are existing connections, not toolkit account factories. */
+    can_add_account: z.boolean().optional(),
   })
   .passthrough();
 export type ConnectorProvider = z.infer<typeof ConnectorProviderSchema>;

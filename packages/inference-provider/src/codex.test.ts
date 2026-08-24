@@ -65,21 +65,53 @@ describe("CodexInferenceProvider", () => {
     const client = authentication();
     const login = vi.spyOn(client, "loginWithDeviceCode");
     const setSecret = vi.fn(async () => undefined);
+    const setEnvironment = vi.fn(async () => undefined);
     const provider = new CodexInferenceProvider({ authentication: client });
 
     await provider.initialize({
       repositoryRoot: "/repository",
-      environment: { CODEX_AUTH_JSON: '{"tokens":{"refresh":"stored"}}' },
+      environment: {
+        AI_MODEL: "openai/gpt-5.6-sol",
+        CODEX_AUTH_JSON: '{"tokens":{"refresh":"stored"}}',
+        INFERENCE_PROVIDER: "vercel-ai-gateway",
+      },
       interactive: false,
-      setEnvironment: vi.fn(async () => undefined),
+      setEnvironment,
       setSecret,
     });
 
     expect(login).not.toHaveBeenCalled();
+    expect(setEnvironment).toHaveBeenCalledWith(
+      "AI_MODEL",
+      DEFAULT_CODEX_MODEL,
+      expect.any(String),
+    );
     expect(setSecret).toHaveBeenCalledWith(
       CODEX_AUTH_JSON,
       '{"tokens":{"refresh":"fresh"}}',
       expect.any(String),
+    );
+  });
+
+  it("preserves an existing model when upgrading an installation without a provider marker", async () => {
+    const provider = new CodexInferenceProvider({ authentication: authentication() });
+    const setEnvironment = vi.fn(async () => undefined);
+
+    await provider.initialize({
+      repositoryRoot: "/repository",
+      environment: {
+        AI_MODEL: "gpt-5.5",
+        CODEX_AUTH_JSON: '{"tokens":{"refresh":"stored"}}',
+      },
+      interactive: false,
+      setEnvironment,
+      setSecret: vi.fn(async () => undefined),
+    });
+
+    expect(setEnvironment).not.toHaveBeenCalledWith(
+      "AI_MODEL",
+      expect.anything(),
+      expect.anything(),
     );
   });
 

@@ -70,12 +70,16 @@ export class CodexInferenceProvider implements InferenceProvider {
   }
 
   async initialize(context: ProviderInitializationContext): Promise<void> {
+    const selectedProvider = context.environment[INFERENCE_PROVIDER]?.trim();
+    const providerChanged = Boolean(
+      selectedProvider && selectedProvider !== CODEX_INFERENCE_PROVIDER,
+    );
     await context.setEnvironment(
       INFERENCE_PROVIDER,
       CODEX_INFERENCE_PROVIDER,
       "Inference implementation used by authored agents.",
     );
-    if (!context.environment[AI_MODEL]?.trim())
+    if (providerChanged || !context.environment[AI_MODEL]?.trim())
       await context.setEnvironment(
         AI_MODEL,
         DEFAULT_CODEX_MODEL,
