@@ -30,6 +30,29 @@ import {
   type AgentSetupStatus,
 } from "../contracts/agents.js";
 import { ChatMessagePageSchema, type ChatMessagePage } from "../contracts/messages.js";
+import {
+  RoutineListSchema,
+  RunRoutineResponseSchema,
+  type CreateRoutineInput,
+  type Routine,
+  type RoutineTriggerSpec,
+  type UpdateRoutineInput,
+} from "../contracts/routines.js";
+import {
+  DeleteSignalInstanceResultSchema,
+  SignalDeliveryListSchema,
+  SignalInstanceListSchema,
+  SignalInstanceSchema,
+  SignalProviderListSchema,
+  TestSignalInstanceResultSchema,
+  type CreateSignalInstanceInput,
+  type SignalDelivery,
+  type SignalInstance,
+  type SignalProvider,
+  type TestSignalInstanceInput,
+  type TestSignalInstanceResult,
+  type UpdateSignalInstanceInput,
+} from "../contracts/signals.js";
 import { QueuedTurnPageSchema, type QueuedTurnPage } from "../contracts/queue.js";
 import {
   ChatSessionPageSchema,
@@ -89,6 +112,21 @@ export interface OpenBotClient {
   steerQueuedTurn(id: string): Promise<void>;
   deleteQueuedTurn(id: string): Promise<void>;
   reorderQueuedTurn(id: string, queuePosition: number): Promise<void>;
+  listRoutines(agentId: string): Promise<Routine[]>;
+  createRoutine(input: CreateRoutineInput): Promise<Routine[]>;
+  updateRoutine(groupId: string, agentId: string, input: UpdateRoutineInput): Promise<Routine[]>;
+  deleteRoutine(groupId: string, agentId: string): Promise<Routine[]>;
+  runRoutine(groupId: string, agentId: string): Promise<string>;
+  listSignalProviders(): Promise<SignalProvider[]>;
+  listSignalInstances(): Promise<SignalInstance[]>;
+  createSignalInstance(input: CreateSignalInstanceInput): Promise<SignalInstance>;
+  updateSignalInstance(id: string, input: UpdateSignalInstanceInput): Promise<SignalInstance>;
+  deleteSignalInstance(id: string): Promise<void>;
+  testSignalInstance(
+    id: string,
+    input?: TestSignalInstanceInput,
+  ): Promise<TestSignalInstanceResult>;
+  listSignalDeliveries(instanceId: string): Promise<SignalDelivery[]>;
   listConnectorProviders(): Promise<ConnectorProvider[]>;
   listConnectorAccounts(providerTypeId?: string): Promise<ConnectorAccount[]>;
   createConnectorAccount(input: CreateConnectorAccountInput): Promise<CreateConnectorAccountResult>;
@@ -307,6 +345,123 @@ export function createOpenBotClient(options: OpenBotClientOptions = {}): OpenBot
         body: JSON.stringify({ queue_position: queuePosition }),
         headers: { "content-type": "application/json" },
       }),
+    async listRoutines(agentId) {
+      const parameters = new URLSearchParams({ agent_id: agentId });
+      const response = await json(`/api/routines?${parameters}`, RoutineListSchema);
+      return response.items;
+    },
+    async createRoutine(input) {
+      const response = await json("/api/routines", RoutineListSchema, {
+        method: "POST",
+        body: JSON.stringify({
+          agent_id: input.agentId,
+          name: input.name,
+          instruction: input.instruction,
+          ...(input.enabled === undefined ? {} : { enabled: input.enabled }),
+          triggers: input.triggers.map(routineTriggerBody),
+        }),
+      });
+      return response.items;
+    },
+    async updateRoutine(groupId, agentId, input) {
+      const parameters = new URLSearchParams({ agent_id: agentId });
+      const response = await json(
+        `/api/routines/${encodeURIComponent(groupId)}?${parameters}`,
+        RoutineListSchema,
+        {
+          method: "PATCH",
+          body: JSON.stringify({
+            ...(input.name === undefined ? {} : { name: input.name }),
+            ...(input.instruction === undefined ? {} : { instruction: input.instruction }),
+            ...(input.enabled === undefined ? {} : { enabled: input.enabled }),
+            ...(input.triggers === undefined
+              ? {}
+              : { triggers: input.triggers.map(routineTriggerBody) }),
+          }),
+        },
+      );
+      return response.items;
+    },
+    async deleteRoutine(groupId, agentId) {
+      const parameters = new URLSearchParams({ agent_id: agentId });
+      const response = await json(
+        `/api/routines/${encodeURIComponent(groupId)}?${parameters}`,
+        RoutineListSchema,
+        { method: "DELETE" },
+      );
+      return response.items;
+    },
+    async runRoutine(groupId, agentId) {
+      const parameters = new URLSearchParams({ agent_id: agentId });
+      const response = await json(
+        `/api/routines/${encodeURIComponent(groupId)}/run?${parameters}`,
+        RunRoutineResponseSchema,
+        { method: "POST" },
+      );
+      return response.session_id;
+    },
+    async listSignalProviders() {
+      const response = await json("/api/signals/providers", SignalProviderListSchema);
+      return response.items;
+    },
+    async listSignalInstances() {
+      const response = await json("/api/signals/instances", SignalInstanceListSchema);
+      return response.items;
+    },
+    createSignalInstance: (input) =>
+      json("/api/signals/instances", SignalInstanceSchema, {
+        method: "POST",
+        body: JSON.stringify({
+          provider_type: input.providerType,
+          display_name: input.displayName,
+          ...(input.signingSecret === undefined ? {} : { signing_secret: input.signingSecret }),
+          ...(input.credentialSourceTypeId === undefined
+            ? {}
+            : { credential_source_type_id: input.credentialSourceTypeId }),
+          ...(input.configuration === undefined ? {} : { configuration: input.configuration }),
+          ...(input.ingressMode === undefined ? {} : { ingress_mode: input.ingressMode }),
+        }),
+      }),
+    updateSignalInstance: (id, input) =>
+      json(`/api/signals/instances/${encodeURIComponent(id)}`, SignalInstanceSchema, {
+        method: "PATCH",
+        body: JSON.stringify({
+          ...(input.displayName === undefined ? {} : { display_name: input.displayName }),
+          ...(input.status === undefined ? {} : { status: input.status }),
+          ...(input.signingSecret === undefined ? {} : { signing_secret: input.signingSecret }),
+          ...(input.configuration === undefined ? {} : { configuration: input.configuration }),
+        }),
+      }),
+    async deleteSignalInstance(id) {
+      await json(
+        `/api/signals/instances/${encodeURIComponent(id)}`,
+        DeleteSignalInstanceResultSchema,
+        {
+          method: "DELETE",
+        },
+      );
+    },
+    testSignalInstance: (id, input = {}) =>
+      json(
+        `/api/signals/instances/${encodeURIComponent(id)}/test`,
+        TestSignalInstanceResultSchema,
+        {
+          method: "POST",
+          body: JSON.stringify({
+            ...(input.signalType === undefined ? {} : { signal_type: input.signalType }),
+            ...(input.summary === undefined ? {} : { summary: input.summary }),
+            ...(input.data === undefined ? {} : { data: input.data }),
+          }),
+        },
+      ),
+    async listSignalDeliveries(instanceId) {
+      const parameters = new URLSearchParams({ instance_id: instanceId });
+      const response = await json(
+        `/api/signals/deliveries?${parameters}`,
+        SignalDeliveryListSchema,
+      );
+      return response.items;
+    },
     async listConnectorProviders() {
       const response = await json("/api/connectors/providers", ConnectorProviderPageSchema);
       return response.items;
@@ -394,6 +549,19 @@ export function createOpenBotClient(options: OpenBotClientOptions = {}): OpenBot
     rewriteTildeUrl,
     rewriteTildeUploadUrl,
   };
+}
+
+function routineTriggerBody(spec: RoutineTriggerSpec): Record<string, unknown> {
+  const identity = spec.id === undefined ? {} : { id: spec.id };
+  return spec.kind === "schedule"
+    ? { ...identity, kind: "schedule", schedule: spec.schedule }
+    : {
+        ...identity,
+        kind: "event",
+        instance_id: spec.instanceId,
+        signal_type: spec.signalType,
+        ...(spec.filters === undefined ? {} : { filters: spec.filters }),
+      };
 }
 
 async function responseError(response: Response): Promise<ClientRequestError> {

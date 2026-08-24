@@ -91,6 +91,54 @@ test("loads the bare workspace without setup", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "What should OpenBot do?" })).toHaveCount(0);
 });
 
+test("opens a routine and persists its active state", async ({ page }) => {
+  await routeDefaultWorkspace(page);
+  const now = new Date().toISOString();
+  let enabled = true;
+  let updateBody: unknown;
+  const routine = () => ({
+    id: "routine-group-one",
+    agent_id: "hello-world",
+    name: "Daily briefing",
+    instruction: "Summarize the latest project activity.",
+    enabled,
+    triggers: [
+      {
+        id: "schedule-trigger-one",
+        kind: "schedule",
+        schedule: "0 9 * * *",
+        description: "Every day at 09:00 UTC",
+        routine_id: "tilde-routine-one",
+      },
+    ],
+    created_at: now,
+    updated_at: now,
+  });
+  await page.route(/\/api\/routines(?:\/[^?]+)?(?:\?.*)?$/, async (route) => {
+    const request = route.request();
+    if (request.method() === "PATCH") {
+      updateBody = request.postDataJSON();
+      enabled = (updateBody as { enabled?: boolean }).enabled ?? enabled;
+    }
+    await route.fulfill({ json: { items: [routine()] } });
+  });
+  await page.route("**/api/signals/**", async (route) => {
+    await route.fulfill({ json: { items: [] } });
+  });
+
+  await page.goto("/");
+  await page.getByRole("button", { name: "Toggle details" }).click();
+  await expect(page.getByRole("complementary", { name: "Details" })).toBeVisible();
+  await page.getByRole("button", { name: /Daily briefing/ }).click();
+  const active = page.getByRole("switch", { name: "Active" });
+  await expect(active).toBeChecked();
+  await active.click();
+  await expect.poll(() => updateBody).toEqual({ enabled: false });
+  await expect(active).not.toBeChecked();
+  await page.getByRole("button", { name: "Back to Routines" }).click();
+  await expect(page.getByText("Paused", { exact: true })).toBeVisible();
+});
+
 test("shows authenticated account details and account navigation on hover", async ({ page }) => {
   await routeDefaultWorkspace(page);
   await page.goto("/");

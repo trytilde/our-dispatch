@@ -118,6 +118,14 @@ export function WorkspaceIcon(props: SVGProps<SVGSVGElement>) {
   );
 }
 
+export function SignalsIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 16 16" {...props}>
+      <path d="M8.75 2.25 3.75 9h3.5l-1 4.75 5-6.75h-3.5l1-4.75Z" />
+    </svg>
+  );
+}
+
 export function TrashIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg aria-hidden="true" viewBox="0 0 16 16" {...props}>

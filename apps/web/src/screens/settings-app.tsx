@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNod
 import { useNavigate } from "@tanstack/react-router";
 import { motion } from "motion/react";
 import { useStore } from "zustand";
+import { errorMessage, type SignalInstance } from "@tryopenbot/client-runtime";
 import {
   connectorAuthorizedReturnUrl,
   waitForConnectorAccountActive,
@@ -18,13 +19,17 @@ import {
   SettingsIcon,
   setThemePreference,
   type ConnectorSetupSubmit,
+  SignalsIcon,
+  SignalsSettings,
   type ThemePreference,
 } from "@tryopenbot/ui";
 import { openBotRuntime } from "../runtime.js";
+import { SignalConnectContainer } from "./agent-details.js";
 
 const sections = [
   { id: "general", label: "General", icon: SettingsIcon, to: "/settings/general" },
   { id: "plugins", label: "Plugins", icon: PluginsIcon, to: "/settings/plugins" },
+  { id: "signals", label: "Signals", icon: SignalsIcon, to: "/settings/signals" },
 ] as const;
 
 const themeOptions: readonly { value: ThemePreference; label: string }[] = [
@@ -312,6 +317,10 @@ export function SettingsApp({ section = "general" }: SettingsAppProps = {}) {
           <SettingsContent width="wide">
             <PluginsSettings agents={agents} />
           </SettingsContent>
+        ) : section === "signals" ? (
+          <SettingsContent width="constrained">
+            <SignalsSettingsContainer />
+          </SettingsContent>
         ) : (
           <SettingsContent width="constrained">
             <div className="flex flex-col gap-3 rounded-[12px] bg-surface p-4 shadow-hairline">
@@ -347,10 +356,112 @@ export function SettingsApp({ section = "general" }: SettingsAppProps = {}) {
   );
 }
 
+function SignalsSettingsContainer() {
+  const signals = useStore(openBotRuntime.store, (state) => state.signals);
+  const [connectProviderId, setConnectProviderId] = useState("");
+  const [rowNotices, setRowNotices] = useState<
+    Record<string, { text: string; tone: "success" | "danger" }>
+  >({});
+  const noticeTimersRef = useRef<Record<string, number>>({});
+
+  useEffect(() => {
+    void openBotRuntime.actions.refreshSignalProviders().catch(() => undefined);
+    void openBotRuntime.actions.refreshSignalInstances().catch(() => undefined);
+  }, []);
+
+  const timers = noticeTimersRef.current;
+  useEffect(
+    () => () => {
+      for (const timer of Object.values(timers)) window.clearTimeout(timer);
+    },
+    [timers],
+  );
+
+  function notice(instanceId: string, text: string, tone: "success" | "danger"): void {
+    setRowNotices((current) => ({ ...current, [instanceId]: { text, tone } }));
+    window.clearTimeout(timers[instanceId]);
+    timers[instanceId] = window.setTimeout(() => {
+      delete timers[instanceId];
+      setRowNotices((current) => {
+        const { [instanceId]: _dropped, ...rest } = current;
+        return rest;
+      });
+    }, 4000);
+  }
+
+  async function withNotice(
+    instance: SignalInstance,
+    operation: () => Promise<void>,
+    successText?: string,
+  ): Promise<void> {
+    try {
+      await operation();
+      if (successText) notice(instance.id, successText, "success");
+    } catch (reason) {
+      notice(instance.id, errorMessage(reason), "danger");
+    }
+  }
+
+  return (
+    <>
+      <SignalsSettings
+        deliveriesByInstanceId={signals.deliveriesByInstanceId}
+        error={signals.error || undefined}
+        instances={signals.instances}
+        onConnectProvider={setConnectProviderId}
+        onDeleteInstance={(instance) =>
+          void withNotice(instance, () => openBotRuntime.actions.deleteSignalInstance(instance.id))
+        }
+        onRotateSigningKey={(instance, signingSecret) =>
+          void withNotice(
+            instance,
+            async () => {
+              await openBotRuntime.actions.updateSignalInstance(instance.id, { signingSecret });
+            },
+            "Signing key rotated",
+          )
+        }
+        onTestInstance={(instance) =>
+          void withNotice(
+            instance,
+            async () => {
+              await openBotRuntime.actions.testSignalInstance(instance.id);
+            },
+            "Test delivered",
+          )
+        }
+        onToggleInstance={(instance, enabled) =>
+          void withNotice(instance, async () => {
+            await openBotRuntime.actions.updateSignalInstance(instance.id, {
+              status: enabled ? "enabled" : "disabled",
+            });
+          })
+        }
+        onViewDeliveries={(instanceId) =>
+          void openBotRuntime.actions.refreshSignalDeliveries(instanceId).catch(() => undefined)
+        }
+        providers={signals.providers}
+        rowNotices={rowNotices}
+        settled={signals.status === "ready" || signals.status === "error"}
+      />
+      {connectProviderId ? (
+        <SignalConnectContainer
+          onClose={() => setConnectProviderId("")}
+          providerTypeId={connectProviderId}
+        />
+      ) : null}
+    </>
+  );
+}
+
 export function SettingsGeneralApp() {
   return <SettingsApp section="general" />;
 }
 
 export function SettingsPluginsApp() {
   return <SettingsApp section="plugins" />;
+}
+
+export function SettingsSignalsApp() {
+  return <SettingsApp section="signals" />;
 }

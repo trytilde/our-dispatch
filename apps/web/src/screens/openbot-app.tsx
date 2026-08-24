@@ -52,6 +52,7 @@ import {
   useWorkspaceLayout,
 } from "@tryopenbot/ui";
 import type { WorkspaceSearch } from "../router.js";
+import { AgentDetailsContainer } from "./agent-details.js";
 import { openBotRuntime } from "../runtime.js";
 import { optimisticParts, type PendingFile, uploadAttachment } from "../web-attachments.js";
 import { useClientWorkspace } from "../workspaces.js";
@@ -115,6 +116,21 @@ export function OpenBotApp() {
       to: "/",
       search: (current: WorkspaceSearch) => ({ ...current, connector: providerTypeId }),
       replace: !providerTypeId,
+    });
+  };
+  // The details pane and its drill-in routine live in the URL too, so deep
+  // links can open a routine directly (`?details=routines&routine=<id|new>`).
+  const detailsOpen = workspaceSearch.details === "routines";
+  const routineParam = workspaceSearch.routine;
+  const setDetailsRoute = (open: boolean, routine?: string): void => {
+    void navigate({
+      to: "/",
+      search: (current: WorkspaceSearch) => ({
+        ...current,
+        details: open ? ("routines" as const) : undefined,
+        routine: open ? routine : undefined,
+      }),
+      replace: !open,
     });
   };
   const clientWorkspace = useClientWorkspace();
@@ -254,6 +270,18 @@ export function OpenBotApp() {
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, []);
+
+  // Mod+Alt+D toggles the details pane (Mod+Alt+B already owns the Computer pane).
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (!(event.metaKey || event.ctrlKey) || !event.altKey || event.key.toLowerCase() !== "d")
+        return;
+      event.preventDefault();
+      setDetailsRoute(!detailsOpen);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  });
 
   function addFiles(incoming: FileList | File[]): void {
     const additions = [...incoming].map((file) => ({
@@ -619,6 +647,8 @@ export function OpenBotApp() {
             busy={agentBusy}
             computerOpen={layout.workspaceOpen}
             onToggleComputer={layout.toggleWorkspace}
+            detailsOpen={detailsOpen}
+            onToggleDetails={() => setDetailsRoute(!detailsOpen)}
           />
         ) : null}
 
@@ -839,6 +869,14 @@ export function OpenBotApp() {
           </ThreadOverlay>
         ) : null}
       </ChatPane>
+
+      <AgentDetailsContainer
+        agentId={agentId}
+        onClose={() => setDetailsRoute(false)}
+        onOpenRoutine={(routineId) => setDetailsRoute(true, routineId)}
+        open={detailsOpen && Boolean(selectedAgent)}
+        routineParam={routineParam}
+      />
 
       <AgentWorkspacePanel
         agentId={agentId}

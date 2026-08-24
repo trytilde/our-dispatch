@@ -77,9 +77,15 @@ export {
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
   DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "./components/ui/dropdown-menu.js";
+export { Switch } from "./components/ui/switch.js";
+export { Spinner } from "./components/ui/spinner.js";
 export {
   BotSelectionDialog,
   type BotSelectionDialogProps,
@@ -161,6 +167,7 @@ export {
   SearchIcon,
   SendIcon,
   SettingsIcon,
+  SignalsIcon,
   TrashIcon,
   WorkspaceIcon,
 } from "./workspace-icons.js";
@@ -342,3 +349,52 @@ export {
   type OnboardingResult,
   type OnboardingStep,
 } from "./onboarding.js";
+export { clockLabel, relativeRunTime } from "./relative-time.js";
+export { AgentDetailsPane, type AgentDetailsPaneProps } from "./agent-details-pane.js";
+export { RoutinesSection, type RoutinesSectionProps } from "./routines-section.js";
+export {
+  editableTriggersFrom,
+  RoutineEditor,
+  type RoutineDraftCommit,
+  type RoutineEditorProps,
+  routineRunHistory,
+  type RunHistoryEntry,
+} from "./routine-editor.js";
+export {
+  TriggerCard,
+  type TriggerCardProps,
+  providerForSpec,
+  triggerSpecSentence,
+  type EditableTrigger,
+} from "./trigger-card.js";
+export {
+  buildSchedule,
+  parseSchedule,
+  ScheduleEditor,
+  type ScheduleEditorProps,
+  type ScheduleDraft,
+  type ScheduleMode,
+  scheduleSpecSentence,
+  toggleDay,
+  toggleMonth,
+} from "./schedule-editor.js";
+export {
+  applicableFilterFields,
+  type EventEditorConfig,
+  eventEditorConfig,
+  type EventFilterField,
+  EventTriggerEditor,
+  type EventTriggerEditorProps,
+  fieldValuesFromFilters,
+  fieldValuesValid,
+  filtersFromFieldValues,
+  unmodeledFilters,
+} from "./event-trigger-editor.js";
+export { SignalProviderGlyph, type SignalProviderGlyphProps } from "./signal-provider-glyph.js";
+export {
+  SignalProviderDialog,
+  type SignalProviderDialogProps,
+  type SignalTestStatus,
+  WebhookUrlField,
+} from "./signal-provider-dialog.js";
+export { SignalsSettings, type SignalsSettingsProps } from "./signals-settings.js";

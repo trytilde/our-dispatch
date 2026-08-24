@@ -11,6 +11,8 @@ import { registerAgentCreation, type AgentCreationOptions } from "./agent-create
 import { registerTildeChatProxy, type TildeChatProxyOptions } from "./chat-proxy.js";
 import { registerConnectorRoutes, type ConnectorRouteOptions } from "./connectors.js";
 import { registerComputerPreview } from "./computer-preview.js";
+import { registerRoutineRoutes, type RoutineRouteOptions } from "./routines.js";
+import { registerSignalRoutes, type SignalRouteOptions } from "./signals.js";
 import { registerOwnerAuth, requireOwner } from "./auth.js";
 const sourceWebRoot = fileURLToPath(new URL("../../web/dist", import.meta.url));
 const workingDirectoryWebRoot = resolve(process.cwd(), "apps/web/dist");
@@ -24,6 +26,8 @@ export interface AppOptions {
   environment?: NodeJS.ProcessEnv;
   tildeChatProxy?: TildeChatProxyOptions;
   connectors?: ConnectorRouteOptions;
+  routines?: RoutineRouteOptions;
+  signals?: SignalRouteOptions;
   authProvider?: AuthProvider;
   agentCreation?: Pick<AgentCreationOptions, "execute" | "awaitExecution">;
 }
@@ -43,6 +47,9 @@ export function createApp(options: AppOptions = {}): Hono {
     app.use("/api/plugins/*", middleware);
     app.use("/api/plugins", middleware);
     app.use("/api/agents/*", middleware);
+    app.use("/api/routines", middleware);
+    app.use("/api/routines/*", middleware);
+    app.use("/api/signals/*", middleware);
   } else
     app.get("/auth/native-config", (context) =>
       context.json({ error: "Owner authentication is not configured" }, 503),
@@ -54,6 +61,8 @@ export function createApp(options: AppOptions = {}): Hono {
   registerAgentCreation(app, { environment: options.environment, ...options.agentCreation });
   registerTildeChatProxy(app, options.tildeChatProxy);
   registerConnectorRoutes(app, options.connectors);
+  registerRoutineRoutes(app, options.routines);
+  registerSignalRoutes(app, options.signals);
   if (existsSync(webRoot)) {
     const cacheHeaders = (
       path: string,

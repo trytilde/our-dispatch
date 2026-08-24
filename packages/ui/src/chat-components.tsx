@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { PanelRightIcon } from "lucide-react";
 import { AgentAvatar } from "./agent-avatar.js";
 import { LoaderGrid, useElapsed } from "./beautiful-ui/blocks/loader-grid.js";
 import { ComputerIcon, MoreIcon, ReplyIcon } from "./workspace-icons.js";
@@ -10,6 +11,8 @@ export interface ChatHeaderProps {
   busy?: boolean;
   computerOpen: boolean;
   onToggleComputer: () => void;
+  detailsOpen?: boolean;
+  onToggleDetails?: (() => void) | undefined;
 }
 
 export function ChatHeader({
@@ -18,6 +21,8 @@ export function ChatHeader({
   busy = false,
   computerOpen,
   onToggleComputer,
+  detailsOpen = false,
+  onToggleDetails,
 }: ChatHeaderProps) {
   return (
     <header className="chat-header">
@@ -32,6 +37,17 @@ export function ChatHeader({
         </div>
       </div>
       <div className="chat-actions">
+        {onToggleDetails ? (
+          <button
+            aria-expanded={detailsOpen}
+            aria-label="Toggle details"
+            className={detailsOpen ? "active" : ""}
+            onClick={onToggleDetails}
+            title="Toggle details (Ctrl+Alt+D)"
+          >
+            <PanelRightIcon aria-hidden />
+          </button>
+        ) : null}
         <button
           aria-expanded={computerOpen}
           aria-label="Toggle Computer pane"

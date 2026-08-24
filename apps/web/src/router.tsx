@@ -1,6 +1,11 @@
 import { createRootRoute, createRoute, createRouter } from "@tanstack/react-router";
 import { OpenBotApp } from "./screens/openbot-app.js";
-import { SettingsApp, SettingsGeneralApp, SettingsPluginsApp } from "./screens/settings-app.js";
+import {
+  SettingsApp,
+  SettingsGeneralApp,
+  SettingsPluginsApp,
+  SettingsSignalsApp,
+} from "./screens/settings-app.js";
 
 /**
  * Modal overlays that must be reachable by redirect (OAuth returns, deep
@@ -11,6 +16,9 @@ import { SettingsApp, SettingsGeneralApp, SettingsPluginsApp } from "./screens/s
 export interface WorkspaceSearch {
   connector?: string;
   dialog?: "new-agent";
+  /** Opens the agent details pane; `routine` deep-links a routine (`new` = draft). */
+  details?: "routines";
+  routine?: string;
 }
 
 function validateWorkspaceSearch(search: Record<string, unknown>): WorkspaceSearch {
@@ -19,6 +27,10 @@ function validateWorkspaceSearch(search: Record<string, unknown>): WorkspaceSear
       ? { connector: search.connector }
       : {}),
     ...(search.dialog === "new-agent" ? { dialog: "new-agent" as const } : {}),
+    ...(search.details === "routines" ? { details: "routines" as const } : {}),
+    ...(search.details === "routines" && typeof search.routine === "string" && search.routine
+      ? { routine: search.routine }
+      : {}),
   };
 }
 
@@ -50,11 +62,18 @@ const settingsPluginsRoute = createRoute({
   component: SettingsPluginsApp,
 });
 
+const settingsSignalsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/settings/signals",
+  component: SettingsSignalsApp,
+});
+
 const routeTree = rootRoute.addChildren([
   indexRoute,
   settingsRoute,
   settingsGeneralRoute,
   settingsPluginsRoute,
+  settingsSignalsRoute,
 ]);
 
 export const router = createRouter({ routeTree });

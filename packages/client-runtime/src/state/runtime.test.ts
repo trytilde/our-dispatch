@@ -1,7 +1,8 @@
 import { describe, expect, it, vi } from "vite-plus/test";
 import { createClientAuthAdapter } from "../auth.js";
 import { createOpenBotClient, type OpenBotClient } from "../chat/client.js";
-import { createOpenBotRuntime } from "./runtime.js";
+import type { Routine } from "../contracts/routines.js";
+import { createOpenBotRuntime, type OpenBotRuntimeOptions } from "./runtime.js";
 
 describe("OpenBot runtime", () => {
   it("owns agent setup through readiness and selects the newly surfaced agent", async () => {
@@ -445,6 +446,313 @@ describe("OpenBot runtime", () => {
 
     releaseReorder();
     await reordering;
+    runtime.dispose();
+  });
+});
+
+function testRoutine(id: string, name: string): Routine {
+  return {
+    id,
+    agent_id: "agent-one",
+    name,
+    instruction: "Do the thing",
+    enabled: true,
+    triggers: [
+      {
+        id: `${id}-trigger`,
+        kind: "schedule",
+        schedule: "0 7 * * *",
+        description: "Daily at 07:00 UTC",
+        routine_id: `rt-${id}`,
+      },
+    ],
+    created_at: "2026-08-24T00:00:00Z",
+    updated_at: "2026-08-24T00:00:00Z",
+  };
+}
+
+function createRoutineRuntime(
+  overrides: Partial<OpenBotClient>,
+  runtimeOptions: Partial<OpenBotRuntimeOptions> = {},
+) {
+  const baseClient = createOpenBotClient({
+    fetch: async () => {
+      throw new Error("Unexpected HTTP request");
+    },
+  });
+  const client: OpenBotClient = { ...baseClient, ...overrides };
+  return createOpenBotRuntime({
+    client,
+    auth: createClientAuthAdapter(client, { signIn: async () => undefined }),
+    ...runtimeOptions,
+  });
+}
+
+describe("OpenBot runtime routines slice", () => {
+  it("refreshes routines into the per-agent map", async () => {
+    const runtime = createRoutineRuntime({
+      listRoutines: async () => [testRoutine("r-1", "Deploy watchdog")],
+    });
+
+    await runtime.actions.refreshRoutines("agent-one");
+
+    const routines = runtime.store.getState().routines;
+    expect(routines.status).toBe("ready");
+    expect(routines.byAgentId["agent-one"]).toMatchObject([{ id: "r-1" }]);
+    runtime.dispose();
+  });
+
+  it("replaces the agent list wholesale from mutation responses", async () => {
+    const runtime = createRoutineRuntime({
+      listRoutines: async () => [testRoutine("r-1", "First")],
+      createRoutine: async () => [testRoutine("r-1", "First"), testRoutine("r-2", "Second")],
+      deleteRoutine: async () => [testRoutine("r-2", "Second")],
+    });
+
+    await runtime.actions.refreshRoutines("agent-one");
+    await runtime.actions.createRoutine({
+      agentId: "agent-one",
+      name: "Second",
+      instruction: "Do the thing",
+      triggers: [{ kind: "schedule", schedule: "0 7 * * *" }],
+    });
+    expect(runtime.store.getState().routines.byAgentId["agent-one"]).toMatchObject([
+      { id: "r-1" },
+      { id: "r-2" },
+    ]);
+
+    await runtime.actions.deleteRoutine("r-1", "agent-one");
+    expect(runtime.store.getState().routines.byAgentId["agent-one"]).toMatchObject([{ id: "r-2" }]);
+    runtime.dispose();
+  });
+
+  it("runs a routine and refreshes the list afterwards", async () => {
+    const listRoutines = vi.fn(async () => [testRoutine("r-1", "Deploy watchdog")]);
+    const runtime = createRoutineRuntime({
+      listRoutines,
+      runRoutine: async () => "session-run",
+    });
+
+    await expect(runtime.actions.runRoutine("r-1", "agent-one")).resolves.toBe("session-run");
+    expect(listRoutines).toHaveBeenCalledTimes(1);
+    runtime.dispose();
+  });
+
+  it("schedules and cancels polling through the injected scheduler", async () => {
+    const scheduled: { callback: () => void; delay: number; handle: number }[] = [];
+    const cancelled: unknown[] = [];
+    let nextHandle = 1;
+    const listRoutines = vi.fn(async () => [testRoutine("r-1", "Deploy watchdog")]);
+    const runtime = createRoutineRuntime(
+      { listRoutines },
+      {
+        schedule: (callback, delay) => {
+          const handle = nextHandle++;
+          scheduled.push({ callback, delay, handle });
+          return handle as unknown as ReturnType<typeof setTimeout>;
+        },
+        cancelScheduled: (handle) => {
+          cancelled.push(handle);
+        },
+      },
+    );
+
+    runtime.actions.startRoutinePolling("agent-one");
+    expect(listRoutines).toHaveBeenCalledTimes(1);
+    expect(scheduled).toMatchObject([{ delay: 30_000 }]);
+
+    scheduled[0]?.callback();
+    await vi.waitFor(() => expect(listRoutines).toHaveBeenCalledTimes(2));
+    await vi.waitFor(() => expect(scheduled).toHaveLength(2));
+
+    runtime.actions.stopRoutinePolling();
+    expect(cancelled).toEqual([scheduled[1]?.handle]);
+
+    scheduled[1]?.callback();
+    await vi.waitFor(() => expect(listRoutines).toHaveBeenCalledTimes(3));
+    expect(scheduled).toHaveLength(2);
+    runtime.dispose();
+  });
+
+  it("keeps the poll timer out of published state", async () => {
+    const listRoutines = vi.fn(async () => [testRoutine("r-1", "Deploy watchdog")]);
+    const runtime = createRoutineRuntime(
+      { listRoutines },
+      {
+        schedule: (_callback, _delay) => 1 as unknown as ReturnType<typeof setTimeout>,
+        cancelScheduled: () => undefined,
+      },
+    );
+
+    runtime.actions.startRoutinePolling("agent-one");
+    await vi.waitFor(() => expect(runtime.store.getState().routines.status).toBe("ready"));
+    expect(runtime.store.getState().routines).not.toHaveProperty("pollHandle");
+
+    const before = runtime.store.getState().routines;
+    let notifications = 0;
+    const unsubscribe = runtime.store.subscribe(() => {
+      notifications += 1;
+    });
+    runtime.actions.stopRoutinePolling();
+    expect(notifications).toBe(0);
+    expect(runtime.store.getState().routines).toBe(before);
+    unsubscribe();
+    runtime.dispose();
+  });
+
+  it("keeps previous items when a refresh fails", async () => {
+    let fail = false;
+    const runtime = createRoutineRuntime({
+      listRoutines: async () => {
+        if (fail) throw new Error("Routines unavailable");
+        return [testRoutine("r-1", "Deploy watchdog")];
+      },
+    });
+
+    await runtime.actions.refreshRoutines("agent-one");
+    fail = true;
+    await expect(runtime.actions.refreshRoutines("agent-one")).rejects.toThrow(
+      "Routines unavailable",
+    );
+
+    const routines = runtime.store.getState().routines;
+    expect(routines.status).toBe("error");
+    expect(routines.error).toBe("Routines unavailable");
+    expect(routines.byAgentId["agent-one"]).toMatchObject([{ id: "r-1" }]);
+    runtime.dispose();
+  });
+});
+
+describe("OpenBot runtime signals slice", () => {
+  it("refreshes providers, instances, and per-instance deliveries", async () => {
+    const runtime = createRoutineRuntime({
+      listSignalProviders: async () => [
+        { type_id: "github", name: "GitHub", requires_signing_key: true, signal_types: [] },
+      ],
+      listSignalInstances: async () => [
+        {
+          id: "spi_1",
+          display_name: "Acme GitHub",
+          provider_type: "github",
+          status: "enabled",
+          ingress_mode: "webhook",
+          created_at: "2026-08-24T00:00:00Z",
+          updated_at: "2026-08-24T00:00:00Z",
+        },
+      ],
+      listSignalDeliveries: async () => [
+        {
+          id: "del-1",
+          instance_id: "spi_1",
+          signal_type: "github.pull_request.opened",
+          status: "completed",
+          created_at: "2026-08-24T00:00:00Z",
+        },
+      ],
+    });
+
+    await runtime.actions.refreshSignalProviders();
+    await runtime.actions.refreshSignalInstances();
+    await runtime.actions.refreshSignalDeliveries("spi_1");
+
+    const signals = runtime.store.getState().signals;
+    expect(signals.status).toBe("ready");
+    expect(signals.providers).toMatchObject([{ type_id: "github" }]);
+    expect(signals.instances).toMatchObject([{ id: "spi_1" }]);
+    expect(signals.deliveriesByInstanceId.spi_1).toMatchObject([{ id: "del-1" }]);
+    runtime.dispose();
+  });
+
+  it("keeps a provider failure visible when a concurrent instance fetch succeeds", async () => {
+    const runtime = createRoutineRuntime({
+      listSignalProviders: async () => {
+        throw new Error("Providers unavailable");
+      },
+      listSignalInstances: async () => [],
+    });
+
+    const providers = runtime.actions.refreshSignalProviders();
+    const instances = runtime.actions.refreshSignalInstances();
+    await expect(providers).rejects.toThrow("Providers unavailable");
+    await instances;
+
+    const signals = runtime.store.getState().signals;
+    expect(signals.status).toBe("error");
+    expect(signals.error).toBe("Providers unavailable");
+
+    await runtime.actions.refreshSignalProviders().catch(() => undefined);
+    runtime.dispose();
+  });
+
+  it("clears the error once the failing fetch recovers", async () => {
+    let fail = true;
+    const runtime = createRoutineRuntime({
+      listSignalProviders: async () => {
+        if (fail) throw new Error("Providers unavailable");
+        return [];
+      },
+      listSignalInstances: async () => [],
+    });
+
+    await expect(runtime.actions.refreshSignalProviders()).rejects.toThrow();
+    fail = false;
+    await runtime.actions.refreshSignalProviders();
+    await runtime.actions.refreshSignalInstances();
+
+    const signals = runtime.store.getState().signals;
+    expect(signals.status).toBe("ready");
+    expect(signals.error).toBe("");
+    runtime.dispose();
+  });
+
+  it("forgets a per-source error on sign out", async () => {
+    let fail = true;
+    const runtime = createRoutineRuntime({
+      logout: async () => undefined,
+      listSignalProviders: async () => {
+        if (fail) throw new Error("Providers unavailable");
+        return [];
+      },
+      listSignalInstances: async () => [],
+    });
+
+    await expect(runtime.actions.refreshSignalProviders()).rejects.toThrow();
+    await runtime.actions.signOut();
+    fail = false;
+    await runtime.actions.refreshSignalInstances();
+
+    const signals = runtime.store.getState().signals;
+    expect(signals.status).toBe("ready");
+    expect(signals.error).toBe("");
+    runtime.dispose();
+  });
+
+  it("keeps previous instances when a refresh fails and records the error", async () => {
+    let fail = false;
+    const runtime = createRoutineRuntime({
+      listSignalInstances: async () => {
+        if (fail) throw new Error("Signals unavailable");
+        return [
+          {
+            id: "spi_1",
+            display_name: "Acme GitHub",
+            provider_type: "github",
+            status: "enabled",
+            ingress_mode: "webhook",
+            created_at: "2026-08-24T00:00:00Z",
+            updated_at: "2026-08-24T00:00:00Z",
+          },
+        ];
+      },
+    });
+
+    await runtime.actions.refreshSignalInstances();
+    fail = true;
+    await expect(runtime.actions.refreshSignalInstances()).rejects.toThrow("Signals unavailable");
+
+    const signals = runtime.store.getState().signals;
+    expect(signals.status).toBe("error");
+    expect(signals.instances).toMatchObject([{ id: "spi_1" }]);
     runtime.dispose();
   });
 });
