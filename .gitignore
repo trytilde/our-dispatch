@@ -10,8 +10,10 @@ test-results/
 .data/
 /.env
 /.env.*
+# Fork-owned configuration is tracked, including the SOPS-encrypted secrets document.
+# Plain environment and decrypted secret renderings stay local.
 configuration/.env
-configuration/secrets.enc.yaml
+configuration/secrets.yaml
 /local-user-config.json
 .vercel/
 .openbot-deploy/

@@ -1,0 +1,8 @@
+import { createConfigureConnectorTool } from "@tryopenbot/connector-tools";
+
+export default createConfigureConnectorTool({
+  apiKey: () => process.env.AGENT_{{AGENT_ENV_PREFIX}}_API_KEY!,
+  orgId: () => process.env.TILDE_ORG_ID!,
+  teamId: () => process.env.TILDE_TEAM_ID!,
+  baseUrl: () => process.env.TILDE_BASE_URL || "https://api.trytilde.ai",
+});
