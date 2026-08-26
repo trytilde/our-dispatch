@@ -124,8 +124,7 @@ export function registerAgentCreation(app: Hono, options: AgentCreationOptions =
     const agentServiceOrigin = environment.AGENT_SERVICE_ORIGIN?.trim();
     const headerAuthorization = context.req.header("authorization");
     const ownerAccessToken = context.get("ownerAccessToken") as string | undefined;
-    const authorization =
-      headerAuthorization ?? (ownerAccessToken ? `Bearer ${ownerAccessToken}` : undefined);
+    const authorization = ownerAccessToken ? `Bearer ${ownerAccessToken}` : headerAuthorization;
     if (tilde && agentServiceOrigin) {
       if (!authorization)
         return context.json({

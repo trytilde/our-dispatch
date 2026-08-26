@@ -170,7 +170,10 @@ describe("bare OpenBot server", () => {
     });
 
     const response = await agentApp.request(`https://openbot.test/api/agents/setup/${jobId}`, {
-      headers: { cookie: "openbot_access=cookie-owner-token" },
+      headers: {
+        authorization: "Basic unverified",
+        cookie: "openbot_access=cookie-owner-token",
+      },
     });
 
     expect(response.status).toBe(200);
