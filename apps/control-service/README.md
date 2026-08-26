@@ -16,4 +16,6 @@ The package default application also exposes `GET /healthz`. There is no owner-f
 
 Owner-authenticated `POST /api/agents` starts `openbot new-agent` inside the trusted development
 Computer as a background job. `GET /api/agents/setup/:jobId` reports that job without exposing the
-Computer API key or shell output to the browser.
+Computer API key or shell output to the browser. When Tilde is configured, the status route also
+establishes the new ChatKit Agent Resource Bundle with the deployment API key delegated by the
+signed-in human, so later machine-only deployments preserve that individual lifecycle owner.

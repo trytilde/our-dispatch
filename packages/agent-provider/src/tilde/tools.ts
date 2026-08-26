@@ -105,6 +105,23 @@ export class TildeToolReconciler {
     }
   }
 
+  /** Reconcile only credential-bearing platform integrations after Tilde owns the core bundle. */
+  async deployExternalResources(context: DeploymentContext): Promise<void> {
+    try {
+      const { id } = requireAgent(context);
+      const prefix = `AGENT_${id.replaceAll("-", "_").toUpperCase()}`;
+      await Promise.all([
+        context.agentKind === "primary" ? this.#reconcileGitHubTools(context) : undefined,
+        context.platformIds?.includes("vercel")
+          ? this.#reconcileVercelMcp(context, id, prefix)
+          : undefined,
+      ]);
+    } catch (error) {
+      if (error instanceof AgentProviderError) throw error;
+      throw toolsError("reconcile external Tilde tool resources", error);
+    }
+  }
+
   async #deployResources(context: DeploymentContext): Promise<void> {
     const { id } = requireAgent(context);
     const prefix = `AGENT_${id.replaceAll("-", "_").toUpperCase()}`;

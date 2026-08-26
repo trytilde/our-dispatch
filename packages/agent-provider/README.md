@@ -20,4 +20,10 @@ the control service's allowlisted same-origin bridge.
 - `TildeAgentProvider` and `TildeAgentProviderConfig`: typed Tilde implementation and configuration.
 - `tildeAgentProviderInitialization`: provider-specific initialization metadata collected with the shared Tilde platform.
 
-Reconciliation guarantees per agent: the Tilde control-plane toolkit is enabled and every one of its functions is mapped onto the agent's runtime MCP server, and authored skills sync into the agent's Tilde skill registry with team-unique names namespaced as `<agent-id>-<skill-name>`.
+Reconciliation now submits one typed Tilde Agent Resource Bundle and polls its
+durable status. Tilde owns the agent, dynamic MCP server, control-plane toolkit,
+exact managed/custom skill registry, default per-agent memory bank, bindings,
+credential rotation, and cleanup. OpenBot claims endpoint secrets once and
+uploads a deterministic canonical avatar to the stable machine-user profile,
+then retains its Mission Control channel plus credential-bearing
+deployment-platform integrations.

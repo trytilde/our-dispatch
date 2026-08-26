@@ -17,6 +17,7 @@ const temporaryRoots: string[] = [];
 
 afterEach(async () => {
   vi.unstubAllGlobals();
+  vi.restoreAllMocks();
   await Promise.all(temporaryRoots.splice(0).map((root) => rm(root, { recursive: true })));
 });
 
@@ -25,12 +26,33 @@ describe("TildeAgentProvider", () => {
     expect(new TildeAgentProvider(config).platforms.map(({ id }) => id)).toEqual(["tilde"]);
   });
 
-  it("idempotently reconciles one agent and persists its credentials", async () => {
-    const skills = vi.spyOn(TildeSkillReconciler.prototype, "deploy").mockResolvedValue();
-    const tools = vi.spyOn(TildeToolReconciler.prototype, "deploy").mockResolvedValue();
+  it("provisions, polls, claims credentials, and retains OpenBot-only integrations", async () => {
+    vi.spyOn(TildeSkillReconciler.prototype, "bundleSkills").mockResolvedValue({
+      custom: [
+        {
+          key: "configuration/agents/scout/skills/example/SKILL.md",
+          name: "scout-example",
+          description: "Example",
+          content: "# Example",
+        },
+      ],
+      managed: [{ provider_id: "cua", skill_ids: ["gui-automation"] }],
+    });
+    const external = vi
+      .spyOn(TildeToolReconciler.prototype, "deployExternalResources")
+      .mockResolvedValue();
     const context = await agentContext("scout");
-    let created = false;
+    const persistedSecrets: string[] = [];
+    context.persistence = {
+      setEnvironment: async () => undefined,
+      setSecret: async (name) => {
+        persistedSecrets.push(name);
+      },
+      unsetEnvironment: async () => undefined,
+      unsetSecret: async () => undefined,
+    };
     let channelCreated = false;
+    let polled = false;
     const requests: Request[] = [];
     vi.stubGlobal(
       "fetch",
@@ -38,98 +60,110 @@ describe("TildeAgentProvider", () => {
         const request = input instanceof Request ? input : new Request(input, init);
         requests.push(request.clone());
         const path = new URL(request.url).pathname;
-        if (request.method === "GET" && path.endsWith("/agents/scout")) {
-          if (!created) return Response.json({ message: "missing" }, { status: 404 });
-          return Response.json(agent());
-        }
-        if (request.method === "POST" && path.endsWith("/agents/http-vercel-ai-sdk")) {
-          created = true;
-          expect(await request.json()).toMatchObject({
-            id: "scout",
-            display_name: "Scout",
-            endpoint_url: "http://127.0.0.1:4100/api/agents/scout",
-            local_running_endpoint: true,
-            concurrency_policy: "queue",
+        if (request.method === "PUT" && path.endsWith("/agents/scout/provision")) {
+          const body = (await request.json()) as { memory: { wiki?: unknown } };
+          expect(body).toMatchObject({
+            agent: { credential_strategy: "rotate", endpoint: { concurrency_policy: "queue" } },
+            mcp_server: { enabled: true, id: "openbot-scout", enable_tilde_control_plane: true },
+            skill_registry: {
+              enabled: true,
+              enabled_skills: { managed: [{ provider_id: "cua" }] },
+            },
+            memory: { bank: { enabled: true, name: "OpenBot scout memory" } },
           });
+          expect(body.memory.wiki).toBeUndefined();
+          return Response.json(operation("queued", false));
+        }
+        if (request.method === "GET" && path.endsWith("/agents/scout/provision")) {
+          polled = true;
+          return Response.json(operation("active", true));
+        }
+        if (request.method === "POST" && path.endsWith("/provision/outputs/claim"))
           return Response.json({
-            agent: agent(),
-            api_key: "agent-api-key",
-            webhook_signing_key: "signing-key",
+            values: { api_key: "agent-api-key", webhook_signing_key: "signing-key" },
+          });
+        if (request.method === "PUT" && path.endsWith("/agents/scout/avatar")) {
+          expect(persistedSecrets).toEqual([
+            "AGENT_SCOUT_API_KEY",
+            "AGENT_SCOUT_WEBHOOK_SIGNING_KEY",
+          ]);
+          expect(context.environment.AGENT_SCOUT_API_KEY).toBe("agent-api-key");
+          expect(request.headers.get("authorization")).toBe("Bearer agent-api-key");
+          expect(request.headers.get("content-type")).toBe("image/png");
+          const bytes = new Uint8Array(await request.arrayBuffer());
+          expect(Array.from(bytes.slice(0, 8))).toEqual([137, 80, 78, 71, 13, 10, 26, 10]);
+          return Response.json({
+            principal_user_id: "machine-scout",
+            avatar: { media_type: "image/png", size_bytes: bytes.length, sha256: "hash" },
           });
         }
-        if (request.method === "GET" && path.endsWith("/channels")) {
+        if (request.method === "GET" && path.endsWith("/channels"))
           return Response.json({
             items: channelCreated
               ? [
                   {
                     id: "openbot-mission-control-scout",
-                    provider_id: "chatkit.vercel-ui",
-                    status: "enabled",
                     configuration: { default_agent_inbox_id: "scout" },
                   },
                 ]
               : [],
           });
-        }
         if (request.method === "POST" && path.endsWith("/channels/vercel-ui")) {
           channelCreated = true;
-          expect(await request.json()).toMatchObject({
-            id: "openbot-mission-control-scout",
-            display_name: "OpenBot Mission Control: scout",
-            default_agent_inbox_id: "scout",
-          });
-          return Response.json({
-            id: "openbot-mission-control-scout",
-            provider_id: "chatkit.vercel-ui",
-            status: "enabled",
-          });
+          return Response.json({ id: "openbot-mission-control-scout", status: "enabled" });
         }
-        if (request.method === "PATCH") return Response.json(agent());
         throw new Error(`Unexpected request: ${request.method} ${path}`);
       }),
     );
-    const provider = new TildeAgentProvider(config);
 
-    await provider.deployable.deploy(context);
-    await provider.deployable.deploy(context);
+    await new TildeAgentProvider(config).deployable.deploy(context);
 
+    expect(polled).toBe(true);
+    expect(external).toHaveBeenCalledOnce();
     expect(context.environment).toMatchObject({
-      AGENT_SCOUT_AGENT_ID: "scout",
-      AGENT_SCOUT_PROVIDER_ID: "chatkit.http-vercel-ai-sdk",
       AGENT_SCOUT_API_KEY: "agent-api-key",
       AGENT_SCOUT_WEBHOOK_SIGNING_KEY: "signing-key",
+      AGENT_SCOUT_MCP_SERVER_ID: "openbot-scout",
     });
-    expect(requests.filter((request) => request.method === "POST")).toHaveLength(2);
-    expect(requests.filter((request) => request.method === "PATCH")).toHaveLength(0);
-    expect(skills).toHaveBeenCalledTimes(2);
-    expect(tools).toHaveBeenCalledTimes(2);
+    expect(requests.some((request) => request.url.endsWith("/provision/outputs/claim"))).toBe(true);
   });
 
-  it("repairs an existing agent that is not configured to queue turns", async () => {
-    vi.spyOn(TildeSkillReconciler.prototype, "deploy").mockResolvedValue();
-    vi.spyOn(TildeToolReconciler.prototype, "deploy").mockResolvedValue();
+  it("preserves credentials and adopts legacy resource IDs on a repeated deployment", async () => {
+    vi.spyOn(TildeSkillReconciler.prototype, "bundleSkills").mockResolvedValue({
+      custom: [],
+      managed: [],
+    });
+    vi.spyOn(TildeToolReconciler.prototype, "deployExternalResources").mockResolvedValue();
     const context = await agentContext("scout");
-    context.environment.AGENT_SCOUT_API_KEY = "existing-key";
-    context.environment.AGENT_SCOUT_WEBHOOK_SIGNING_KEY = "existing-signing-key";
-    const updates: Record<string, unknown>[] = [];
+    Object.assign(context.environment, {
+      AGENT_SCOUT_API_KEY: "existing-key",
+      AGENT_SCOUT_WEBHOOK_SIGNING_KEY: "existing-signing-key",
+      AGENT_SCOUT_MCP_SERVER_ID: "legacy-mcp",
+      AGENT_SCOUT_SKILL_REGISTRY_ID: "11111111-1111-4111-8111-111111111111",
+      AGENT_SCOUT_PROVIDER_ID: "legacy-provider",
+    });
     vi.stubGlobal(
       "fetch",
       vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
         const request = input instanceof Request ? input : new Request(input, init);
         const path = new URL(request.url).pathname;
-        if (request.method === "GET" && path.endsWith("/agents/scout"))
-          return Response.json(agent("interrupt"));
-        if (request.method === "PATCH" && path.endsWith("/agents/scout")) {
-          updates.push((await request.json()) as Record<string, unknown>);
-          return Response.json(agent());
+        if (request.method === "PUT" && path.endsWith("/agents/scout/provision")) {
+          expect(await request.json()).toMatchObject({
+            agent: { credential_strategy: "preserve" },
+            mcp_server: { id: "legacy-mcp" },
+            skill_registry: { id: "11111111-1111-4111-8111-111111111111" },
+          });
+          return Response.json(operation("active", false, "legacy-mcp"));
+        }
+        if (request.method === "PUT" && path.endsWith("/agents/scout/avatar")) {
+          expect(request.headers.get("authorization")).toBe("Bearer existing-key");
+          return Response.json({ principal_user_id: "machine-scout", avatar: {} });
         }
         if (request.method === "GET" && path.endsWith("/channels"))
           return Response.json({
             items: [
               {
                 id: "openbot-mission-control-scout",
-                provider_id: "chatkit.vercel-ui",
-                status: "enabled",
                 configuration: { default_agent_inbox_id: "scout" },
               },
             ],
@@ -140,75 +174,25 @@ describe("TildeAgentProvider", () => {
 
     await new TildeAgentProvider(config).deployable.deploy(context);
 
-    expect(updates).toEqual([expect.objectContaining({ concurrency_policy: "queue" })]);
+    expect(context.environment.AGENT_SCOUT_PROVIDER_ID).toBeUndefined();
+    expect(context.environment.AGENT_SCOUT_SKILL_REGISTRY_ID).toBeUndefined();
+    expect(context.environment.AGENT_SCOUT_MCP_SERVER_ID).toBe("legacy-mcp");
   });
 
-  it("reconciles the channel, skills, tools, and persistence concurrently", async () => {
-    let releaseChannel!: () => void;
-    const channelGate = new Promise<void>((resolve) => {
-      releaseChannel = resolve;
+  it("reports durable provisioning failures", async () => {
+    vi.spyOn(TildeSkillReconciler.prototype, "bundleSkills").mockResolvedValue({
+      custom: [],
+      managed: [],
     });
-    const skills = vi.spyOn(TildeSkillReconciler.prototype, "deploy").mockResolvedValue();
-    const tools = vi.spyOn(TildeToolReconciler.prototype, "deploy").mockResolvedValue();
-    skills.mockClear();
-    tools.mockClear();
-    const context = await agentContext("scout");
-    context.environment.AGENT_SCOUT_API_KEY = "existing-key";
-    context.environment.AGENT_SCOUT_WEBHOOK_SIGNING_KEY = "existing-signing-key";
-    const persisted: string[] = [];
-    context.persistence = {
-      setEnvironment: async (name) => {
-        persisted.push(name);
-      },
-      setSecret: async () => undefined,
-      unsetEnvironment: async () => undefined,
-      unsetSecret: async () => undefined,
-    };
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
-        const request = input instanceof Request ? input : new Request(input, init);
-        const path = new URL(request.url).pathname;
-        if (request.method === "GET" && path.endsWith("/agents/scout"))
-          return Response.json(agent());
-        if (request.method === "GET" && path.endsWith("/channels")) {
-          await channelGate;
-          return Response.json({
-            items: [
-              {
-                id: "openbot-mission-control-scout",
-                configuration: { default_agent_inbox_id: "scout" },
-              },
-            ],
-          });
-        }
-        throw new Error(`Unexpected request: ${request.method} ${path}`);
-      }),
-    );
-
-    const deployment = new TildeAgentProvider(config).deployable.deploy(context);
-    await vi.waitFor(() => {
-      expect(skills).toHaveBeenCalledOnce();
-      expect(tools).toHaveBeenCalledOnce();
-      expect(persisted).toEqual(["AGENT_SCOUT_AGENT_ID", "AGENT_SCOUT_PROVIDER_ID"]);
-    });
-    releaseChannel();
-    await deployment;
-  });
-
-  it("reports the Tilde operation, agent, API detail, and HTTP status", async () => {
-    vi.spyOn(TildeSkillReconciler.prototype, "deploy").mockResolvedValue();
-    vi.spyOn(TildeToolReconciler.prototype, "deploy").mockResolvedValue();
     const context = await agentContext("scout");
     vi.stubGlobal(
       "fetch",
       vi.fn(async () =>
-        Response.json({ detail: "organization does not own this team" }, { status: 403 }),
+        Response.json({ ...operation("error", false), error_message: "wiki provider unavailable" }),
       ),
     );
-
     await expect(new TildeAgentProvider(config).deployable.deploy(context)).rejects.toThrow(
-      'Unable to get agent "scout": organization does not own this team (HTTP 403)',
+      "wiki provider unavailable",
     );
   });
 });
@@ -231,18 +215,19 @@ async function agentContext(slug: string): Promise<DeploymentContext> {
   };
 }
 
-function agent(concurrencyPolicy = "queue") {
+function operation(status: string, outputsAvailable: boolean, mcpId = "openbot-scout") {
   return {
-    id: "scout",
-    provider_id: "chatkit.http-vercel-ai-sdk",
-    display_name: "Scout",
-    configuration: {
-      endpoint_url: "http://127.0.0.1:4100/api/agents/scout",
-      local_running_endpoint: true,
-      streaming: true,
-      timeout_ms: 300_000,
-      concurrency_policy: concurrencyPolicy,
-    },
-    status: "enabled",
+    operation_id: "operation-one",
+    org_id: "org-one",
+    team_id: "team-one",
+    agent_id: "scout",
+    owner_user_id: "human-owner",
+    generation: 1,
+    status,
+    attempts: 1,
+    outputs_available: outputsAvailable,
+    resources: [{ kind: "mcp_server", key: "default", id: mcpId, created_by_operation: true }],
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
   };
 }

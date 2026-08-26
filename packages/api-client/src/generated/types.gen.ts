@@ -36,9 +36,63 @@ export type AddProviderSkillsToRegistryRequest = {
     skill_ids: Array<string>;
 };
 
+export type AddSessionUserMemberRequest = {
+    user_id: string;
+};
+
 export type AddTeamMemberBody = {
     role: string;
     user_id: string;
+};
+
+export enum AgentCredentialStrategy {
+    PRESERVE = 'preserve',
+    ROTATE = 'rotate'
+}
+
+export type AgentEndpointSpec = {
+    concurrency_policy?: string;
+    local_running_endpoint?: boolean;
+    streaming?: boolean;
+    timeout_ms?: number | null;
+    url: string;
+};
+
+export type AgentProvisioningOperation = {
+    agent_id: string;
+    attempts: number;
+    created_at: WrappedChronoDateTime;
+    error_message?: string | null;
+    generation: number;
+    operation_id: string;
+    org_id: string;
+    outputs_available: boolean;
+    owner_user_id: string;
+    resources: Array<ProvisionedResource>;
+    status: AgentProvisioningStatus;
+    team_id: string;
+    updated_at: WrappedChronoDateTime;
+};
+
+export type AgentProvisioningOutputs = {
+    values?: {
+        [key: string]: string;
+    };
+};
+
+export enum AgentProvisioningStatus {
+    QUEUED = 'queued',
+    RUNNING = 'running',
+    ACTIVE = 'active',
+    ERROR = 'error',
+    DEPROVISIONING = 'deprovisioning'
+}
+
+export type AgentSpec = {
+    credential_strategy?: AgentCredentialStrategy;
+    display_name: string;
+    endpoint: AgentEndpointSpec;
+    status?: string;
 };
 
 /**
@@ -321,6 +375,37 @@ export enum BrowserbaseRegion {
 }
 
 /**
+ * One function mapping in a bulk add request.
+ */
+export type BulkAddMcpServerInstanceFunctionItem = {
+    configured_params?: {
+        [key: string]: unknown;
+    };
+    is_async?: boolean;
+    tool_description?: string | null;
+    tool_name: string;
+    tool_source_type_id: string;
+};
+
+/**
+ * Public body for atomically adding function mappings from one provider account.
+ */
+export type BulkAddMcpServerInstanceFunctionsBody = {
+    functions: Array<BulkAddMcpServerInstanceFunctionItem>;
+    tool_group_instance_id: string;
+    tool_group_source_type_id: string;
+};
+
+/**
+ * Public body for atomically removing function mappings from one provider account.
+ */
+export type BulkRemoveMcpServerInstanceFunctionsBody = {
+    tool_group_instance_id: string;
+    tool_group_source_type_id: string;
+    tool_source_type_ids: Array<string>;
+};
+
+/**
  * Request body for caching converted ChatKit messages.
  */
 export type CacheConvertedMessagesRequest = {
@@ -345,6 +430,14 @@ export type CachedAgentRepresentation = {
 export type CancelHumanApprovalActionRequest = {
     id?: string;
     token?: string;
+};
+
+/**
+ * Body used by root-specific ownership-change operations. The target owner is
+ * always the effective actor; APIs do not expose arbitrary user transfer.
+ */
+export type ChangeResourceOwnershipRequest = {
+    ownership: ResourceOwnership;
 };
 
 /**
@@ -414,6 +507,15 @@ export type ChatChannelSubscriptionOption = {
  */
 export type ChatKitAgent = Inbox & {
     api_key_id?: string | null;
+    principal_user_id?: string | null;
+};
+
+/**
+ * Uploaded avatar metadata for one ChatKit agent principal.
+ */
+export type ChatKitAgentAvatar = {
+    avatar: UserAvatar;
+    principal_user_id: string;
 };
 
 /**
@@ -637,6 +739,34 @@ export type CommitMemoryBankReservationBody = {
     reservation_id?: string | null;
 };
 
+export type CommonProviderInstallationPage = {
+    items: Array<CommonProviderInstallationSerialized>;
+    next_page_token?: string | null;
+};
+
+/**
+ * Public common-provider bundle root and its independent authorization modes.
+ */
+export type CommonProviderInstallationSerialized = {
+    account_name: string;
+    authorization: ResourceAuthorizationModes;
+    chat_provider_id?: string | null;
+    common_provider_id: string;
+    created_at: WrappedChronoDateTime;
+    created_by_user_id?: string | null;
+    id: string;
+    last_error?: string | null;
+    last_reconciled_at?: null | WrappedChronoDateTime;
+    org_id: string;
+    resource_server_credential_id: WrappedUuidV4;
+    reverse_proxy_profile_ids: Array<string>;
+    signal_provider_instance_id?: string | null;
+    status: string;
+    team_id: string;
+    tool_group_instance_id?: string | null;
+    updated_at: WrappedChronoDateTime;
+};
+
 /**
  * Request to mark a direct upload as complete.
  */
@@ -679,6 +809,10 @@ export type ConfigurationSchema = {
  * User-controlled values accepted by every automatic catalogue connection.
  */
 export type ConnectMcpProviderCatalogEntryRequestInner = {
+    /**
+     * User-facing account label. Provider identity and endpoint remain server-authored.
+     */
+    display_name?: string | null;
     return_url?: string | null;
 };
 
@@ -790,8 +924,10 @@ export type CreateBrowserSessionInner = {
  * Request body for creating a ChatKit session.
  */
 export type CreateChatKitSessionRequestInner = {
+    authorization?: ResourceAuthorizationModes;
     external_conversation_id?: string | null;
     id?: null | WrappedUuidV4;
+    initial_grants?: Array<ResourceGrantRequest>;
     lookup_key?: string | null;
     metadata?: null | WrappedJsonValue;
     parent_session_id?: null | WrappedUuidV4;
@@ -843,14 +979,28 @@ export type CreateManagedUserCredentialBody = {
 };
 
 export type CreateMcpServerInstanceRequestInner = {
+    agent_id?: string | null;
+    authorization?: ResourceAuthorizationModes;
     id: string;
+    initial_grants?: Array<ResourceGrantRequest>;
     is_dynamic_tool_discovery?: boolean;
     memory_bank_ids?: Array<WrappedUuidV4> | null;
     name: string;
+    user_tool_federation_mode?: UserToolFederationMode;
+    user_tool_federation_selections?: Array<UserToolFederationSelection>;
 };
 
 export type CreateMemoryBankBody = {
+    agent_id?: string | null;
+    /**
+     * Independent discovery/use and administration modes for the new bank.
+     */
+    authorization?: ResourceAuthorizationModes;
     description?: string | null;
+    /**
+     * Binary Identity user/group grants committed atomically with the bank.
+     */
+    initial_grants?: Array<ResourceGrantRequest>;
     name: string;
 };
 
@@ -912,6 +1062,21 @@ export type CreatePayWalletRequest = {
     wallet_customer_id: string;
 };
 
+export type CreatePersonalToolGroupInstanceBody = {
+    authorization?: ResourceAuthorizationModes;
+    credential_source_type_id: string;
+    display_name: string;
+    enabled_tool_source_type_ids?: Array<string>;
+    initial_grants?: Array<ResourceGrantRequest>;
+    resource_server_credential_id?: null | WrappedUuidV4;
+    tool_bound_params?: {
+        [key: string]: unknown;
+    };
+    tool_group_instance_id?: string | null;
+    tool_group_source_type_id: string;
+    user_credential_id?: null | WrappedUuidV4;
+};
+
 export type CreateRelationshipTypeBody = {
     description?: string;
     directionality: RelationshipDirectionality;
@@ -926,13 +1091,27 @@ export type CreateRelationshipTypeVersionBody = {
     target_page_type_ids?: Array<WrappedUuidV4>;
 };
 
+/**
+ * Body used by the standard `POST /{id}/{plane}/grants` endpoints.
+ *
+ * The authorization plane is selected by the URL, so accepting it in this
+ * body would create two sources of truth.
+ */
+export type CreateResourcePlaneGrantRequest = {
+    principal_id: string;
+    principal_type: ResourcePrincipalType;
+};
+
 export type CreateResourceServerCredentialParamsInner = {
+    authorization?: ResourceAuthorizationModes;
     dek_alias: string;
+    initial_grants?: Array<ResourceGrantRequest>;
     metadata?: null | Metadata;
     resource_server_configuration: WrappedJsonValue;
 };
 
 export type CreateReverseProxyProfileInner = {
+    authorization?: ResourceAuthorizationModes;
     /**
      * Optional base URL override. Defaults to the provider's `base_url()`.
      */
@@ -948,7 +1127,7 @@ export type CreateReverseProxyProfileInner = {
      * User-supplied profile id — see `validate_profile_id` for rules.
      */
     id: string;
-    owner_id?: string | null;
+    initial_grants?: Array<ResourceGrantRequest>;
     /**
      * Provider id from the registry (e.g. `"openai"`).
      */
@@ -962,7 +1141,9 @@ export type CreateReverseProxyProfileInner = {
  */
 export type CreateRoutineRequestInner = {
     agent_inbox_id: string;
+    authorization?: ResourceAuthorizationModes;
     enabled?: boolean;
+    initial_grants?: Array<ResourceGrantRequest>;
     metadata?: null | WrappedJsonValue;
     prompt: string;
     schedule: string;
@@ -973,11 +1154,17 @@ export type CreateRoutineRequestInner = {
  * Inner create fields for a ChatKit session.
  */
 export type CreateSessionInner = {
+    authorization?: ResourceAuthorizationModes;
     id?: null | WrappedUuidV4;
     inbox_instances?: Array<RegisterInboxInstanceRequest>;
     inbox_settings?: {
         [key: string]: unknown;
     };
+    /**
+     * Additional binary visibility or ownership grants created atomically
+     * with the root. Private planes always grant the effective creator too.
+     */
+    initial_grants?: Array<ResourceGrantRequest>;
     lookup_key?: string | null;
     metadata?: null | WrappedJsonValue;
     parent_session_id?: null | WrappedUuidV4;
@@ -1008,6 +1195,8 @@ export type CreateSignalMessageRequest = {
 };
 
 export type CreateSignalProviderInstanceRequestInner = {
+    authorization?: ResourceAuthorizationModes;
+    common_provider_installation_id?: string | null;
     configuration: {
         [key: string]: unknown;
     };
@@ -1015,6 +1204,7 @@ export type CreateSignalProviderInstanceRequestInner = {
     display_name: string;
     id?: string | null;
     ingress_mode: SignalIngressMode;
+    initial_grants?: Array<ResourceGrantRequest>;
     /**
      * Omitted leaves bindings unchanged; an empty list detaches every bank.
      */
@@ -1031,22 +1221,27 @@ export type CreateSignalProviderInstanceRequestInner = {
 
 export type CreateSignalRuleRequestInner = {
     action: SignalAction;
+    authorization?: ResourceAuthorizationModes;
     display_name: string;
     filter?: SignalRuleFilter;
     id?: null | WrappedUuidV4;
+    initial_grants?: Array<ResourceGrantRequest>;
     metadata?: null | WrappedJsonValue;
     session_policy: SignalSessionPolicy;
     signal_provider_instance_id: string;
     signal_type: string;
+    target_team_id?: string | null;
 };
 
 /**
  * Inner create-skill payload with tenant fields supplied by the wrapper.
  */
 export type CreateSkillInner = {
+    authorization?: ResourceAuthorizationModes;
     content?: string;
     description: string;
     id?: null | WrappedUuidV4;
+    initial_grants?: Array<ResourceGrantRequest>;
     name: string;
     source_commit_hash?: string | null;
     source_kind?: string | null;
@@ -1057,7 +1252,10 @@ export type CreateSkillInner = {
 };
 
 export type CreateSkillRegistryBody = {
+    agent_id?: string | null;
+    authorization?: ResourceAuthorizationModes;
     description: string;
+    initial_grants?: Array<ResourceGrantRequest>;
     memory_bank_ids?: Array<WrappedUuidV4> | null;
     name: string;
     skill_ids?: Array<WrappedUuidV4>;
@@ -1126,7 +1324,10 @@ export type CreateTextMessageRequest = {
 };
 
 export type CreateToolGroupInstanceParamsInner = {
+    authorization?: ResourceAuthorizationModes;
+    common_provider_installation_id?: string | null;
     display_name: string;
+    initial_grants?: Array<ResourceGrantRequest>;
     resource_server_credential_id?: null | WrappedUuidV4;
     return_on_successful_brokering?: null | ReturnAddress;
     tool_group_instance_id?: string | null;
@@ -1175,7 +1376,9 @@ export type CreateUiMessageRequest = {
 };
 
 export type CreateUserCredentialParamsInner = {
+    authorization?: ResourceAuthorizationModes;
     dek_alias: string;
+    initial_grants?: Array<ResourceGrantRequest>;
     metadata?: null | Metadata;
     user_credential_configuration: WrappedJsonValue;
 };
@@ -1207,7 +1410,10 @@ export type CreateWikiAssetBody = {
 };
 
 export type CreateWikiInner = {
+    agent_id?: string | null;
+    authorization?: ResourceAuthorizationModes;
     id?: null | WrappedUuidV4;
+    initial_grants?: Array<ResourceGrantRequest>;
     /**
      * Memory banks that should durably ingest this wiki's content.
      */
@@ -1234,6 +1440,7 @@ export type CredentialSetupItem = {
     credential_source_type_id: string;
     desired_enabled: boolean;
     display_name: string;
+    icon_url?: string | null;
     id: string;
     last_error?: string | null;
     metadata: WrappedJsonValue;
@@ -1241,7 +1448,6 @@ export type CredentialSetupItem = {
     owner_id: string;
     owner_type: string;
     provider_display_name?: string | null;
-    provider_icon_key?: string | null;
     provider_id: string;
     resource_server_credential_id?: null | WrappedUuidV4;
     status: CredentialSetupItemStatus;
@@ -1304,6 +1510,13 @@ export enum CurrentSeatStatus {
     NOT_ASSIGNED = 'not_assigned',
     NOT_BILLABLE = 'not_billable'
 }
+
+export type CustomSkillSpec = {
+    content: string;
+    description: string;
+    key: string;
+    name: string;
+};
 
 export type CustomToolProviderDetails = {
     provider: CustomToolProviderSerialized;
@@ -1415,6 +1628,11 @@ export type DownloadSkillPackageFileRequest = {
 
 export type EnableToolInstanceParamsInner = {
     bound_params?: null | WrappedJsonValue;
+};
+
+export type EnabledSkillsSpec = {
+    custom?: Array<CustomSkillSpec>;
+    managed?: Array<ManagedSkillSelection>;
 };
 
 export type EncryptCredentialConfigurationParamsInner = {
@@ -1670,6 +1888,13 @@ export type ImportRunSummary = {
 
 export type ImportStateRequest = {
     format?: StateDocumentFormat;
+    /**
+     * Explicit source-owner user ID to target-user ID mappings. Personal
+     * resources are never silently promoted or orphaned.
+     */
+    owner_mappings?: {
+        [key: string]: string;
+    };
     state: string;
     variables?: {
         [key: string]: string;
@@ -1685,8 +1910,11 @@ export type ImportStateResponse = {
  * Cross-crate public inbox view.
  */
 export type Inbox = {
+    authorization: ResourceAuthorizationModes;
+    common_provider_installation_id?: string | null;
     configuration: WrappedJsonValue;
     created_at: WrappedChronoDateTime;
+    created_by_user_id?: string | null;
     id: string;
     inbox_type?: InboxType;
     lookup_key?: string | null;
@@ -1821,6 +2049,10 @@ export type ListApiKeysResponse = {
 
 export type ListMcpProviderCatalogResponse = {
     items: Array<McpProviderCatalogEntry>;
+    /**
+     * Server-selected OAuth redirect URI that manual provider apps must register.
+     */
+    oauth_callback_url?: string | null;
 };
 
 export type ListOpenBotDeploymentsResponse = {
@@ -1961,6 +2193,11 @@ export type MakeX402PaymentRequest = {
     wallet_id: string;
 };
 
+export type ManagedSkillSelection = {
+    provider_id: string;
+    skill_ids: Array<string>;
+};
+
 export type ManagedUserCredentialSecretResponse = {
     created_at: WrappedChronoDateTime;
     encryptedSecretValue: EncryptedTrustedRuntimePayload;
@@ -2051,6 +2288,10 @@ export type McpProviderCatalogEntry = {
     description: string;
     documentation_url?: string | null;
     endpoint_url: string;
+    /**
+     * Static icon served with the deployed frontend.
+     */
+    icon_url: string;
     id: string;
     name: string;
     /**
@@ -2066,14 +2307,35 @@ export type McpProviderCatalogEntry = {
      */
     tool_count?: number;
     /**
+     * Stable type identity used by the managed tool-provider catalogue UI.
+     */
+    tool_provider_type_id?: string;
+    /**
      * How the checked-in tool schemas were obtained.
      */
     tool_schema_discovery?: string | null;
     tool_schema_source_revision?: string | null;
     tool_schema_source_url?: string | null;
+    /**
+     * Checked-in callable definitions available before credential setup.
+     */
+    tools?: Array<McpProviderCatalogTool>;
+};
+
+/**
+ * One callable tool definition published by an official managed MCP provider.
+ */
+export type McpProviderCatalogTool = {
+    description: string;
+    input_schema: WrappedJsonValue;
+    name: string;
+    output_schema?: null | WrappedJsonValue;
+    type_id: string;
 };
 
 export type McpServerInstanceSerializedWithFunctions = {
+    agent_id?: string | null;
+    authorization?: ResourceAuthorizationModes;
     created_at: WrappedChronoDateTime;
     id: string;
     is_dynamic_tool_discovery: boolean;
@@ -2082,6 +2344,8 @@ export type McpServerInstanceSerializedWithFunctions = {
     team_id: string;
     tools: Array<McpServerInstanceToolSerialized>;
     updated_at: WrappedChronoDateTime;
+    user_tool_federation_mode: UserToolFederationMode;
+    user_tool_federation_selections?: Array<UserToolFederationSelection>;
 };
 
 export type McpServerInstanceSerializedWithFunctionsPaginatedResponse = {
@@ -2111,6 +2375,14 @@ export type McpServerInstanceToolSerialized = {
     updated_at: WrappedChronoDateTime;
 };
 
+export type McpServerSpec = {
+    dynamic_tool_discovery?: boolean;
+    enable_tilde_control_plane?: boolean;
+    enabled: boolean;
+    id?: string | null;
+    name?: string | null;
+};
+
 /**
  * Identity attached to a source change and propagated to retained documents.
  */
@@ -2122,7 +2394,10 @@ export type MemoryActorContext = {
 };
 
 export type MemoryBank = {
+    agent_id?: string | null;
+    authorization?: ResourceAuthorizationModes;
     created_at: WrappedChronoDateTime;
+    created_by_user_id?: string | null;
     description?: string | null;
     id: WrappedUuidV4;
     name: string;
@@ -2131,7 +2406,7 @@ export type MemoryBank = {
     provider_bank_id: string;
     status: MemoryBankStatus;
     status_message?: string | null;
-    team_id: string;
+    team_id?: string | null;
     tool_group_instance_id?: string | null;
     updated_at: WrappedChronoDateTime;
 };
@@ -2188,6 +2463,13 @@ export type MemoryBankHealth = {
 export type MemoryBankPaginatedResponse = {
     items: Array<MemoryBank>;
     next_page_token?: string;
+};
+
+export type MemoryBankSpec = {
+    description?: string | null;
+    enabled: boolean;
+    id?: string | null;
+    name?: string | null;
 };
 
 export enum MemoryBankStatus {
@@ -2254,6 +2536,11 @@ export enum MemorySourceKind {
     WIKI = 'wiki',
     WIKI_PAGE = 'wiki_page'
 }
+
+export type MemorySpec = {
+    bank?: null | MemoryBankSpec;
+    wiki?: null | WikiSpec;
+};
 
 /**
  * A message in an inbox - can be either a simple text message or a rich UI message
@@ -2541,8 +2828,68 @@ export type PaymentSessionSnapshot = {
     protocol: string;
 };
 
+export type PersonalMcpServerInstanceSerialized = {
+    agent_id?: string | null;
+    authorization?: ResourceAuthorizationModes;
+    created_at: WrappedChronoDateTime;
+    id: string;
+    is_dynamic_tool_discovery: boolean;
+    name: string;
+    org_id: string;
+    updated_at: WrappedChronoDateTime;
+    user_tool_federation_mode: UserToolFederationMode;
+    user_tool_federation_selections: Array<UserToolFederationSelection>;
+};
+
+export type PersonalSkill = {
+    authorization?: ResourceAuthorizationModes;
+    content: string;
+    created_at: WrappedChronoDateTime;
+    created_by_user_id: string;
+    description: string;
+    id: WrappedUuidV4;
+    name: string;
+    org_id: string;
+    source_commit_hash?: string | null;
+    source_kind: string;
+    source_path?: string | null;
+    source_provider_id?: string | null;
+    source_repository_url?: string | null;
+    updated_at: WrappedChronoDateTime;
+    version: number;
+};
+
+export type PersonalSkillRegistry = {
+    agent_id?: string | null;
+    authorization?: ResourceAuthorizationModes;
+    created_at: WrappedChronoDateTime;
+    created_by_user_id: string;
+    description: string;
+    id: WrappedUuidV4;
+    name: string;
+    org_id: string;
+    skill_ids: Array<WrappedUuidV4>;
+    updated_at: WrappedChronoDateTime;
+};
+
+export type PersonalToolGroupInstanceSerialized = {
+    authorization?: ResourceAuthorizationModes;
+    created_at: WrappedChronoDateTime;
+    credential_source_type_id: string;
+    display_name: string;
+    enabled_tool_source_type_ids: Array<string>;
+    id: string;
+    org_id: string;
+    status: string;
+    tool_group_source_type_id: string;
+    updated_at: WrappedChronoDateTime;
+};
+
 export type PlanStateRequest = {
     format?: StateDocumentFormat;
+    owner_mappings?: {
+        [key: string]: string;
+    };
     state: string;
     variables?: {
         [key: string]: string;
@@ -2800,7 +3147,7 @@ export type ProviderSetupDescriptor = {
     display_name: string;
     domain: string;
     fields?: Array<ProviderSetupField>;
-    icon_key?: string | null;
+    icon_url?: string | null;
     primary_action_label?: string | null;
     provider_id: string;
     subscription_options?: Array<ProviderSetupOption>;
@@ -2863,6 +3210,13 @@ export type ProviderSetupResponse = {
     setup_id?: string | null;
 };
 
+export type ProvisionAgentRequest = {
+    agent: AgentSpec;
+    mcp_server?: null | McpServerSpec;
+    memory?: null | MemorySpec;
+    skill_registry?: null | SkillRegistrySpec;
+};
+
 export type ProvisionPayBrowserResponse = {
     browser_definition_id: string;
     enabled_tool_ids: Array<string>;
@@ -2894,6 +3248,13 @@ export type ProvisionedProviderApp = {
     provider_id: string;
     upstream_app_id: string;
     upstream_app_slug?: string | null;
+};
+
+export type ProvisionedResource = {
+    created_by_operation: boolean;
+    id: string;
+    key: string;
+    kind: string;
 };
 
 /**
@@ -2967,6 +3328,7 @@ export type ProxiedSkill = {
 export type ProxiedSkillProvider = {
     branch: string;
     description: string;
+    icon_url?: string | null;
     id: string;
     last_seen_commit_hash?: string | null;
     last_synced_at?: null | WrappedChronoDateTime;
@@ -3078,6 +3440,7 @@ export type RegisterChatKitChatProviderResponse = {
  * Request body for registering a Vercel AI SDK-compatible HTTP agent.
  */
 export type RegisterHttpVercelAiSdkAgentRequestInner = {
+    authorization?: ResourceAuthorizationModes;
     /**
      * How new messages are handled while this agent is already responding.
      */
@@ -3085,6 +3448,7 @@ export type RegisterHttpVercelAiSdkAgentRequestInner = {
     display_name: string;
     endpoint_url: string;
     id?: string | null;
+    initial_grants?: Array<ResourceGrantRequest>;
     local_running_endpoint?: boolean;
     /**
      * Memory banks that should ingest conversations involving this agent.
@@ -3189,6 +3553,10 @@ export type RemoveChatKitParticipantResponse = {
     success: boolean;
 };
 
+export type RemoveSessionUserMemberResponse = {
+    success: boolean;
+};
+
 /**
  * Request body for renaming a Mission Control thread.
  */
@@ -3230,6 +3598,15 @@ export type ResolveStateSourceResponse = {
     };
 };
 
+/**
+ * Whether one authorization plane is shared with its tenant or restricted to
+ * explicitly granted principals.
+ */
+export enum ResourceAccessMode {
+    TEAM = 'team',
+    PRIVATE = 'private'
+}
+
 export enum ResourceAction {
     CREATE = 'create',
     UNCHANGED = 'unchanged',
@@ -3246,6 +3623,73 @@ export type ResourceApplyOutput = {
     };
 };
 
+/**
+ * The independent authorization planes persisted by every domain root.
+ */
+export type ResourceAuthorization = {
+    org_id: string;
+    ownership: ResourceAccessMode;
+    team_id?: string | null;
+    visibility: ResourceAccessMode;
+};
+
+/**
+ * User-authored visibility and ownership modes. Tenant identifiers are added
+ * by the route or composition root.
+ */
+export type ResourceAuthorizationModes = {
+    ownership?: ResourceAccessMode;
+    visibility?: ResourceAccessMode;
+};
+
+/**
+ * One binary admission to a root's visibility or ownership plane.
+ */
+export type ResourceGrant = {
+    plane: ResourceGrantPlane;
+    principal_id: string;
+    principal_type: ResourcePrincipalType;
+};
+
+/**
+ * Which authorization plane a binary grant admits its principal to.
+ */
+export enum ResourceGrantPlane {
+    VISIBILITY = 'visibility',
+    OWNERSHIP = 'ownership'
+}
+
+/**
+ * A plane-neutral grant description used when creating a resource together
+ * with its initial visibility and ownership grants.
+ */
+export type ResourceGrantRequest = {
+    plane: ResourceGrantPlane;
+    principal_id: string;
+    principal_type: ResourcePrincipalType;
+};
+
+/**
+ * The authorization and persistence boundary for a domain root.
+ *
+ * Children inherit this value from their root; they must not independently
+ * choose a different audience.
+ */
+export type ResourceOwnership = {
+    org_id: string;
+    team_id: string;
+    type: 'team';
+} | {
+    org_id: string;
+    type: 'user';
+    user_id: string;
+} | {
+    org_id: string;
+    team_id: string;
+    type: 'user_team';
+    user_id: string;
+};
+
 export type ResourcePlanItem = {
     action: ResourceAction;
     address: string;
@@ -3254,8 +3698,18 @@ export type ResourcePlanItem = {
     resource_type: string;
 };
 
+/**
+ * Canonical Identity principal types supported by resource grants.
+ */
+export enum ResourcePrincipalType {
+    USER = 'user',
+    GROUP = 'group'
+}
+
 export type ResourceServerCredentialSerialized = {
+    authorization?: ResourceAuthorizationModes;
     created_at: WrappedChronoDateTime;
+    created_by_user_id?: string | null;
     dek_alias: string;
     id: WrappedUuidV4;
     metadata: Metadata;
@@ -3267,7 +3721,6 @@ export type ResourceServerCredentialSerialized = {
     team_id?: string;
     type_id: string;
     updated_at: WrappedChronoDateTime;
-    value: WrappedJsonValue;
 };
 
 export type ResourceServerCredentialSerializedPaginatedResponse = {
@@ -3322,11 +3775,14 @@ export type ReturnAddressUrl = {
 };
 
 export type ReverseProxyProfile = {
+    authorization?: ResourceAuthorizationModes;
     /**
      * Resolved upstream base URL (provider default unless overridden).
      */
     base_url: string;
+    common_provider_installation_id?: string | null;
     created_at: WrappedChronoDateTime;
+    created_by_user_id?: string | null;
     custom_headers?: {
         [key: string]: string;
     };
@@ -3339,6 +3795,9 @@ export type ReverseProxyProfile = {
      */
     id: string;
     org_id: string;
+    /**
+     * Legacy non-authoritative compatibility metadata.
+     */
     owner_id?: string | null;
     /**
      * Foreign key to the `ReverseProxyProviderRegistry` (e.g. `"openai"`).
@@ -3362,7 +3821,7 @@ export type ReverseProxyProfilePaginatedResponse = {
 export type ReverseProxyProviderInfo = {
     base_url: string;
     docs_url?: string | null;
-    icon?: string | null;
+    icon_url?: string | null;
     id: string;
     name: string;
     short_description?: string | null;
@@ -3379,7 +3838,9 @@ export type RotateCustomToolProviderSigningKeyResponse = {
  */
 export type Routine = {
     agent_inbox_id: string;
+    authorization: ResourceAuthorizationModes;
     created_at: WrappedChronoDateTime;
+    created_by_user_id?: string | null;
     enabled: boolean;
     id: WrappedUuidV4;
     last_error?: string | null;
@@ -3445,7 +3906,9 @@ export type SendMissionControlMessageRequestInner = {
  * A session represents a conversation containing related messages.
  */
 export type Session = {
+    authorization: ResourceAuthorizationModes;
     created_at: WrappedChronoDateTime;
+    created_by_user_id?: string | null;
     id: WrappedUuidV4;
     inbox_settings?: {
         [key: string]: unknown;
@@ -3465,10 +3928,39 @@ export type SessionPaginatedResponse = {
 };
 
 /**
+ * Authorization principal attached to a private ChatKit session.
+ */
+export type SessionUserMembership = {
+    added_by_user_id: string;
+    created_at: WrappedChronoDateTime;
+    org_id: string;
+    role: SessionUserRole;
+    session_id: WrappedUuidV4;
+    team_id: string;
+    user_id: string;
+};
+
+/**
+ * A user's authorization membership in a private ChatKit session.
+ */
+export enum SessionUserRole {
+    OWNER = 'owner',
+    MEMBER = 'member'
+}
+
+/**
  * Request body for setting an agent or channel status.
  */
 export type SetChatKitResourceStatusRequest = {
     status: InboxStatus;
+};
+
+/**
+ * Body used by the standard `POST /{id}/visibility` and
+ * `POST /{id}/ownership` endpoints.
+ */
+export type SetResourceAccessModeRequest = {
+    mode: ResourceAccessMode;
 };
 
 export type SetupPayMcpResponse = {
@@ -3491,6 +3983,7 @@ export type SignalAction = {
 };
 
 export type SignalDelivery = {
+    authorization?: ResourceAuthorizationModes;
     chatkit_message_id?: string | null;
     chatkit_session_id?: string | null;
     created_at: WrappedChronoDateTime;
@@ -3514,7 +4007,7 @@ export type SignalDelivery = {
     signal_type: string;
     status: SignalDeliveryStatus;
     summary?: string | null;
-    team_id: string;
+    team_id?: string | null;
     updated_at: WrappedChronoDateTime;
 };
 
@@ -3581,10 +4074,13 @@ export enum SignalProviderAuthMethod {
 }
 
 export type SignalProviderInstance = {
+    authorization?: ResourceAuthorizationModes;
+    common_provider_installation_id?: string | null;
     configuration: {
         [key: string]: unknown;
     };
     created_at: WrappedChronoDateTime;
+    created_by_user_id?: string | null;
     credential_source_type_id: string;
     display_name: string;
     id: string;
@@ -3600,7 +4096,7 @@ export type SignalProviderInstance = {
     resource_server_credential_id?: null | WrappedUuidV4;
     signal_provider_source_type_id: string;
     status: SignalProviderInstanceStatus;
-    team_id: string;
+    team_id?: string | null;
     updated_at: WrappedChronoDateTime;
     user_credential_id?: null | WrappedUuidV4;
     webhook_endpoint_id?: string | null;
@@ -3635,7 +4131,9 @@ export type SignalProviderSourceSerialized = {
 
 export type SignalRule = {
     action: SignalAction;
+    authorization?: ResourceAuthorizationModes;
     created_at: WrappedChronoDateTime;
+    created_by_user_id?: string | null;
     display_name: string;
     filter: SignalRuleFilter;
     id: WrappedUuidV4;
@@ -3645,7 +4143,12 @@ export type SignalRule = {
     signal_provider_instance_id: string;
     signal_type: string;
     status: SignalRuleStatus;
-    team_id: string;
+    /**
+     * Team in which ChatKit sessions and agent actions execute. Personal
+     * rules require this explicit target and create user_team sessions.
+     */
+    target_team_id: string;
+    team_id?: string | null;
     updated_at: WrappedChronoDateTime;
 };
 
@@ -3693,8 +4196,10 @@ export type SignalWebhookVerificationDescriptor = {
  * A persisted skill row.
  */
 export type Skill = {
+    authorization?: ResourceAuthorizationModes;
     content: string;
     created_at: WrappedChronoDateTime;
+    created_by_user_id?: string | null;
     description: string;
     id: WrappedUuidV4;
     name: string;
@@ -3768,7 +4273,10 @@ export type SkillPaginatedResponse = {
 };
 
 export type SkillRegistry = {
+    agent_id?: string | null;
+    authorization?: ResourceAuthorizationModes;
     created_at: WrappedChronoDateTime;
+    created_by_user_id?: string | null;
     description: string;
     id: WrappedUuidV4;
     name: string;
@@ -3781,6 +4289,14 @@ export type SkillRegistry = {
 export type SkillRegistryPaginatedResponse = {
     items: Array<SkillRegistry>;
     next_page_token?: string;
+};
+
+export type SkillRegistrySpec = {
+    description?: string | null;
+    enabled: boolean;
+    enabled_skills?: EnabledSkillsSpec;
+    id?: string | null;
+    name?: string | null;
 };
 
 export type SkillSummary = {
@@ -4154,6 +4670,8 @@ export type ToolGroupInstanceListItemPaginatedResponse = {
 };
 
 export type ToolGroupInstanceSerialized = {
+    authorization?: ResourceAuthorizationModes;
+    common_provider_installation_id?: string | null;
     created_at: WrappedChronoDateTime;
     credential_source_type_id: string;
     display_name: string;
@@ -4184,6 +4702,7 @@ export type ToolGroupSourceSerialized = {
     categories: Array<string>;
     credential_sources: Array<CredentialSourceSerialized>;
     documentation: string;
+    icon_url?: string | null;
     metadata?: Metadata;
     name: string;
     provisioner_provider_id?: string | null;
@@ -4427,12 +4946,25 @@ export type UpdateManagedUserCredentialBody = {
  * Request body for updating an MCP server instance (excludes ID, which comes from path).
  */
 export type UpdateMcpServerInstanceBody = {
+    agent_id?: string | null;
     is_dynamic_tool_discovery: boolean;
     /**
      * Replaces synchronized memory-bank bindings when present; omission preserves them.
      */
     memory_bank_ids?: Array<WrappedUuidV4> | null;
     name: string;
+    user_tool_federation_mode?: UserToolFederationMode;
+    user_tool_federation_selections?: Array<UserToolFederationSelection>;
+};
+
+export type UpdateMcpServerInstanceRequestInner = {
+    agent_id?: string | null;
+    id: string;
+    is_dynamic_tool_discovery: boolean;
+    memory_bank_ids?: Array<WrappedUuidV4> | null;
+    name: string;
+    user_tool_federation_mode?: UserToolFederationMode;
+    user_tool_federation_selections?: Array<UserToolFederationSelection>;
 };
 
 /**
@@ -4448,6 +4980,7 @@ export type UpdateMcpServerInstanceToolBody = {
 };
 
 export type UpdateMemoryBankBody = {
+    agent_id?: string | null;
     description?: string | null;
     name?: string | null;
 };
@@ -4556,6 +5089,7 @@ export type UpdateSkillBody = {
 };
 
 export type UpdateSkillRegistryBody = {
+    agent_id?: string | null;
     description?: string | null;
     memory_bank_ids?: Array<WrappedUuidV4> | null;
     name?: string | null;
@@ -4588,6 +5122,7 @@ export type UpdateWikiAssetBody = {
 };
 
 export type UpdateWikiBody = {
+    agent_id?: string | null;
     /**
      * Replaces the complete memory-bank selection when present; an empty list clears it.
      */
@@ -4622,6 +5157,17 @@ export type UpsertWikiPageBody = {
     title: string;
 };
 
+/**
+ * Uploaded profile image metadata for a human or machine user.
+ */
+export type UserAvatar = {
+    bucket: string;
+    media_type: string;
+    object_key: string;
+    sha256: string;
+    size_bytes: number;
+};
+
 export type UserCredentialBrokeringResponse = (BrokerState & {
     type: 'broker_state';
 }) | (UserCredentialSerialized & {
@@ -4631,7 +5177,9 @@ export type UserCredentialBrokeringResponse = (BrokerState & {
 };
 
 export type UserCredentialSerialized = {
+    authorization?: ResourceAuthorizationModes;
     created_at: WrappedChronoDateTime;
+    created_by_user_id?: string | null;
     dek_alias: string;
     id: WrappedUuidV4;
     metadata: Metadata;
@@ -4644,7 +5192,6 @@ export type UserCredentialSerialized = {
     team_id?: string;
     type_id: string;
     updated_at: WrappedChronoDateTime;
-    value: WrappedJsonValue;
 };
 
 export type UserCredentialSerializedPaginatedResponse = {
@@ -4671,6 +5218,17 @@ export type UserTeam = {
     user_id: string;
 };
 
+export enum UserToolFederationMode {
+    NONE = 'none',
+    ALL = 'all',
+    SELECTED = 'selected'
+}
+
+export type UserToolFederationSelection = {
+    tool_group_source_type_id: string;
+    tool_source_type_id: string;
+};
+
 export type ValidatePageTypeDataBody = {
     data: unknown;
     page_type_version_id: WrappedUuidV4;
@@ -4678,6 +5236,9 @@ export type ValidatePageTypeDataBody = {
 
 export type ValidateStateRequest = {
     format?: StateDocumentFormat;
+    owner_mappings?: {
+        [key: string]: string;
+    };
     state: string;
     variables?: {
         [key: string]: string;
@@ -4692,11 +5253,16 @@ export type ValidateStateResponse = {
 };
 
 export type Vec = Array<{
-    description: string;
-    display_name: string;
-    icon?: string | null;
+    agent_id?: string | null;
+    authorization?: ResourceAuthorizationModes;
+    created_at: WrappedChronoDateTime;
     id: string;
-    providers: Array<ChatChannelProvider>;
+    is_dynamic_tool_discovery: boolean;
+    name: string;
+    org_id: string;
+    updated_at: WrappedChronoDateTime;
+    user_tool_federation_mode: UserToolFederationMode;
+    user_tool_federation_selections: Array<UserToolFederationSelection>;
 }>;
 
 export type WaitForPayBalanceRequest = {
@@ -4839,13 +5405,16 @@ export type WebhookSigningKeyMetadata = {
 };
 
 export type Wiki = {
+    agent_id?: string | null;
+    authorization?: ResourceAuthorizationModes;
     created_at: WrappedChronoDateTime;
+    created_by_user_id?: string | null;
     id: WrappedUuidV4;
     name: string;
     org_id: string;
     status: WikiStatus;
     status_message?: string | null;
-    team_id: string;
+    team_id?: string | null;
     tool_group_instance_id?: string | null;
     updated_at: WrappedChronoDateTime;
 };
@@ -4947,7 +5516,7 @@ export type WikiPage = {
     path: string;
     revision: number;
     tags: Array<string>;
-    team_id: string;
+    team_id?: string | null;
     title: string;
     updated_at: WrappedChronoDateTime;
     wiki_id: WrappedUuidV4;
@@ -5066,6 +5635,12 @@ export type WikiRelationshipTypeVersion = {
     target_page_type_ids: Array<WrappedUuidV4>;
     version: number;
     wiki_id: WrappedUuidV4;
+};
+
+export type WikiSpec = {
+    enabled: boolean;
+    id?: string | null;
+    name?: string | null;
 };
 
 export enum WikiStatus {
@@ -7928,6 +8503,140 @@ export type ChatkitUpdateAgentResponses = {
 
 export type ChatkitUpdateAgentResponse = ChatkitUpdateAgentResponses[keyof ChatkitUpdateAgentResponses];
 
+export type ChatkitGetAgentAvatarData = {
+    body?: never;
+    path: {
+        /**
+         * Team ID
+         */
+        team_id: string;
+        agent_id: string;
+    };
+    query?: never;
+    url: '/api/v1/team/{team_id}/chatkit/agents/{agent_id}/avatar';
+};
+
+export type ChatkitGetAgentAvatarErrors = {
+    404: Error;
+};
+
+export type ChatkitGetAgentAvatarError = ChatkitGetAgentAvatarErrors[keyof ChatkitGetAgentAvatarErrors];
+
+export type ChatkitGetAgentAvatarResponses = {
+    200: Array<number>;
+};
+
+export type ChatkitGetAgentAvatarResponse = ChatkitGetAgentAvatarResponses[keyof ChatkitGetAgentAvatarResponses];
+
+export type ChatkitUpdateAgentAvatarData = {
+    body: Array<number>;
+    path: {
+        /**
+         * Team ID
+         */
+        team_id: string;
+        agent_id: string;
+    };
+    query?: never;
+    url: '/api/v1/team/{team_id}/chatkit/agents/{agent_id}/avatar';
+};
+
+export type ChatkitUpdateAgentAvatarErrors = {
+    400: Error;
+    404: Error;
+};
+
+export type ChatkitUpdateAgentAvatarError = ChatkitUpdateAgentAvatarErrors[keyof ChatkitUpdateAgentAvatarErrors];
+
+export type ChatkitUpdateAgentAvatarResponses = {
+    200: ChatKitAgentAvatar;
+};
+
+export type ChatkitUpdateAgentAvatarResponse = ChatkitUpdateAgentAvatarResponses[keyof ChatkitUpdateAgentAvatarResponses];
+
+export type ChatkitUpdateAgentOwnershipData = {
+    body: SetResourceAccessModeRequest;
+    path: {
+        /**
+         * Team ID
+         */
+        team_id: string;
+        agent_id: string;
+    };
+    query?: never;
+    url: '/api/v1/team/{team_id}/chatkit/agents/{agent_id}/ownership';
+};
+
+export type ChatkitUpdateAgentOwnershipErrors = {
+    400: Error;
+    404: Error;
+};
+
+export type ChatkitUpdateAgentOwnershipError = ChatkitUpdateAgentOwnershipErrors[keyof ChatkitUpdateAgentOwnershipErrors];
+
+export type ChatkitUpdateAgentOwnershipResponses = {
+    200: ResourceAuthorization;
+};
+
+export type ChatkitUpdateAgentOwnershipResponse = ChatkitUpdateAgentOwnershipResponses[keyof ChatkitUpdateAgentOwnershipResponses];
+
+export type ChatkitGetAgentResourceBundleProvisioningData = {
+    body?: never;
+    path: {
+        /**
+         * Team ID
+         */
+        team_id: string;
+        agent_id: string;
+    };
+    query?: never;
+    url: '/api/v1/team/{team_id}/chatkit/agents/{agent_id}/provision';
+};
+
+export type ChatkitGetAgentResourceBundleProvisioningResponses = {
+    200: AgentProvisioningOperation;
+};
+
+export type ChatkitGetAgentResourceBundleProvisioningResponse = ChatkitGetAgentResourceBundleProvisioningResponses[keyof ChatkitGetAgentResourceBundleProvisioningResponses];
+
+export type ChatkitProvisionAgentResourceBundleData = {
+    body: ProvisionAgentRequest;
+    path: {
+        /**
+         * Team ID
+         */
+        team_id: string;
+        agent_id: string;
+    };
+    query?: never;
+    url: '/api/v1/team/{team_id}/chatkit/agents/{agent_id}/provision';
+};
+
+export type ChatkitProvisionAgentResourceBundleResponses = {
+    202: AgentProvisioningOperation;
+};
+
+export type ChatkitProvisionAgentResourceBundleResponse = ChatkitProvisionAgentResourceBundleResponses[keyof ChatkitProvisionAgentResourceBundleResponses];
+
+export type ChatkitClaimAgentResourceBundleOutputsData = {
+    body?: never;
+    path: {
+        /**
+         * Team ID
+         */
+        team_id: string;
+        agent_id: string;
+    };
+    query?: never;
+    url: '/api/v1/team/{team_id}/chatkit/agents/{agent_id}/provision/outputs/claim';
+};
+
+export type ChatkitClaimAgentResourceBundleOutputsResponses = {
+    200: AgentProvisioningOutputs;
+};
+
+export type ChatkitClaimAgentResourceBundleOutputsResponse = ChatkitClaimAgentResourceBundleOutputsResponses[keyof ChatkitClaimAgentResourceBundleOutputsResponses];
+
 export type ChatkitSetAgentStatusData = {
     body: SetChatKitResourceStatusRequest;
     path: {
@@ -7960,6 +8669,114 @@ export type ChatkitSetAgentStatusResponses = {
 };
 
 export type ChatkitSetAgentStatusResponse = ChatkitSetAgentStatusResponses[keyof ChatkitSetAgentStatusResponses];
+
+export type ChatkitUpdateAgentVisibilityData = {
+    body: SetResourceAccessModeRequest;
+    path: {
+        /**
+         * Team ID
+         */
+        team_id: string;
+        agent_id: string;
+    };
+    query?: never;
+    url: '/api/v1/team/{team_id}/chatkit/agents/{agent_id}/visibility';
+};
+
+export type ChatkitUpdateAgentVisibilityErrors = {
+    400: Error;
+    404: Error;
+};
+
+export type ChatkitUpdateAgentVisibilityError = ChatkitUpdateAgentVisibilityErrors[keyof ChatkitUpdateAgentVisibilityErrors];
+
+export type ChatkitUpdateAgentVisibilityResponses = {
+    200: ResourceAuthorization;
+};
+
+export type ChatkitUpdateAgentVisibilityResponse = ChatkitUpdateAgentVisibilityResponses[keyof ChatkitUpdateAgentVisibilityResponses];
+
+export type ChatkitListAgentResourceGrantsData = {
+    body?: never;
+    path: {
+        /**
+         * Team ID
+         */
+        team_id: string;
+        agent_id: string;
+        plane: string;
+    };
+    query?: never;
+    url: '/api/v1/team/{team_id}/chatkit/agents/{agent_id}/{plane}/grants';
+};
+
+export type ChatkitListAgentResourceGrantsErrors = {
+    404: Error;
+};
+
+export type ChatkitListAgentResourceGrantsError = ChatkitListAgentResourceGrantsErrors[keyof ChatkitListAgentResourceGrantsErrors];
+
+export type ChatkitListAgentResourceGrantsResponses = {
+    200: Array<ResourceGrant>;
+};
+
+export type ChatkitListAgentResourceGrantsResponse = ChatkitListAgentResourceGrantsResponses[keyof ChatkitListAgentResourceGrantsResponses];
+
+export type ChatkitAddAgentResourceGrantData = {
+    body: CreateResourcePlaneGrantRequest;
+    path: {
+        /**
+         * Team ID
+         */
+        team_id: string;
+        agent_id: string;
+        plane: string;
+    };
+    query?: never;
+    url: '/api/v1/team/{team_id}/chatkit/agents/{agent_id}/{plane}/grants';
+};
+
+export type ChatkitAddAgentResourceGrantErrors = {
+    400: Error;
+    404: Error;
+};
+
+export type ChatkitAddAgentResourceGrantError = ChatkitAddAgentResourceGrantErrors[keyof ChatkitAddAgentResourceGrantErrors];
+
+export type ChatkitAddAgentResourceGrantResponses = {
+    200: ResourceGrant;
+};
+
+export type ChatkitAddAgentResourceGrantResponse = ChatkitAddAgentResourceGrantResponses[keyof ChatkitAddAgentResourceGrantResponses];
+
+export type ChatkitRemoveAgentResourceGrantData = {
+    body?: never;
+    path: {
+        /**
+         * Team ID
+         */
+        team_id: string;
+        agent_id: string;
+        plane: string;
+        principal_type: string;
+        principal_id: string;
+    };
+    query?: never;
+    url: '/api/v1/team/{team_id}/chatkit/agents/{agent_id}/{plane}/grants/{principal_type}/{principal_id}';
+};
+
+export type ChatkitRemoveAgentResourceGrantErrors = {
+    400: Error;
+    404: Error;
+};
+
+export type ChatkitRemoveAgentResourceGrantError = ChatkitRemoveAgentResourceGrantErrors[keyof ChatkitRemoveAgentResourceGrantErrors];
+
+export type ChatkitRemoveAgentResourceGrantResponses = {
+    200: ResourceGrant;
+};
+
+export type ChatkitRemoveAgentResourceGrantResponse = ChatkitRemoveAgentResourceGrantResponses[keyof ChatkitRemoveAgentResourceGrantResponses];
 
 export type ChatkitListAvailableChatProvidersData = {
     body?: never;
@@ -8823,6 +9640,104 @@ export type ChatkitUpdateRoutineResponses = {
 
 export type ChatkitUpdateRoutineResponse = ChatkitUpdateRoutineResponses[keyof ChatkitUpdateRoutineResponses];
 
+export type SetChatkitRoutineOwnershipData = {
+    body: SetResourceAccessModeRequest;
+    path: {
+        /**
+         * Team ID
+         */
+        team_id: string;
+        routine_id: WrappedUuidV4;
+    };
+    query?: never;
+    url: '/api/v1/team/{team_id}/chatkit/routines/{routine_id}/ownership';
+};
+
+export type SetChatkitRoutineOwnershipResponses = {
+    200: ResourceAuthorization;
+};
+
+export type SetChatkitRoutineOwnershipResponse = SetChatkitRoutineOwnershipResponses[keyof SetChatkitRoutineOwnershipResponses];
+
+export type SetChatkitRoutineVisibilityData = {
+    body: SetResourceAccessModeRequest;
+    path: {
+        /**
+         * Team ID
+         */
+        team_id: string;
+        routine_id: WrappedUuidV4;
+    };
+    query?: never;
+    url: '/api/v1/team/{team_id}/chatkit/routines/{routine_id}/visibility';
+};
+
+export type SetChatkitRoutineVisibilityResponses = {
+    200: ResourceAuthorization;
+};
+
+export type SetChatkitRoutineVisibilityResponse = SetChatkitRoutineVisibilityResponses[keyof SetChatkitRoutineVisibilityResponses];
+
+export type ListChatkitRoutineGrantsData = {
+    body?: never;
+    path: {
+        /**
+         * Team ID
+         */
+        team_id: string;
+        routine_id: WrappedUuidV4;
+        plane: ResourceGrantPlane;
+    };
+    query?: never;
+    url: '/api/v1/team/{team_id}/chatkit/routines/{routine_id}/{plane}/grants';
+};
+
+export type ListChatkitRoutineGrantsResponses = {
+    200: Array<ResourceGrant>;
+};
+
+export type ListChatkitRoutineGrantsResponse = ListChatkitRoutineGrantsResponses[keyof ListChatkitRoutineGrantsResponses];
+
+export type AddChatkitRoutineGrantData = {
+    body: CreateResourcePlaneGrantRequest;
+    path: {
+        /**
+         * Team ID
+         */
+        team_id: string;
+        routine_id: WrappedUuidV4;
+        plane: ResourceGrantPlane;
+    };
+    query?: never;
+    url: '/api/v1/team/{team_id}/chatkit/routines/{routine_id}/{plane}/grants';
+};
+
+export type AddChatkitRoutineGrantResponses = {
+    200: ResourceGrant;
+};
+
+export type AddChatkitRoutineGrantResponse = AddChatkitRoutineGrantResponses[keyof AddChatkitRoutineGrantResponses];
+
+export type RemoveChatkitRoutineGrantData = {
+    body?: never;
+    path: {
+        /**
+         * Team ID
+         */
+        team_id: string;
+        routine_id: WrappedUuidV4;
+        plane: ResourceGrantPlane;
+        principal_type: ResourcePrincipalType;
+        principal_id: string;
+    };
+    query?: never;
+    url: '/api/v1/team/{team_id}/chatkit/routines/{routine_id}/{plane}/grants/{principal_type}/{principal_id}';
+};
+
+export type RemoveChatkitRoutineGrantResponses = {
+    200: unknown;
+};
+
 export type ListSessionsData = {
     body?: never;
     path: {
@@ -9261,6 +10176,112 @@ export type ListSessionInboxInstancesResponses = {
 
 export type ListSessionInboxInstancesResponse = ListSessionInboxInstancesResponses[keyof ListSessionInboxInstancesResponses];
 
+export type ListSessionUserMembersData = {
+    body?: never;
+    path: {
+        /**
+         * Team ID
+         */
+        team_id: string;
+        /**
+         * Private session ID
+         */
+        session_id: string;
+    };
+    query?: never;
+    url: '/api/v1/team/{team_id}/chatkit/session/{session_id}/member';
+};
+
+export type ListSessionUserMembersErrors = {
+    /**
+     * Session not found
+     */
+    404: Error;
+};
+
+export type ListSessionUserMembersError = ListSessionUserMembersErrors[keyof ListSessionUserMembersErrors];
+
+export type ListSessionUserMembersResponses = {
+    /**
+     * Private session authorization members
+     */
+    200: Array<SessionUserMembership>;
+};
+
+export type ListSessionUserMembersResponse = ListSessionUserMembersResponses[keyof ListSessionUserMembersResponses];
+
+export type AddSessionUserMemberData = {
+    body: AddSessionUserMemberRequest;
+    path: {
+        /**
+         * Team ID
+         */
+        team_id: string;
+        /**
+         * Private session ID
+         */
+        session_id: string;
+    };
+    query?: never;
+    url: '/api/v1/team/{team_id}/chatkit/session/{session_id}/member';
+};
+
+export type AddSessionUserMemberErrors = {
+    /**
+     * Session not found
+     */
+    404: Error;
+};
+
+export type AddSessionUserMemberError = AddSessionUserMemberErrors[keyof AddSessionUserMemberErrors];
+
+export type AddSessionUserMemberResponses = {
+    /**
+     * Added authorization member
+     */
+    200: SessionUserMembership;
+};
+
+export type AddSessionUserMemberResponse = AddSessionUserMemberResponses[keyof AddSessionUserMemberResponses];
+
+export type RemoveSessionUserMemberData = {
+    body?: never;
+    path: {
+        /**
+         * Team ID
+         */
+        team_id: string;
+        /**
+         * Private session ID
+         */
+        session_id: string;
+        /**
+         * Tilde user ID
+         */
+        user_id: string;
+    };
+    query?: never;
+    url: '/api/v1/team/{team_id}/chatkit/session/{session_id}/member/{user_id}';
+};
+
+export type RemoveSessionUserMemberErrors = {
+    /**
+     * Session not found
+     */
+    404: Error;
+};
+
+export type RemoveSessionUserMemberError = RemoveSessionUserMemberErrors[keyof RemoveSessionUserMemberErrors];
+
+export type RemoveSessionUserMemberResponses = {
+    /**
+     * Removed authorization member
+     */
+    200: RemoveSessionUserMemberResponse;
+};
+
+export type RemoveSessionUserMemberResponse2 = RemoveSessionUserMemberResponses[keyof RemoveSessionUserMemberResponses];
+
 export type ListMessagesData = {
     body?: never;
     path: {
@@ -9490,6 +10511,140 @@ export type ObserveSessionResponses = {
      */
     200: unknown;
 };
+
+export type UpdateSessionOwnershipData = {
+    body: SetResourceAccessModeRequest;
+    path: {
+        /**
+         * Team ID
+         */
+        team_id: string;
+        session_id: string;
+    };
+    query?: never;
+    url: '/api/v1/team/{team_id}/chatkit/session/{session_id}/ownership';
+};
+
+export type UpdateSessionOwnershipErrors = {
+    400: Error;
+    404: Error;
+};
+
+export type UpdateSessionOwnershipError = UpdateSessionOwnershipErrors[keyof UpdateSessionOwnershipErrors];
+
+export type UpdateSessionOwnershipResponses = {
+    200: ResourceAuthorization;
+};
+
+export type UpdateSessionOwnershipResponse = UpdateSessionOwnershipResponses[keyof UpdateSessionOwnershipResponses];
+
+export type UpdateSessionVisibilityData = {
+    body: SetResourceAccessModeRequest;
+    path: {
+        /**
+         * Team ID
+         */
+        team_id: string;
+        session_id: string;
+    };
+    query?: never;
+    url: '/api/v1/team/{team_id}/chatkit/session/{session_id}/visibility';
+};
+
+export type UpdateSessionVisibilityErrors = {
+    400: Error;
+    404: Error;
+};
+
+export type UpdateSessionVisibilityError = UpdateSessionVisibilityErrors[keyof UpdateSessionVisibilityErrors];
+
+export type UpdateSessionVisibilityResponses = {
+    200: ResourceAuthorization;
+};
+
+export type UpdateSessionVisibilityResponse = UpdateSessionVisibilityResponses[keyof UpdateSessionVisibilityResponses];
+
+export type ListSessionResourceGrantsData = {
+    body?: never;
+    path: {
+        /**
+         * Team ID
+         */
+        team_id: string;
+        session_id: string;
+        plane: string;
+    };
+    query?: never;
+    url: '/api/v1/team/{team_id}/chatkit/session/{session_id}/{plane}/grants';
+};
+
+export type ListSessionResourceGrantsErrors = {
+    404: Error;
+};
+
+export type ListSessionResourceGrantsError = ListSessionResourceGrantsErrors[keyof ListSessionResourceGrantsErrors];
+
+export type ListSessionResourceGrantsResponses = {
+    200: Array<ResourceGrant>;
+};
+
+export type ListSessionResourceGrantsResponse = ListSessionResourceGrantsResponses[keyof ListSessionResourceGrantsResponses];
+
+export type AddSessionResourceGrantData = {
+    body: CreateResourcePlaneGrantRequest;
+    path: {
+        /**
+         * Team ID
+         */
+        team_id: string;
+        session_id: string;
+        plane: string;
+    };
+    query?: never;
+    url: '/api/v1/team/{team_id}/chatkit/session/{session_id}/{plane}/grants';
+};
+
+export type AddSessionResourceGrantErrors = {
+    400: Error;
+    404: Error;
+};
+
+export type AddSessionResourceGrantError = AddSessionResourceGrantErrors[keyof AddSessionResourceGrantErrors];
+
+export type AddSessionResourceGrantResponses = {
+    200: ResourceGrant;
+};
+
+export type AddSessionResourceGrantResponse = AddSessionResourceGrantResponses[keyof AddSessionResourceGrantResponses];
+
+export type RemoveSessionResourceGrantData = {
+    body?: never;
+    path: {
+        /**
+         * Team ID
+         */
+        team_id: string;
+        session_id: string;
+        plane: string;
+        principal_type: string;
+        principal_id: string;
+    };
+    query?: never;
+    url: '/api/v1/team/{team_id}/chatkit/session/{session_id}/{plane}/grants/{principal_type}/{principal_id}';
+};
+
+export type RemoveSessionResourceGrantErrors = {
+    400: Error;
+    404: Error;
+};
+
+export type RemoveSessionResourceGrantError = RemoveSessionResourceGrantErrors[keyof RemoveSessionResourceGrantErrors];
+
+export type RemoveSessionResourceGrantResponses = {
+    200: ResourceGrant;
+};
+
+export type RemoveSessionResourceGrantResponse = RemoveSessionResourceGrantResponses[keyof RemoveSessionResourceGrantResponses];
 
 export type ChatkitListSessionsData = {
     body?: never;
@@ -9798,6 +10953,198 @@ export type ResumeUserCredentialBrokeringResponses = {
 
 export type ResumeUserCredentialBrokeringResponse = ResumeUserCredentialBrokeringResponses[keyof ResumeUserCredentialBrokeringResponses];
 
+export type ListCommonProviderInstallationsData = {
+    body?: never;
+    path: {
+        /**
+         * Team ID
+         */
+        team_id: string;
+    };
+    query?: {
+        page_size?: number;
+        next_page_token?: string | null;
+    };
+    url: '/api/v1/team/{team_id}/credential/common-provider-installation';
+};
+
+export type ListCommonProviderInstallationsResponses = {
+    200: CommonProviderInstallationPage;
+};
+
+export type ListCommonProviderInstallationsResponse = ListCommonProviderInstallationsResponses[keyof ListCommonProviderInstallationsResponses];
+
+export type GetCommonProviderInstallationData = {
+    body?: never;
+    path: {
+        /**
+         * Team ID
+         */
+        team_id: string;
+        id: string;
+    };
+    query?: never;
+    url: '/api/v1/team/{team_id}/credential/common-provider-installation/{id}';
+};
+
+export type GetCommonProviderInstallationResponses = {
+    200: CommonProviderInstallationSerialized;
+};
+
+export type GetCommonProviderInstallationResponse = GetCommonProviderInstallationResponses[keyof GetCommonProviderInstallationResponses];
+
+export type SetCommonProviderInstallationOwnershipData = {
+    body: SetResourceAccessModeRequest;
+    path: {
+        /**
+         * Team ID
+         */
+        team_id: string;
+        id: string;
+    };
+    query?: never;
+    url: '/api/v1/team/{team_id}/credential/common-provider-installation/{id}/ownership';
+};
+
+export type SetCommonProviderInstallationOwnershipResponses = {
+    200: ResourceAuthorization;
+};
+
+export type SetCommonProviderInstallationOwnershipResponse = SetCommonProviderInstallationOwnershipResponses[keyof SetCommonProviderInstallationOwnershipResponses];
+
+export type ListCommonProviderInstallationOwnershipGrantsData = {
+    body?: never;
+    path: {
+        /**
+         * Team ID
+         */
+        team_id: string;
+        id: string;
+    };
+    query?: never;
+    url: '/api/v1/team/{team_id}/credential/common-provider-installation/{id}/ownership/grants';
+};
+
+export type ListCommonProviderInstallationOwnershipGrantsResponses = {
+    200: Array<ResourceGrant>;
+};
+
+export type ListCommonProviderInstallationOwnershipGrantsResponse = ListCommonProviderInstallationOwnershipGrantsResponses[keyof ListCommonProviderInstallationOwnershipGrantsResponses];
+
+export type AddCommonProviderInstallationOwnershipGrantData = {
+    body: CreateResourcePlaneGrantRequest;
+    path: {
+        /**
+         * Team ID
+         */
+        team_id: string;
+        id: string;
+    };
+    query?: never;
+    url: '/api/v1/team/{team_id}/credential/common-provider-installation/{id}/ownership/grants';
+};
+
+export type AddCommonProviderInstallationOwnershipGrantResponses = {
+    200: ResourceGrant;
+};
+
+export type AddCommonProviderInstallationOwnershipGrantResponse = AddCommonProviderInstallationOwnershipGrantResponses[keyof AddCommonProviderInstallationOwnershipGrantResponses];
+
+export type RemoveCommonProviderInstallationOwnershipGrantData = {
+    body?: never;
+    path: {
+        /**
+         * Team ID
+         */
+        team_id: string;
+        id: string;
+        principal_type: string;
+        principal_id: string;
+    };
+    query?: never;
+    url: '/api/v1/team/{team_id}/credential/common-provider-installation/{id}/ownership/grants/{principal_type}/{principal_id}';
+};
+
+export type RemoveCommonProviderInstallationOwnershipGrantResponses = {
+    200: unknown;
+};
+
+export type SetCommonProviderInstallationVisibilityData = {
+    body: SetResourceAccessModeRequest;
+    path: {
+        /**
+         * Team ID
+         */
+        team_id: string;
+        id: string;
+    };
+    query?: never;
+    url: '/api/v1/team/{team_id}/credential/common-provider-installation/{id}/visibility';
+};
+
+export type SetCommonProviderInstallationVisibilityResponses = {
+    200: ResourceAuthorization;
+};
+
+export type SetCommonProviderInstallationVisibilityResponse = SetCommonProviderInstallationVisibilityResponses[keyof SetCommonProviderInstallationVisibilityResponses];
+
+export type ListCommonProviderInstallationVisibilityGrantsData = {
+    body?: never;
+    path: {
+        /**
+         * Team ID
+         */
+        team_id: string;
+        id: string;
+    };
+    query?: never;
+    url: '/api/v1/team/{team_id}/credential/common-provider-installation/{id}/visibility/grants';
+};
+
+export type ListCommonProviderInstallationVisibilityGrantsResponses = {
+    200: Array<ResourceGrant>;
+};
+
+export type ListCommonProviderInstallationVisibilityGrantsResponse = ListCommonProviderInstallationVisibilityGrantsResponses[keyof ListCommonProviderInstallationVisibilityGrantsResponses];
+
+export type AddCommonProviderInstallationVisibilityGrantData = {
+    body: CreateResourcePlaneGrantRequest;
+    path: {
+        /**
+         * Team ID
+         */
+        team_id: string;
+        id: string;
+    };
+    query?: never;
+    url: '/api/v1/team/{team_id}/credential/common-provider-installation/{id}/visibility/grants';
+};
+
+export type AddCommonProviderInstallationVisibilityGrantResponses = {
+    200: ResourceGrant;
+};
+
+export type AddCommonProviderInstallationVisibilityGrantResponse = AddCommonProviderInstallationVisibilityGrantResponses[keyof AddCommonProviderInstallationVisibilityGrantResponses];
+
+export type RemoveCommonProviderInstallationVisibilityGrantData = {
+    body?: never;
+    path: {
+        /**
+         * Team ID
+         */
+        team_id: string;
+        id: string;
+        principal_type: string;
+        principal_id: string;
+    };
+    query?: never;
+    url: '/api/v1/team/{team_id}/credential/common-provider-installation/{id}/visibility/grants/{principal_type}/{principal_id}';
+};
+
+export type RemoveCommonProviderInstallationVisibilityGrantResponses = {
+    200: unknown;
+};
+
 export type ListProviderProvisionerCatalogData = {
     body?: never;
     path: {
@@ -9971,6 +11318,158 @@ export type UpdateResourceServerCredentialResponses = {
 };
 
 export type UpdateResourceServerCredentialResponse = UpdateResourceServerCredentialResponses[keyof UpdateResourceServerCredentialResponses];
+
+export type SetRscOwnershipData = {
+    body: SetResourceAccessModeRequest;
+    path: {
+        /**
+         * Team ID
+         */
+        team_id: string;
+        id: WrappedUuidV4;
+    };
+    query?: never;
+    url: '/api/v1/team/{team_id}/credential/resource-server/{id}/ownership';
+};
+
+export type SetRscOwnershipResponses = {
+    200: ResourceAuthorization;
+};
+
+export type SetRscOwnershipResponse = SetRscOwnershipResponses[keyof SetRscOwnershipResponses];
+
+export type ListRscOwnershipGrantsData = {
+    body?: never;
+    path: {
+        /**
+         * Team ID
+         */
+        team_id: string;
+        id: WrappedUuidV4;
+    };
+    query?: never;
+    url: '/api/v1/team/{team_id}/credential/resource-server/{id}/ownership/grants';
+};
+
+export type ListRscOwnershipGrantsResponses = {
+    200: Array<ResourceGrant>;
+};
+
+export type ListRscOwnershipGrantsResponse = ListRscOwnershipGrantsResponses[keyof ListRscOwnershipGrantsResponses];
+
+export type AddRscOwnershipGrantData = {
+    body: CreateResourcePlaneGrantRequest;
+    path: {
+        /**
+         * Team ID
+         */
+        team_id: string;
+        id: WrappedUuidV4;
+    };
+    query?: never;
+    url: '/api/v1/team/{team_id}/credential/resource-server/{id}/ownership/grants';
+};
+
+export type AddRscOwnershipGrantResponses = {
+    200: ResourceGrant;
+};
+
+export type AddRscOwnershipGrantResponse = AddRscOwnershipGrantResponses[keyof AddRscOwnershipGrantResponses];
+
+export type RemoveRscOwnershipGrantData = {
+    body?: never;
+    path: {
+        /**
+         * Team ID
+         */
+        team_id: string;
+        id: WrappedUuidV4;
+        principal_type: string;
+        principal_id: string;
+    };
+    query?: never;
+    url: '/api/v1/team/{team_id}/credential/resource-server/{id}/ownership/grants/{principal_type}/{principal_id}';
+};
+
+export type RemoveRscOwnershipGrantResponses = {
+    200: unknown;
+};
+
+export type SetRscVisibilityData = {
+    body: SetResourceAccessModeRequest;
+    path: {
+        /**
+         * Team ID
+         */
+        team_id: string;
+        id: WrappedUuidV4;
+    };
+    query?: never;
+    url: '/api/v1/team/{team_id}/credential/resource-server/{id}/visibility';
+};
+
+export type SetRscVisibilityResponses = {
+    200: ResourceAuthorization;
+};
+
+export type SetRscVisibilityResponse = SetRscVisibilityResponses[keyof SetRscVisibilityResponses];
+
+export type ListRscVisibilityGrantsData = {
+    body?: never;
+    path: {
+        /**
+         * Team ID
+         */
+        team_id: string;
+        id: WrappedUuidV4;
+    };
+    query?: never;
+    url: '/api/v1/team/{team_id}/credential/resource-server/{id}/visibility/grants';
+};
+
+export type ListRscVisibilityGrantsResponses = {
+    200: Array<ResourceGrant>;
+};
+
+export type ListRscVisibilityGrantsResponse = ListRscVisibilityGrantsResponses[keyof ListRscVisibilityGrantsResponses];
+
+export type AddRscVisibilityGrantData = {
+    body: CreateResourcePlaneGrantRequest;
+    path: {
+        /**
+         * Team ID
+         */
+        team_id: string;
+        id: WrappedUuidV4;
+    };
+    query?: never;
+    url: '/api/v1/team/{team_id}/credential/resource-server/{id}/visibility/grants';
+};
+
+export type AddRscVisibilityGrantResponses = {
+    200: ResourceGrant;
+};
+
+export type AddRscVisibilityGrantResponse = AddRscVisibilityGrantResponses[keyof AddRscVisibilityGrantResponses];
+
+export type RemoveRscVisibilityGrantData = {
+    body?: never;
+    path: {
+        /**
+         * Team ID
+         */
+        team_id: string;
+        id: WrappedUuidV4;
+        principal_type: string;
+        principal_id: string;
+    };
+    query?: never;
+    url: '/api/v1/team/{team_id}/credential/resource-server/{id}/visibility/grants/{principal_type}/{principal_id}';
+};
+
+export type RemoveRscVisibilityGrantResponses = {
+    200: unknown;
+};
 
 export type ListCredentialSetupItemsData = {
     body?: never;
@@ -10278,6 +11777,158 @@ export type UpdateUserCredentialResponses = {
 };
 
 export type UpdateUserCredentialResponse = UpdateUserCredentialResponses[keyof UpdateUserCredentialResponses];
+
+export type SetUcOwnershipData = {
+    body: SetResourceAccessModeRequest;
+    path: {
+        /**
+         * Team ID
+         */
+        team_id: string;
+        id: WrappedUuidV4;
+    };
+    query?: never;
+    url: '/api/v1/team/{team_id}/credential/user-credential/{id}/ownership';
+};
+
+export type SetUcOwnershipResponses = {
+    200: ResourceAuthorization;
+};
+
+export type SetUcOwnershipResponse = SetUcOwnershipResponses[keyof SetUcOwnershipResponses];
+
+export type ListUcOwnershipGrantsData = {
+    body?: never;
+    path: {
+        /**
+         * Team ID
+         */
+        team_id: string;
+        id: WrappedUuidV4;
+    };
+    query?: never;
+    url: '/api/v1/team/{team_id}/credential/user-credential/{id}/ownership/grants';
+};
+
+export type ListUcOwnershipGrantsResponses = {
+    200: Array<ResourceGrant>;
+};
+
+export type ListUcOwnershipGrantsResponse = ListUcOwnershipGrantsResponses[keyof ListUcOwnershipGrantsResponses];
+
+export type AddUcOwnershipGrantData = {
+    body: CreateResourcePlaneGrantRequest;
+    path: {
+        /**
+         * Team ID
+         */
+        team_id: string;
+        id: WrappedUuidV4;
+    };
+    query?: never;
+    url: '/api/v1/team/{team_id}/credential/user-credential/{id}/ownership/grants';
+};
+
+export type AddUcOwnershipGrantResponses = {
+    200: ResourceGrant;
+};
+
+export type AddUcOwnershipGrantResponse = AddUcOwnershipGrantResponses[keyof AddUcOwnershipGrantResponses];
+
+export type RemoveUcOwnershipGrantData = {
+    body?: never;
+    path: {
+        /**
+         * Team ID
+         */
+        team_id: string;
+        id: WrappedUuidV4;
+        principal_type: string;
+        principal_id: string;
+    };
+    query?: never;
+    url: '/api/v1/team/{team_id}/credential/user-credential/{id}/ownership/grants/{principal_type}/{principal_id}';
+};
+
+export type RemoveUcOwnershipGrantResponses = {
+    200: unknown;
+};
+
+export type SetUcVisibilityData = {
+    body: SetResourceAccessModeRequest;
+    path: {
+        /**
+         * Team ID
+         */
+        team_id: string;
+        id: WrappedUuidV4;
+    };
+    query?: never;
+    url: '/api/v1/team/{team_id}/credential/user-credential/{id}/visibility';
+};
+
+export type SetUcVisibilityResponses = {
+    200: ResourceAuthorization;
+};
+
+export type SetUcVisibilityResponse = SetUcVisibilityResponses[keyof SetUcVisibilityResponses];
+
+export type ListUcVisibilityGrantsData = {
+    body?: never;
+    path: {
+        /**
+         * Team ID
+         */
+        team_id: string;
+        id: WrappedUuidV4;
+    };
+    query?: never;
+    url: '/api/v1/team/{team_id}/credential/user-credential/{id}/visibility/grants';
+};
+
+export type ListUcVisibilityGrantsResponses = {
+    200: Array<ResourceGrant>;
+};
+
+export type ListUcVisibilityGrantsResponse = ListUcVisibilityGrantsResponses[keyof ListUcVisibilityGrantsResponses];
+
+export type AddUcVisibilityGrantData = {
+    body: CreateResourcePlaneGrantRequest;
+    path: {
+        /**
+         * Team ID
+         */
+        team_id: string;
+        id: WrappedUuidV4;
+    };
+    query?: never;
+    url: '/api/v1/team/{team_id}/credential/user-credential/{id}/visibility/grants';
+};
+
+export type AddUcVisibilityGrantResponses = {
+    200: ResourceGrant;
+};
+
+export type AddUcVisibilityGrantResponse = AddUcVisibilityGrantResponses[keyof AddUcVisibilityGrantResponses];
+
+export type RemoveUcVisibilityGrantData = {
+    body?: never;
+    path: {
+        /**
+         * Team ID
+         */
+        team_id: string;
+        id: WrappedUuidV4;
+        principal_type: string;
+        principal_id: string;
+    };
+    query?: never;
+    url: '/api/v1/team/{team_id}/credential/user-credential/{id}/visibility/grants/{principal_type}/{principal_id}';
+};
+
+export type RemoveUcVisibilityGrantResponses = {
+    200: unknown;
+};
 
 export type CreateHumanApprovalActionData = {
     body: CreateHumanApprovalActionRequestInner;
@@ -10918,6 +12569,7 @@ export type ListMcpServerInstancesData = {
         page_size: number;
         next_page_token?: string;
         include_global?: boolean;
+        agent_id?: string;
     };
     url: '/api/v1/team/{team_id}/mcp/mcp-server';
 };
@@ -11300,6 +12952,106 @@ export type UpdateMcpServerInstanceFunctionResponses = {
 
 export type UpdateMcpServerInstanceFunctionResponse = UpdateMcpServerInstanceFunctionResponses[keyof UpdateMcpServerInstanceFunctionResponses];
 
+export type BulkRemoveMcpServerInstanceFunctionsData = {
+    body: BulkRemoveMcpServerInstanceFunctionsBody;
+    path: {
+        /**
+         * Team ID
+         */
+        team_id: string;
+        /**
+         * MCP server instance ID
+         */
+        mcp_server_instance_id: string;
+    };
+    query?: never;
+    url: '/api/v1/team/{team_id}/mcp/mcp-server/{mcp_server_instance_id}/functions';
+};
+
+export type BulkRemoveMcpServerInstanceFunctionsErrors = {
+    /**
+     * Invalid batch; no mappings were removed
+     */
+    400: Error;
+    /**
+     * Unauthorized
+     */
+    401: Error;
+    /**
+     * Forbidden
+     */
+    403: Error;
+    /**
+     * MCP server not found; no mappings were removed
+     */
+    404: Error;
+    /**
+     * Internal Server Error. Database write failures roll back the batch; reconciliation failures can occur after commit, and retrying is safe
+     */
+    500: Error;
+};
+
+export type BulkRemoveMcpServerInstanceFunctionsError = BulkRemoveMcpServerInstanceFunctionsErrors[keyof BulkRemoveMcpServerInstanceFunctionsErrors];
+
+export type BulkRemoveMcpServerInstanceFunctionsResponses = {
+    /**
+     * All requested mappings were removed or already absent
+     */
+    200: McpServerInstanceSerializedWithFunctions;
+};
+
+export type BulkRemoveMcpServerInstanceFunctionsResponse = BulkRemoveMcpServerInstanceFunctionsResponses[keyof BulkRemoveMcpServerInstanceFunctionsResponses];
+
+export type BulkAddMcpServerInstanceFunctionsData = {
+    body: BulkAddMcpServerInstanceFunctionsBody;
+    path: {
+        /**
+         * Team ID
+         */
+        team_id: string;
+        /**
+         * MCP server instance ID
+         */
+        mcp_server_instance_id: string;
+    };
+    query?: never;
+    url: '/api/v1/team/{team_id}/mcp/mcp-server/{mcp_server_instance_id}/functions';
+};
+
+export type BulkAddMcpServerInstanceFunctionsErrors = {
+    /**
+     * Invalid batch; no mappings were added
+     */
+    400: Error;
+    /**
+     * Unauthorized
+     */
+    401: Error;
+    /**
+     * Forbidden
+     */
+    403: Error;
+    /**
+     * MCP server or tool instance not found; no mappings were added
+     */
+    404: Error;
+    /**
+     * Internal Server Error. Database write failures roll back the batch; reconciliation failures can occur after commit, and retrying is safe
+     */
+    500: Error;
+};
+
+export type BulkAddMcpServerInstanceFunctionsError = BulkAddMcpServerInstanceFunctionsErrors[keyof BulkAddMcpServerInstanceFunctionsErrors];
+
+export type BulkAddMcpServerInstanceFunctionsResponses = {
+    /**
+     * All function mappings were added, or already existed unchanged
+     */
+    200: McpServerInstanceSerializedWithFunctions;
+};
+
+export type BulkAddMcpServerInstanceFunctionsResponse = BulkAddMcpServerInstanceFunctionsResponses[keyof BulkAddMcpServerInstanceFunctionsResponses];
+
 export type McpProtocolDeleteData = {
     body?: never;
     path: {
@@ -11579,6 +13331,10 @@ export type ListProxiedMcpServersData = {
     query: {
         page_size: number;
         next_page_token?: string;
+        /**
+         * Internal portability and control-plane callers can opt into managed entries.
+         */
+        include_catalog_managed?: boolean;
     };
     url: '/api/v1/team/{team_id}/mcp/proxied-mcp-servers';
 };
@@ -12712,6 +14468,82 @@ export type CheckMemoryBankHealthResponses = {
 
 export type CheckMemoryBankHealthResponse = CheckMemoryBankHealthResponses[keyof CheckMemoryBankHealthResponses];
 
+export type SetMemoryBankOwnershipModeData = {
+    body: SetResourceAccessModeRequest;
+    path: {
+        /**
+         * Team ID
+         */
+        team_id: string;
+        bank_id: WrappedUuidV4;
+    };
+    query?: never;
+    url: '/api/v1/team/{team_id}/memory/banks/{bank_id}/ownership';
+};
+
+export type SetMemoryBankOwnershipModeResponses = {
+    200: ResourceAuthorization;
+};
+
+export type SetMemoryBankOwnershipModeResponse = SetMemoryBankOwnershipModeResponses[keyof SetMemoryBankOwnershipModeResponses];
+
+export type ListMemoryBankOwnershipGrantsData = {
+    body?: never;
+    path: {
+        /**
+         * Team ID
+         */
+        team_id: string;
+        bank_id: WrappedUuidV4;
+    };
+    query?: never;
+    url: '/api/v1/team/{team_id}/memory/banks/{bank_id}/ownership/grants';
+};
+
+export type ListMemoryBankOwnershipGrantsResponses = {
+    200: Array<ResourceGrant>;
+};
+
+export type ListMemoryBankOwnershipGrantsResponse = ListMemoryBankOwnershipGrantsResponses[keyof ListMemoryBankOwnershipGrantsResponses];
+
+export type AddMemoryBankOwnershipGrantData = {
+    body: CreateResourcePlaneGrantRequest;
+    path: {
+        /**
+         * Team ID
+         */
+        team_id: string;
+        bank_id: WrappedUuidV4;
+    };
+    query?: never;
+    url: '/api/v1/team/{team_id}/memory/banks/{bank_id}/ownership/grants';
+};
+
+export type AddMemoryBankOwnershipGrantResponses = {
+    200: ResourceGrant;
+};
+
+export type AddMemoryBankOwnershipGrantResponse = AddMemoryBankOwnershipGrantResponses[keyof AddMemoryBankOwnershipGrantResponses];
+
+export type RemoveMemoryBankOwnershipGrantData = {
+    body?: never;
+    path: {
+        /**
+         * Team ID
+         */
+        team_id: string;
+        bank_id: WrappedUuidV4;
+        principal_type: ResourcePrincipalType;
+        principal_id: string;
+    };
+    query?: never;
+    url: '/api/v1/team/{team_id}/memory/banks/{bank_id}/ownership/grants/{principal_type}/{principal_id}';
+};
+
+export type RemoveMemoryBankOwnershipGrantResponses = {
+    200: unknown;
+};
+
 export type RecallMemoryData = {
     body: RecallMemoryBody;
     path: {
@@ -12806,6 +14638,82 @@ export type ImportMemoryBankTemplateResponses = {
 };
 
 export type ImportMemoryBankTemplateResponse2 = ImportMemoryBankTemplateResponses[keyof ImportMemoryBankTemplateResponses];
+
+export type SetMemoryBankVisibilityData = {
+    body: SetResourceAccessModeRequest;
+    path: {
+        /**
+         * Team ID
+         */
+        team_id: string;
+        bank_id: WrappedUuidV4;
+    };
+    query?: never;
+    url: '/api/v1/team/{team_id}/memory/banks/{bank_id}/visibility';
+};
+
+export type SetMemoryBankVisibilityResponses = {
+    200: ResourceAuthorization;
+};
+
+export type SetMemoryBankVisibilityResponse = SetMemoryBankVisibilityResponses[keyof SetMemoryBankVisibilityResponses];
+
+export type ListMemoryBankVisibilityGrantsData = {
+    body?: never;
+    path: {
+        /**
+         * Team ID
+         */
+        team_id: string;
+        bank_id: WrappedUuidV4;
+    };
+    query?: never;
+    url: '/api/v1/team/{team_id}/memory/banks/{bank_id}/visibility/grants';
+};
+
+export type ListMemoryBankVisibilityGrantsResponses = {
+    200: Array<ResourceGrant>;
+};
+
+export type ListMemoryBankVisibilityGrantsResponse = ListMemoryBankVisibilityGrantsResponses[keyof ListMemoryBankVisibilityGrantsResponses];
+
+export type AddMemoryBankVisibilityGrantData = {
+    body: CreateResourcePlaneGrantRequest;
+    path: {
+        /**
+         * Team ID
+         */
+        team_id: string;
+        bank_id: WrappedUuidV4;
+    };
+    query?: never;
+    url: '/api/v1/team/{team_id}/memory/banks/{bank_id}/visibility/grants';
+};
+
+export type AddMemoryBankVisibilityGrantResponses = {
+    200: ResourceGrant;
+};
+
+export type AddMemoryBankVisibilityGrantResponse = AddMemoryBankVisibilityGrantResponses[keyof AddMemoryBankVisibilityGrantResponses];
+
+export type RemoveMemoryBankVisibilityGrantData = {
+    body?: never;
+    path: {
+        /**
+         * Team ID
+         */
+        team_id: string;
+        bank_id: WrappedUuidV4;
+        principal_type: ResourcePrincipalType;
+        principal_id: string;
+    };
+    query?: never;
+    url: '/api/v1/team/{team_id}/memory/banks/{bank_id}/visibility/grants/{principal_type}/{principal_id}';
+};
+
+export type RemoveMemoryBankVisibilityGrantResponses = {
+    200: unknown;
+};
 
 export type ListMemoryBankSourceBindingsData = {
     body?: never;
@@ -13016,6 +14924,29 @@ export type ReverseProxyCreateProfileResponses = {
 
 export type ReverseProxyCreateProfileResponse = ReverseProxyCreateProfileResponses[keyof ReverseProxyCreateProfileResponses];
 
+export type ReverseProxyDeleteProfileData = {
+    body?: never;
+    path: {
+        /**
+         * Team ID
+         */
+        team_id: string;
+        profile_id: string;
+    };
+    query?: never;
+    url: '/api/v1/team/{team_id}/reverse-proxy/profile/{profile_id}';
+};
+
+export type ReverseProxyDeleteProfileErrors = {
+    404: Error;
+};
+
+export type ReverseProxyDeleteProfileError = ReverseProxyDeleteProfileErrors[keyof ReverseProxyDeleteProfileErrors];
+
+export type ReverseProxyDeleteProfileResponses = {
+    200: unknown;
+};
+
 export type ReverseProxyGetProfileData = {
     body?: never;
     path: {
@@ -13087,6 +15018,158 @@ export type ReverseProxyUpdateProfileResponses = {
 };
 
 export type ReverseProxyUpdateProfileResponse = ReverseProxyUpdateProfileResponses[keyof ReverseProxyUpdateProfileResponses];
+
+export type ReverseProxySetProfileOwnershipData = {
+    body: SetResourceAccessModeRequest;
+    path: {
+        /**
+         * Team ID
+         */
+        team_id: string;
+        profile_id: string;
+    };
+    query?: never;
+    url: '/api/v1/team/{team_id}/reverse-proxy/profile/{profile_id}/ownership';
+};
+
+export type ReverseProxySetProfileOwnershipResponses = {
+    200: ResourceAuthorization;
+};
+
+export type ReverseProxySetProfileOwnershipResponse = ReverseProxySetProfileOwnershipResponses[keyof ReverseProxySetProfileOwnershipResponses];
+
+export type ReverseProxyListProfileOwnershipGrantsData = {
+    body?: never;
+    path: {
+        /**
+         * Team ID
+         */
+        team_id: string;
+        profile_id: string;
+    };
+    query?: never;
+    url: '/api/v1/team/{team_id}/reverse-proxy/profile/{profile_id}/ownership/grants';
+};
+
+export type ReverseProxyListProfileOwnershipGrantsResponses = {
+    200: Array<ResourceGrant>;
+};
+
+export type ReverseProxyListProfileOwnershipGrantsResponse = ReverseProxyListProfileOwnershipGrantsResponses[keyof ReverseProxyListProfileOwnershipGrantsResponses];
+
+export type ReverseProxyAddProfileOwnershipGrantData = {
+    body: CreateResourcePlaneGrantRequest;
+    path: {
+        /**
+         * Team ID
+         */
+        team_id: string;
+        profile_id: string;
+    };
+    query?: never;
+    url: '/api/v1/team/{team_id}/reverse-proxy/profile/{profile_id}/ownership/grants';
+};
+
+export type ReverseProxyAddProfileOwnershipGrantResponses = {
+    200: ResourceGrant;
+};
+
+export type ReverseProxyAddProfileOwnershipGrantResponse = ReverseProxyAddProfileOwnershipGrantResponses[keyof ReverseProxyAddProfileOwnershipGrantResponses];
+
+export type ReverseProxyRemoveProfileOwnershipGrantData = {
+    body?: never;
+    path: {
+        /**
+         * Team ID
+         */
+        team_id: string;
+        profile_id: string;
+        principal_type: ResourcePrincipalType;
+        principal_id: string;
+    };
+    query?: never;
+    url: '/api/v1/team/{team_id}/reverse-proxy/profile/{profile_id}/ownership/grants/{principal_type}/{principal_id}';
+};
+
+export type ReverseProxyRemoveProfileOwnershipGrantResponses = {
+    200: unknown;
+};
+
+export type ReverseProxySetProfileVisibilityData = {
+    body: SetResourceAccessModeRequest;
+    path: {
+        /**
+         * Team ID
+         */
+        team_id: string;
+        profile_id: string;
+    };
+    query?: never;
+    url: '/api/v1/team/{team_id}/reverse-proxy/profile/{profile_id}/visibility';
+};
+
+export type ReverseProxySetProfileVisibilityResponses = {
+    200: ResourceAuthorization;
+};
+
+export type ReverseProxySetProfileVisibilityResponse = ReverseProxySetProfileVisibilityResponses[keyof ReverseProxySetProfileVisibilityResponses];
+
+export type ReverseProxyListProfileVisibilityGrantsData = {
+    body?: never;
+    path: {
+        /**
+         * Team ID
+         */
+        team_id: string;
+        profile_id: string;
+    };
+    query?: never;
+    url: '/api/v1/team/{team_id}/reverse-proxy/profile/{profile_id}/visibility/grants';
+};
+
+export type ReverseProxyListProfileVisibilityGrantsResponses = {
+    200: Array<ResourceGrant>;
+};
+
+export type ReverseProxyListProfileVisibilityGrantsResponse = ReverseProxyListProfileVisibilityGrantsResponses[keyof ReverseProxyListProfileVisibilityGrantsResponses];
+
+export type ReverseProxyAddProfileVisibilityGrantData = {
+    body: CreateResourcePlaneGrantRequest;
+    path: {
+        /**
+         * Team ID
+         */
+        team_id: string;
+        profile_id: string;
+    };
+    query?: never;
+    url: '/api/v1/team/{team_id}/reverse-proxy/profile/{profile_id}/visibility/grants';
+};
+
+export type ReverseProxyAddProfileVisibilityGrantResponses = {
+    200: ResourceGrant;
+};
+
+export type ReverseProxyAddProfileVisibilityGrantResponse = ReverseProxyAddProfileVisibilityGrantResponses[keyof ReverseProxyAddProfileVisibilityGrantResponses];
+
+export type ReverseProxyRemoveProfileVisibilityGrantData = {
+    body?: never;
+    path: {
+        /**
+         * Team ID
+         */
+        team_id: string;
+        profile_id: string;
+        principal_type: ResourcePrincipalType;
+        principal_id: string;
+    };
+    query?: never;
+    url: '/api/v1/team/{team_id}/reverse-proxy/profile/{profile_id}/visibility/grants/{principal_type}/{principal_id}';
+};
+
+export type ReverseProxyRemoveProfileVisibilityGrantResponses = {
+    200: unknown;
+};
 
 export type ReverseProxyListProvidersData = {
     body?: never;
@@ -13265,6 +15348,104 @@ export type SignalsCreateProviderInstanceResponses = {
 
 export type SignalsCreateProviderInstanceResponse = SignalsCreateProviderInstanceResponses[keyof SignalsCreateProviderInstanceResponses];
 
+export type SetSignalProviderOwnershipData = {
+    body: SetResourceAccessModeRequest;
+    path: {
+        /**
+         * Team ID
+         */
+        team_id: string;
+        id: string;
+    };
+    query?: never;
+    url: '/api/v1/team/{team_id}/signals/instances/{id}/ownership';
+};
+
+export type SetSignalProviderOwnershipResponses = {
+    200: ResourceAuthorization;
+};
+
+export type SetSignalProviderOwnershipResponse = SetSignalProviderOwnershipResponses[keyof SetSignalProviderOwnershipResponses];
+
+export type SetSignalProviderVisibilityData = {
+    body: SetResourceAccessModeRequest;
+    path: {
+        /**
+         * Team ID
+         */
+        team_id: string;
+        id: string;
+    };
+    query?: never;
+    url: '/api/v1/team/{team_id}/signals/instances/{id}/visibility';
+};
+
+export type SetSignalProviderVisibilityResponses = {
+    200: ResourceAuthorization;
+};
+
+export type SetSignalProviderVisibilityResponse = SetSignalProviderVisibilityResponses[keyof SetSignalProviderVisibilityResponses];
+
+export type ListSignalProviderGrantsData = {
+    body?: never;
+    path: {
+        /**
+         * Team ID
+         */
+        team_id: string;
+        id: string;
+        plane: ResourceGrantPlane;
+    };
+    query?: never;
+    url: '/api/v1/team/{team_id}/signals/instances/{id}/{plane}/grants';
+};
+
+export type ListSignalProviderGrantsResponses = {
+    200: Array<ResourceGrant>;
+};
+
+export type ListSignalProviderGrantsResponse = ListSignalProviderGrantsResponses[keyof ListSignalProviderGrantsResponses];
+
+export type AddSignalProviderGrantData = {
+    body: CreateResourcePlaneGrantRequest;
+    path: {
+        /**
+         * Team ID
+         */
+        team_id: string;
+        id: string;
+        plane: ResourceGrantPlane;
+    };
+    query?: never;
+    url: '/api/v1/team/{team_id}/signals/instances/{id}/{plane}/grants';
+};
+
+export type AddSignalProviderGrantResponses = {
+    200: ResourceGrant;
+};
+
+export type AddSignalProviderGrantResponse = AddSignalProviderGrantResponses[keyof AddSignalProviderGrantResponses];
+
+export type RemoveSignalProviderGrantData = {
+    body?: never;
+    path: {
+        /**
+         * Team ID
+         */
+        team_id: string;
+        id: string;
+        plane: ResourceGrantPlane;
+        principal_type: ResourcePrincipalType;
+        principal_id: string;
+    };
+    query?: never;
+    url: '/api/v1/team/{team_id}/signals/instances/{id}/{plane}/grants/{principal_type}/{principal_id}';
+};
+
+export type RemoveSignalProviderGrantResponses = {
+    200: unknown;
+};
+
 export type SignalsDeleteProviderInstanceData = {
     body?: never;
     path: {
@@ -13402,6 +15583,104 @@ export type SignalsCreateRuleResponses = {
 };
 
 export type SignalsCreateRuleResponse = SignalsCreateRuleResponses[keyof SignalsCreateRuleResponses];
+
+export type SetSignalRuleOwnershipData = {
+    body: SetResourceAccessModeRequest;
+    path: {
+        /**
+         * Team ID
+         */
+        team_id: string;
+        id: WrappedUuidV4;
+    };
+    query?: never;
+    url: '/api/v1/team/{team_id}/signals/rules/{id}/ownership';
+};
+
+export type SetSignalRuleOwnershipResponses = {
+    200: ResourceAuthorization;
+};
+
+export type SetSignalRuleOwnershipResponse = SetSignalRuleOwnershipResponses[keyof SetSignalRuleOwnershipResponses];
+
+export type SetSignalRuleVisibilityData = {
+    body: SetResourceAccessModeRequest;
+    path: {
+        /**
+         * Team ID
+         */
+        team_id: string;
+        id: WrappedUuidV4;
+    };
+    query?: never;
+    url: '/api/v1/team/{team_id}/signals/rules/{id}/visibility';
+};
+
+export type SetSignalRuleVisibilityResponses = {
+    200: ResourceAuthorization;
+};
+
+export type SetSignalRuleVisibilityResponse = SetSignalRuleVisibilityResponses[keyof SetSignalRuleVisibilityResponses];
+
+export type ListSignalRuleGrantsData = {
+    body?: never;
+    path: {
+        /**
+         * Team ID
+         */
+        team_id: string;
+        id: WrappedUuidV4;
+        plane: ResourceGrantPlane;
+    };
+    query?: never;
+    url: '/api/v1/team/{team_id}/signals/rules/{id}/{plane}/grants';
+};
+
+export type ListSignalRuleGrantsResponses = {
+    200: Array<ResourceGrant>;
+};
+
+export type ListSignalRuleGrantsResponse = ListSignalRuleGrantsResponses[keyof ListSignalRuleGrantsResponses];
+
+export type AddSignalRuleGrantData = {
+    body: CreateResourcePlaneGrantRequest;
+    path: {
+        /**
+         * Team ID
+         */
+        team_id: string;
+        id: WrappedUuidV4;
+        plane: ResourceGrantPlane;
+    };
+    query?: never;
+    url: '/api/v1/team/{team_id}/signals/rules/{id}/{plane}/grants';
+};
+
+export type AddSignalRuleGrantResponses = {
+    200: ResourceGrant;
+};
+
+export type AddSignalRuleGrantResponse = AddSignalRuleGrantResponses[keyof AddSignalRuleGrantResponses];
+
+export type RemoveSignalRuleGrantData = {
+    body?: never;
+    path: {
+        /**
+         * Team ID
+         */
+        team_id: string;
+        id: WrappedUuidV4;
+        plane: ResourceGrantPlane;
+        principal_type: ResourcePrincipalType;
+        principal_id: string;
+    };
+    query?: never;
+    url: '/api/v1/team/{team_id}/signals/rules/{id}/{plane}/grants/{principal_type}/{principal_id}';
+};
+
+export type RemoveSignalRuleGrantResponses = {
+    200: unknown;
+};
 
 export type SignalsDeleteRuleData = {
     body?: never;
@@ -13778,6 +16057,82 @@ export type UpdateSkillRegistryResponses = {
 
 export type UpdateSkillRegistryResponse = UpdateSkillRegistryResponses[keyof UpdateSkillRegistryResponses];
 
+export type SetSkillRegistryOwnershipModeData = {
+    body: SetResourceAccessModeRequest;
+    path: {
+        /**
+         * Team ID
+         */
+        team_id: string;
+        id: WrappedUuidV4;
+    };
+    query?: never;
+    url: '/api/v1/team/{team_id}/skill-registry/{id}/ownership';
+};
+
+export type SetSkillRegistryOwnershipModeResponses = {
+    200: ResourceAuthorization;
+};
+
+export type SetSkillRegistryOwnershipModeResponse = SetSkillRegistryOwnershipModeResponses[keyof SetSkillRegistryOwnershipModeResponses];
+
+export type ListSkillRegistryOwnershipGrantsData = {
+    body?: never;
+    path: {
+        /**
+         * Team ID
+         */
+        team_id: string;
+        id: WrappedUuidV4;
+    };
+    query?: never;
+    url: '/api/v1/team/{team_id}/skill-registry/{id}/ownership/grants';
+};
+
+export type ListSkillRegistryOwnershipGrantsResponses = {
+    200: Array<ResourceGrant>;
+};
+
+export type ListSkillRegistryOwnershipGrantsResponse = ListSkillRegistryOwnershipGrantsResponses[keyof ListSkillRegistryOwnershipGrantsResponses];
+
+export type AddSkillRegistryOwnershipGrantData = {
+    body: CreateResourcePlaneGrantRequest;
+    path: {
+        /**
+         * Team ID
+         */
+        team_id: string;
+        id: WrappedUuidV4;
+    };
+    query?: never;
+    url: '/api/v1/team/{team_id}/skill-registry/{id}/ownership/grants';
+};
+
+export type AddSkillRegistryOwnershipGrantResponses = {
+    200: ResourceGrant;
+};
+
+export type AddSkillRegistryOwnershipGrantResponse = AddSkillRegistryOwnershipGrantResponses[keyof AddSkillRegistryOwnershipGrantResponses];
+
+export type RemoveSkillRegistryOwnershipGrantData = {
+    body?: never;
+    path: {
+        /**
+         * Team ID
+         */
+        team_id: string;
+        id: WrappedUuidV4;
+        principal_type: string;
+        principal_id: string;
+    };
+    query?: never;
+    url: '/api/v1/team/{team_id}/skill-registry/{id}/ownership/grants/{principal_type}/{principal_id}';
+};
+
+export type RemoveSkillRegistryOwnershipGrantResponses = {
+    200: unknown;
+};
+
 export type AddProviderSkillsToSkillRegistryData = {
     body: AddProviderSkillsToRegistryRequest;
     path: {
@@ -13996,6 +16351,82 @@ export type GetSkillRegistrySkillDescriptionResponses = {
 
 export type GetSkillRegistrySkillDescriptionResponse = GetSkillRegistrySkillDescriptionResponses[keyof GetSkillRegistrySkillDescriptionResponses];
 
+export type SetSkillRegistryVisibilityData = {
+    body: SetResourceAccessModeRequest;
+    path: {
+        /**
+         * Team ID
+         */
+        team_id: string;
+        id: WrappedUuidV4;
+    };
+    query?: never;
+    url: '/api/v1/team/{team_id}/skill-registry/{id}/visibility';
+};
+
+export type SetSkillRegistryVisibilityResponses = {
+    200: ResourceAuthorization;
+};
+
+export type SetSkillRegistryVisibilityResponse = SetSkillRegistryVisibilityResponses[keyof SetSkillRegistryVisibilityResponses];
+
+export type ListSkillRegistryVisibilityGrantsData = {
+    body?: never;
+    path: {
+        /**
+         * Team ID
+         */
+        team_id: string;
+        id: WrappedUuidV4;
+    };
+    query?: never;
+    url: '/api/v1/team/{team_id}/skill-registry/{id}/visibility/grants';
+};
+
+export type ListSkillRegistryVisibilityGrantsResponses = {
+    200: Array<ResourceGrant>;
+};
+
+export type ListSkillRegistryVisibilityGrantsResponse = ListSkillRegistryVisibilityGrantsResponses[keyof ListSkillRegistryVisibilityGrantsResponses];
+
+export type AddSkillRegistryVisibilityGrantData = {
+    body: CreateResourcePlaneGrantRequest;
+    path: {
+        /**
+         * Team ID
+         */
+        team_id: string;
+        id: WrappedUuidV4;
+    };
+    query?: never;
+    url: '/api/v1/team/{team_id}/skill-registry/{id}/visibility/grants';
+};
+
+export type AddSkillRegistryVisibilityGrantResponses = {
+    200: ResourceGrant;
+};
+
+export type AddSkillRegistryVisibilityGrantResponse = AddSkillRegistryVisibilityGrantResponses[keyof AddSkillRegistryVisibilityGrantResponses];
+
+export type RemoveSkillRegistryVisibilityGrantData = {
+    body?: never;
+    path: {
+        /**
+         * Team ID
+         */
+        team_id: string;
+        id: WrappedUuidV4;
+        principal_type: string;
+        principal_id: string;
+    };
+    query?: never;
+    url: '/api/v1/team/{team_id}/skill-registry/{id}/visibility/grants/{principal_type}/{principal_id}';
+};
+
+export type RemoveSkillRegistryVisibilityGrantResponses = {
+    200: unknown;
+};
+
 export type DeleteSkillData = {
     body?: never;
     path: {
@@ -14099,6 +16530,82 @@ export type UpdateSkillResponses = {
 
 export type UpdateSkillResponse = UpdateSkillResponses[keyof UpdateSkillResponses];
 
+export type SetSkillOwnershipModeData = {
+    body: SetResourceAccessModeRequest;
+    path: {
+        /**
+         * Team ID
+         */
+        team_id: string;
+        id: WrappedUuidV4;
+    };
+    query?: never;
+    url: '/api/v1/team/{team_id}/skill/{id}/ownership';
+};
+
+export type SetSkillOwnershipModeResponses = {
+    200: ResourceAuthorization;
+};
+
+export type SetSkillOwnershipModeResponse = SetSkillOwnershipModeResponses[keyof SetSkillOwnershipModeResponses];
+
+export type ListSkillOwnershipGrantsData = {
+    body?: never;
+    path: {
+        /**
+         * Team ID
+         */
+        team_id: string;
+        id: WrappedUuidV4;
+    };
+    query?: never;
+    url: '/api/v1/team/{team_id}/skill/{id}/ownership/grants';
+};
+
+export type ListSkillOwnershipGrantsResponses = {
+    200: Array<ResourceGrant>;
+};
+
+export type ListSkillOwnershipGrantsResponse = ListSkillOwnershipGrantsResponses[keyof ListSkillOwnershipGrantsResponses];
+
+export type AddSkillOwnershipGrantData = {
+    body: CreateResourcePlaneGrantRequest;
+    path: {
+        /**
+         * Team ID
+         */
+        team_id: string;
+        id: WrappedUuidV4;
+    };
+    query?: never;
+    url: '/api/v1/team/{team_id}/skill/{id}/ownership/grants';
+};
+
+export type AddSkillOwnershipGrantResponses = {
+    200: ResourceGrant;
+};
+
+export type AddSkillOwnershipGrantResponse = AddSkillOwnershipGrantResponses[keyof AddSkillOwnershipGrantResponses];
+
+export type RemoveSkillOwnershipGrantData = {
+    body?: never;
+    path: {
+        /**
+         * Team ID
+         */
+        team_id: string;
+        id: WrappedUuidV4;
+        principal_type: string;
+        principal_id: string;
+    };
+    query?: never;
+    url: '/api/v1/team/{team_id}/skill/{id}/ownership/grants/{principal_type}/{principal_id}';
+};
+
+export type RemoveSkillOwnershipGrantResponses = {
+    200: unknown;
+};
+
 export type GetSkillPackageData = {
     body?: never;
     path: {
@@ -14168,6 +16675,82 @@ export type DownloadSkillPackageFileResponses = {
 };
 
 export type DownloadSkillPackageFileResponse = DownloadSkillPackageFileResponses[keyof DownloadSkillPackageFileResponses];
+
+export type SetSkillVisibilityData = {
+    body: SetResourceAccessModeRequest;
+    path: {
+        /**
+         * Team ID
+         */
+        team_id: string;
+        id: WrappedUuidV4;
+    };
+    query?: never;
+    url: '/api/v1/team/{team_id}/skill/{id}/visibility';
+};
+
+export type SetSkillVisibilityResponses = {
+    200: ResourceAuthorization;
+};
+
+export type SetSkillVisibilityResponse = SetSkillVisibilityResponses[keyof SetSkillVisibilityResponses];
+
+export type ListSkillVisibilityGrantsData = {
+    body?: never;
+    path: {
+        /**
+         * Team ID
+         */
+        team_id: string;
+        id: WrappedUuidV4;
+    };
+    query?: never;
+    url: '/api/v1/team/{team_id}/skill/{id}/visibility/grants';
+};
+
+export type ListSkillVisibilityGrantsResponses = {
+    200: Array<ResourceGrant>;
+};
+
+export type ListSkillVisibilityGrantsResponse = ListSkillVisibilityGrantsResponses[keyof ListSkillVisibilityGrantsResponses];
+
+export type AddSkillVisibilityGrantData = {
+    body: CreateResourcePlaneGrantRequest;
+    path: {
+        /**
+         * Team ID
+         */
+        team_id: string;
+        id: WrappedUuidV4;
+    };
+    query?: never;
+    url: '/api/v1/team/{team_id}/skill/{id}/visibility/grants';
+};
+
+export type AddSkillVisibilityGrantResponses = {
+    200: ResourceGrant;
+};
+
+export type AddSkillVisibilityGrantResponse = AddSkillVisibilityGrantResponses[keyof AddSkillVisibilityGrantResponses];
+
+export type RemoveSkillVisibilityGrantData = {
+    body?: never;
+    path: {
+        /**
+         * Team ID
+         */
+        team_id: string;
+        id: WrappedUuidV4;
+        principal_type: string;
+        principal_id: string;
+    };
+    query?: never;
+    url: '/api/v1/team/{team_id}/skill/{id}/visibility/grants/{principal_type}/{principal_id}';
+};
+
+export type RemoveSkillVisibilityGrantResponses = {
+    200: unknown;
+};
 
 export type StateExportData = {
     body?: never;
@@ -15479,6 +18062,82 @@ export type ApplyWikiOntologyTemplateResponses = {
 
 export type ApplyWikiOntologyTemplateResponse = ApplyWikiOntologyTemplateResponses[keyof ApplyWikiOntologyTemplateResponses];
 
+export type SetWikiOwnershipModeData = {
+    body: SetResourceAccessModeRequest;
+    path: {
+        /**
+         * Team ID
+         */
+        team_id: string;
+        wiki_id: WrappedUuidV4;
+    };
+    query?: never;
+    url: '/api/v1/team/{team_id}/wikis/{wiki_id}/ownership';
+};
+
+export type SetWikiOwnershipModeResponses = {
+    200: ResourceAuthorization;
+};
+
+export type SetWikiOwnershipModeResponse = SetWikiOwnershipModeResponses[keyof SetWikiOwnershipModeResponses];
+
+export type ListWikiOwnershipGrantsData = {
+    body?: never;
+    path: {
+        /**
+         * Team ID
+         */
+        team_id: string;
+        wiki_id: WrappedUuidV4;
+    };
+    query?: never;
+    url: '/api/v1/team/{team_id}/wikis/{wiki_id}/ownership/grants';
+};
+
+export type ListWikiOwnershipGrantsResponses = {
+    200: Array<ResourceGrant>;
+};
+
+export type ListWikiOwnershipGrantsResponse = ListWikiOwnershipGrantsResponses[keyof ListWikiOwnershipGrantsResponses];
+
+export type AddWikiOwnershipGrantData = {
+    body: CreateResourcePlaneGrantRequest;
+    path: {
+        /**
+         * Team ID
+         */
+        team_id: string;
+        wiki_id: WrappedUuidV4;
+    };
+    query?: never;
+    url: '/api/v1/team/{team_id}/wikis/{wiki_id}/ownership/grants';
+};
+
+export type AddWikiOwnershipGrantResponses = {
+    200: ResourceGrant;
+};
+
+export type AddWikiOwnershipGrantResponse = AddWikiOwnershipGrantResponses[keyof AddWikiOwnershipGrantResponses];
+
+export type RemoveWikiOwnershipGrantData = {
+    body?: never;
+    path: {
+        /**
+         * Team ID
+         */
+        team_id: string;
+        wiki_id: WrappedUuidV4;
+        principal_type: ResourcePrincipalType;
+        principal_id: string;
+    };
+    query?: never;
+    url: '/api/v1/team/{team_id}/wikis/{wiki_id}/ownership/grants/{principal_type}/{principal_id}';
+};
+
+export type RemoveWikiOwnershipGrantResponses = {
+    200: unknown;
+};
+
 export type ListWikiPageTypesData = {
     body?: never;
     path: {
@@ -16298,3 +18957,2322 @@ export type RetryWikiResponses = {
 };
 
 export type RetryWikiResponse = RetryWikiResponses[keyof RetryWikiResponses];
+
+export type ChangeWikiOwnershipData = {
+    body: ChangeResourceOwnershipRequest;
+    path: {
+        /**
+         * Team ID
+         */
+        team_id: string;
+        wiki_id: WrappedUuidV4;
+    };
+    query?: never;
+    url: '/api/v1/team/{team_id}/wikis/{wiki_id}/transfer-ownership';
+};
+
+export type ChangeWikiOwnershipResponses = {
+    200: Wiki;
+};
+
+export type ChangeWikiOwnershipResponse = ChangeWikiOwnershipResponses[keyof ChangeWikiOwnershipResponses];
+
+export type SetWikiVisibilityData = {
+    body: SetResourceAccessModeRequest;
+    path: {
+        /**
+         * Team ID
+         */
+        team_id: string;
+        wiki_id: WrappedUuidV4;
+    };
+    query?: never;
+    url: '/api/v1/team/{team_id}/wikis/{wiki_id}/visibility';
+};
+
+export type SetWikiVisibilityResponses = {
+    200: ResourceAuthorization;
+};
+
+export type SetWikiVisibilityResponse = SetWikiVisibilityResponses[keyof SetWikiVisibilityResponses];
+
+export type ListWikiVisibilityGrantsData = {
+    body?: never;
+    path: {
+        /**
+         * Team ID
+         */
+        team_id: string;
+        wiki_id: WrappedUuidV4;
+    };
+    query?: never;
+    url: '/api/v1/team/{team_id}/wikis/{wiki_id}/visibility/grants';
+};
+
+export type ListWikiVisibilityGrantsResponses = {
+    200: Array<ResourceGrant>;
+};
+
+export type ListWikiVisibilityGrantsResponse = ListWikiVisibilityGrantsResponses[keyof ListWikiVisibilityGrantsResponses];
+
+export type AddWikiVisibilityGrantData = {
+    body: CreateResourcePlaneGrantRequest;
+    path: {
+        /**
+         * Team ID
+         */
+        team_id: string;
+        wiki_id: WrappedUuidV4;
+    };
+    query?: never;
+    url: '/api/v1/team/{team_id}/wikis/{wiki_id}/visibility/grants';
+};
+
+export type AddWikiVisibilityGrantResponses = {
+    200: ResourceGrant;
+};
+
+export type AddWikiVisibilityGrantResponse = AddWikiVisibilityGrantResponses[keyof AddWikiVisibilityGrantResponses];
+
+export type RemoveWikiVisibilityGrantData = {
+    body?: never;
+    path: {
+        /**
+         * Team ID
+         */
+        team_id: string;
+        wiki_id: WrappedUuidV4;
+        principal_type: ResourcePrincipalType;
+        principal_id: string;
+    };
+    query?: never;
+    url: '/api/v1/team/{team_id}/wikis/{wiki_id}/visibility/grants/{principal_type}/{principal_id}';
+};
+
+export type RemoveWikiVisibilityGrantResponses = {
+    200: unknown;
+};
+
+export type SetPersonalRscOwnershipData = {
+    body: SetResourceAccessModeRequest;
+    path: {
+        user_id: string;
+        id: WrappedUuidV4;
+    };
+    query?: never;
+    url: '/api/v1/user/{user_id}/credential/resource-server/{id}/ownership';
+};
+
+export type SetPersonalRscOwnershipResponses = {
+    200: ResourceAuthorization;
+};
+
+export type SetPersonalRscOwnershipResponse = SetPersonalRscOwnershipResponses[keyof SetPersonalRscOwnershipResponses];
+
+export type ListPersonalRscOwnershipGrantsData = {
+    body?: never;
+    path: {
+        user_id: string;
+        id: WrappedUuidV4;
+    };
+    query?: never;
+    url: '/api/v1/user/{user_id}/credential/resource-server/{id}/ownership/grants';
+};
+
+export type ListPersonalRscOwnershipGrantsResponses = {
+    200: Array<ResourceGrant>;
+};
+
+export type ListPersonalRscOwnershipGrantsResponse = ListPersonalRscOwnershipGrantsResponses[keyof ListPersonalRscOwnershipGrantsResponses];
+
+export type AddPersonalRscOwnershipGrantData = {
+    body: CreateResourcePlaneGrantRequest;
+    path: {
+        user_id: string;
+        id: WrappedUuidV4;
+    };
+    query?: never;
+    url: '/api/v1/user/{user_id}/credential/resource-server/{id}/ownership/grants';
+};
+
+export type AddPersonalRscOwnershipGrantResponses = {
+    200: ResourceGrant;
+};
+
+export type AddPersonalRscOwnershipGrantResponse = AddPersonalRscOwnershipGrantResponses[keyof AddPersonalRscOwnershipGrantResponses];
+
+export type RemovePersonalRscOwnershipGrantData = {
+    body?: never;
+    path: {
+        user_id: string;
+        id: WrappedUuidV4;
+        principal_type: string;
+        principal_id: string;
+    };
+    query?: never;
+    url: '/api/v1/user/{user_id}/credential/resource-server/{id}/ownership/grants/{principal_type}/{principal_id}';
+};
+
+export type RemovePersonalRscOwnershipGrantResponses = {
+    200: unknown;
+};
+
+export type SetPersonalRscVisibilityData = {
+    body: SetResourceAccessModeRequest;
+    path: {
+        user_id: string;
+        id: WrappedUuidV4;
+    };
+    query?: never;
+    url: '/api/v1/user/{user_id}/credential/resource-server/{id}/visibility';
+};
+
+export type SetPersonalRscVisibilityResponses = {
+    200: ResourceAuthorization;
+};
+
+export type SetPersonalRscVisibilityResponse = SetPersonalRscVisibilityResponses[keyof SetPersonalRscVisibilityResponses];
+
+export type ListPersonalRscVisibilityGrantsData = {
+    body?: never;
+    path: {
+        user_id: string;
+        id: WrappedUuidV4;
+    };
+    query?: never;
+    url: '/api/v1/user/{user_id}/credential/resource-server/{id}/visibility/grants';
+};
+
+export type ListPersonalRscVisibilityGrantsResponses = {
+    200: Array<ResourceGrant>;
+};
+
+export type ListPersonalRscVisibilityGrantsResponse = ListPersonalRscVisibilityGrantsResponses[keyof ListPersonalRscVisibilityGrantsResponses];
+
+export type AddPersonalRscVisibilityGrantData = {
+    body: CreateResourcePlaneGrantRequest;
+    path: {
+        user_id: string;
+        id: WrappedUuidV4;
+    };
+    query?: never;
+    url: '/api/v1/user/{user_id}/credential/resource-server/{id}/visibility/grants';
+};
+
+export type AddPersonalRscVisibilityGrantResponses = {
+    200: ResourceGrant;
+};
+
+export type AddPersonalRscVisibilityGrantResponse = AddPersonalRscVisibilityGrantResponses[keyof AddPersonalRscVisibilityGrantResponses];
+
+export type RemovePersonalRscVisibilityGrantData = {
+    body?: never;
+    path: {
+        user_id: string;
+        id: WrappedUuidV4;
+        principal_type: string;
+        principal_id: string;
+    };
+    query?: never;
+    url: '/api/v1/user/{user_id}/credential/resource-server/{id}/visibility/grants/{principal_type}/{principal_id}';
+};
+
+export type RemovePersonalRscVisibilityGrantResponses = {
+    200: unknown;
+};
+
+export type CreatePersonalUserCredentialData = {
+    body: CreateUserCredentialParamsInner;
+    path: {
+        user_id: string;
+        credential_source_type_id: string;
+    };
+    query?: never;
+    url: '/api/v1/user/{user_id}/credential/source/{credential_source_type_id}/user-credential';
+};
+
+export type CreatePersonalUserCredentialResponses = {
+    /**
+     * Created personal credential
+     */
+    200: UserCredentialSerialized;
+};
+
+export type CreatePersonalUserCredentialResponse = CreatePersonalUserCredentialResponses[keyof CreatePersonalUserCredentialResponses];
+
+export type EncryptPersonalUserCredentialConfigurationData = {
+    body: EncryptCredentialConfigurationParamsInner;
+    path: {
+        user_id: string;
+        credential_source_type_id: string;
+    };
+    query?: never;
+    url: '/api/v1/user/{user_id}/credential/source/{credential_source_type_id}/user-credential/encrypt';
+};
+
+export type EncryptPersonalUserCredentialConfigurationResponses = {
+    /**
+     * Encrypted personal credential configuration
+     */
+    200: unknown;
+};
+
+export type SetPersonalUcOwnershipData = {
+    body: SetResourceAccessModeRequest;
+    path: {
+        user_id: string;
+        id: WrappedUuidV4;
+    };
+    query?: never;
+    url: '/api/v1/user/{user_id}/credential/user-credential/{id}/ownership';
+};
+
+export type SetPersonalUcOwnershipResponses = {
+    200: ResourceAuthorization;
+};
+
+export type SetPersonalUcOwnershipResponse = SetPersonalUcOwnershipResponses[keyof SetPersonalUcOwnershipResponses];
+
+export type ListPersonalUcOwnershipGrantsData = {
+    body?: never;
+    path: {
+        user_id: string;
+        id: WrappedUuidV4;
+    };
+    query?: never;
+    url: '/api/v1/user/{user_id}/credential/user-credential/{id}/ownership/grants';
+};
+
+export type ListPersonalUcOwnershipGrantsResponses = {
+    200: Array<ResourceGrant>;
+};
+
+export type ListPersonalUcOwnershipGrantsResponse = ListPersonalUcOwnershipGrantsResponses[keyof ListPersonalUcOwnershipGrantsResponses];
+
+export type AddPersonalUcOwnershipGrantData = {
+    body: CreateResourcePlaneGrantRequest;
+    path: {
+        user_id: string;
+        id: WrappedUuidV4;
+    };
+    query?: never;
+    url: '/api/v1/user/{user_id}/credential/user-credential/{id}/ownership/grants';
+};
+
+export type AddPersonalUcOwnershipGrantResponses = {
+    200: ResourceGrant;
+};
+
+export type AddPersonalUcOwnershipGrantResponse = AddPersonalUcOwnershipGrantResponses[keyof AddPersonalUcOwnershipGrantResponses];
+
+export type RemovePersonalUcOwnershipGrantData = {
+    body?: never;
+    path: {
+        user_id: string;
+        id: WrappedUuidV4;
+        principal_type: string;
+        principal_id: string;
+    };
+    query?: never;
+    url: '/api/v1/user/{user_id}/credential/user-credential/{id}/ownership/grants/{principal_type}/{principal_id}';
+};
+
+export type RemovePersonalUcOwnershipGrantResponses = {
+    200: unknown;
+};
+
+export type SetPersonalUcVisibilityData = {
+    body: SetResourceAccessModeRequest;
+    path: {
+        user_id: string;
+        id: WrappedUuidV4;
+    };
+    query?: never;
+    url: '/api/v1/user/{user_id}/credential/user-credential/{id}/visibility';
+};
+
+export type SetPersonalUcVisibilityResponses = {
+    200: ResourceAuthorization;
+};
+
+export type SetPersonalUcVisibilityResponse = SetPersonalUcVisibilityResponses[keyof SetPersonalUcVisibilityResponses];
+
+export type ListPersonalUcVisibilityGrantsData = {
+    body?: never;
+    path: {
+        user_id: string;
+        id: WrappedUuidV4;
+    };
+    query?: never;
+    url: '/api/v1/user/{user_id}/credential/user-credential/{id}/visibility/grants';
+};
+
+export type ListPersonalUcVisibilityGrantsResponses = {
+    200: Array<ResourceGrant>;
+};
+
+export type ListPersonalUcVisibilityGrantsResponse = ListPersonalUcVisibilityGrantsResponses[keyof ListPersonalUcVisibilityGrantsResponses];
+
+export type AddPersonalUcVisibilityGrantData = {
+    body: CreateResourcePlaneGrantRequest;
+    path: {
+        user_id: string;
+        id: WrappedUuidV4;
+    };
+    query?: never;
+    url: '/api/v1/user/{user_id}/credential/user-credential/{id}/visibility/grants';
+};
+
+export type AddPersonalUcVisibilityGrantResponses = {
+    200: ResourceGrant;
+};
+
+export type AddPersonalUcVisibilityGrantResponse = AddPersonalUcVisibilityGrantResponses[keyof AddPersonalUcVisibilityGrantResponses];
+
+export type RemovePersonalUcVisibilityGrantData = {
+    body?: never;
+    path: {
+        user_id: string;
+        id: WrappedUuidV4;
+        principal_type: string;
+        principal_id: string;
+    };
+    query?: never;
+    url: '/api/v1/user/{user_id}/credential/user-credential/{id}/visibility/grants/{principal_type}/{principal_id}';
+};
+
+export type RemovePersonalUcVisibilityGrantResponses = {
+    200: unknown;
+};
+
+export type ListPersonalMcpServerInstancesData = {
+    body?: never;
+    path: {
+        /**
+         * Owning user ID
+         */
+        user_id: string;
+    };
+    query?: never;
+    url: '/api/v1/user/{user_id}/mcp/mcp-server';
+};
+
+export type ListPersonalMcpServerInstancesErrors = {
+    /**
+     * Unauthorized
+     */
+    401: Error;
+    /**
+     * Forbidden
+     */
+    403: Error;
+};
+
+export type ListPersonalMcpServerInstancesError = ListPersonalMcpServerInstancesErrors[keyof ListPersonalMcpServerInstancesErrors];
+
+export type ListPersonalMcpServerInstancesResponses = {
+    /**
+     * List personal MCP servers
+     */
+    200: Vec;
+};
+
+export type ListPersonalMcpServerInstancesResponse = ListPersonalMcpServerInstancesResponses[keyof ListPersonalMcpServerInstancesResponses];
+
+export type CreatePersonalMcpServerInstanceData = {
+    body: CreateMcpServerInstanceRequestInner;
+    path: {
+        /**
+         * Owning user ID
+         */
+        user_id: string;
+    };
+    query?: never;
+    url: '/api/v1/user/{user_id}/mcp/mcp-server';
+};
+
+export type CreatePersonalMcpServerInstanceErrors = {
+    /**
+     * Bad Request
+     */
+    400: Error;
+    /**
+     * Unauthorized
+     */
+    401: Error;
+    /**
+     * Forbidden
+     */
+    403: Error;
+};
+
+export type CreatePersonalMcpServerInstanceError = CreatePersonalMcpServerInstanceErrors[keyof CreatePersonalMcpServerInstanceErrors];
+
+export type CreatePersonalMcpServerInstanceResponses = {
+    /**
+     * Create personal MCP server
+     */
+    200: PersonalMcpServerInstanceSerialized;
+};
+
+export type CreatePersonalMcpServerInstanceResponse = CreatePersonalMcpServerInstanceResponses[keyof CreatePersonalMcpServerInstanceResponses];
+
+export type DeletePersonalMcpServerInstanceData = {
+    body?: never;
+    path: {
+        user_id: string;
+        mcp_server_instance_id: string;
+    };
+    query?: never;
+    url: '/api/v1/user/{user_id}/mcp/mcp-server/{mcp_server_instance_id}';
+};
+
+export type DeletePersonalMcpServerInstanceResponses = {
+    200: unknown;
+};
+
+export type GetPersonalMcpServerInstanceData = {
+    body?: never;
+    path: {
+        user_id: string;
+        mcp_server_instance_id: string;
+    };
+    query?: never;
+    url: '/api/v1/user/{user_id}/mcp/mcp-server/{mcp_server_instance_id}';
+};
+
+export type GetPersonalMcpServerInstanceResponses = {
+    200: PersonalMcpServerInstanceSerialized;
+};
+
+export type GetPersonalMcpServerInstanceResponse = GetPersonalMcpServerInstanceResponses[keyof GetPersonalMcpServerInstanceResponses];
+
+export type UpdatePersonalMcpServerInstanceData = {
+    body: UpdateMcpServerInstanceRequestInner;
+    path: {
+        user_id: string;
+        mcp_server_instance_id: string;
+    };
+    query?: never;
+    url: '/api/v1/user/{user_id}/mcp/mcp-server/{mcp_server_instance_id}';
+};
+
+export type UpdatePersonalMcpServerInstanceResponses = {
+    200: PersonalMcpServerInstanceSerialized;
+};
+
+export type UpdatePersonalMcpServerInstanceResponse = UpdatePersonalMcpServerInstanceResponses[keyof UpdatePersonalMcpServerInstanceResponses];
+
+export type PersonalMcpProtocolDeleteData = {
+    body?: never;
+    path: {
+        user_id: string;
+        mcp_server_instance_id: string;
+    };
+    query?: never;
+    url: '/api/v1/user/{user_id}/mcp/mcp-server/{mcp_server_instance_id}/mcp';
+};
+
+export type PersonalMcpProtocolDeleteResponses = {
+    /**
+     * Personal MCP session terminated
+     */
+    200: unknown;
+};
+
+export type PersonalMcpProtocolGetData = {
+    body?: never;
+    path: {
+        user_id: string;
+        mcp_server_instance_id: string;
+    };
+    query?: never;
+    url: '/api/v1/user/{user_id}/mcp/mcp-server/{mcp_server_instance_id}/mcp';
+};
+
+export type PersonalMcpProtocolGetResponses = {
+    /**
+     * Personal MCP SSE stream
+     */
+    200: unknown;
+};
+
+export type PersonalMcpProtocolPostData = {
+    body?: never;
+    path: {
+        /**
+         * Owning user ID
+         */
+        user_id: string;
+        /**
+         * MCP server instance ID
+         */
+        mcp_server_instance_id: string;
+    };
+    query?: never;
+    url: '/api/v1/user/{user_id}/mcp/mcp-server/{mcp_server_instance_id}/mcp';
+};
+
+export type PersonalMcpProtocolPostResponses = {
+    /**
+     * Personal MCP protocol response
+     */
+    200: unknown;
+};
+
+export type ListPersonalToolGroupInstancesData = {
+    body?: never;
+    path: {
+        /**
+         * Owning user ID
+         */
+        user_id: string;
+    };
+    query?: never;
+    url: '/api/v1/user/{user_id}/mcp/tool-group';
+};
+
+export type ListPersonalToolGroupInstancesErrors = {
+    /**
+     * Unauthorized
+     */
+    401: Error;
+    /**
+     * Forbidden
+     */
+    403: Error;
+};
+
+export type ListPersonalToolGroupInstancesError = ListPersonalToolGroupInstancesErrors[keyof ListPersonalToolGroupInstancesErrors];
+
+export type ListPersonalToolGroupInstancesResponses = {
+    /**
+     * List personal configured tool accounts
+     */
+    200: Vec;
+};
+
+export type ListPersonalToolGroupInstancesResponse = ListPersonalToolGroupInstancesResponses[keyof ListPersonalToolGroupInstancesResponses];
+
+export type CreatePersonalToolGroupInstanceData = {
+    body: CreatePersonalToolGroupInstanceBody;
+    path: {
+        /**
+         * Owning user ID
+         */
+        user_id: string;
+    };
+    query?: never;
+    url: '/api/v1/user/{user_id}/mcp/tool-group';
+};
+
+export type CreatePersonalToolGroupInstanceErrors = {
+    /**
+     * Bad Request
+     */
+    400: Error;
+    /**
+     * Unauthorized
+     */
+    401: Error;
+    /**
+     * Forbidden
+     */
+    403: Error;
+};
+
+export type CreatePersonalToolGroupInstanceError = CreatePersonalToolGroupInstanceErrors[keyof CreatePersonalToolGroupInstanceErrors];
+
+export type CreatePersonalToolGroupInstanceResponses = {
+    /**
+     * Create a personal configured tool account
+     */
+    200: PersonalToolGroupInstanceSerialized;
+};
+
+export type CreatePersonalToolGroupInstanceResponse = CreatePersonalToolGroupInstanceResponses[keyof CreatePersonalToolGroupInstanceResponses];
+
+export type DeletePersonalToolGroupInstanceData = {
+    body?: never;
+    path: {
+        user_id: string;
+        tool_group_instance_id: string;
+    };
+    query?: never;
+    url: '/api/v1/user/{user_id}/mcp/tool-group/{tool_group_instance_id}';
+};
+
+export type DeletePersonalToolGroupInstanceResponses = {
+    200: unknown;
+};
+
+export type GetPersonalToolGroupInstanceData = {
+    body?: never;
+    path: {
+        user_id: string;
+        tool_group_instance_id: string;
+    };
+    query?: never;
+    url: '/api/v1/user/{user_id}/mcp/tool-group/{tool_group_instance_id}';
+};
+
+export type GetPersonalToolGroupInstanceResponses = {
+    200: PersonalToolGroupInstanceSerialized;
+};
+
+export type GetPersonalToolGroupInstanceResponse = GetPersonalToolGroupInstanceResponses[keyof GetPersonalToolGroupInstanceResponses];
+
+export type UpdatePersonalToolGroupInstanceData = {
+    body: UpdateToolGroupInstanceParamsInner;
+    path: {
+        user_id: string;
+        tool_group_instance_id: string;
+    };
+    query?: never;
+    url: '/api/v1/user/{user_id}/mcp/tool-group/{tool_group_instance_id}';
+};
+
+export type UpdatePersonalToolGroupInstanceResponses = {
+    200: PersonalToolGroupInstanceSerialized;
+};
+
+export type UpdatePersonalToolGroupInstanceResponse = UpdatePersonalToolGroupInstanceResponses[keyof UpdatePersonalToolGroupInstanceResponses];
+
+export type ListPersonalMemoryBanksData = {
+    body?: never;
+    path: {
+        user_id: string;
+    };
+    query?: {
+        page_size?: number;
+        next_page_token?: string | null;
+    };
+    url: '/api/v1/user/{user_id}/memory/banks';
+};
+
+export type ListPersonalMemoryBanksResponses = {
+    200: MemoryBankPaginatedResponse;
+};
+
+export type ListPersonalMemoryBanksResponse = ListPersonalMemoryBanksResponses[keyof ListPersonalMemoryBanksResponses];
+
+export type CreatePersonalMemoryBankData = {
+    body: CreateMemoryBankBody;
+    path: {
+        user_id: string;
+    };
+    query?: never;
+    url: '/api/v1/user/{user_id}/memory/banks';
+};
+
+export type CreatePersonalMemoryBankResponses = {
+    200: MemoryBank;
+};
+
+export type CreatePersonalMemoryBankResponse = CreatePersonalMemoryBankResponses[keyof CreatePersonalMemoryBankResponses];
+
+export type DeletePersonalMemoryBankData = {
+    body?: never;
+    path: {
+        user_id: string;
+        bank_id: WrappedUuidV4;
+    };
+    query?: never;
+    url: '/api/v1/user/{user_id}/memory/banks/{bank_id}';
+};
+
+export type DeletePersonalMemoryBankResponses = {
+    200: unknown;
+};
+
+export type GetPersonalMemoryBankData = {
+    body?: never;
+    path: {
+        user_id: string;
+        bank_id: WrappedUuidV4;
+    };
+    query?: never;
+    url: '/api/v1/user/{user_id}/memory/banks/{bank_id}';
+};
+
+export type GetPersonalMemoryBankResponses = {
+    200: MemoryBank;
+};
+
+export type GetPersonalMemoryBankResponse = GetPersonalMemoryBankResponses[keyof GetPersonalMemoryBankResponses];
+
+export type UpdatePersonalMemoryBankData = {
+    body: UpdateMemoryBankBody;
+    path: {
+        user_id: string;
+        bank_id: WrappedUuidV4;
+    };
+    query?: never;
+    url: '/api/v1/user/{user_id}/memory/banks/{bank_id}';
+};
+
+export type UpdatePersonalMemoryBankResponses = {
+    200: MemoryBank;
+};
+
+export type UpdatePersonalMemoryBankResponse = UpdatePersonalMemoryBankResponses[keyof UpdatePersonalMemoryBankResponses];
+
+export type ResetPersonalMemoryBankConfigData = {
+    body?: never;
+    path: {
+        user_id: string;
+        bank_id: WrappedUuidV4;
+    };
+    query?: never;
+    url: '/api/v1/user/{user_id}/memory/banks/{bank_id}/config';
+};
+
+export type ResetPersonalMemoryBankConfigResponses = {
+    200: MemoryBankConfig;
+};
+
+export type ResetPersonalMemoryBankConfigResponse = ResetPersonalMemoryBankConfigResponses[keyof ResetPersonalMemoryBankConfigResponses];
+
+export type GetPersonalMemoryBankConfigData = {
+    body?: never;
+    path: {
+        user_id: string;
+        bank_id: WrappedUuidV4;
+    };
+    query?: never;
+    url: '/api/v1/user/{user_id}/memory/banks/{bank_id}/config';
+};
+
+export type GetPersonalMemoryBankConfigResponses = {
+    200: MemoryBankConfig;
+};
+
+export type GetPersonalMemoryBankConfigResponse = GetPersonalMemoryBankConfigResponses[keyof GetPersonalMemoryBankConfigResponses];
+
+export type UpdatePersonalMemoryBankConfigData = {
+    body: UpdateMemoryBankConfigBody;
+    path: {
+        user_id: string;
+        bank_id: WrappedUuidV4;
+    };
+    query?: never;
+    url: '/api/v1/user/{user_id}/memory/banks/{bank_id}/config';
+};
+
+export type UpdatePersonalMemoryBankConfigResponses = {
+    200: MemoryBankConfig;
+};
+
+export type UpdatePersonalMemoryBankConfigResponse = UpdatePersonalMemoryBankConfigResponses[keyof UpdatePersonalMemoryBankConfigResponses];
+
+export type DeletePersonalMemoryDocumentData = {
+    body: DeleteMemoryDocumentBody;
+    path: {
+        user_id: string;
+        bank_id: WrappedUuidV4;
+    };
+    query?: never;
+    url: '/api/v1/user/{user_id}/memory/banks/{bank_id}/documents';
+};
+
+export type DeletePersonalMemoryDocumentResponses = {
+    200: unknown;
+};
+
+export type ListPersonalMemoryBankDocumentsData = {
+    body?: never;
+    path: {
+        user_id: string;
+        bank_id: WrappedUuidV4;
+    };
+    query?: {
+        limit?: number;
+        offset?: number;
+        q?: string | null;
+    };
+    url: '/api/v1/user/{user_id}/memory/banks/{bank_id}/documents';
+};
+
+export type ListPersonalMemoryBankDocumentsResponses = {
+    200: MemoryBankDocumentList;
+};
+
+export type ListPersonalMemoryBankDocumentsResponse = ListPersonalMemoryBankDocumentsResponses[keyof ListPersonalMemoryBankDocumentsResponses];
+
+export type GetPersonalMemoryBankDocumentData = {
+    body?: never;
+    path: {
+        user_id: string;
+        bank_id: WrappedUuidV4;
+        document_id: string;
+    };
+    query?: never;
+    url: '/api/v1/user/{user_id}/memory/banks/{bank_id}/documents/{document_id}';
+};
+
+export type GetPersonalMemoryBankDocumentResponses = {
+    200: unknown;
+};
+
+export type CheckPersonalMemoryBankHealthData = {
+    body?: never;
+    path: {
+        user_id: string;
+        bank_id: WrappedUuidV4;
+    };
+    query?: never;
+    url: '/api/v1/user/{user_id}/memory/banks/{bank_id}/health';
+};
+
+export type CheckPersonalMemoryBankHealthResponses = {
+    200: MemoryBankHealth;
+};
+
+export type CheckPersonalMemoryBankHealthResponse = CheckPersonalMemoryBankHealthResponses[keyof CheckPersonalMemoryBankHealthResponses];
+
+export type SetPersonalMemoryBankOwnershipModeData = {
+    body: SetResourceAccessModeRequest;
+    path: {
+        user_id: string;
+        bank_id: WrappedUuidV4;
+    };
+    query?: never;
+    url: '/api/v1/user/{user_id}/memory/banks/{bank_id}/ownership';
+};
+
+export type SetPersonalMemoryBankOwnershipModeResponses = {
+    200: ResourceAuthorization;
+};
+
+export type SetPersonalMemoryBankOwnershipModeResponse = SetPersonalMemoryBankOwnershipModeResponses[keyof SetPersonalMemoryBankOwnershipModeResponses];
+
+export type ListPersonalMemoryBankOwnershipGrantsData = {
+    body?: never;
+    path: {
+        user_id: string;
+        bank_id: WrappedUuidV4;
+    };
+    query?: never;
+    url: '/api/v1/user/{user_id}/memory/banks/{bank_id}/ownership/grants';
+};
+
+export type ListPersonalMemoryBankOwnershipGrantsResponses = {
+    200: Array<ResourceGrant>;
+};
+
+export type ListPersonalMemoryBankOwnershipGrantsResponse = ListPersonalMemoryBankOwnershipGrantsResponses[keyof ListPersonalMemoryBankOwnershipGrantsResponses];
+
+export type AddPersonalMemoryBankOwnershipGrantData = {
+    body: CreateResourcePlaneGrantRequest;
+    path: {
+        user_id: string;
+        bank_id: WrappedUuidV4;
+    };
+    query?: never;
+    url: '/api/v1/user/{user_id}/memory/banks/{bank_id}/ownership/grants';
+};
+
+export type AddPersonalMemoryBankOwnershipGrantResponses = {
+    200: ResourceGrant;
+};
+
+export type AddPersonalMemoryBankOwnershipGrantResponse = AddPersonalMemoryBankOwnershipGrantResponses[keyof AddPersonalMemoryBankOwnershipGrantResponses];
+
+export type RemovePersonalMemoryBankOwnershipGrantData = {
+    body?: never;
+    path: {
+        user_id: string;
+        bank_id: WrappedUuidV4;
+        principal_type: ResourcePrincipalType;
+        principal_id: string;
+    };
+    query?: never;
+    url: '/api/v1/user/{user_id}/memory/banks/{bank_id}/ownership/grants/{principal_type}/{principal_id}';
+};
+
+export type RemovePersonalMemoryBankOwnershipGrantResponses = {
+    200: unknown;
+};
+
+export type RecallPersonalMemoryData = {
+    body: RecallMemoryBody;
+    path: {
+        user_id: string;
+        bank_id: WrappedUuidV4;
+    };
+    query?: never;
+    url: '/api/v1/user/{user_id}/memory/banks/{bank_id}/recall';
+};
+
+export type RecallPersonalMemoryResponses = {
+    200: MemoryOperationResponse;
+};
+
+export type RecallPersonalMemoryResponse = RecallPersonalMemoryResponses[keyof RecallPersonalMemoryResponses];
+
+export type ReflectPersonalMemoryData = {
+    body: ReflectMemoryBody;
+    path: {
+        user_id: string;
+        bank_id: WrappedUuidV4;
+    };
+    query?: never;
+    url: '/api/v1/user/{user_id}/memory/banks/{bank_id}/reflect';
+};
+
+export type ReflectPersonalMemoryResponses = {
+    200: MemoryOperationResponse;
+};
+
+export type ReflectPersonalMemoryResponse = ReflectPersonalMemoryResponses[keyof ReflectPersonalMemoryResponses];
+
+export type RetainPersonalMemoryDocumentData = {
+    body: RetainMemoryBody;
+    path: {
+        user_id: string;
+        bank_id: WrappedUuidV4;
+    };
+    query?: never;
+    url: '/api/v1/user/{user_id}/memory/banks/{bank_id}/retain';
+};
+
+export type RetainPersonalMemoryDocumentResponses = {
+    200: MemoryOperationResponse;
+};
+
+export type RetainPersonalMemoryDocumentResponse = RetainPersonalMemoryDocumentResponses[keyof RetainPersonalMemoryDocumentResponses];
+
+export type ListPersonalMemoryBankSourceBindingsData = {
+    body?: never;
+    path: {
+        user_id: string;
+        bank_id: WrappedUuidV4;
+    };
+    query?: never;
+    url: '/api/v1/user/{user_id}/memory/banks/{bank_id}/source-bindings';
+};
+
+export type ListPersonalMemoryBankSourceBindingsResponses = {
+    200: Array<MemorySourceBinding>;
+};
+
+export type ListPersonalMemoryBankSourceBindingsResponse = ListPersonalMemoryBankSourceBindingsResponses[keyof ListPersonalMemoryBankSourceBindingsResponses];
+
+export type ExportPersonalMemoryBankTemplateData = {
+    body?: never;
+    path: {
+        user_id: string;
+        bank_id: WrappedUuidV4;
+    };
+    query?: never;
+    url: '/api/v1/user/{user_id}/memory/banks/{bank_id}/template';
+};
+
+export type ExportPersonalMemoryBankTemplateResponses = {
+    200: MemoryBankTemplate;
+};
+
+export type ExportPersonalMemoryBankTemplateResponse = ExportPersonalMemoryBankTemplateResponses[keyof ExportPersonalMemoryBankTemplateResponses];
+
+export type ImportPersonalMemoryBankTemplateData = {
+    body: ImportMemoryBankTemplateBody;
+    path: {
+        user_id: string;
+        bank_id: WrappedUuidV4;
+    };
+    query?: never;
+    url: '/api/v1/user/{user_id}/memory/banks/{bank_id}/template';
+};
+
+export type ImportPersonalMemoryBankTemplateResponses = {
+    200: ImportMemoryBankTemplateResponse;
+};
+
+export type ImportPersonalMemoryBankTemplateResponse = ImportPersonalMemoryBankTemplateResponses[keyof ImportPersonalMemoryBankTemplateResponses];
+
+export type SetPersonalMemoryBankVisibilityData = {
+    body: SetResourceAccessModeRequest;
+    path: {
+        user_id: string;
+        bank_id: WrappedUuidV4;
+    };
+    query?: never;
+    url: '/api/v1/user/{user_id}/memory/banks/{bank_id}/visibility';
+};
+
+export type SetPersonalMemoryBankVisibilityResponses = {
+    200: ResourceAuthorization;
+};
+
+export type SetPersonalMemoryBankVisibilityResponse = SetPersonalMemoryBankVisibilityResponses[keyof SetPersonalMemoryBankVisibilityResponses];
+
+export type ListPersonalMemoryBankVisibilityGrantsData = {
+    body?: never;
+    path: {
+        user_id: string;
+        bank_id: WrappedUuidV4;
+    };
+    query?: never;
+    url: '/api/v1/user/{user_id}/memory/banks/{bank_id}/visibility/grants';
+};
+
+export type ListPersonalMemoryBankVisibilityGrantsResponses = {
+    200: Array<ResourceGrant>;
+};
+
+export type ListPersonalMemoryBankVisibilityGrantsResponse = ListPersonalMemoryBankVisibilityGrantsResponses[keyof ListPersonalMemoryBankVisibilityGrantsResponses];
+
+export type AddPersonalMemoryBankVisibilityGrantData = {
+    body: CreateResourcePlaneGrantRequest;
+    path: {
+        user_id: string;
+        bank_id: WrappedUuidV4;
+    };
+    query?: never;
+    url: '/api/v1/user/{user_id}/memory/banks/{bank_id}/visibility/grants';
+};
+
+export type AddPersonalMemoryBankVisibilityGrantResponses = {
+    200: ResourceGrant;
+};
+
+export type AddPersonalMemoryBankVisibilityGrantResponse = AddPersonalMemoryBankVisibilityGrantResponses[keyof AddPersonalMemoryBankVisibilityGrantResponses];
+
+export type RemovePersonalMemoryBankVisibilityGrantData = {
+    body?: never;
+    path: {
+        user_id: string;
+        bank_id: WrappedUuidV4;
+        principal_type: ResourcePrincipalType;
+        principal_id: string;
+    };
+    query?: never;
+    url: '/api/v1/user/{user_id}/memory/banks/{bank_id}/visibility/grants/{principal_type}/{principal_id}';
+};
+
+export type RemovePersonalMemoryBankVisibilityGrantResponses = {
+    200: unknown;
+};
+
+export type SignalsListPersonalDeliveriesData = {
+    body?: never;
+    path: {
+        user_id: string;
+    };
+    query?: {
+        page_size?: number;
+        next_page_token?: string;
+        instance_id?: string;
+        status?: string;
+    };
+    url: '/api/v1/user/{user_id}/signals/deliveries';
+};
+
+export type SignalsListPersonalDeliveriesResponses = {
+    200: Array<SignalDelivery>;
+};
+
+export type SignalsListPersonalDeliveriesResponse = SignalsListPersonalDeliveriesResponses[keyof SignalsListPersonalDeliveriesResponses];
+
+export type SignalsGetPersonalDeliveryData = {
+    body?: never;
+    path: {
+        user_id: string;
+        delivery_id: WrappedUuidV4;
+    };
+    query?: never;
+    url: '/api/v1/user/{user_id}/signals/deliveries/{delivery_id}';
+};
+
+export type SignalsGetPersonalDeliveryResponses = {
+    200: SignalDelivery;
+};
+
+export type SignalsGetPersonalDeliveryResponse = SignalsGetPersonalDeliveryResponses[keyof SignalsGetPersonalDeliveryResponses];
+
+export type SignalsRetryPersonalDeliveryData = {
+    body?: never;
+    path: {
+        user_id: string;
+        delivery_id: WrappedUuidV4;
+    };
+    query?: never;
+    url: '/api/v1/user/{user_id}/signals/deliveries/{delivery_id}/retry';
+};
+
+export type SignalsRetryPersonalDeliveryResponses = {
+    200: SignalDelivery;
+};
+
+export type SignalsRetryPersonalDeliveryResponse = SignalsRetryPersonalDeliveryResponses[keyof SignalsRetryPersonalDeliveryResponses];
+
+export type SignalsListPersonalProviderInstancesData = {
+    body?: never;
+    path: {
+        user_id: string;
+    };
+    query?: {
+        page_size?: number;
+        next_page_token?: string;
+        status?: string;
+        provider_type?: string;
+    };
+    url: '/api/v1/user/{user_id}/signals/instances';
+};
+
+export type SignalsListPersonalProviderInstancesResponses = {
+    200: Array<SignalProviderInstance>;
+};
+
+export type SignalsListPersonalProviderInstancesResponse = SignalsListPersonalProviderInstancesResponses[keyof SignalsListPersonalProviderInstancesResponses];
+
+export type SignalsCreatePersonalProviderInstanceData = {
+    body: CreateSignalProviderInstanceRequestInner;
+    path: {
+        user_id: string;
+    };
+    query?: never;
+    url: '/api/v1/user/{user_id}/signals/instances';
+};
+
+export type SignalsCreatePersonalProviderInstanceResponses = {
+    200: SignalProviderInstance;
+};
+
+export type SignalsCreatePersonalProviderInstanceResponse = SignalsCreatePersonalProviderInstanceResponses[keyof SignalsCreatePersonalProviderInstanceResponses];
+
+export type SignalsDeletePersonalProviderInstanceData = {
+    body?: never;
+    path: {
+        user_id: string;
+        instance_id: string;
+    };
+    query?: never;
+    url: '/api/v1/user/{user_id}/signals/instances/{instance_id}';
+};
+
+export type SignalsDeletePersonalProviderInstanceResponses = {
+    200: DeleteSignalResponse;
+};
+
+export type SignalsDeletePersonalProviderInstanceResponse = SignalsDeletePersonalProviderInstanceResponses[keyof SignalsDeletePersonalProviderInstanceResponses];
+
+export type SignalsGetPersonalProviderInstanceData = {
+    body?: never;
+    path: {
+        user_id: string;
+        instance_id: string;
+    };
+    query?: never;
+    url: '/api/v1/user/{user_id}/signals/instances/{instance_id}';
+};
+
+export type SignalsGetPersonalProviderInstanceResponses = {
+    200: SignalProviderInstance;
+};
+
+export type SignalsGetPersonalProviderInstanceResponse = SignalsGetPersonalProviderInstanceResponses[keyof SignalsGetPersonalProviderInstanceResponses];
+
+export type SignalsUpdatePersonalProviderInstanceData = {
+    body: UpdateSignalProviderInstanceRequestInner;
+    path: {
+        user_id: string;
+        instance_id: string;
+    };
+    query?: never;
+    url: '/api/v1/user/{user_id}/signals/instances/{instance_id}';
+};
+
+export type SignalsUpdatePersonalProviderInstanceResponses = {
+    200: SignalProviderInstance;
+};
+
+export type SignalsUpdatePersonalProviderInstanceResponse = SignalsUpdatePersonalProviderInstanceResponses[keyof SignalsUpdatePersonalProviderInstanceResponses];
+
+export type SignalsSetPersonalProviderOwnershipData = {
+    body: SetResourceAccessModeRequest;
+    path: {
+        user_id: string;
+        instance_id: string;
+    };
+    query?: never;
+    url: '/api/v1/user/{user_id}/signals/instances/{instance_id}/ownership';
+};
+
+export type SignalsSetPersonalProviderOwnershipResponses = {
+    200: ResourceAuthorization;
+};
+
+export type SignalsSetPersonalProviderOwnershipResponse = SignalsSetPersonalProviderOwnershipResponses[keyof SignalsSetPersonalProviderOwnershipResponses];
+
+export type SignalsSetPersonalProviderVisibilityData = {
+    body: SetResourceAccessModeRequest;
+    path: {
+        user_id: string;
+        instance_id: string;
+    };
+    query?: never;
+    url: '/api/v1/user/{user_id}/signals/instances/{instance_id}/visibility';
+};
+
+export type SignalsSetPersonalProviderVisibilityResponses = {
+    200: ResourceAuthorization;
+};
+
+export type SignalsSetPersonalProviderVisibilityResponse = SignalsSetPersonalProviderVisibilityResponses[keyof SignalsSetPersonalProviderVisibilityResponses];
+
+export type SignalsListPersonalProviderGrantsData = {
+    body?: never;
+    path: {
+        user_id: string;
+        instance_id: string;
+        plane: ResourceGrantPlane;
+    };
+    query?: never;
+    url: '/api/v1/user/{user_id}/signals/instances/{instance_id}/{plane}/grants';
+};
+
+export type SignalsListPersonalProviderGrantsResponses = {
+    200: Array<ResourceGrant>;
+};
+
+export type SignalsListPersonalProviderGrantsResponse = SignalsListPersonalProviderGrantsResponses[keyof SignalsListPersonalProviderGrantsResponses];
+
+export type SignalsAddPersonalProviderGrantData = {
+    body: CreateResourcePlaneGrantRequest;
+    path: {
+        user_id: string;
+        instance_id: string;
+        plane: ResourceGrantPlane;
+    };
+    query?: never;
+    url: '/api/v1/user/{user_id}/signals/instances/{instance_id}/{plane}/grants';
+};
+
+export type SignalsAddPersonalProviderGrantResponses = {
+    200: ResourceGrant;
+};
+
+export type SignalsAddPersonalProviderGrantResponse = SignalsAddPersonalProviderGrantResponses[keyof SignalsAddPersonalProviderGrantResponses];
+
+export type SignalsRemovePersonalProviderGrantData = {
+    body?: never;
+    path: {
+        user_id: string;
+        instance_id: string;
+        plane: ResourceGrantPlane;
+        principal_type: ResourcePrincipalType;
+        principal_id: string;
+    };
+    query?: never;
+    url: '/api/v1/user/{user_id}/signals/instances/{instance_id}/{plane}/grants/{principal_type}/{principal_id}';
+};
+
+export type SignalsRemovePersonalProviderGrantResponses = {
+    200: unknown;
+};
+
+export type SignalsListPersonalAvailableProvidersData = {
+    body?: never;
+    path: {
+        user_id: string;
+    };
+    query?: {
+        page_size?: number;
+        next_page_token?: string;
+    };
+    url: '/api/v1/user/{user_id}/signals/providers';
+};
+
+export type SignalsListPersonalAvailableProvidersResponses = {
+    200: Array<SignalProviderSourceSerialized>;
+};
+
+export type SignalsListPersonalAvailableProvidersResponse = SignalsListPersonalAvailableProvidersResponses[keyof SignalsListPersonalAvailableProvidersResponses];
+
+export type SignalsListPersonalRulesData = {
+    body?: never;
+    path: {
+        user_id: string;
+    };
+    query?: {
+        page_size?: number;
+        next_page_token?: string;
+        instance_id?: string;
+        status?: string;
+    };
+    url: '/api/v1/user/{user_id}/signals/rules';
+};
+
+export type SignalsListPersonalRulesResponses = {
+    200: Array<SignalRule>;
+};
+
+export type SignalsListPersonalRulesResponse = SignalsListPersonalRulesResponses[keyof SignalsListPersonalRulesResponses];
+
+export type SignalsCreatePersonalRuleData = {
+    body: CreateSignalRuleRequestInner;
+    path: {
+        user_id: string;
+    };
+    query?: never;
+    url: '/api/v1/user/{user_id}/signals/rules';
+};
+
+export type SignalsCreatePersonalRuleResponses = {
+    200: SignalRule;
+};
+
+export type SignalsCreatePersonalRuleResponse = SignalsCreatePersonalRuleResponses[keyof SignalsCreatePersonalRuleResponses];
+
+export type SignalsDeletePersonalRuleData = {
+    body?: never;
+    path: {
+        user_id: string;
+        rule_id: WrappedUuidV4;
+    };
+    query?: never;
+    url: '/api/v1/user/{user_id}/signals/rules/{rule_id}';
+};
+
+export type SignalsDeletePersonalRuleResponses = {
+    200: DeleteSignalResponse;
+};
+
+export type SignalsDeletePersonalRuleResponse = SignalsDeletePersonalRuleResponses[keyof SignalsDeletePersonalRuleResponses];
+
+export type SignalsGetPersonalRuleData = {
+    body?: never;
+    path: {
+        user_id: string;
+        rule_id: WrappedUuidV4;
+    };
+    query?: never;
+    url: '/api/v1/user/{user_id}/signals/rules/{rule_id}';
+};
+
+export type SignalsGetPersonalRuleResponses = {
+    200: SignalRule;
+};
+
+export type SignalsGetPersonalRuleResponse = SignalsGetPersonalRuleResponses[keyof SignalsGetPersonalRuleResponses];
+
+export type SignalsUpdatePersonalRuleData = {
+    body: UpdateSignalRuleRequestInner;
+    path: {
+        user_id: string;
+        rule_id: WrappedUuidV4;
+    };
+    query?: never;
+    url: '/api/v1/user/{user_id}/signals/rules/{rule_id}';
+};
+
+export type SignalsUpdatePersonalRuleResponses = {
+    200: SignalRule;
+};
+
+export type SignalsUpdatePersonalRuleResponse = SignalsUpdatePersonalRuleResponses[keyof SignalsUpdatePersonalRuleResponses];
+
+export type SignalsSetPersonalRuleOwnershipData = {
+    body: SetResourceAccessModeRequest;
+    path: {
+        user_id: string;
+        rule_id: WrappedUuidV4;
+    };
+    query?: never;
+    url: '/api/v1/user/{user_id}/signals/rules/{rule_id}/ownership';
+};
+
+export type SignalsSetPersonalRuleOwnershipResponses = {
+    200: ResourceAuthorization;
+};
+
+export type SignalsSetPersonalRuleOwnershipResponse = SignalsSetPersonalRuleOwnershipResponses[keyof SignalsSetPersonalRuleOwnershipResponses];
+
+export type SignalsSetPersonalRuleVisibilityData = {
+    body: SetResourceAccessModeRequest;
+    path: {
+        user_id: string;
+        rule_id: WrappedUuidV4;
+    };
+    query?: never;
+    url: '/api/v1/user/{user_id}/signals/rules/{rule_id}/visibility';
+};
+
+export type SignalsSetPersonalRuleVisibilityResponses = {
+    200: ResourceAuthorization;
+};
+
+export type SignalsSetPersonalRuleVisibilityResponse = SignalsSetPersonalRuleVisibilityResponses[keyof SignalsSetPersonalRuleVisibilityResponses];
+
+export type SignalsListPersonalRuleGrantsData = {
+    body?: never;
+    path: {
+        user_id: string;
+        rule_id: WrappedUuidV4;
+        plane: ResourceGrantPlane;
+    };
+    query?: never;
+    url: '/api/v1/user/{user_id}/signals/rules/{rule_id}/{plane}/grants';
+};
+
+export type SignalsListPersonalRuleGrantsResponses = {
+    200: Array<ResourceGrant>;
+};
+
+export type SignalsListPersonalRuleGrantsResponse = SignalsListPersonalRuleGrantsResponses[keyof SignalsListPersonalRuleGrantsResponses];
+
+export type SignalsAddPersonalRuleGrantData = {
+    body: CreateResourcePlaneGrantRequest;
+    path: {
+        user_id: string;
+        rule_id: WrappedUuidV4;
+        plane: ResourceGrantPlane;
+    };
+    query?: never;
+    url: '/api/v1/user/{user_id}/signals/rules/{rule_id}/{plane}/grants';
+};
+
+export type SignalsAddPersonalRuleGrantResponses = {
+    200: ResourceGrant;
+};
+
+export type SignalsAddPersonalRuleGrantResponse = SignalsAddPersonalRuleGrantResponses[keyof SignalsAddPersonalRuleGrantResponses];
+
+export type SignalsRemovePersonalRuleGrantData = {
+    body?: never;
+    path: {
+        user_id: string;
+        rule_id: WrappedUuidV4;
+        plane: ResourceGrantPlane;
+        principal_type: ResourcePrincipalType;
+        principal_id: string;
+    };
+    query?: never;
+    url: '/api/v1/user/{user_id}/signals/rules/{rule_id}/{plane}/grants/{principal_type}/{principal_id}';
+};
+
+export type SignalsRemovePersonalRuleGrantResponses = {
+    200: unknown;
+};
+
+export type ListPersonalSkillsData = {
+    body?: never;
+    path: {
+        user_id: string;
+    };
+    query?: {
+        page_size?: number;
+        next_page_token?: string | null;
+        name_prefix?: string | null;
+        skill_registry_id?: null | WrappedUuidV4;
+    };
+    url: '/api/v1/user/{user_id}/skill';
+};
+
+export type ListPersonalSkillsResponses = {
+    200: Vec;
+};
+
+export type ListPersonalSkillsResponse = ListPersonalSkillsResponses[keyof ListPersonalSkillsResponses];
+
+export type CreatePersonalSkillData = {
+    body: CreateSkillInner;
+    path: {
+        user_id: string;
+    };
+    query?: never;
+    url: '/api/v1/user/{user_id}/skill';
+};
+
+export type CreatePersonalSkillResponses = {
+    200: PersonalSkill;
+};
+
+export type CreatePersonalSkillResponse = CreatePersonalSkillResponses[keyof CreatePersonalSkillResponses];
+
+export type ListPersonalSkillRegistriesData = {
+    body?: never;
+    path: {
+        user_id: string;
+    };
+    query?: never;
+    url: '/api/v1/user/{user_id}/skill-registry';
+};
+
+export type ListPersonalSkillRegistriesResponses = {
+    200: Array<PersonalSkillRegistry>;
+};
+
+export type ListPersonalSkillRegistriesResponse = ListPersonalSkillRegistriesResponses[keyof ListPersonalSkillRegistriesResponses];
+
+export type CreatePersonalSkillRegistryData = {
+    body: CreateSkillRegistryBody;
+    path: {
+        user_id: string;
+    };
+    query?: never;
+    url: '/api/v1/user/{user_id}/skill-registry';
+};
+
+export type CreatePersonalSkillRegistryResponses = {
+    200: PersonalSkillRegistry;
+};
+
+export type CreatePersonalSkillRegistryResponse = CreatePersonalSkillRegistryResponses[keyof CreatePersonalSkillRegistryResponses];
+
+export type SetPersonalRegistryOwnershipModeData = {
+    body: SetResourceAccessModeRequest;
+    path: {
+        user_id: string;
+        id: WrappedUuidV4;
+    };
+    query?: never;
+    url: '/api/v1/user/{user_id}/skill-registry/{id}/ownership';
+};
+
+export type SetPersonalRegistryOwnershipModeResponses = {
+    200: ResourceAuthorization;
+};
+
+export type SetPersonalRegistryOwnershipModeResponse = SetPersonalRegistryOwnershipModeResponses[keyof SetPersonalRegistryOwnershipModeResponses];
+
+export type ListPersonalRegistryOwnershipGrantsData = {
+    body?: never;
+    path: {
+        user_id: string;
+        id: WrappedUuidV4;
+    };
+    query?: never;
+    url: '/api/v1/user/{user_id}/skill-registry/{id}/ownership/grants';
+};
+
+export type ListPersonalRegistryOwnershipGrantsResponses = {
+    200: Array<ResourceGrant>;
+};
+
+export type ListPersonalRegistryOwnershipGrantsResponse = ListPersonalRegistryOwnershipGrantsResponses[keyof ListPersonalRegistryOwnershipGrantsResponses];
+
+export type AddPersonalRegistryOwnershipGrantData = {
+    body: CreateResourcePlaneGrantRequest;
+    path: {
+        user_id: string;
+        id: WrappedUuidV4;
+    };
+    query?: never;
+    url: '/api/v1/user/{user_id}/skill-registry/{id}/ownership/grants';
+};
+
+export type AddPersonalRegistryOwnershipGrantResponses = {
+    200: ResourceGrant;
+};
+
+export type AddPersonalRegistryOwnershipGrantResponse = AddPersonalRegistryOwnershipGrantResponses[keyof AddPersonalRegistryOwnershipGrantResponses];
+
+export type RemovePersonalRegistryOwnershipGrantData = {
+    body?: never;
+    path: {
+        user_id: string;
+        id: WrappedUuidV4;
+        principal_type: string;
+        principal_id: string;
+    };
+    query?: never;
+    url: '/api/v1/user/{user_id}/skill-registry/{id}/ownership/grants/{principal_type}/{principal_id}';
+};
+
+export type RemovePersonalRegistryOwnershipGrantResponses = {
+    200: unknown;
+};
+
+export type SetPersonalRegistryVisibilityData = {
+    body: SetResourceAccessModeRequest;
+    path: {
+        user_id: string;
+        id: WrappedUuidV4;
+    };
+    query?: never;
+    url: '/api/v1/user/{user_id}/skill-registry/{id}/visibility';
+};
+
+export type SetPersonalRegistryVisibilityResponses = {
+    200: ResourceAuthorization;
+};
+
+export type SetPersonalRegistryVisibilityResponse = SetPersonalRegistryVisibilityResponses[keyof SetPersonalRegistryVisibilityResponses];
+
+export type ListPersonalRegistryVisibilityGrantsData = {
+    body?: never;
+    path: {
+        user_id: string;
+        id: WrappedUuidV4;
+    };
+    query?: never;
+    url: '/api/v1/user/{user_id}/skill-registry/{id}/visibility/grants';
+};
+
+export type ListPersonalRegistryVisibilityGrantsResponses = {
+    200: Array<ResourceGrant>;
+};
+
+export type ListPersonalRegistryVisibilityGrantsResponse = ListPersonalRegistryVisibilityGrantsResponses[keyof ListPersonalRegistryVisibilityGrantsResponses];
+
+export type AddPersonalRegistryVisibilityGrantData = {
+    body: CreateResourcePlaneGrantRequest;
+    path: {
+        user_id: string;
+        id: WrappedUuidV4;
+    };
+    query?: never;
+    url: '/api/v1/user/{user_id}/skill-registry/{id}/visibility/grants';
+};
+
+export type AddPersonalRegistryVisibilityGrantResponses = {
+    200: ResourceGrant;
+};
+
+export type AddPersonalRegistryVisibilityGrantResponse = AddPersonalRegistryVisibilityGrantResponses[keyof AddPersonalRegistryVisibilityGrantResponses];
+
+export type RemovePersonalRegistryVisibilityGrantData = {
+    body?: never;
+    path: {
+        user_id: string;
+        id: WrappedUuidV4;
+        principal_type: string;
+        principal_id: string;
+    };
+    query?: never;
+    url: '/api/v1/user/{user_id}/skill-registry/{id}/visibility/grants/{principal_type}/{principal_id}';
+};
+
+export type RemovePersonalRegistryVisibilityGrantResponses = {
+    200: unknown;
+};
+
+export type DeletePersonalSkillRegistryData = {
+    body?: never;
+    path: {
+        user_id: string;
+        registry_id: WrappedUuidV4;
+    };
+    query?: never;
+    url: '/api/v1/user/{user_id}/skill-registry/{registry_id}';
+};
+
+export type DeletePersonalSkillRegistryResponses = {
+    200: unknown;
+};
+
+export type GetPersonalSkillRegistryData = {
+    body?: never;
+    path: {
+        user_id: string;
+        registry_id: WrappedUuidV4;
+    };
+    query?: never;
+    url: '/api/v1/user/{user_id}/skill-registry/{registry_id}';
+};
+
+export type GetPersonalSkillRegistryResponses = {
+    200: PersonalSkillRegistry;
+};
+
+export type GetPersonalSkillRegistryResponse = GetPersonalSkillRegistryResponses[keyof GetPersonalSkillRegistryResponses];
+
+export type UpdatePersonalSkillRegistryData = {
+    body: UpdateSkillRegistryBody;
+    path: {
+        user_id: string;
+        registry_id: WrappedUuidV4;
+    };
+    query?: never;
+    url: '/api/v1/user/{user_id}/skill-registry/{registry_id}';
+};
+
+export type UpdatePersonalSkillRegistryResponses = {
+    200: PersonalSkillRegistry;
+};
+
+export type UpdatePersonalSkillRegistryResponse = UpdatePersonalSkillRegistryResponses[keyof UpdatePersonalSkillRegistryResponses];
+
+export type SetPersonalSkillOwnershipModeData = {
+    body: SetResourceAccessModeRequest;
+    path: {
+        user_id: string;
+        id: WrappedUuidV4;
+    };
+    query?: never;
+    url: '/api/v1/user/{user_id}/skill/{id}/ownership';
+};
+
+export type SetPersonalSkillOwnershipModeResponses = {
+    200: ResourceAuthorization;
+};
+
+export type SetPersonalSkillOwnershipModeResponse = SetPersonalSkillOwnershipModeResponses[keyof SetPersonalSkillOwnershipModeResponses];
+
+export type ListPersonalSkillOwnershipGrantsData = {
+    body?: never;
+    path: {
+        user_id: string;
+        id: WrappedUuidV4;
+    };
+    query?: never;
+    url: '/api/v1/user/{user_id}/skill/{id}/ownership/grants';
+};
+
+export type ListPersonalSkillOwnershipGrantsResponses = {
+    200: Array<ResourceGrant>;
+};
+
+export type ListPersonalSkillOwnershipGrantsResponse = ListPersonalSkillOwnershipGrantsResponses[keyof ListPersonalSkillOwnershipGrantsResponses];
+
+export type AddPersonalSkillOwnershipGrantData = {
+    body: CreateResourcePlaneGrantRequest;
+    path: {
+        user_id: string;
+        id: WrappedUuidV4;
+    };
+    query?: never;
+    url: '/api/v1/user/{user_id}/skill/{id}/ownership/grants';
+};
+
+export type AddPersonalSkillOwnershipGrantResponses = {
+    200: ResourceGrant;
+};
+
+export type AddPersonalSkillOwnershipGrantResponse = AddPersonalSkillOwnershipGrantResponses[keyof AddPersonalSkillOwnershipGrantResponses];
+
+export type RemovePersonalSkillOwnershipGrantData = {
+    body?: never;
+    path: {
+        user_id: string;
+        id: WrappedUuidV4;
+        principal_type: string;
+        principal_id: string;
+    };
+    query?: never;
+    url: '/api/v1/user/{user_id}/skill/{id}/ownership/grants/{principal_type}/{principal_id}';
+};
+
+export type RemovePersonalSkillOwnershipGrantResponses = {
+    200: unknown;
+};
+
+export type SetPersonalSkillVisibilityData = {
+    body: SetResourceAccessModeRequest;
+    path: {
+        user_id: string;
+        id: WrappedUuidV4;
+    };
+    query?: never;
+    url: '/api/v1/user/{user_id}/skill/{id}/visibility';
+};
+
+export type SetPersonalSkillVisibilityResponses = {
+    200: ResourceAuthorization;
+};
+
+export type SetPersonalSkillVisibilityResponse = SetPersonalSkillVisibilityResponses[keyof SetPersonalSkillVisibilityResponses];
+
+export type ListPersonalSkillVisibilityGrantsData = {
+    body?: never;
+    path: {
+        user_id: string;
+        id: WrappedUuidV4;
+    };
+    query?: never;
+    url: '/api/v1/user/{user_id}/skill/{id}/visibility/grants';
+};
+
+export type ListPersonalSkillVisibilityGrantsResponses = {
+    200: Array<ResourceGrant>;
+};
+
+export type ListPersonalSkillVisibilityGrantsResponse = ListPersonalSkillVisibilityGrantsResponses[keyof ListPersonalSkillVisibilityGrantsResponses];
+
+export type AddPersonalSkillVisibilityGrantData = {
+    body: CreateResourcePlaneGrantRequest;
+    path: {
+        user_id: string;
+        id: WrappedUuidV4;
+    };
+    query?: never;
+    url: '/api/v1/user/{user_id}/skill/{id}/visibility/grants';
+};
+
+export type AddPersonalSkillVisibilityGrantResponses = {
+    200: ResourceGrant;
+};
+
+export type AddPersonalSkillVisibilityGrantResponse = AddPersonalSkillVisibilityGrantResponses[keyof AddPersonalSkillVisibilityGrantResponses];
+
+export type RemovePersonalSkillVisibilityGrantData = {
+    body?: never;
+    path: {
+        user_id: string;
+        id: WrappedUuidV4;
+        principal_type: string;
+        principal_id: string;
+    };
+    query?: never;
+    url: '/api/v1/user/{user_id}/skill/{id}/visibility/grants/{principal_type}/{principal_id}';
+};
+
+export type RemovePersonalSkillVisibilityGrantResponses = {
+    200: unknown;
+};
+
+export type DeletePersonalSkillData = {
+    body?: never;
+    path: {
+        user_id: string;
+        skill_id: WrappedUuidV4;
+    };
+    query?: never;
+    url: '/api/v1/user/{user_id}/skill/{skill_id}';
+};
+
+export type DeletePersonalSkillResponses = {
+    200: unknown;
+};
+
+export type GetPersonalSkillData = {
+    body?: never;
+    path: {
+        user_id: string;
+        skill_id: WrappedUuidV4;
+    };
+    query?: never;
+    url: '/api/v1/user/{user_id}/skill/{skill_id}';
+};
+
+export type GetPersonalSkillResponses = {
+    200: PersonalSkill;
+};
+
+export type GetPersonalSkillResponse = GetPersonalSkillResponses[keyof GetPersonalSkillResponses];
+
+export type UpdatePersonalSkillData = {
+    body: UpdateSkillBody;
+    path: {
+        user_id: string;
+        skill_id: WrappedUuidV4;
+    };
+    query?: never;
+    url: '/api/v1/user/{user_id}/skill/{skill_id}';
+};
+
+export type UpdatePersonalSkillResponses = {
+    200: PersonalSkill;
+};
+
+export type UpdatePersonalSkillResponse = UpdatePersonalSkillResponses[keyof UpdatePersonalSkillResponses];
+
+export type ListPersonalWikisData = {
+    body?: never;
+    path: {
+        user_id: string;
+    };
+    query?: {
+        page_size?: number;
+        next_page_token?: string | null;
+    };
+    url: '/api/v1/user/{user_id}/wikis';
+};
+
+export type ListPersonalWikisResponses = {
+    200: WikiPaginatedResponse;
+};
+
+export type ListPersonalWikisResponse = ListPersonalWikisResponses[keyof ListPersonalWikisResponses];
+
+export type CreatePersonalWikiData = {
+    body: CreateWikiInner;
+    path: {
+        user_id: string;
+    };
+    query?: never;
+    url: '/api/v1/user/{user_id}/wikis';
+};
+
+export type CreatePersonalWikiResponses = {
+    200: Wiki;
+};
+
+export type CreatePersonalWikiResponse = CreatePersonalWikiResponses[keyof CreatePersonalWikiResponses];
+
+export type DeletePersonalWikiData = {
+    body?: never;
+    path: {
+        user_id: string;
+        wiki_id: WrappedUuidV4;
+    };
+    query?: never;
+    url: '/api/v1/user/{user_id}/wikis/{wiki_id}';
+};
+
+export type DeletePersonalWikiResponses = {
+    200: unknown;
+};
+
+export type GetPersonalWikiData = {
+    body?: never;
+    path: {
+        user_id: string;
+        wiki_id: WrappedUuidV4;
+    };
+    query?: never;
+    url: '/api/v1/user/{user_id}/wikis/{wiki_id}';
+};
+
+export type GetPersonalWikiResponses = {
+    200: Wiki;
+};
+
+export type GetPersonalWikiResponse = GetPersonalWikiResponses[keyof GetPersonalWikiResponses];
+
+export type UpdatePersonalWikiData = {
+    body: UpdateWikiBody;
+    path: {
+        user_id: string;
+        wiki_id: WrappedUuidV4;
+    };
+    query?: never;
+    url: '/api/v1/user/{user_id}/wikis/{wiki_id}';
+};
+
+export type UpdatePersonalWikiResponses = {
+    200: Wiki;
+};
+
+export type UpdatePersonalWikiResponse = UpdatePersonalWikiResponses[keyof UpdatePersonalWikiResponses];
+
+export type SetPersonalWikiOwnershipModeData = {
+    body: SetResourceAccessModeRequest;
+    path: {
+        user_id: string;
+        wiki_id: WrappedUuidV4;
+    };
+    query?: never;
+    url: '/api/v1/user/{user_id}/wikis/{wiki_id}/ownership';
+};
+
+export type SetPersonalWikiOwnershipModeResponses = {
+    200: ResourceAuthorization;
+};
+
+export type SetPersonalWikiOwnershipModeResponse = SetPersonalWikiOwnershipModeResponses[keyof SetPersonalWikiOwnershipModeResponses];
+
+export type ListPersonalWikiOwnershipGrantsData = {
+    body?: never;
+    path: {
+        user_id: string;
+        wiki_id: WrappedUuidV4;
+    };
+    query?: never;
+    url: '/api/v1/user/{user_id}/wikis/{wiki_id}/ownership/grants';
+};
+
+export type ListPersonalWikiOwnershipGrantsResponses = {
+    200: Array<ResourceGrant>;
+};
+
+export type ListPersonalWikiOwnershipGrantsResponse = ListPersonalWikiOwnershipGrantsResponses[keyof ListPersonalWikiOwnershipGrantsResponses];
+
+export type AddPersonalWikiOwnershipGrantData = {
+    body: CreateResourcePlaneGrantRequest;
+    path: {
+        user_id: string;
+        wiki_id: WrappedUuidV4;
+    };
+    query?: never;
+    url: '/api/v1/user/{user_id}/wikis/{wiki_id}/ownership/grants';
+};
+
+export type AddPersonalWikiOwnershipGrantResponses = {
+    200: ResourceGrant;
+};
+
+export type AddPersonalWikiOwnershipGrantResponse = AddPersonalWikiOwnershipGrantResponses[keyof AddPersonalWikiOwnershipGrantResponses];
+
+export type RemovePersonalWikiOwnershipGrantData = {
+    body?: never;
+    path: {
+        user_id: string;
+        wiki_id: WrappedUuidV4;
+        principal_type: ResourcePrincipalType;
+        principal_id: string;
+    };
+    query?: never;
+    url: '/api/v1/user/{user_id}/wikis/{wiki_id}/ownership/grants/{principal_type}/{principal_id}';
+};
+
+export type RemovePersonalWikiOwnershipGrantResponses = {
+    200: unknown;
+};
+
+export type ListPersonalWikiPagesData = {
+    body?: never;
+    path: {
+        user_id: string;
+        wiki_id: WrappedUuidV4;
+    };
+    query?: {
+        page_size?: number;
+        next_page_token?: string | null;
+        query?: string | null;
+    };
+    url: '/api/v1/user/{user_id}/wikis/{wiki_id}/pages';
+};
+
+export type ListPersonalWikiPagesResponses = {
+    200: WikiPagePaginatedResponse;
+};
+
+export type ListPersonalWikiPagesResponse = ListPersonalWikiPagesResponses[keyof ListPersonalWikiPagesResponses];
+
+export type CreatePersonalWikiPageData = {
+    body: UpsertWikiPageBody;
+    path: {
+        user_id: string;
+        wiki_id: WrappedUuidV4;
+    };
+    query?: never;
+    url: '/api/v1/user/{user_id}/wikis/{wiki_id}/pages';
+};
+
+export type CreatePersonalWikiPageResponses = {
+    200: WikiPage;
+};
+
+export type CreatePersonalWikiPageResponse = CreatePersonalWikiPageResponses[keyof CreatePersonalWikiPageResponses];
+
+export type DeletePersonalWikiPageData = {
+    body: ExpectedRevisionBody;
+    path: {
+        user_id: string;
+        wiki_id: WrappedUuidV4;
+        page_id: WrappedUuidV4;
+    };
+    query?: never;
+    url: '/api/v1/user/{user_id}/wikis/{wiki_id}/pages/{page_id}';
+};
+
+export type DeletePersonalWikiPageResponses = {
+    200: unknown;
+};
+
+export type GetPersonalWikiPageData = {
+    body?: never;
+    path: {
+        user_id: string;
+        wiki_id: WrappedUuidV4;
+        page_id: WrappedUuidV4;
+    };
+    query?: never;
+    url: '/api/v1/user/{user_id}/wikis/{wiki_id}/pages/{page_id}';
+};
+
+export type GetPersonalWikiPageResponses = {
+    200: WikiPage;
+};
+
+export type GetPersonalWikiPageResponse = GetPersonalWikiPageResponses[keyof GetPersonalWikiPageResponses];
+
+export type UpdatePersonalWikiPageData = {
+    body: UpsertWikiPageBody;
+    path: {
+        user_id: string;
+        wiki_id: WrappedUuidV4;
+        page_id: WrappedUuidV4;
+    };
+    query?: never;
+    url: '/api/v1/user/{user_id}/wikis/{wiki_id}/pages/{page_id}';
+};
+
+export type UpdatePersonalWikiPageResponses = {
+    200: WikiPage;
+};
+
+export type UpdatePersonalWikiPageResponse = UpdatePersonalWikiPageResponses[keyof UpdatePersonalWikiPageResponses];
+
+export type ChangePersonalWikiOwnershipData = {
+    body: ChangeResourceOwnershipRequest;
+    path: {
+        user_id: string;
+        wiki_id: WrappedUuidV4;
+    };
+    query?: never;
+    url: '/api/v1/user/{user_id}/wikis/{wiki_id}/transfer-ownership';
+};
+
+export type ChangePersonalWikiOwnershipResponses = {
+    200: Wiki;
+};
+
+export type ChangePersonalWikiOwnershipResponse = ChangePersonalWikiOwnershipResponses[keyof ChangePersonalWikiOwnershipResponses];
+
+export type SetPersonalWikiVisibilityData = {
+    body: SetResourceAccessModeRequest;
+    path: {
+        user_id: string;
+        wiki_id: WrappedUuidV4;
+    };
+    query?: never;
+    url: '/api/v1/user/{user_id}/wikis/{wiki_id}/visibility';
+};
+
+export type SetPersonalWikiVisibilityResponses = {
+    200: ResourceAuthorization;
+};
+
+export type SetPersonalWikiVisibilityResponse = SetPersonalWikiVisibilityResponses[keyof SetPersonalWikiVisibilityResponses];
+
+export type ListPersonalWikiVisibilityGrantsData = {
+    body?: never;
+    path: {
+        user_id: string;
+        wiki_id: WrappedUuidV4;
+    };
+    query?: never;
+    url: '/api/v1/user/{user_id}/wikis/{wiki_id}/visibility/grants';
+};
+
+export type ListPersonalWikiVisibilityGrantsResponses = {
+    200: Array<ResourceGrant>;
+};
+
+export type ListPersonalWikiVisibilityGrantsResponse = ListPersonalWikiVisibilityGrantsResponses[keyof ListPersonalWikiVisibilityGrantsResponses];
+
+export type AddPersonalWikiVisibilityGrantData = {
+    body: CreateResourcePlaneGrantRequest;
+    path: {
+        user_id: string;
+        wiki_id: WrappedUuidV4;
+    };
+    query?: never;
+    url: '/api/v1/user/{user_id}/wikis/{wiki_id}/visibility/grants';
+};
+
+export type AddPersonalWikiVisibilityGrantResponses = {
+    200: ResourceGrant;
+};
+
+export type AddPersonalWikiVisibilityGrantResponse = AddPersonalWikiVisibilityGrantResponses[keyof AddPersonalWikiVisibilityGrantResponses];
+
+export type RemovePersonalWikiVisibilityGrantData = {
+    body?: never;
+    path: {
+        user_id: string;
+        wiki_id: WrappedUuidV4;
+        principal_type: ResourcePrincipalType;
+        principal_id: string;
+    };
+    query?: never;
+    url: '/api/v1/user/{user_id}/wikis/{wiki_id}/visibility/grants/{principal_type}/{principal_id}';
+};
+
+export type RemovePersonalWikiVisibilityGrantResponses = {
+    200: unknown;
+};
+
+export type SetMcpResourceOwnershipData = {
+    body: SetResourceAccessModeRequest;
+    path?: never;
+    query?: never;
+    url: '/api/v1/{scope_kind}/{scope_id}/mcp/{root_kind}/{id}/ownership';
+};
+
+export type SetMcpResourceOwnershipResponses = {
+    200: ResourceAuthorization;
+};
+
+export type SetMcpResourceOwnershipResponse = SetMcpResourceOwnershipResponses[keyof SetMcpResourceOwnershipResponses];
+
+export type ListMcpResourceOwnershipGrantsData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/v1/{scope_kind}/{scope_id}/mcp/{root_kind}/{id}/ownership/grants';
+};
+
+export type ListMcpResourceOwnershipGrantsResponses = {
+    200: Array<ResourceGrant>;
+};
+
+export type ListMcpResourceOwnershipGrantsResponse = ListMcpResourceOwnershipGrantsResponses[keyof ListMcpResourceOwnershipGrantsResponses];
+
+export type AddMcpResourceOwnershipGrantData = {
+    body: CreateResourcePlaneGrantRequest;
+    path?: never;
+    query?: never;
+    url: '/api/v1/{scope_kind}/{scope_id}/mcp/{root_kind}/{id}/ownership/grants';
+};
+
+export type AddMcpResourceOwnershipGrantResponses = {
+    200: ResourceGrant;
+};
+
+export type AddMcpResourceOwnershipGrantResponse = AddMcpResourceOwnershipGrantResponses[keyof AddMcpResourceOwnershipGrantResponses];
+
+export type RemoveMcpResourceOwnershipGrantData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/v1/{scope_kind}/{scope_id}/mcp/{root_kind}/{id}/ownership/grants/{principal_type}/{principal_id}';
+};
+
+export type RemoveMcpResourceOwnershipGrantResponses = {
+    200: unknown;
+};
+
+export type SetMcpResourceVisibilityData = {
+    body: SetResourceAccessModeRequest;
+    path?: never;
+    query?: never;
+    url: '/api/v1/{scope_kind}/{scope_id}/mcp/{root_kind}/{id}/visibility';
+};
+
+export type SetMcpResourceVisibilityResponses = {
+    200: ResourceAuthorization;
+};
+
+export type SetMcpResourceVisibilityResponse = SetMcpResourceVisibilityResponses[keyof SetMcpResourceVisibilityResponses];
+
+export type ListMcpResourceVisibilityGrantsData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/v1/{scope_kind}/{scope_id}/mcp/{root_kind}/{id}/visibility/grants';
+};
+
+export type ListMcpResourceVisibilityGrantsResponses = {
+    200: Array<ResourceGrant>;
+};
+
+export type ListMcpResourceVisibilityGrantsResponse = ListMcpResourceVisibilityGrantsResponses[keyof ListMcpResourceVisibilityGrantsResponses];
+
+export type AddMcpResourceVisibilityGrantData = {
+    body: CreateResourcePlaneGrantRequest;
+    path?: never;
+    query?: never;
+    url: '/api/v1/{scope_kind}/{scope_id}/mcp/{root_kind}/{id}/visibility/grants';
+};
+
+export type AddMcpResourceVisibilityGrantResponses = {
+    200: ResourceGrant;
+};
+
+export type AddMcpResourceVisibilityGrantResponse = AddMcpResourceVisibilityGrantResponses[keyof AddMcpResourceVisibilityGrantResponses];
+
+export type RemoveMcpResourceVisibilityGrantData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/v1/{scope_kind}/{scope_id}/mcp/{root_kind}/{id}/visibility/grants/{principal_type}/{principal_id}';
+};
+
+export type RemoveMcpResourceVisibilityGrantResponses = {
+    200: unknown;
+};
