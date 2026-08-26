@@ -4,8 +4,9 @@ const mocks = vi.hoisted(() => ({
   input: vi.fn(),
   loadDevelopmentConfiguration: vi.fn(async () => ({ providers: {} })),
   loadLocalEnvironment: vi.fn(async () => ({
-    AGENT_SERVICE_ORIGIN: "https://local.trytilde-sb.com",
+    AGENT_SERVICE_ORIGIN: "https://our-ob-agents.vercel.app",
   })),
+  readLiveAgentServiceOrigin: vi.fn(async () => "https://local.trytilde-sb.com"),
   reconcileAgentResources: vi.fn(async () => undefined),
   scaffoldAgent: vi.fn(async () => ({
     id: "research-assistant",
@@ -22,6 +23,9 @@ vi.mock("../agent-lifecycle.js", () => ({
 vi.mock("../agent-scaffold.js", () => ({ scaffoldAgent: mocks.scaffoldAgent }));
 vi.mock("../environment.js", () => ({ loadLocalEnvironment: mocks.loadLocalEnvironment }));
 vi.mock("../initialization.js", () => ({ setEnvironmentValue: mocks.setEnvironmentValue }));
+vi.mock("../live-agent-service.js", () => ({
+  readLiveAgentServiceOrigin: mocks.readLiveAgentServiceOrigin,
+}));
 vi.mock("../paths.js", () => ({ repositoryRoot: "/repository" }));
 vi.mock("./dev.js", () => ({
   loadDevelopmentConfiguration: mocks.loadDevelopmentConfiguration,
@@ -63,5 +67,6 @@ describe("new-agent", () => {
         agentServiceOrigin: "https://local.trytilde-sb.com",
       }),
     );
+    expect(mocks.readLiveAgentServiceOrigin).toHaveBeenCalledWith("/repository");
   });
 });

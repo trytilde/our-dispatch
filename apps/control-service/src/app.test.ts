@@ -1,5 +1,5 @@
 import { once } from "node:events";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -94,6 +94,73 @@ describe("bare OpenBot server", () => {
       { agentId: "factory", jobId, timeoutMilliseconds: 0 },
       expect.objectContaining({ authorization: "Bearer computer-key" }),
     );
+  });
+
+  it("starts development agent setup in the checkout served by the live agent runtime", async () => {
+    const jobId = "33333333-3333-4333-8333-333333333333";
+    const execute = vi.fn(async () => ({
+      exitCode: 0,
+      stdout: "",
+      stderr: "",
+      jobId,
+      running: true,
+    }));
+    const agentApp = createApp({
+      environment: {},
+      agentCreation: { repositoryRoot: "/repository", execute },
+    });
+
+    const response = await agentApp.request("https://openbot.test/api/agents", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ name: "Tasa" }),
+    });
+
+    expect(response.status).toBe(202);
+    expect(execute).toHaveBeenCalledWith(
+      {
+        agentId: "factory",
+        command: "pnpm",
+        arguments: ["openbot", "new-agent", "Tasa", "--json"],
+        cwd: "/repository",
+        timeoutMilliseconds: 600_000,
+        background: true,
+      },
+      expect.objectContaining({ authorization: "" }),
+    );
+  });
+
+  it("completes a development setup job through the local background runner", async () => {
+    const root = await mkdtemp(join(tmpdir(), "openbot-agent-create-"));
+    temporaryRoots.push(root);
+    const pnpm = join(root, "pnpm");
+    await writeFile(
+      pnpm,
+      '#!/bin/sh\nprintf \'%s\\n\' \'{"ok":true,"agent":{"id":"tasa","name":"Tasa"}}\'\n',
+    );
+    await chmod(pnpm, 0o700);
+    const agentApp = createApp({
+      environment: { PATH: root },
+      agentCreation: { repositoryRoot: root },
+    });
+
+    const started = await agentApp.request("https://openbot.test/api/agents", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ name: "Tasa" }),
+    });
+    const { job_id: jobId } = (await started.json()) as { job_id: string };
+    let status: { status: string; agent?: { id: string; name: string } } = {
+      status: "setting_up",
+    };
+    for (let attempt = 0; attempt < 50 && status.status === "setting_up"; attempt += 1) {
+      await new Promise((resolvePromise) => setTimeout(resolvePromise, 10));
+      status = (await (
+        await agentApp.request(`https://openbot.test/api/agents/setup/${jobId}`)
+      ).json()) as typeof status;
+    }
+
+    expect(status).toEqual({ status: "ready", agent: { id: "tasa", name: "Tasa" } });
   });
 
   it("reports a running or failed background agent setup without exposing command details", async () => {

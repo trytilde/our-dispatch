@@ -1,3 +1,5 @@
+import { spawn } from "node:child_process";
+import { randomUUID } from "node:crypto";
 import { createClient } from "@connectrpc/connect";
 import { createConnectTransport } from "@connectrpc/connect-node";
 import type { Hono } from "hono";
@@ -6,6 +8,7 @@ import { agentIdFromName } from "@tryopenbot/utilities";
 
 export interface AgentCreationOptions {
   environment?: NodeJS.ProcessEnv;
+  repositoryRoot?: string;
   execute?: AgentCreationExecutor;
   awaitExecution?: AgentCreationWaiter;
 }
@@ -43,15 +46,18 @@ const backgroundJobPattern =
 const createTimeoutMs = 600_000;
 
 /**
- * Owner-facing agent creation: scaffold and register a new agent by running the repository CLI
- * inside the trusted development sandbox, where the writable checkout lives.
+ * Owner-facing agent creation: development mutates the checkout served by the live HMR runtime;
+ * deployed control services delegate to the trusted development sandbox.
  */
 export function registerAgentCreation(app: Hono, options: AgentCreationOptions = {}): void {
+  const localCreation = options.repositoryRoot
+    ? createLocalAgentCreation(options.repositoryRoot, options.environment)
+    : undefined;
   app.post("/api/agents", async (context) => {
     const environment = options.environment ?? process.env;
     const serviceUrl = environment.DEVELOPMENT_SANDBOX_SERVICE_URL?.trim();
     const apiKey = environment.COMPUTER_SERVICE_API_KEY?.trim();
-    if (!serviceUrl || !apiKey)
+    if (!localCreation && (!serviceUrl || !apiKey))
       return context.json({ error: "The development sandbox is not available" }, 503);
     let name: string;
     try {
@@ -68,21 +74,30 @@ export function registerAgentCreation(app: Hono, options: AgentCreationOptions =
       return context.json({ error: "Invalid agent name" }, 400);
     }
 
-    const execute = options.execute ?? connectExecutor(serviceUrl);
+    const execute = options.execute ?? localCreation?.execute ?? connectExecutor(serviceUrl!);
     const response = await execute(
+      options.repositoryRoot
+        ? {
+            agentId: "factory",
+            command: "pnpm",
+            arguments: ["openbot", "new-agent", name, "--json"],
+            cwd: options.repositoryRoot,
+            timeoutMilliseconds: createTimeoutMs,
+            background: true,
+          }
+        : {
+            agentId: "factory",
+            command: "bash",
+            arguments: [
+              "-lc",
+              `source /workspace/.openbot/development/profile.sh && cd /workspace/openbot && pnpm openbot new-agent ${shellQuote(name)} --json`,
+            ],
+            cwd: "",
+            timeoutMilliseconds: createTimeoutMs,
+            background: true,
+          },
       {
-        agentId: "factory",
-        command: "bash",
-        arguments: [
-          "-lc",
-          `source /workspace/.openbot/development/profile.sh && cd /workspace/openbot && pnpm openbot new-agent ${shellQuote(name)} --json`,
-        ],
-        cwd: "",
-        timeoutMilliseconds: createTimeoutMs,
-        background: true,
-      },
-      {
-        authorization: `Bearer ${apiKey}`,
+        authorization: apiKey ? `Bearer ${apiKey}` : "",
         signal: context.req.raw.signal,
       },
     );
@@ -102,14 +117,15 @@ export function registerAgentCreation(app: Hono, options: AgentCreationOptions =
     const environment = options.environment ?? process.env;
     const serviceUrl = environment.DEVELOPMENT_SANDBOX_SERVICE_URL?.trim();
     const apiKey = environment.COMPUTER_SERVICE_API_KEY?.trim();
-    if (!serviceUrl || !apiKey)
+    if (!localCreation && (!serviceUrl || !apiKey))
       return context.json({ error: "The development sandbox is not available" }, 503);
     const jobId = context.req.param("jobId");
     if (!backgroundJobPattern.test(jobId)) return context.json({ error: "Invalid setup job" }, 400);
-    const wait = options.awaitExecution ?? connectWaiter(serviceUrl);
+    const wait =
+      options.awaitExecution ?? localCreation?.awaitExecution ?? connectWaiter(serviceUrl!);
     const response = await wait(
       { agentId: "factory", jobId, timeoutMilliseconds: 0 },
-      { authorization: `Bearer ${apiKey}`, signal: context.req.raw.signal },
+      { authorization: apiKey ? `Bearer ${apiKey}` : "", signal: context.req.raw.signal },
     );
     if (response.running) return context.json({ status: "setting_up" });
     if (response.exitCode !== 0)
@@ -119,6 +135,53 @@ export function registerAgentCreation(app: Hono, options: AgentCreationOptions =
       return context.json({ status: "failed", error: "Agent creation returned no result" });
     return context.json({ status: "ready", agent: created });
   });
+}
+
+function createLocalAgentCreation(
+  repositoryRoot: string,
+  environment: NodeJS.ProcessEnv = process.env,
+): { execute: AgentCreationExecutor; awaitExecution: AgentCreationWaiter } {
+  const jobs = new Map<string, AgentCreationResult>();
+  return {
+    execute: async (request) => {
+      const jobId = randomUUID();
+      jobs.set(jobId, { exitCode: 0, stdout: "", stderr: "", jobId, running: true });
+      const child = spawn(request.command, request.arguments, {
+        cwd: request.cwd || repositoryRoot,
+        env: { ...process.env, ...environment },
+        stdio: ["ignore", "pipe", "pipe"],
+      });
+      let stdout = "";
+      let stderr = "";
+      child.stdout.on("data", (chunk: Buffer) => (stdout += chunk.toString()));
+      child.stderr.on("data", (chunk: Buffer) => (stderr += chunk.toString()));
+      const timeout = setTimeout(() => child.kill("SIGTERM"), request.timeoutMilliseconds);
+      child.once("error", (error) => {
+        clearTimeout(timeout);
+        jobs.set(jobId, { exitCode: 1, stdout, stderr: `${stderr}${error.message}\n`, jobId });
+      });
+      child.once("exit", (code, signal) => {
+        clearTimeout(timeout);
+        jobs.set(jobId, {
+          exitCode: code ?? 1,
+          stdout,
+          stderr: signal ? `${stderr}Agent creation stopped with ${signal}\n` : stderr,
+          jobId,
+        });
+      });
+      return jobs.get(jobId)!;
+    },
+    awaitExecution: async ({ jobId }) => {
+      const result = jobs.get(jobId) ?? {
+        exitCode: 1,
+        stdout: "",
+        stderr: "Agent creation job was not found",
+        jobId,
+      };
+      if (!result.running) jobs.delete(jobId);
+      return result;
+    },
+  };
 }
 
 function commandError(response: AgentCreationResult): string {

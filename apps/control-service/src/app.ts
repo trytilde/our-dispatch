@@ -29,7 +29,7 @@ export interface AppOptions {
   routines?: RoutineRouteOptions;
   signals?: SignalRouteOptions;
   authProvider?: AuthProvider;
-  agentCreation?: Pick<AgentCreationOptions, "execute" | "awaitExecution">;
+  agentCreation?: Pick<AgentCreationOptions, "repositoryRoot" | "execute" | "awaitExecution">;
 }
 
 export function createApp(options: AppOptions = {}): Hono {

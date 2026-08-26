@@ -1,0 +1,7 @@
+# DO NOT UPSTREAM
+#reason: Fork-only private trytilde/api development checkout; exclude this entry and the third-party/tilde-api gitlink from every upstream contribution.
+[submodule "third-party/tilde-api"]
+	path = third-party/tilde-api
+	url = https://github.com/trytilde/api.git
+	shallow = true
+#END DO NOT UPSTREAM

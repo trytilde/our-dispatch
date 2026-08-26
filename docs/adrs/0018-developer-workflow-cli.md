@@ -91,3 +91,7 @@ flowchart LR
 - 2026-08-18T14:20:00+02:00: Grouped every mobile command under `mobile <subcommand>` and added `avd`, `setup`, `screenshot`, and `logs`.
 - 2026-08-18T15:00:00+02:00: Repository gates became commands; every developer workflow must land as a command; `create-pr` gained the CLI ownership gate.
 - 2026-08-18T15:40:00+02:00: Folded `dev-cli` into the `openbot` CLI and deleted the package. One command surface for operators, developers, and agents; the audience split had produced two binaries with one fixed version and duplicate gate delegation.
+<!-- # DO NOT UPSTREAM -->
+<!-- #reason: Fork-only private trytilde/api submodule workflow. -->
+- 2026-08-25T17:31:54+01:00: Added `openbot dev --local-tilde-api [ORIGIN]`, including shallow private-submodule initialization and supervised `make dev` startup when its selected socket is not already listening.
+<!-- #END DO NOT UPSTREAM -->

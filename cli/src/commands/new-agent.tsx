@@ -3,6 +3,7 @@ import { formatAgentLifecycleProgress, reconcileAgentResources } from "../agent-
 import { scaffoldAgent, type ScaffoldedAgent } from "../agent-scaffold.js";
 import { loadLocalEnvironment } from "../environment.js";
 import { setEnvironmentValue } from "../initialization.js";
+import { readLiveAgentServiceOrigin } from "../live-agent-service.js";
 import { repositoryRoot } from "../paths.js";
 import { loadDevelopmentConfiguration } from "./dev.js";
 import { inkPrompts } from "./init.js";
@@ -32,7 +33,8 @@ export async function runNewAgent(args: readonly string[] = []): Promise<NewAgen
     prompts: process.stdin.isTTY && process.stdout.isTTY ? inkPrompts : undefined,
   });
   const configuration = await loadDevelopmentConfiguration(environment);
-  const liveAgentServiceOrigin = environment.AGENT_SERVICE_ORIGIN?.trim();
+  const liveAgentServiceOrigin =
+    (await readLiveAgentServiceOrigin(repositoryRoot)) ?? environment.AGENT_SERVICE_ORIGIN?.trim();
   await reconcileAgentResources({
     repositoryRoot,
     agentIds: [agent.id],
