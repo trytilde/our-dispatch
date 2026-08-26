@@ -218,8 +218,11 @@ describe("OpenBot initialization", () => {
       "configuration/templates/agent/inference.ts.hbs",
       "configuration/agent/inference.ts",
       "configuration/agent/subagents/research-assistant/inference.ts",
-    ])
-      expect(await readFile(join(repositoryRoot, path), "utf8")).toContain("stepCountIs(12)");
+    ]) {
+      const inferenceSource = await readFile(join(repositoryRoot, path), "utf8");
+      expect(inferenceSource).toContain('import { stepCountIs } from "ai"');
+      expect(inferenceSource).toContain("stopWhen: stepCountIs(50)");
+    }
   });
 
   it("refuses inference migration when an existing agent owns the affected file", async () => {
