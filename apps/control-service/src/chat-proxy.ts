@@ -1,6 +1,4 @@
 import type { Context, Hono } from "hono";
-import { streamSSE } from "hono/streaming";
-import WebSocket, { type RawData } from "ws";
 
 const proxyPrefix = "/api/chat/";
 const rootChatKitPrefix = "_root/";
@@ -30,7 +28,7 @@ export interface TildeChatProxyOptions {
  * them into OpenBot's narrower control RPC contract.
  */
 export function registerTildeChatProxy(app: Hono, configuredOptions?: TildeChatProxyOptions): void {
-  app.get("/api/chat/mission-control/events", (context) => {
+  app.post("/api/chat/mission-control/socket-ticket", async (context) => {
     const options = configuredOptions ?? optionsFromEnvironment();
     if (!options) {
       return context.json(
@@ -38,7 +36,51 @@ export function registerTildeChatProxy(app: Hono, configuredOptions?: TildeChatP
         503,
       );
     }
-    return streamMissionControlEvents(context, options);
+    const { ownerAccessToken: accessToken } = context.var as { ownerAccessToken?: string };
+    if (!accessToken) return context.json({ error: "Authentication required" }, 401);
+    const baseUrl = options.baseUrl ?? "https://api.trytilde.ai";
+    const requested = await context.req
+      .json<{ transport?: unknown }>()
+      .catch((): { transport?: unknown } => ({}));
+    const transport = requested.transport === "native" ? "native" : "browser";
+    const nativeBearer = context.req.header("authorization")?.startsWith("Bearer ") ?? false;
+    if (transport === "native" && !nativeBearer)
+      return context.json({ error: "Native socket tickets require bearer authentication" }, 403);
+    const origin = context.req.header("origin");
+    if (transport === "browser" && !validHttpOrigin(origin))
+      return context.json({ error: "Browser socket tickets require an HTTP Origin" }, 403);
+    const ticketUrl = new URL(
+      `/api/v1/team/${encodeURIComponent(options.teamId)}/identity/openbot/mission-control-ticket`,
+      baseUrl,
+    );
+    const upstream = await (options.fetch ?? globalThis.fetch)(ticketUrl, {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${accessToken}`,
+        "x-tilde-org-id": options.orgId,
+        accept: "application/json",
+        "content-type": "application/json",
+      },
+      body: JSON.stringify(
+        transport === "native" ? { transport: "native" } : { transport: "browser", origin },
+      ),
+      signal: context.req.raw.signal,
+    });
+    if (!upstream.ok)
+      return new Response(upstream.body, {
+        status: upstream.status,
+        statusText: upstream.statusText,
+        headers: responseHeaders(upstream.headers),
+      });
+    const body = (await upstream.json()) as Record<string, unknown>;
+    const socketUrl = new URL(
+      `/api/v1/team/${encodeURIComponent(options.teamId)}/chatkit/mission-control/ws`,
+      baseUrl,
+    );
+    socketUrl.protocol = socketUrl.protocol === "http:" ? "ws:" : "wss:";
+    socketUrl.searchParams.set("org_id", options.orgId);
+    context.header("cache-control", "no-store");
+    return context.json({ ...body, websocket_url: socketUrl.toString() });
   });
 
   app.all("/api/chat/*", async (context) => {
@@ -106,80 +148,14 @@ export function registerTildeChatProxy(app: Hono, configuredOptions?: TildeChatP
   });
 }
 
-function streamMissionControlEvents(context: Context, options: TildeChatProxyOptions): Response {
-  return streamSSE(context, async (stream) => {
-    const upstreamUrl = new URL(
-      `/api/v1/team/${encodeURIComponent(options.teamId)}/chatkit/mission-control/ws`,
-      options.baseUrl ?? "https://api.trytilde.ai",
-    );
-    upstreamUrl.protocol = upstreamUrl.protocol === "http:" ? "ws:" : "wss:";
-
-    const socket = new WebSocket(upstreamUrl, {
-      headers: {
-        "x-api-key": options.apiKey,
-        "x-tilde-org-id": options.orgId,
-        "x-tilde-team-id": options.teamId,
-      },
-    });
-    const close = (): void => socket.close();
-    context.req.raw.signal.addEventListener("abort", close, { once: true });
-    stream.onAbort(close);
-
-    let pendingWrite = Promise.resolve();
-    socket.on("message", (payload) => {
-      const event = missionControlSocketEvent(webSocketText(payload));
-      if (!event) return;
-      pendingWrite = pendingWrite.then(() =>
-        stream.writeSSE({
-          event: event.type,
-          ...(event.id ? { id: event.id } : {}),
-          data: JSON.stringify(event.data),
-        }),
-      );
-    });
-    const heartbeat = setInterval(() => {
-      if (socket.readyState === WebSocket.OPEN)
-        socket.send(JSON.stringify({ jsonrpc: "2.0", method: "ping", params: {} }));
-      pendingWrite = pendingWrite.then(async () => {
-        await stream.write(": keepalive\n\n");
-      });
-    }, 20_000);
-
-    await new Promise<void>((resolve, reject) => {
-      socket.once("close", resolve);
-      socket.once("error", reject);
-    }).finally(() => {
-      clearInterval(heartbeat);
-      context.req.raw.signal.removeEventListener("abort", close);
-    });
-    await pendingWrite;
-  });
-}
-
-function webSocketText(value: RawData): string {
-  if (Array.isArray(value)) return Buffer.concat(value).toString("utf8");
-  if (value instanceof ArrayBuffer) return Buffer.from(value).toString("utf8");
-  return Buffer.from(value.buffer, value.byteOffset, value.byteLength).toString("utf8");
-}
-
-function missionControlSocketEvent(
-  value: string,
-): { type: string; id?: string; data: unknown } | undefined {
-  let parsed: unknown;
+function validHttpOrigin(value: string | undefined): value is string {
+  if (!value) return false;
   try {
-    parsed = JSON.parse(value);
+    const url = new URL(value);
+    return (url.protocol === "http:" || url.protocol === "https:") && url.origin === value;
   } catch {
-    return undefined;
+    return false;
   }
-  if (!parsed || typeof parsed !== "object") return undefined;
-  const message = parsed as { method?: unknown; params?: { event?: unknown } };
-  const event = message.params?.event;
-  if (typeof message.method !== "string" || event === undefined) return undefined;
-  const id =
-    event && typeof event === "object" && "id" in event && typeof event.id === "string"
-      ? event.id
-      : undefined;
-  return { type: message.method, ...(id ? { id } : {}), data: event };
 }
 
 async function logUpstreamFailure(

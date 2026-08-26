@@ -28,6 +28,71 @@ export interface DeployOptions {
   service: "all" | "agents" | "control";
 }
 
+export interface DeploymentScope {
+  deployAgents: boolean;
+  deployControl: boolean;
+  deployComputer: boolean;
+}
+
+/** A consolidated runtime cannot build or release one half independently. */
+export function deploymentScope(
+  service: DeployOptions["service"],
+  consolidatedRuntime: boolean,
+): DeploymentScope {
+  if (consolidatedRuntime) return { deployAgents: true, deployControl: true, deployComputer: true };
+  return {
+    deployAgents: service === "all" || service === "agents",
+    deployControl: service === "all" || service === "control",
+    deployComputer: service === "all",
+  };
+}
+
+export function serviceDeploymentParticipants(options: {
+  agentService: OpenBotConfiguration["providers"]["agentService"];
+  controlService: OpenBotConfiguration["providers"]["controlService"];
+  inference: OpenBotConfiguration["providers"]["inference"];
+  deployAgents: boolean;
+  consolidatedRuntime: boolean;
+}): DeploymentParticipant[] {
+  if (!options.deployAgents) return [];
+  const service = options.consolidatedRuntime ? options.controlService : options.agentService;
+  return [
+    {
+      id: options.consolidatedRuntime ? "runtime-service" : "agent-service",
+      ...(options.consolidatedRuntime ? { role: "runtime" as const } : {}),
+      implementation: service,
+      providerType: options.consolidatedRuntime
+        ? "Runtime Service Provider"
+        : "Agent Service Provider",
+      provider: { buildable: service, deployable: service },
+    },
+    ...(options.inference
+      ? [
+          {
+            id: "inference",
+            implementation: options.inference,
+            providerType: "Inference Provider",
+            provider: options.inference,
+          },
+        ]
+      : []),
+  ];
+}
+
+export function agentEndpointCutoverOrigins(options: {
+  consolidatedRuntime: boolean;
+  environment: NodeJS.ProcessEnv;
+  targetOrigin: string;
+}): { preparationOrigin: string; targetOrigin: string } {
+  const targetOrigin = options.targetOrigin.replace(/\/$/, "");
+  const persistedOrigin = options.environment.AGENT_SERVICE_ORIGIN?.trim().replace(/\/$/, "");
+  return {
+    preparationOrigin:
+      options.consolidatedRuntime && persistedOrigin ? persistedOrigin : targetOrigin,
+    targetOrigin,
+  };
+}
+
 export function parseOptions(argv: readonly string[]): DeployOptions {
   const parsed = arg(
     {
@@ -81,10 +146,14 @@ export async function runProductionDeploy(argv: readonly string[]): Promise<void
   const configuration = await loadRepositoryConfiguration();
   const agentService = configuration.providers.agentService;
   const controlService = configuration.providers.controlService;
+  const consolidatedRuntime = agentService === controlService;
   const auth = configuration.providers.auth;
   const computer = configuration.providers.computer;
   const inference = configuration.providers.inference;
-  const deployAgents = options.service === "all" || options.service === "agents";
+  const { deployAgents, deployControl, deployComputer } = deploymentScope(
+    options.service,
+    consolidatedRuntime,
+  );
   const computerId = deploymentConfiguration.environment.COMPUTER_ID?.trim() || "openbot-computer";
   const developmentSandboxId =
     deploymentConfiguration.environment.DEVELOPMENT_SANDBOX_ID?.trim() || "openbot-development";
@@ -100,7 +169,7 @@ export async function runProductionDeploy(argv: readonly string[]): Promise<void
           },
         ]
       : []),
-    ...(options.service === "all" && computer ? [{ id: "computer", provider: computer }] : []),
+    ...(deployComputer && computer ? [{ id: "computer", provider: computer }] : []),
     ...(deployAgents && computer
       ? [
           {
@@ -126,27 +195,14 @@ export async function runProductionDeploy(argv: readonly string[]): Promise<void
           },
         ]
       : []),
-    ...(deployAgents
-      ? [
-          {
-            id: "agent-service",
-            implementation: agentService,
-            providerType: "Agent Service Provider",
-            provider: { buildable: agentService, deployable: agentService },
-          },
-        ]
-      : []),
-    ...(deployAgents && inference
-      ? [
-          {
-            id: "inference",
-            implementation: inference,
-            providerType: "Inference Provider",
-            provider: inference,
-          },
-        ]
-      : []),
-    ...(options.service === "all" && computer
+    ...serviceDeploymentParticipants({
+      agentService,
+      controlService,
+      inference,
+      deployAgents,
+      consolidatedRuntime,
+    }),
+    ...(deployComputer && computer
       ? [
           {
             id: "development-sandbox",
@@ -177,7 +233,7 @@ export async function runProductionDeploy(argv: readonly string[]): Promise<void
           },
         ]
       : []),
-    ...(options.service === "all" || options.service === "control"
+    ...(deployControl && !consolidatedRuntime
       ? [
           {
             id: "control-service",
@@ -188,7 +244,7 @@ export async function runProductionDeploy(argv: readonly string[]): Promise<void
           },
         ]
       : []),
-    ...(options.service === "all" || options.service === "control"
+    ...(deployControl
       ? [
           {
             id: "auth",
@@ -218,19 +274,51 @@ export async function runProductionDeploy(argv: readonly string[]): Promise<void
     report({ event: "build.complete", details: { deploySkipped: true } });
     return;
   }
-  if (deployAgents && !options.dryRun)
+  let agentOrigins: ReturnType<typeof agentEndpointCutoverOrigins> | undefined;
+  if (deployAgents && !options.dryRun) {
+    agentOrigins = agentEndpointCutoverOrigins({
+      consolidatedRuntime,
+      environment: deploymentConfiguration.environment,
+      targetOrigin: (
+        await agentService.baseUrl({
+          devMode: false,
+          environment: deploymentConfiguration.environment,
+        })
+      ).toString(),
+    });
     await reconcileAgentResources({
       repositoryRoot,
       environment: deploymentConfiguration.environment,
       configuration: deploymentConfiguration.configuration,
       providers: configuration.providers,
       devMode: false,
+      agentServiceOrigin: agentOrigins.preparationOrigin,
       report,
     });
+  }
   await deployProviders(participants, {
     ...runOptions,
     initialInputs: built.result(),
   });
+  if (
+    agentOrigins &&
+    consolidatedRuntime &&
+    agentOrigins.preparationOrigin !== agentOrigins.targetOrigin
+  )
+    await reconcileAgentResources({
+      repositoryRoot,
+      environment: deploymentConfiguration.environment,
+      configuration: deploymentConfiguration.configuration,
+      providers: configuration.providers,
+      devMode: false,
+      agentServiceOrigin: agentOrigins.targetOrigin,
+      report,
+    });
+  if (agentOrigins && consolidatedRuntime && agentService.finalizeEndpointCutover)
+    await agentService.finalizeEndpointCutover({
+      ...runOptions,
+      inputs: built,
+    });
 }
 
 async function loadRepositoryConfiguration(): Promise<OpenBotConfiguration> {

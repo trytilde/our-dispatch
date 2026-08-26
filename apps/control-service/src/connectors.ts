@@ -824,61 +824,27 @@ async function assignToolAccount(
   agentId: string,
   signal?: AbortSignal,
 ): Promise<void> {
-  const [providers, accounts, servers] = await Promise.all([
-    listProviders(options, signal),
-    listAccounts(options, signal),
-    listMcpServers(options, signal),
-  ]);
-  const account = accounts.find((candidate) => candidate.id === accountId);
-  if (!account?.tool_group_source_type_id)
-    throw new ConnectorUpstreamError("Unknown tool account", 404);
-  const provider = providers.find(
-    (candidate) => candidate.type_id === account.tool_group_source_type_id,
-  );
-  if (!provider) throw new ConnectorUpstreamError("Unknown tool provider", 404);
+  const servers = await listMcpServers(options, signal);
   const server = resolveMcpServer(options, servers, agentId);
   if (!server) throw new ConnectorUpstreamError("This bot has no Tilde MCP server", 404);
 
-  const enabledPage = (await tildeJson(
+  const result = await tildeRequest(
     options,
-    `/mcp/tools?page_size=500&tool_group_instance_id=${encodeURIComponent(accountId)}&include_global=false`,
-    undefined,
+    `/mcp/tool-group/${encodeURIComponent(accountId)}/tools/enable-and-bind`,
+    "POST",
+    {
+      all_tools: true,
+      tool_source_type_ids: [],
+      mcp_server_instance_ids: [server.id],
+    },
     signal,
-  )) as Record<string, unknown>;
-  const enabled = new Set(
-    (pageItems(enabledPage) as UpstreamMappedTool[]).map((tool) => tool.tool_source_type_id),
   );
-  for (const tool of provider.tools ?? []) {
-    if (!enabled.has(tool.type_id)) {
-      await tildeRequest(
-        options,
-        `/mcp/tool-group/${encodeURIComponent(accountId)}/tool/${encodeURIComponent(tool.type_id)}/enable`,
-        "POST",
-        {},
-        signal,
-      );
-    }
-  }
-
-  const mapped = new Set(
-    (server.tools ?? [])
-      .filter((tool) => tool.tool_group_instance_id === accountId)
-      .map((tool) => tool.tool_source_type_id),
-  );
-  for (const tool of provider.tools ?? []) {
-    if (mapped.has(tool.type_id)) continue;
-    await tildeRequest(
-      options,
-      `/mcp/mcp-server/${encodeURIComponent(server.id)}/function`,
-      "POST",
-      {
-        tool_group_instance_id: accountId,
-        tool_group_source_type_id: provider.type_id,
-        tool_name: tool.type_id,
-        tool_source_type_id: tool.type_id,
-      },
-      signal,
-    );
+  if (
+    typeof result !== "object" ||
+    result === null ||
+    (result as { complete?: unknown }).complete !== true
+  ) {
+    throw new ConnectorUpstreamError("Tilde could not enable and bind every tool", 502);
   }
 }
 

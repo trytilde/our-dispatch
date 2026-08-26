@@ -1,13 +1,10 @@
-import { once } from "node:events";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
-import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 import { Code, ConnectError } from "@connectrpc/connect";
 import type { AuthProvider } from "@tryopenbot/auth-provider";
 import type { ComputerProvider } from "@tryopenbot/computer-service-provider";
-import { WebSocketServer } from "ws";
 import { app, createApp } from "./app.js";
 
 const temporaryRoots: string[] = [];
@@ -18,6 +15,27 @@ afterEach(async () => {
     temporaryRoots.splice(0).map((root) => rm(root, { recursive: true, force: true })),
   );
 });
+
+function testAuthProvider(): AuthProvider {
+  return {
+    initialization: { id: "test-auth", label: "Test auth", questions: [] },
+    deployable: { plan: async () => ({ summary: "test" }), deploy: async () => ({}) },
+    nativeClientConfiguration: () => ({
+      authorizationEndpoint: "https://identity.test/authorize",
+      tokenEndpoint: "https://identity.test/token",
+      clientId: "client-one",
+      scope: "openid offline_access openbot:control",
+    }),
+    authorizationUrl: () => new URL("https://identity.test/authorize"),
+    exchangeCode: async () => ({ accessToken: "browser-token", expiresIn: 3600 }),
+    refresh: async () => ({ accessToken: "browser-token", expiresIn: 3600 }),
+    verify: async () => ({
+      subject: "owner-one",
+      groups: [],
+      scope: ["openbot:control"],
+    }),
+  } as unknown as AuthProvider;
+}
 
 describe("bare OpenBot server", () => {
   it("reports healthy without setup", async () => {
@@ -354,58 +372,162 @@ describe("bare OpenBot server", () => {
     expect(headers.get("last-event-id")).toBe("event-one");
   });
 
-  it("bridges the authenticated Mission Control WebSocket as same-origin SSE", async () => {
-    const upstream = new WebSocketServer({ host: "127.0.0.1", port: 0 });
-    await once(upstream, "listening");
-    const port = (upstream.address() as AddressInfo).port;
-    let upstreamHeaders: Headers | undefined;
-    upstream.once("connection", (socket, request) => {
-      upstreamHeaders = new Headers(
-        Object.entries(request.headers).flatMap(([name, value]) =>
-          value === undefined ? [] : [[name, Array.isArray(value) ? value.join(", ") : value]],
-        ),
-      );
-      socket.send(
-        JSON.stringify({
-          jsonrpc: "2.0",
-          method: "chatkit.message.streaming",
-          params: {
-            event: {
-              id: "event-one",
-              kind: {
-                kind: "message_streaming",
-                session_id: "session-one",
-                message_id: "message-one",
-              },
-            },
-          },
-        }),
-        () => socket.close(),
-      );
-    });
+  it("exchanges the HttpOnly owner session for a direct Mission Control socket ticket", async () => {
+    let upstreamUrl = "";
+    let upstreamHeaders = new Headers();
+    let upstreamBody = "";
     const chatApp = createApp({
+      authProvider: testAuthProvider(),
       tildeChatProxy: {
         apiKey: "secret-api-key",
         orgId: "openbot-org",
         teamId: "openbot-team",
-        baseUrl: `http://127.0.0.1:${port}`,
+        baseUrl: "https://openbot-org.api.trytilde.ai",
+        fetch: async (input, request) => {
+          upstreamUrl = input.toString();
+          upstreamHeaders = new Headers(request?.headers);
+          upstreamBody = String(request?.body ?? "");
+          return Response.json({
+            ticket: "short-lived-ticket",
+            protocol: "tilde.mission-control.ticket",
+            expires_at: "2026-08-26T12:00:00Z",
+          });
+        },
       },
     });
 
-    const response = await chatApp.request("https://openbot.test/api/chat/mission-control/events", {
-      headers: { authorization: "Bearer browser-token" },
-    });
-    const body = await response.text();
-    await new Promise<void>((resolve) => upstream.close(() => resolve()));
+    const response = await chatApp.request(
+      "https://openbot.test/api/chat/mission-control/socket-ticket",
+      {
+        method: "POST",
+        headers: { cookie: "openbot_access=browser-token", origin: "https://openbot.test" },
+      },
+    );
 
     expect(response.status).toBe(200);
-    expect(response.headers.get("content-type")).toContain("text/event-stream");
-    expect(body).toContain("event: chatkit.message.streaming");
-    expect(body).toContain("id: event-one");
-    expect(upstreamHeaders?.get("x-api-key")).toBe("secret-api-key");
-    expect(upstreamHeaders?.get("x-tilde-org-id")).toBe("openbot-org");
-    expect(upstreamHeaders?.get("x-tilde-team-id")).toBe("openbot-team");
-    expect(upstreamHeaders?.get("authorization")).toBeNull();
+    expect(response.headers.get("cache-control")).toBe("no-store");
+    await expect(response.json()).resolves.toEqual({
+      ticket: "short-lived-ticket",
+      protocol: "tilde.mission-control.ticket",
+      expires_at: "2026-08-26T12:00:00Z",
+      websocket_url:
+        "wss://openbot-org.api.trytilde.ai/api/v1/team/openbot-team/chatkit/mission-control/ws?org_id=openbot-org",
+    });
+    expect(upstreamUrl).toBe(
+      "https://openbot-org.api.trytilde.ai/api/v1/team/openbot-team/identity/openbot/mission-control-ticket",
+    );
+    expect(upstreamHeaders.get("authorization")).toBe("Bearer browser-token");
+    expect(upstreamHeaders.get("x-tilde-org-id")).toBe("openbot-org");
+    expect(upstreamHeaders.get("content-type")).toBe("application/json");
+    expect(JSON.parse(upstreamBody)).toEqual({
+      transport: "browser",
+      origin: "https://openbot.test",
+    });
+  });
+
+  it("marks bearer-authenticated native Mission Control tickets as Origin-free", async () => {
+    let upstreamBody = "";
+    const chatApp = createApp({
+      authProvider: testAuthProvider(),
+      tildeChatProxy: {
+        apiKey: "secret-api-key",
+        orgId: "openbot-org",
+        teamId: "openbot-team",
+        baseUrl: "https://openbot-org.api.trytilde.ai",
+        fetch: async (_input, request) => {
+          upstreamBody = String(request?.body ?? "");
+          return Response.json({
+            ticket: "native-ticket",
+            protocol: "tilde.mission-control.ticket",
+            expires_at: "2026-08-26T12:00:00Z",
+          });
+        },
+      },
+    });
+
+    const response = await chatApp.request(
+      "https://openbot.test/api/chat/mission-control/socket-ticket",
+      {
+        method: "POST",
+        headers: {
+          authorization: "Bearer native-token",
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({ transport: "native" }),
+      },
+    );
+
+    expect(response.status).toBe(200);
+    expect(JSON.parse(upstreamBody)).toEqual({ transport: "native" });
+  });
+
+  it("keeps explicit browser ticket semantics when a bearer is injected", async () => {
+    let upstreamBody = "";
+    const chatApp = createApp({
+      authProvider: testAuthProvider(),
+      tildeChatProxy: {
+        apiKey: "secret-api-key",
+        orgId: "openbot-org",
+        teamId: "openbot-team",
+        baseUrl: "https://openbot-org.api.trytilde.ai",
+        fetch: async (_input, request) => {
+          upstreamBody = String(request?.body ?? "");
+          return Response.json({
+            ticket: "browser-ticket",
+            protocol: "tilde.mission-control.ticket",
+            expires_at: "2026-08-26T12:00:00Z",
+          });
+        },
+      },
+    });
+
+    const response = await chatApp.request(
+      "https://openbot.test/api/chat/mission-control/socket-ticket",
+      {
+        method: "POST",
+        headers: {
+          authorization: "Bearer injected-token",
+          origin: "https://openbot.test",
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({ transport: "browser" }),
+      },
+    );
+
+    expect(response.status).toBe(200);
+    expect(JSON.parse(upstreamBody)).toEqual({
+      transport: "browser",
+      origin: "https://openbot.test",
+    });
+  });
+
+  it("rejects native ticket mode for cookie-authenticated callers", async () => {
+    const chatApp = createApp({
+      authProvider: testAuthProvider(),
+      tildeChatProxy: {
+        apiKey: "secret-api-key",
+        orgId: "openbot-org",
+        teamId: "openbot-team",
+        fetch: async () => {
+          throw new Error("native cookie request must not reach Tilde");
+        },
+      },
+    });
+
+    const response = await chatApp.request(
+      "https://openbot.test/api/chat/mission-control/socket-ticket",
+      {
+        method: "POST",
+        headers: {
+          cookie: "openbot_access=browser-token",
+          origin: "https://openbot.test",
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({ transport: "native" }),
+      },
+    );
+
+    expect(response.status).toBe(403);
   });
 
   it("preserves attachment bytes and rejects paths outside ChatKit", async () => {

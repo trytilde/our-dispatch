@@ -452,16 +452,13 @@ describe("connector routes", () => {
     expect(body.skills).toHaveLength(3);
   });
 
-  it("persists tool and skill assignments through Tilde", async () => {
+  it("bulk enables and binds a tool account idempotently while preserving skill assignment", async () => {
     const { app, calls } = connectorApp((call) => {
       const catalog = catalogResponses(call);
       if (catalog) return catalog;
       if (call.path.endsWith("/mcp/mcp-server"))
         return Response.json({ items: [{ id: "openbot-hello-world", tools: [] }] });
-      if (call.path.endsWith("/mcp/tools")) return Response.json({ items: [] });
-      if (call.path.includes("/tool/google_mail_search/enable")) return Response.json({});
-      if (call.path.endsWith("/mcp/mcp-server/openbot-hello-world/function"))
-        return Response.json({});
+      if (call.path.endsWith("/tools/enable-and-bind")) return Response.json({ complete: true });
       if (call.path.endsWith("/skill"))
         return Response.json({ items: [{ id: "skill-1", name: "code-review" }] });
       if (call.path.endsWith("/skill-registry"))
@@ -477,19 +474,35 @@ describe("connector routes", () => {
       { method: "POST" },
     );
     expect(tool.status).toBe(200);
-    expect(calls).toContainEqual(
-      expect.objectContaining({
-        method: "POST",
-        path: "/api/v1/team/team-1/mcp/tool-group/tgi-work/tool/google_mail_search/enable",
-      }),
+    const retry = await app.request(
+      "https://openbot.test/api/plugins/tools/tgi-work/agents/hello-world",
+      { method: "POST" },
     );
-    expect(calls).toContainEqual(
-      expect.objectContaining({
+    expect(retry.status).toBe(200);
+    expect(calls.filter((call) => call.path.endsWith("/tools/enable-and-bind"))).toEqual([
+      {
         method: "POST",
-        path: "/api/v1/team/team-1/mcp/mcp-server/openbot-hello-world/function",
-        body: expect.objectContaining({ tool_group_instance_id: "tgi-work" }),
-      }),
-    );
+        path: "/api/v1/team/team-1/mcp/tool-group/tgi-work/tools/enable-and-bind",
+        body: {
+          all_tools: true,
+          tool_source_type_ids: [],
+          mcp_server_instance_ids: ["openbot-hello-world"],
+        },
+      },
+      {
+        method: "POST",
+        path: "/api/v1/team/team-1/mcp/tool-group/tgi-work/tools/enable-and-bind",
+        body: {
+          all_tools: true,
+          tool_source_type_ids: [],
+          mcp_server_instance_ids: ["openbot-hello-world"],
+        },
+      },
+    ]);
+    expect(calls.some((call) => call.path.includes("/tool/google_mail_search/enable"))).toBe(false);
+    expect(
+      calls.some((call) => call.path.endsWith("/mcp/mcp-server/openbot-hello-world/function")),
+    ).toBe(false);
 
     const skill = await app.request(
       "https://openbot.test/api/plugins/skills/skill-1/agents/hello-world",
@@ -503,6 +516,26 @@ describe("connector routes", () => {
         body: { skill_ids: ["skill-1"] },
       }),
     );
+  });
+
+  it("reports an incomplete bulk tool assignment as an upstream failure", async () => {
+    const { app } = connectorApp((call) => {
+      if (call.path.endsWith("/mcp/mcp-server"))
+        return Response.json({ items: [{ id: "openbot-hello-world", tools: [] }] });
+      if (call.path.endsWith("/tools/enable-and-bind"))
+        return Response.json({ complete: false, failed_tools: ["google_mail_search"] });
+      return undefined;
+    });
+
+    const response = await app.request(
+      "https://openbot.test/api/plugins/tools/tgi-work/agents/hello-world",
+      { method: "POST" },
+    );
+
+    expect(response.status).toBe(502);
+    await expect(response.json()).resolves.toEqual({
+      error: "Tilde could not enable and bind every tool",
+    });
   });
 
   it("adds and removes trusted hosted skills through Tilde's provider-skill workflow", async () => {

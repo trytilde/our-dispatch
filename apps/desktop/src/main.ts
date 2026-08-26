@@ -60,6 +60,7 @@ async function createWindow(): Promise<void> {
 
   rendererServer ??= await startRendererServer(join(process.resourcesPath, "web"), controlOrigin, {
     accessToken: async () => await desktopAuth?.accessToken(),
+    tildeBaseUrl: process.env.TILDE_BASE_URL ?? "https://api.trytilde.ai",
     ...(process.env.DESKTOP_DEV_URL ? { webOrigin: process.env.DESKTOP_DEV_URL } : {}),
   });
   await window.loadURL(rendererServer.origin);

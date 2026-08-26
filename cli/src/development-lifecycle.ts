@@ -35,6 +35,7 @@ export interface DevelopmentComputerWatcher {
 export async function reconcileDevelopmentInfrastructure(
   options: DevelopmentLifecycleOptions,
 ): Promise<void> {
+  const consolidatedRuntime = options.providers.agentService === options.providers.controlService;
   await reconcileParticipants(options, [
     ...(options.providers.inference
       ? [
@@ -86,15 +87,19 @@ export async function reconcileDevelopmentInfrastructure(
         },
       },
     },
-    {
-      id: "agent-service",
-      implementation: options.providers.agentService,
-      providerType: "Agent Service Provider",
-      provider: {
-        buildable: options.providers.agentService,
-        deployable: options.providers.agentService,
-      },
-    },
+    ...(!consolidatedRuntime
+      ? [
+          {
+            id: "agent-service",
+            implementation: options.providers.agentService,
+            providerType: "Agent Service Provider",
+            provider: {
+              buildable: options.providers.agentService,
+              deployable: options.providers.agentService,
+            },
+          },
+        ]
+      : []),
     {
       id: "control-service",
       role: "runtime",

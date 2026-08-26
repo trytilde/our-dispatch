@@ -9,7 +9,9 @@ Build and deployment providers for the control service plus web UI. Local deploy
 - `deploymentUrl(output)` extracts and validates the deployment URL from Vercel CLI output.
 - `ensureVercelProject(runner, context, project)` ensures the configured Vercel project exists before artifact deployment.
 - `installLocalService(context, runner, options)` writes a private environment file and installs systemd on Linux or launchd on macOS.
+- `retireLocalService(context, runner, options)` stops a superseded user service and renames its definition to a recoverable `.retired` file.
 - `waitForHealth(request, origin)` polls `/healthz` until the installed local service is ready or times out.
+- `buildVercelControlService(context, runner)` builds the control/web component used by the combined runtime provider.
 
 `processRunner` is the default `CommandRunner` implementation for child processes.
 

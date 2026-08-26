@@ -20,6 +20,7 @@ export function createMobileRuntime(installation: ClientInstallation): MobileOpe
     baseUrl: installation.control_origin,
     fetch: expoFetch,
     getAccessToken: () => auth.getAccessToken(),
+    missionControlTransport: "native",
   });
   return {
     ...createOpenBotRuntime({ client, auth }),

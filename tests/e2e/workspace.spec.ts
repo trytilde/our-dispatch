@@ -351,17 +351,6 @@ test("streams rich messages and uploads a file through Tilde ChatKit", async ({ 
       });
       return;
     }
-    if (path.endsWith("/mission-control/events")) {
-      await route.fulfill({
-        contentType: "text/event-stream",
-        body:
-          'id: turn-working\nevent: agent_turn_status\ndata: {"session_id":"session-one","status":"working"}\n\n' +
-          'id: shell-running\nevent: shell_started\ndata: {"session_id":"session-one","id":"shell-one","status":"running","label":"Build workspace","summary":"pnpm build"}\n\n' +
-          'id: stream-preview\nevent: message_streaming\ndata: {"kind":{"message_streaming":{"session_id":"session-one","message_id":"stream-one","delta":{"type":"text-delta","delta":"Streaming preview"}}}}\n\n' +
-          'id: turn-idle\nevent: agent_turn_status\ndata: {"session_id":"session-one","status":"idle"}\n\n',
-      });
-      return;
-    }
     if (path.endsWith("/agent-turn-queue")) {
       await route.fulfill({
         json: {
@@ -495,6 +484,39 @@ test("streams rich messages and uploads a file through Tilde ChatKit", async ({ 
     }
     await route.fulfill({ status: 404, json: { error: `Unhandled ${request.method()} ${path}` } });
   });
+  await routeMissionControlSocket(page, [
+    {
+      type: "agent_turn_status",
+      data: { session_id: "session-one", status: "working" },
+    },
+    {
+      type: "shell_started",
+      data: {
+        session_id: "session-one",
+        id: "shell-one",
+        status: "running",
+        label: "Build workspace",
+        summary: "pnpm build",
+      },
+    },
+    {
+      type: "message_streaming",
+      data: {
+        id: "stream-preview",
+        kind: {
+          message_streaming: {
+            session_id: "session-one",
+            message_id: "stream-one",
+            delta: { type: "text-delta", delta: "Streaming preview" },
+          },
+        },
+      },
+    },
+    {
+      type: "agent_turn_status",
+      data: { session_id: "session-one", status: "idle" },
+    },
+  ]);
 
   await page.goto("/");
   await expect(page.locator("[data-menu-row]")).toHaveCount(2);
@@ -899,13 +921,6 @@ test("queues another turn while the agent is busy", async ({ page }) => {
       });
       return;
     }
-    if (path.endsWith("/mission-control/events")) {
-      await route.fulfill({
-        contentType: "text/event-stream",
-        body: 'event: agent_turn_status\ndata: {"session_id":"busy-session","status":"working"}\n\n',
-      });
-      return;
-    }
     if (path.endsWith("/agent-turn-queue")) {
       await route.fulfill({
         json: {
@@ -940,6 +955,12 @@ test("queues another turn while the agent is busy", async ({ page }) => {
     }
     await route.fulfill({ status: 204 });
   });
+  await routeMissionControlSocket(page, [
+    {
+      type: "agent_turn_status",
+      data: { session_id: "busy-session", status: "working" },
+    },
+  ]);
 
   await page.goto("/");
   await expect(page.getByRole("button", { name: "Stop" })).toBeVisible();
@@ -1223,5 +1244,107 @@ async function routeDefaultWorkspace(page: Page): Promise<void> {
       return;
     }
     await route.fulfill({ status: 204 });
+  });
+}
+
+async function routeMissionControlSocket(
+  page: Page,
+  events: readonly { type: string; data: Record<string, unknown> }[],
+): Promise<void> {
+  const websocketUrl = "wss://mission-control.e2e.test/ws";
+  await page.addInitScript(
+    ({ missionControlUrl, missionControlEvents }) => {
+      const NativeWebSocket = globalThis.WebSocket;
+      class MissionControlWebSocket {
+        readonly url = missionControlUrl;
+        readonly protocol = "tilde.mission-control.v1";
+        readonly extensions = "";
+        readonly bufferedAmount = 0;
+        binaryType: BinaryType = "blob";
+        readyState: number = NativeWebSocket.CONNECTING;
+        readonly listeners = new Map<string, Set<(event: { data?: unknown }) => void>>();
+
+        constructor() {
+          queueMicrotask(() => {
+            this.readyState = NativeWebSocket.OPEN;
+            this.emit("open", {});
+            this.emit("message", {
+              data: JSON.stringify({
+                jsonrpc: "2.0",
+                method: "mission_control.ready",
+                params: { snapshot_revision: 1 },
+              }),
+            });
+            queueMicrotask(() => {
+              missionControlEvents.forEach((event, index) => {
+                this.emit("message", {
+                  data: JSON.stringify({
+                    jsonrpc: "2.0",
+                    method: "mission_control.event",
+                    params: {
+                      revision: index + 2,
+                      event_type: event.type,
+                      event: event.data,
+                    },
+                  }),
+                });
+              });
+            });
+          });
+        }
+
+        addEventListener(type: string, listener: (event: { data?: unknown }) => void): void {
+          const listeners = this.listeners.get(type) ?? new Set();
+          listeners.add(listener);
+          this.listeners.set(type, listeners);
+        }
+
+        removeEventListener(type: string, listener: (event: { data?: unknown }) => void): void {
+          this.listeners.get(type)?.delete(listener);
+        }
+
+        send(): void {}
+
+        close(): void {
+          if (this.readyState === NativeWebSocket.CLOSED) return;
+          this.readyState = NativeWebSocket.CLOSED;
+          this.emit("close", {});
+        }
+
+        private emit(type: string, event: { data?: unknown }): void {
+          this.listeners.get(type)?.forEach((listener) => listener(event));
+        }
+      }
+
+      const WebSocketForTest = function (
+        this: WebSocket,
+        url: string | URL,
+        protocols?: string | string[],
+      ): WebSocket {
+        if (String(url).startsWith(missionControlUrl))
+          return new MissionControlWebSocket() as unknown as WebSocket;
+        return protocols === undefined
+          ? new NativeWebSocket(url)
+          : new NativeWebSocket(url, protocols);
+      };
+      Object.assign(WebSocketForTest, {
+        CONNECTING: NativeWebSocket.CONNECTING,
+        OPEN: NativeWebSocket.OPEN,
+        CLOSING: NativeWebSocket.CLOSING,
+        CLOSED: NativeWebSocket.CLOSED,
+      });
+      globalThis.WebSocket = WebSocketForTest as unknown as typeof WebSocket;
+    },
+    { missionControlUrl: websocketUrl, missionControlEvents: events },
+  );
+  await page.route("**/api/chat/mission-control/socket-ticket", async (route) => {
+    await route.fulfill({
+      json: {
+        ticket: "e2e-ticket",
+        protocol: "tilde.mission-control.ticket",
+        expires_at: "2099-01-01T00:00:00.000Z",
+        websocket_url: websocketUrl,
+      },
+    });
   });
 }

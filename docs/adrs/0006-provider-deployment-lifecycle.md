@@ -5,7 +5,7 @@
 - One `openbot deploy` plans, optionally configures, then deploys opted-in providers.
 - Providers without an exposed `deployable` are skipped entirely.
 - `configure()` is optional. Use it only for stable identity or prerequisites.
-- Each configured provider deploys independently, even when two use the same vendor.
+- Distinct provider instances deploy independently; one shared runtime instance may satisfy both control and agent roles.
 - Non-runtime providers deploy first. Runtime deploys last with their environment and secrets.
 - Deployment values stay in memory and secret values are never reported.
 
@@ -23,7 +23,7 @@ There is also an ordering cycle: a provider such as Tilde can need the runtime's
 
 The coordinator plans every registered participant, configures participants that implement `configure()`, deploys every non-runtime participant in registration order, then deploys the single runtime participant last. The runtime receives the aggregate environment variables and secrets and installs them using its native mechanism before starting or releasing the application. Conflicting values fail rather than using last-write-wins behavior. Events include names and counts only, never secret values.
 
-Two providers that happen to use Vercel remain two independent deployment participants and reimplement their own lifecycle for now. The coordinator does not deduplicate them by vendor or deployment ID. Shared vendor infrastructure can be extracted later when there is a concrete shared resource and ownership boundary.
+Two distinct providers that happen to use Vercel remain independent deployment participants. The coordinator does not deduplicate by vendor or deployment ID. The control and agent roles are the explicit exception: configuration may assign the same consolidated runtime provider instance to both. The CLI detects that identity, schedules it once, and expands partial service selection to the complete runtime prerequisites. This is an application-owned resource boundary, not general vendor deduplication.
 
 The selected computer provider is a non-runtime participant. Its build phase
 creates and content-tags the shared computer image. A remote provider such as
@@ -67,3 +67,5 @@ flowchart LR
 - 2026-08-13T17:53:21+02:00: Split computer image delivery by provider: Vercel Sandbox uses Buildx and publishes to Vercel Container Registry, while local Microsandbox derives a local Docker tag from the Git remote and does not ask for or push to a registry.
 - 2026-08-13T18:34:00+02:00: Made the Vercel image repository provider-owned: service configuration creates both Vercel projects before deploy, then the computer provider derives the agent project's VCR namespace and creates its repository on the first authenticated push instead of asking during init.
 - 2026-08-14T17:18:21+02:00: Added mandatory `devMode` to every lifecycle hook, skipped Vercel remote work in development, delegated Vercel Sandbox development to Microsandbox, and added watched local image replacement.
+- 2026-08-26T16:18:13+01:00: Added the explicit shared-runtime exception: the same provider instance may own control and agent roles and participates once, while unrelated providers using the same vendor remain independent.
+- 2026-08-26T17:00:00+01:00: Made split-to-consolidated endpoint cutover reversible: prepare Tilde resources against the persisted live origin, deploy and health-check the shared runtime, then publish its origin. Failed runtime deployment leaves the previous endpoint authoritative.

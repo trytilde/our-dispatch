@@ -24,19 +24,10 @@ export async function buildLocalAgentService(
     context.repositoryRoot,
     ".openbot-deploy/generated/local-agent-service.ts",
   );
-  const imports = `import globalInstrumentation from ${JSON.stringify(globalInstrumentationPath(context.repositoryRoot))};\n${agents.flatMap((agent, index) => (agent.instrumentationPath ? [`import instrumentation${index} from ${JSON.stringify(agent.instrumentationPath)};`] : [])).join("\n")}`;
-  const initializers = agents
-    .map(
-      (agent, index) =>
-        `await globalInstrumentation.setup?.({ agentName: ${JSON.stringify(agent.slug)} });\n${agent.instrumentationPath ? `await instrumentation${index}.setup?.({ agentName: ${JSON.stringify(agent.slug)} });\n` : ""}const { default: agent${index} } = await import(${JSON.stringify(agent.path)});`,
-    )
-    .join("\n");
-  const routes = agents
-    .map(
-      (agent, index) =>
-        `app.post(${JSON.stringify(`/api/agents/${agent.slug}`)}, (context) => agent${index}(context.req.raw));`,
-    )
-    .join("\n");
+  const { imports, initializers, routes } = localAgentTemplateValues(
+    context.repositoryRoot,
+    agents,
+  );
   await materializeFileTemplate(serverTemplate, generated, {
     NODE_SERVER: JSON.stringify(fileURLToPath(import.meta.resolve("@hono/node-server"))),
     HONO: JSON.stringify(fileURLToPath(import.meta.resolve("hono"))),
@@ -56,7 +47,28 @@ export async function buildLocalAgentService(
   };
 }
 
-async function digestAgents(agents: readonly AgentSource[]): Promise<string> {
+export function localAgentTemplateValues(
+  repositoryRoot: string,
+  agents: readonly AgentSource[],
+): { imports: string; initializers: string; routes: string } {
+  return {
+    imports: `import globalInstrumentation from ${JSON.stringify(globalInstrumentationPath(repositoryRoot))};\n${agents.flatMap((agent, index) => (agent.instrumentationPath ? [`import instrumentation${index} from ${JSON.stringify(agent.instrumentationPath)};`] : [])).join("\n")}`,
+    initializers: agents
+      .map(
+        (agent, index) =>
+          `await globalInstrumentation.setup?.({ agentName: ${JSON.stringify(agent.slug)} });\n${agent.instrumentationPath ? `await instrumentation${index}.setup?.({ agentName: ${JSON.stringify(agent.slug)} });\n` : ""}const { default: agent${index} } = await import(${JSON.stringify(agent.path)});`,
+      )
+      .join("\n"),
+    routes: agents
+      .map(
+        (agent, index) =>
+          `app.post(${JSON.stringify(`/api/agents/${agent.slug}`)}, (context) => agent${index}(context.req.raw));`,
+      )
+      .join("\n"),
+  };
+}
+
+export async function digestAgents(agents: readonly AgentSource[]): Promise<string> {
   const hash = createHash("sha256");
   for (const agent of agents) {
     hash.update(agent.slug);

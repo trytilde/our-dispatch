@@ -1,4 +1,4 @@
-import { chmod, mkdir, rename, writeFile } from "node:fs/promises";
+import { access, chmod, mkdir, rename, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { renderFileTemplatePath } from "@tryopenbot/utilities";
@@ -14,6 +14,11 @@ export interface LocalServiceOptions {
   homeDirectory: string;
   uid?: number;
 }
+
+export type RetiredLocalServiceOptions = Pick<
+  LocalServiceOptions,
+  "id" | "platform" | "homeDirectory" | "uid"
+>;
 
 const systemdTemplate = fileURLToPath(
   new URL("./local/assets/openbot.service.hbs", import.meta.url),
@@ -92,6 +97,45 @@ export async function installLocalService(
   throw new Error(`Local service deployment does not support ${options.platform}`);
 }
 
+/** Stop a superseded user service and preserve its definition for manual recovery. */
+export async function retireLocalService(
+  context: DeploymentContext,
+  runner: CommandRunner,
+  options: RetiredLocalServiceOptions,
+): Promise<void> {
+  if (options.platform === "linux") {
+    const unitPath = resolve(options.homeDirectory, `.config/systemd/user/${options.id}.service`);
+    if (!(await exists(unitPath))) return;
+    await runner.run("systemctl", ["--user", "disable", "--now", `${options.id}.service`], {
+      cwd: context.repositoryRoot,
+      environment: context.environment,
+    });
+    await rename(unitPath, await retiredPath(unitPath));
+    await runner.run("systemctl", ["--user", "daemon-reload"], {
+      cwd: context.repositoryRoot,
+      environment: context.environment,
+    });
+    return;
+  }
+  if (options.platform === "darwin") {
+    if (options.uid === undefined) throw new Error("Unable to determine current uid for launchd");
+    const label = `ai.openbot.${options.id}`;
+    const plistPath = resolve(options.homeDirectory, `Library/LaunchAgents/${label}.plist`);
+    if (!(await exists(plistPath))) return;
+    try {
+      await runner.run("launchctl", ["bootout", `gui/${options.uid}`, plistPath], {
+        cwd: context.repositoryRoot,
+        environment: context.environment,
+      });
+    } catch {
+      /* already unloaded */
+    }
+    await rename(plistPath, await retiredPath(plistPath));
+    return;
+  }
+  throw new Error(`Local service retirement does not support ${options.platform}`);
+}
+
 export async function waitForHealth(request: typeof fetch, origin: string): Promise<void> {
   let lastError: unknown;
   for (let attempt = 0; attempt < 20; attempt += 1) {
@@ -126,6 +170,19 @@ async function atomicWrite(path: string, contents: string, mode: number): Promis
   await writeFile(temporary, contents, { mode });
   await chmod(temporary, mode);
   await rename(temporary, path);
+}
+async function exists(path: string): Promise<boolean> {
+  try {
+    await access(path);
+    return true;
+  } catch {
+    return false;
+  }
+}
+async function retiredPath(path: string): Promise<string> {
+  const stable = `${path}.retired`;
+  if (!(await exists(stable))) return stable;
+  return `${stable}.${Date.now()}`;
 }
 function quote(value: string): string {
   if (/[\n\r\0]/.test(value)) throw new Error("Service values must not contain control characters");

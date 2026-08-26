@@ -9,7 +9,7 @@ Framework-neutral client behavior shared by OpenBot web, Electron, and Expo clie
 - `contracts/sidebar` owns agents, sessions, pagination, and sorting.
 - `contracts/agents` owns the durable background agent-setup start and status payloads.
 - `contracts/messages` owns conversation messages and parts.
-- `contracts/events` owns ChatKit SSE event envelopes.
+- `contracts/events` owns ChatKit live-event envelopes; `chat/websocket` owns Mission Control ticket use, the awaited `ready` snapshot barrier, success-only reconnect cursors, capped jittered backoff, ping, parsing, and abort.
 - `contracts/installation` owns control-service health, public native-auth discovery, and the selected installation.
 - `contracts/attachments` owns attachment metadata and upload handshakes.
 - `contracts/queue` owns queued agent turns.

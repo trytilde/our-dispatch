@@ -9,6 +9,7 @@ export interface RendererServer {
 
 export interface RendererServerOptions {
   accessToken?: () => Promise<string | undefined>;
+  tildeBaseUrl?: string;
   webOrigin?: string;
 }
 
@@ -30,16 +31,22 @@ export async function startRendererServer(
 ): Promise<RendererServer> {
   const normalizedRoot = resolve(staticRoot);
   const upstreamOrigin = new URL(controlOrigin).origin;
+  const tildeSocketOrigin = websocketOrigin(options.tildeBaseUrl ?? "https://api.trytilde.ai");
   const server = createServer((request, response) => {
-    void handleRequest(request, response, normalizedRoot, upstreamOrigin, options).catch(
-      (error: unknown) => {
-        if (response.headersSent) response.destroy(error instanceof Error ? error : undefined);
-        else {
-          response.writeHead(502, { "content-type": "application/json; charset=utf-8" });
-          response.end(JSON.stringify({ error: "The OpenBot control server is unavailable." }));
-        }
-      },
-    );
+    void handleRequest(
+      request,
+      response,
+      normalizedRoot,
+      upstreamOrigin,
+      tildeSocketOrigin,
+      options,
+    ).catch((error: unknown) => {
+      if (response.headersSent) response.destroy(error instanceof Error ? error : undefined);
+      else {
+        response.writeHead(502, { "content-type": "application/json; charset=utf-8" });
+        response.end(JSON.stringify({ error: "The OpenBot control server is unavailable." }));
+      }
+    });
   });
   await listen(server);
   const address = server.address();
@@ -59,6 +66,7 @@ async function handleRequest(
   response: ServerResponse,
   staticRoot: string,
   controlOrigin: string,
+  tildeSocketOrigin: string,
   options: RendererServerOptions,
 ): Promise<void> {
   const url = new URL(request.url ?? "/", "http://openbot.local");
@@ -105,12 +113,19 @@ async function handleRequest(
     "cache-control": path.endsWith("index.html")
       ? "no-cache"
       : "public, max-age=31536000, immutable",
-    "content-security-policy":
-      "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: http: https:; connect-src 'self'; frame-src http: https:; font-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'",
+    "content-security-policy": `default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: http: https:; connect-src 'self' ${tildeSocketOrigin}; frame-src http: https:; font-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'`,
     "content-type": contentTypes[extname(path)] ?? "application/octet-stream",
     "x-content-type-options": "nosniff",
   });
   response.end(request.method === "HEAD" ? undefined : content);
+}
+
+function websocketOrigin(baseUrl: string): string {
+  const url = new URL(baseUrl);
+  if (url.protocol !== "http:" && url.protocol !== "https:")
+    throw new Error("Tilde base URL must use HTTP or HTTPS");
+  url.protocol = url.protocol === "http:" ? "ws:" : "wss:";
+  return url.origin;
 }
 
 function isControlPath(pathname: string): boolean {

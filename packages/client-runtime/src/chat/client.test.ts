@@ -1,5 +1,38 @@
 import { describe, expect, it, vi } from "vite-plus/test";
 import { createOpenBotClient } from "./client.js";
+import {
+  observeMissionControlSocket,
+  type MissionControlSocketTicket,
+  type WebSocketLike,
+} from "./websocket.js";
+
+class TestWebSocket implements WebSocketLike {
+  readyState = 0;
+  closeCalls = 0;
+  private readonly listeners = new Map<string, Set<(event: { data?: unknown }) => void>>();
+
+  addEventListener(type: string, listener: (event: { data?: unknown }) => void): void {
+    const listeners = this.listeners.get(type) ?? new Set();
+    listeners.add(listener);
+    this.listeners.set(type, listeners);
+  }
+
+  removeEventListener(type: string, listener: (event: { data?: unknown }) => void): void {
+    this.listeners.get(type)?.delete(listener);
+  }
+
+  send(): void {}
+
+  close(): void {
+    this.closeCalls += 1;
+    this.readyState = 3;
+  }
+
+  emit(type: string, data?: unknown): void {
+    if (type === "open") this.readyState = 1;
+    for (const listener of this.listeners.get(type) ?? []) listener({ data });
+  }
+}
 
 describe("OpenBot client", () => {
   it("starts and polls a validated agent setup job", async () => {
@@ -72,27 +105,189 @@ describe("OpenBot client", () => {
     await expect(client.getSidebar()).rejects.toThrow();
   });
 
-  it("consumes the team-wide Mission Control event stream", async () => {
+  it("connects directly to Tilde Mission Control with a short-lived socket ticket", async () => {
     const events: unknown[] = [];
+    const controller = new AbortController();
+    const socketUrls: string[] = [];
+    let socketProtocols: string[] = [];
     const client = createOpenBotClient({
-      fetch: async (input) => {
-        expect(requestUrl(input)).toBe("/api/chat/mission-control/events");
-        return new Response(
-          'id: event-one\nevent: chatkit.message.streaming\ndata: {"kind":{"kind":"message_streaming","session_id":"session-one"}}\n\n',
-          { headers: { "content-type": "text/event-stream" } },
-        );
+      fetch: async (input, init) => {
+        expect(requestUrl(input)).toBe("/api/chat/mission-control/socket-ticket");
+        expect(JSON.parse(String(init?.body))).toEqual({ transport: "browser" });
+        return Response.json({
+          ticket: "short-lived-ticket",
+          protocol: "tilde.mission-control.ticket",
+          expires_at: "2026-08-26T12:00:00Z",
+          websocket_url: "wss://team.api.trytilde.ai/api/v1/team/team/chatkit/mission-control/ws",
+        });
+      },
+      createWebSocket: (url, protocols) => {
+        socketUrls.push(url);
+        socketProtocols = protocols;
+        const socket = new TestWebSocket();
+        queueMicrotask(() => {
+          socket.emit("open");
+          if (socketUrls.length === 1) {
+            socket.emit(
+              "message",
+              JSON.stringify({
+                jsonrpc: "2.0",
+                method: "mission_control.ready",
+                params: { snapshot_revision: 41 },
+              }),
+            );
+            socket.emit("close");
+            return;
+          }
+          socket.emit(
+            "message",
+            JSON.stringify({
+              jsonrpc: "2.0",
+              method: "mission_control.ready",
+              params: { snapshot_revision: 41 },
+            }),
+          );
+          socket.emit(
+            "message",
+            JSON.stringify({
+              jsonrpc: "2.0",
+              method: "mission_control.event",
+              params: {
+                revision: 42,
+                event_type: "chatkit.message.streaming",
+                event: {
+                  id: "event-one",
+                  kind: { kind: "message_streaming", session_id: "session-one" },
+                },
+              },
+            }),
+          );
+        });
+        return socket;
       },
     });
 
-    await client.observeMissionControl(new AbortController().signal, (event) => events.push(event));
+    const callbackOrder: string[] = [];
+    await client.observeMissionControl(
+      controller.signal,
+      (event) => {
+        callbackOrder.push("event");
+        events.push(event);
+        controller.abort();
+      },
+      async () => {
+        callbackOrder.push("ready:start");
+        await Promise.resolve();
+        callbackOrder.push("ready:end");
+      },
+    );
 
+    expect(socketUrls).toEqual([
+      "wss://team.api.trytilde.ai/api/v1/team/team/chatkit/mission-control/ws",
+      "wss://team.api.trytilde.ai/api/v1/team/team/chatkit/mission-control/ws?after_revision=41",
+    ]);
+    expect(socketProtocols).toEqual([
+      "tilde.mission-control.v1",
+      "tilde.mission-control.ticket.short-lived-ticket",
+    ]);
     expect(events).toEqual([
       {
         id: "event-one",
         type: "chatkit.message.streaming",
-        data: { kind: { kind: "message_streaming", session_id: "session-one" } },
+        data: {
+          id: "event-one",
+          kind: { kind: "message_streaming", session_id: "session-one" },
+        },
       },
     ]);
+    expect(callbackOrder).toEqual([
+      "ready:start",
+      "ready:end",
+      "ready:start",
+      "ready:end",
+      "event",
+    ]);
+  });
+
+  it("does not advance an event cursor when applying the event fails", async () => {
+    const socket = new TestWebSocket();
+    const revisions: number[] = [];
+    const observation = observeMissionControlSocket({
+      signal: new AbortController().signal,
+      ticket: socketTicket(),
+      createWebSocket: () => socket,
+      onReady: () => undefined,
+      onEvent: async () => {
+        throw new Error("reducer failed");
+      },
+      onRevision: (revision) => revisions.push(revision),
+      onHealthy: () => undefined,
+    });
+    socket.emit("open");
+    socket.emit(
+      "message",
+      JSON.stringify({
+        jsonrpc: "2.0",
+        method: "mission_control.event",
+        params: { revision: 7, event_type: "chatkit.test", event: { id: "event-seven" } },
+      }),
+    );
+
+    await expect(observation).rejects.toThrow("reducer failed");
+    expect(revisions).toEqual([]);
+    expect(socket.closeCalls).toBe(1);
+  });
+
+  it("requests an explicit native socket ticket only when configured by an adapter", async () => {
+    const controller = new AbortController();
+    let requestedBody: unknown;
+    const client = createOpenBotClient({
+      missionControlTransport: "native",
+      fetch: async (_input, init) => {
+        requestedBody = JSON.parse(String(init?.body));
+        return Response.json(socketTicket());
+      },
+      createWebSocket: () => {
+        const socket = new TestWebSocket();
+        queueMicrotask(() => {
+          socket.emit("open");
+          socket.emit(
+            "message",
+            JSON.stringify({
+              jsonrpc: "2.0",
+              method: "mission_control.ready",
+              params: { snapshot_revision: 1 },
+            }),
+          );
+        });
+        return socket;
+      },
+    });
+
+    await client.observeMissionControl(
+      controller.signal,
+      () => undefined,
+      () => controller.abort(),
+    );
+    expect(requestedBody).toEqual({ transport: "native" });
+  });
+
+  it("closes a socket that errors after opening", async () => {
+    const socket = new TestWebSocket();
+    const observation = observeMissionControlSocket({
+      signal: new AbortController().signal,
+      ticket: socketTicket(),
+      createWebSocket: () => socket,
+      onReady: () => undefined,
+      onEvent: () => undefined,
+      onRevision: () => undefined,
+      onHealthy: () => undefined,
+    });
+    socket.emit("open");
+    socket.emit("error");
+
+    await expect(observation).resolves.toBeUndefined();
+    expect(socket.closeCalls).toBe(1);
   });
 
   it("loads and mutates plugin configuration through the control service", async () => {
@@ -152,6 +347,15 @@ describe("OpenBot client", () => {
     ).toContain("https://openbot.test/api/chat/_upload?url=");
   });
 });
+
+function socketTicket(): MissionControlSocketTicket {
+  return {
+    ticket: "short-lived-ticket",
+    protocol: "tilde.mission-control.ticket",
+    expires_at: "2026-08-26T12:00:00Z",
+    websocket_url: "wss://team.api.trytilde.ai/api/v1/team/team/chatkit/mission-control/ws",
+  };
+}
 
 function requestUrl(input: RequestInfo | URL): string {
   return typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
