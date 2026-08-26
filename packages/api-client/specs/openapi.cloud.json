@@ -2058,6 +2058,98 @@
         }
       }
     },
+    "/api/v1/identity/organizations/{org_id}/openbot/deployments": {
+      "post": {
+        "tags": [
+          "identity",
+          "v1"
+        ],
+        "summary": "Create a hosted OpenBot instance",
+        "description": "Creates an isolated Tilde team, one Vercel runtime project containing the web app, control API, and agent functions, a persistent Vercel Sandbox with local Git and a deterministic Vercel project domain, and OIDC-backed AI Gateway access, then starts deployment. Deprecated control and agent project response fields mirror the runtime project for compatibility. Custom Cloudflare DNS is a follow-up.",
+        "operationId": "create_hosted_openbot_deployment",
+        "parameters": [
+          {
+            "name": "org_id",
+            "in": "path",
+            "description": "Owning Tilde organization ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateHostedOpenBotDeploymentRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Hosted OpenBot provisioning started",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HostedOpenBotDeployment"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid title or slug",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not an organization administrator",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Hosted OpenBot provisioning is unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          },
+          {
+            "bearer_token": []
+          }
+        ]
+      }
+    },
     "/api/v1/identity/organizations/{organization_id}": {
       "get": {
         "tags": [
@@ -4364,15 +4456,15 @@
         }
       }
     },
-    "/api/v1/team/{team_id}/browser-definition": {
+    "/api/v1/team/{team_id}/automations": {
       "get": {
         "tags": [
-          "browser",
+          "automations",
           "v1"
         ],
-        "summary": "List browser definitions",
-        "description": "List reusable Web Browser configurations for the current team.",
-        "operationId": "list-browser-definitions",
+        "summary": "List unified automations",
+        "description": "Lists authoritative automation roots, filterable by agent and reconciliation status.",
+        "operationId": "automations-list",
         "parameters": [
           {
             "name": "team_id",
@@ -4380,6 +4472,32 @@
             "required": true,
             "schema": {
               "type": "string"
+            }
+          },
+          {
+            "name": "agent_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "oneOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "$ref": "#/components/schemas/AutomationStatus"
+                }
+              ]
             }
           },
           {
@@ -4403,44 +4521,6 @@
             }
           },
           {
-            "name": "status",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "oneOf": [
-                {
-                  "type": "null"
-                },
-                {
-                  "$ref": "#/components/schemas/BrowserSessionStatus"
-                }
-              ]
-            }
-          },
-          {
-            "name": "runtime_status",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "oneOf": [
-                {
-                  "type": "null"
-                },
-                {
-                  "$ref": "#/components/schemas/RuntimeStatus"
-                }
-              ]
-            }
-          },
-          {
-            "name": "include_deleted",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "boolean"
-            }
-          },
-          {
             "name": "team_id",
             "in": "path",
             "description": "Team ID",
@@ -4452,77 +4532,35 @@
         ],
         "responses": {
           "200": {
-            "description": "Browser definitions",
+            "description": "",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/BrowserDefinitionPaginatedResponse"
+                  "$ref": "#/components/schemas/AutomationPaginatedResponse"
                 }
               }
             }
           }
-        }
-      },
-      "post": {
-        "tags": [
-          "browser",
-          "v1"
-        ],
-        "summary": "Create a browser definition",
-        "description": "Create a reusable Web Browser configuration and enable its Tilde Browser tool provider.",
-        "operationId": "create-browser-definition",
-        "parameters": [
-          {
-            "name": "team_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "team_id",
-            "in": "path",
-            "description": "Team ID",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CreateBrowserDefinitionInner"
-              }
-            }
-          },
-          "required": true
         },
-        "responses": {
-          "200": {
-            "description": "Created browser definition",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/BrowserDefinition"
-                }
-              }
-            }
+        "security": [
+          {
+            "api_key": []
+          },
+          {
+            "bearer_token": []
           }
-        }
+        ]
       }
     },
-    "/api/v1/team/{team_id}/browser-definition/{id}": {
+    "/api/v1/team/{team_id}/automations/{automation_id}": {
       "get": {
         "tags": [
-          "browser",
+          "automations",
           "v1"
         ],
-        "summary": "Get a browser definition",
-        "description": "Fetch a browser definition by id.",
-        "operationId": "get-browser-definition",
+        "summary": "Get a unified automation",
+        "description": "Gets the persisted root, trigger membership, generation, and reconciliation status.",
+        "operationId": "automations-get",
         "parameters": [
           {
             "name": "team_id",
@@ -4533,7 +4571,7 @@
             }
           },
           {
-            "name": "id",
+            "name": "automation_id",
             "in": "path",
             "required": true,
             "schema": {
@@ -4552,25 +4590,119 @@
         ],
         "responses": {
           "200": {
-            "description": "Browser definition",
+            "description": "",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/BrowserDefinition"
+                  "$ref": "#/components/schemas/Automation"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
                 }
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "api_key": []
+          },
+          {
+            "bearer_token": []
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "automations",
+          "v1"
+        ],
+        "summary": "Create or replace a unified automation",
+        "description": "Persists and serially reconciles desired schedule and event triggers. Reconciliation failure remains observable on the root.",
+        "operationId": "automations-put",
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "automation_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/WrappedUuidV4"
+            }
+          },
+          {
+            "name": "team_id",
+            "in": "path",
+            "description": "Team ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PutAutomationBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Automation"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          },
+          {
+            "bearer_token": []
+          }
+        ]
       },
       "delete": {
         "tags": [
-          "browser",
+          "automations",
           "v1"
         ],
-        "summary": "Delete a browser definition",
-        "description": "Soft-delete a reusable Web Browser configuration and disable its linked tools.",
-        "operationId": "delete-browser-definition",
+        "summary": "Delete a unified automation",
+        "description": "Deletes all materialized members before deleting the authoritative root.",
+        "operationId": "automations-delete",
         "parameters": [
           {
             "name": "team_id",
@@ -4581,7 +4713,7 @@
             }
           },
           {
-            "name": "id",
+            "name": "automation_id",
             "in": "path",
             "required": true,
             "schema": {
@@ -4600,18 +4732,35 @@
         ],
         "responses": {
           "200": {
-            "description": "Deleted browser definition"
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeleteAutomationResponse"
+                }
+              }
+            }
           }
-        }
-      },
-      "patch": {
+        },
+        "security": [
+          {
+            "api_key": []
+          },
+          {
+            "bearer_token": []
+          }
+        ]
+      }
+    },
+    "/api/v1/team/{team_id}/automations/{automation_id}/ownership": {
+      "post": {
         "tags": [
-          "browser",
+          "automations",
           "v1"
         ],
-        "summary": "Update a browser definition",
-        "description": "Update a reusable Web Browser configuration.",
-        "operationId": "update-browser-definition",
+        "summary": "Set automation ownership",
+        "description": "Sets the persisted ownership mode and preserves an effective-user grant when made private.",
+        "operationId": "automations-set-ownership",
         "parameters": [
           {
             "name": "team_id",
@@ -4622,7 +4771,7 @@
             }
           },
           {
-            "name": "id",
+            "name": "automation_id",
             "in": "path",
             "required": true,
             "schema": {
@@ -4643,7 +4792,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/UpdateBrowserDefinitionBody"
+                "$ref": "#/components/schemas/SetResourceAccessModeRequest"
               }
             }
           },
@@ -4651,27 +4800,35 @@
         },
         "responses": {
           "200": {
-            "description": "Updated browser definition",
+            "description": "",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/BrowserDefinition"
+                  "$ref": "#/components/schemas/ResourceAuthorization"
                 }
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "api_key": []
+          },
+          {
+            "bearer_token": []
+          }
+        ]
       }
     },
-    "/api/v1/team/{team_id}/browser-password-manager/credential": {
-      "get": {
+    "/api/v1/team/{team_id}/automations/{automation_id}/run": {
+      "post": {
         "tags": [
-          "browser",
+          "automations",
           "v1"
         ],
-        "summary": "List browser password manager credentials",
-        "description": "List managed credentials created for Web Browser password manager use.",
-        "operationId": "list-browser-managed-credentials",
+        "summary": "Run a unified automation",
+        "description": "Runs once for the supplied durable run ID and returns the existing result on retry.",
+        "operationId": "automations-run",
         "parameters": [
           {
             "name": "team_id",
@@ -4682,61 +4839,155 @@
             }
           },
           {
-            "name": "page_size",
-            "in": "query",
-            "required": false,
+            "name": "automation_id",
+            "in": "path",
+            "required": true,
             "schema": {
-              "type": "integer",
-              "format": "int64"
+              "$ref": "#/components/schemas/WrappedUuidV4"
             }
           },
           {
-            "name": "next_page_token",
-            "in": "query",
-            "required": false,
+            "name": "team_id",
+            "in": "path",
+            "description": "Team ID",
+            "required": true,
             "schema": {
-              "type": [
-                "string",
-                "null"
-              ]
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RunAutomationBody"
+              }
             }
           },
-          {
-            "name": "status",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "oneOf": [
-                {
-                  "type": "null"
-                },
-                {
-                  "$ref": "#/components/schemas/BrowserSessionStatus"
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunAutomationResponse"
                 }
-              ]
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          },
+          {
+            "bearer_token": []
+          }
+        ]
+      }
+    },
+    "/api/v1/team/{team_id}/automations/{automation_id}/visibility": {
+      "post": {
+        "tags": [
+          "automations",
+          "v1"
+        ],
+        "summary": "Set automation visibility",
+        "description": "Sets the persisted visibility mode and preserves an effective-user grant when made private.",
+        "operationId": "automations-set-visibility",
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
             }
           },
           {
-            "name": "runtime_status",
-            "in": "query",
-            "required": false,
+            "name": "automation_id",
+            "in": "path",
+            "required": true,
             "schema": {
-              "oneOf": [
-                {
-                  "type": "null"
-                },
-                {
-                  "$ref": "#/components/schemas/RuntimeStatus"
+              "$ref": "#/components/schemas/WrappedUuidV4"
+            }
+          },
+          {
+            "name": "team_id",
+            "in": "path",
+            "description": "Team ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetResourceAccessModeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResourceAuthorization"
                 }
-              ]
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          },
+          {
+            "bearer_token": []
+          }
+        ]
+      }
+    },
+    "/api/v1/team/{team_id}/automations/{automation_id}/{plane}/grants": {
+      "get": {
+        "tags": [
+          "automations",
+          "v1"
+        ],
+        "summary": "List automation grants",
+        "description": "Lists grants on the selected automation authorization plane.",
+        "operationId": "automations-list-grants",
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
             }
           },
           {
-            "name": "include_deleted",
-            "in": "query",
-            "required": false,
+            "name": "automation_id",
+            "in": "path",
+            "required": true,
             "schema": {
-              "type": "boolean"
+              "$ref": "#/components/schemas/WrappedUuidV4"
+            }
+          },
+          {
+            "name": "plane",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/ResourceGrantPlane"
             }
           },
           {
@@ -4751,125 +5002,36 @@
         ],
         "responses": {
           "200": {
-            "description": "Browser password manager credentials",
+            "description": "",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ManagedUserCredentialSummaryPaginatedResponse"
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ResourceGrant"
+                  }
                 }
               }
             }
           }
-        }
-      }
-    },
-    "/api/v1/team/{team_id}/browser-session": {
-      "get": {
-        "tags": [
-          "browser",
-          "v1"
-        ],
-        "summary": "List browser sessions",
-        "description": "List Browserbase-backed browser sessions for the current team.",
-        "operationId": "list-browser-sessions",
-        "parameters": [
+        },
+        "security": [
           {
-            "name": "team_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
+            "api_key": []
           },
           {
-            "name": "page_size",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "format": "int64"
-            }
-          },
-          {
-            "name": "next_page_token",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": [
-                "string",
-                "null"
-              ]
-            }
-          },
-          {
-            "name": "status",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "oneOf": [
-                {
-                  "type": "null"
-                },
-                {
-                  "$ref": "#/components/schemas/BrowserSessionStatus"
-                }
-              ]
-            }
-          },
-          {
-            "name": "runtime_status",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "oneOf": [
-                {
-                  "type": "null"
-                },
-                {
-                  "$ref": "#/components/schemas/RuntimeStatus"
-                }
-              ]
-            }
-          },
-          {
-            "name": "include_deleted",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "boolean"
-            }
-          },
-          {
-            "name": "team_id",
-            "in": "path",
-            "description": "Team ID",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
+            "bearer_token": []
           }
-        ],
-        "responses": {
-          "200": {
-            "description": "Browser sessions",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/BrowserSessionPaginatedResponse"
-                }
-              }
-            }
-          }
-        }
+        ]
       },
       "post": {
         "tags": [
-          "browser",
+          "automations",
           "v1"
         ],
-        "summary": "Create a browser session",
-        "description": "Create a Browserbase-backed browser session with the trusted Tilde runtime extension.",
-        "operationId": "create-browser-session",
+        "summary": "Add an automation grant",
+        "description": "Validates and adds a principal grant on the selected authorization plane.",
+        "operationId": "automations-add-grant",
         "parameters": [
           {
             "name": "team_id",
@@ -4877,6 +5039,22 @@
             "required": true,
             "schema": {
               "type": "string"
+            }
+          },
+          {
+            "name": "automation_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/WrappedUuidV4"
+            }
+          },
+          {
+            "name": "plane",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/ResourceGrantPlane"
             }
           },
           {
@@ -4893,7 +5071,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/CreateBrowserSessionInner"
+                "$ref": "#/components/schemas/CreateResourcePlaneGrantRequest"
               }
             }
           },
@@ -4901,75 +5079,35 @@
         },
         "responses": {
           "200": {
-            "description": "Created browser session",
+            "description": "",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/BrowserSession"
+                  "$ref": "#/components/schemas/ResourceGrant"
                 }
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "api_key": []
+          },
+          {
+            "bearer_token": []
+          }
+        ]
       }
     },
-    "/api/v1/team/{team_id}/browser-session/{id}": {
-      "get": {
-        "tags": [
-          "browser",
-          "v1"
-        ],
-        "summary": "Get a browser session",
-        "description": "Fetch a browser session by id.",
-        "operationId": "get-browser-session",
-        "parameters": [
-          {
-            "name": "team_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "team_id",
-            "in": "path",
-            "description": "Team ID",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Browser session",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/BrowserSession"
-                }
-              }
-            }
-          }
-        }
-      },
+    "/api/v1/team/{team_id}/automations/{automation_id}/{plane}/grants/{principal_type}/{principal_id}": {
       "delete": {
         "tags": [
-          "browser",
+          "automations",
           "v1"
         ],
-        "summary": "Delete a browser session",
-        "description": "Release the Browserbase session when needed and soft-delete the local row.",
-        "operationId": "delete-browser-session",
+        "summary": "Remove an automation grant",
+        "description": "Idempotently removes a principal grant while retaining at least one private ownership grant.",
+        "operationId": "automations-remove-grant",
         "parameters": [
           {
             "name": "team_id",
@@ -4980,7 +5118,31 @@
             }
           },
           {
-            "name": "id",
+            "name": "automation_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/WrappedUuidV4"
+            }
+          },
+          {
+            "name": "plane",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/ResourceGrantPlane"
+            }
+          },
+          {
+            "name": "principal_type",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/ResourcePrincipalType"
+            }
+          },
+          {
+            "name": "principal_id",
             "in": "path",
             "required": true,
             "schema": {
@@ -4999,177 +5161,17 @@
         ],
         "responses": {
           "200": {
-            "description": "Deleted browser session"
+            "description": ""
           }
-        }
-      },
-      "patch": {
-        "tags": [
-          "browser",
-          "v1"
-        ],
-        "summary": "Update a browser session",
-        "description": "Patch local browser-session metadata or request Browserbase release.",
-        "operationId": "update-browser-session",
-        "parameters": [
-          {
-            "name": "team_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "team_id",
-            "in": "path",
-            "description": "Team ID",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/UpdateBrowserSessionBody"
-              }
-            }
-          },
-          "required": true
         },
-        "responses": {
-          "200": {
-            "description": "Updated browser session",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/BrowserSession"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/team/{team_id}/browser-session/{id}/debug": {
-      "get": {
-        "tags": [
-          "browser",
-          "v1"
-        ],
-        "summary": "Get Browserbase debug URLs",
-        "description": "Fetch Browserbase live-view/debug URLs for a browser session.",
-        "operationId": "get-browser-session-debug",
-        "parameters": [
+        "security": [
           {
-            "name": "team_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
+            "api_key": []
           },
           {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "team_id",
-            "in": "path",
-            "description": "Team ID",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
+            "bearer_token": []
           }
-        ],
-        "responses": {
-          "200": {
-            "description": "Browserbase live debug URLs",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/BrowserSessionDebug"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/team/{team_id}/browser-session/{id}/fill-form": {
-      "post": {
-        "tags": [
-          "browser",
-          "v1"
-        ],
-        "summary": "Fill and submit a form",
-        "description": "Use the trusted runtime and managed credentials to fill and submit a form without returning secret values.",
-        "operationId": "fill-browser-session-form",
-        "parameters": [
-          {
-            "name": "team_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "team_id",
-            "in": "path",
-            "description": "Team ID",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/FillFormBody"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Fill-form result",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/FillFormResponse"
-                }
-              }
-            }
-          }
-        }
+        ]
       }
     },
     "/api/v1/team/{team_id}/chatkit/agent": {
@@ -8579,6 +8581,328 @@
         ]
       }
     },
+    "/api/v1/team/{team_id}/chatkit/mission-control/agents/{agent_id}/turns": {
+      "post": {
+        "tags": [
+          "chatkit",
+          "v1"
+        ],
+        "summary": "Submit Mission Control turn",
+        "description": "Creates a session when needed, finalizes uploaded attachments, sends the owner message, and returns canonical conversation state.",
+        "operationId": "chatkit-mission-control-submit-turn",
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "description": "Team ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "agent_id",
+            "in": "path",
+            "description": "Agent inbox ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "team_id",
+            "in": "path",
+            "description": "Team ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SubmitMissionControlTurnRequestInner"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Submitted Mission Control turn",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SubmitMissionControlTurnResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {},
+          {
+            "api_key": []
+          },
+          {
+            "bearer_token": []
+          }
+        ]
+      }
+    },
+    "/api/v1/team/{team_id}/chatkit/mission-control/bootstrap": {
+      "get": {
+        "tags": [
+          "chatkit",
+          "v1"
+        ],
+        "summary": "Bootstrap Mission Control",
+        "description": "Returns the sidebar and an optional active conversation snapshot in one request.",
+        "operationId": "chatkit-mission-control-bootstrap",
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "description": "Team ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "agent_page_size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "session_page_size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "message_page_size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "queue_page_size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "active_session_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "oneOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "$ref": "#/components/schemas/WrappedUuidV4"
+                }
+              ]
+            }
+          },
+          {
+            "name": "agent_sort",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "name": "session_sort",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "name": "team_id",
+            "in": "path",
+            "description": "Team ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Mission Control bootstrap projection",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MissionControlBootstrapResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {},
+          {
+            "api_key": []
+          },
+          {
+            "bearer_token": []
+          }
+        ]
+      }
+    },
+    "/api/v1/team/{team_id}/chatkit/mission-control/search": {
+      "get": {
+        "tags": [
+          "chatkit",
+          "v1"
+        ],
+        "summary": "Search ChatKit",
+        "description": "Searches visible session titles, participating agents, and messages across the team. When session_id is provided, searches messages only within that visible session.",
+        "operationId": "chatkit-search",
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "description": "Team ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "session_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "oneOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "$ref": "#/components/schemas/WrappedUuidV4"
+                }
+              ]
+            }
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "next_page_token",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "name": "team_id",
+            "in": "path",
+            "description": "Team ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Consolidated ChatKit search results",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChatKitSearchHitPaginatedResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid query or pagination cursor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Scoped session not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {},
+          {
+            "api_key": []
+          },
+          {
+            "bearer_token": []
+          }
+        ]
+      }
+    },
     "/api/v1/team/{team_id}/chatkit/mission-control/sessions/{session_id}/interrupt": {
       "post": {
         "tags": [
@@ -8837,6 +9161,85 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Session"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {},
+          {
+            "api_key": []
+          },
+          {
+            "bearer_token": []
+          }
+        ]
+      }
+    },
+    "/api/v1/team/{team_id}/chatkit/mission-control/sessions/{session_id}/snapshot": {
+      "get": {
+        "tags": [
+          "chatkit",
+          "v1"
+        ],
+        "summary": "Get Mission Control conversation snapshot",
+        "description": "Returns messages, pending queued turns, and the durable event revision for one session.",
+        "operationId": "chatkit-mission-control-conversation-snapshot",
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "description": "Team ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "session_id",
+            "in": "path",
+            "description": "Session ID",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/WrappedUuidV4"
+            }
+          },
+          {
+            "name": "message_page_size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "queue_page_size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "team_id",
+            "in": "path",
+            "description": "Team ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Mission Control conversation snapshot",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MissionControlConversationSnapshot"
                 }
               }
             }
@@ -10387,6 +10790,97 @@
           },
           "404": {
             "description": "Attachment Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {},
+          {
+            "api_key": []
+          },
+          {
+            "bearer_token": []
+          }
+        ]
+      }
+    },
+    "/api/v1/team/{team_id}/chatkit/session/{session_id}/attachments/upload": {
+      "post": {
+        "tags": [
+          "chatkit",
+          "v1"
+        ],
+        "summary": "Create attachment uploads",
+        "description": "Creates up to ten ChatKit attachment rows and returns their presigned uploads in one request.",
+        "operationId": "create-attachment-uploads",
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "description": "Team ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "session_id",
+            "in": "path",
+            "description": "Session ID",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/WrappedUuidV4"
+            }
+          },
+          {
+            "name": "team_id",
+            "in": "path",
+            "description": "Team ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateAttachmentUploadsInner"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Create attachment uploads",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateAttachmentUploadsResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
             "content": {
               "application/json": {
                 "schema": {
@@ -15538,6 +16032,638 @@
         ]
       }
     },
+    "/api/v1/team/{team_id}/identity/openbot/instances/{instance_id}": {
+      "get": {
+        "tags": [
+          "identity",
+          "v1"
+        ],
+        "summary": "Get a hosted OpenBot instance",
+        "description": "Returns the server-owned canonical Vercel runtime project, Sandbox, image, hostname, and lifecycle state for one team-isolated OpenBot instance. Pre-consolidation instances have no runtime project and retain their readable deprecated split control and agent project fields.",
+        "operationId": "get_hosted_openbot_instance",
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "instance_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "team_id",
+            "in": "path",
+            "description": "Team ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HostedOpenBotInstance"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          },
+          {
+            "bearer_token": []
+          }
+        ]
+      }
+    },
+    "/api/v1/team/{team_id}/identity/openbot/instances/{instance_id}/computer-image": {
+      "put": {
+        "tags": [
+          "identity",
+          "v1"
+        ],
+        "summary": "Set the hosted OpenBot computer image",
+        "description": "Records an immutable VCR digest owned by this instance's canonical runtime project, or by its legacy control project for a pre-consolidation instance, for subsequent OIDC-authenticated Sandbox creation.",
+        "operationId": "update_hosted_openbot_computer_image",
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "instance_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "team_id",
+            "in": "path",
+            "description": "Team ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateHostedOpenBotComputerImageRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HostedOpenBotInstance"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          },
+          {
+            "bearer_token": []
+          }
+        ]
+      }
+    },
+    "/api/v1/team/{team_id}/identity/openbot/instances/{instance_id}/configuration": {
+      "put": {
+        "tags": [
+          "identity",
+          "v1"
+        ],
+        "summary": "Configure a hosted OpenBot instance",
+        "description": "Installs allowlisted user-owned OpenBot runtime values into the instance's canonical runtime project and derives VERCEL_RUNTIME_PROJECT server-side. Pre-consolidation instances continue to receive values in both existing split projects. Tenant, OAuth, Computer, and platform identity are derived from authenticated server state.",
+        "operationId": "configure_hosted_openbot_instance",
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "instance_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "team_id",
+            "in": "path",
+            "description": "Team ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfigureHostedOpenBotInstanceRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HostedOpenBotInstance"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          },
+          {
+            "bearer_token": []
+          }
+        ]
+      }
+    },
+    "/api/v1/team/{team_id}/identity/openbot/instances/{instance_id}/releases": {
+      "post": {
+        "tags": [
+          "identity",
+          "v1"
+        ],
+        "summary": "Create a hosted OpenBot release",
+        "description": "Creates an uploading content-addressed Build Output API release. Consolidated instances require service=runtime and deploy the combined web, control, and agent artifact to the canonical runtime project. Pre-consolidation instances continue to accept the deprecated control and agents services.",
+        "operationId": "create_hosted_openbot_release",
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "instance_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "team_id",
+            "in": "path",
+            "description": "Team ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateHostedOpenBotReleaseRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HostedOpenBotRelease"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          },
+          {
+            "bearer_token": []
+          }
+        ]
+      }
+    },
+    "/api/v1/team/{team_id}/identity/openbot/instances/{instance_id}/releases/{release_id}": {
+      "get": {
+        "tags": [
+          "identity",
+          "v1"
+        ],
+        "summary": "Get a hosted OpenBot release",
+        "description": "Returns upload and deployment status, refreshing an in-progress deployment from Vercel when necessary.",
+        "operationId": "get_hosted_openbot_release",
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "instance_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "release_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "team_id",
+            "in": "path",
+            "description": "Team ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HostedOpenBotRelease"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          },
+          {
+            "bearer_token": []
+          }
+        ]
+      }
+    },
+    "/api/v1/team/{team_id}/identity/openbot/instances/{instance_id}/releases/{release_id}/files/{sha1}": {
+      "put": {
+        "tags": [
+          "identity",
+          "v1"
+        ],
+        "summary": "Upload a hosted OpenBot release file",
+        "description": "Validates one declared digest and size, then streams the bytes to Vercel's content-addressed deployment file API without exposing the platform token.",
+        "operationId": "upload_hosted_openbot_release_file",
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "instance_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "release_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "sha1",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "team_id",
+            "in": "path",
+            "description": "Team ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/octet-stream": {
+              "schema": {
+                "type": "array",
+                "items": {
+                  "type": "integer",
+                  "format": "int32",
+                  "minimum": 0
+                }
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HostedOpenBotRelease"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          },
+          {
+            "bearer_token": []
+          }
+        ]
+      }
+    },
+    "/api/v1/team/{team_id}/identity/openbot/instances/{instance_id}/releases/{release_id}/finalize": {
+      "post": {
+        "tags": [
+          "identity",
+          "v1"
+        ],
+        "summary": "Finalize a hosted OpenBot release",
+        "description": "Requires every manifest file to be uploaded, derives the canonical runtime project or legacy service-specific project server-side, and idempotently creates its production deployment.",
+        "operationId": "finalize_hosted_openbot_release",
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "instance_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "release_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "team_id",
+            "in": "path",
+            "description": "Team ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HostedOpenBotRelease"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          },
+          {
+            "bearer_token": []
+          }
+        ]
+      }
+    },
+    "/api/v1/team/{team_id}/identity/openbot/mission-control-ticket": {
+      "post": {
+        "tags": [
+          "identity",
+          "chatkit",
+          "v1"
+        ],
+        "summary": "Issue an OpenBot Mission Control socket ticket",
+        "description": "Exchanges an installation-audience OpenBot bearer token for a 60-second credential accepted only by the requested team's Mission Control WebSocket. Present it as the `tilde.mission-control.ticket.<ticket>` WebSocket subprotocol; the long-lived access token never enters a URL or browser JavaScript.",
+        "operationId": "issue_openbot_mission_control_ticket",
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "description": "Tilde team ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "team_id",
+            "in": "path",
+            "description": "Team ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IssueMissionControlSocketTicketRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Short-lived Mission Control socket ticket",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MissionControlSocketTicket"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Invalid OpenBot access token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Token is not bound to this team",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_token": []
+          }
+        ]
+      }
+    },
     "/api/v1/team/{team_id}/managed-user-credential": {
       "get": {
         "summary": "List typed managed user credentials",
@@ -18352,6 +19478,202 @@
         ]
       }
     },
+    "/api/v1/team/{team_id}/mcp/mcp-server/{mcp_server_instance_id}/tool-group/{tool_group_instance_id}": {
+      "put": {
+        "tags": [
+          "mcp",
+          "v1"
+        ],
+        "summary": "Bind tool group to MCP server",
+        "description": "Enables every tool in a tool-group instance and maps it onto the MCP server idempotently.",
+        "operationId": "bind-tool-group-to-mcp-server",
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "description": "Team ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "mcp_server_instance_id",
+            "in": "path",
+            "description": "MCP server instance ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "tool_group_instance_id",
+            "in": "path",
+            "description": "Tool group instance ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "team_id",
+            "in": "path",
+            "description": "Team ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Bound tool group",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/McpServerInstanceSerializedWithFunctions"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          },
+          {
+            "bearer_token": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "mcp",
+          "v1"
+        ],
+        "summary": "Unbind tool group from MCP server",
+        "description": "Removes every mapping for a tool-group instance from the MCP server idempotently.",
+        "operationId": "unbind-tool-group-from-mcp-server",
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "description": "Team ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "mcp_server_instance_id",
+            "in": "path",
+            "description": "MCP server instance ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "tool_group_instance_id",
+            "in": "path",
+            "description": "Tool group instance ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "team_id",
+            "in": "path",
+            "description": "Team ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Unbound tool group",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/McpServerInstanceSerializedWithFunctions"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          },
+          {
+            "bearer_token": []
+          }
+        ]
+      }
+    },
     "/api/v1/team/{team_id}/mcp/provider-catalog": {
       "get": {
         "tags": [
@@ -19961,6 +21283,28 @@
             }
           },
           {
+            "name": "wait_for_status",
+            "in": "query",
+            "description": "Hold the request until this status is observed or the timeout expires.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "style": "form"
+          },
+          {
+            "name": "timeout_ms",
+            "in": "query",
+            "description": "Long-poll timeout in milliseconds, clamped to 30 seconds.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 0
+            },
+            "style": "form"
+          },
+          {
             "name": "team_id",
             "in": "path",
             "description": "Team ID",
@@ -20499,6 +21843,126 @@
           },
           "500": {
             "description": "Internal Server Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          },
+          {
+            "bearer_token": []
+          }
+        ]
+      }
+    },
+    "/api/v1/team/{team_id}/mcp/tool-group/{tool_group_instance_id}/tools/enable-and-bind": {
+      "post": {
+        "tags": [
+          "mcp",
+          "v1"
+        ],
+        "summary": "Enable provider tools and bind them to MCP servers",
+        "description": "Idempotently enables either every provider tool or an explicit set, then adds those enabled tools to each of 1-50 MCP servers. Invalid selections and provider-account authorization fail before writes. Runtime enablement and server-binding failures are returned per item so partial progress is observable and the same request can be retried safely. Each individual MCP-server mapping batch remains atomic.",
+        "operationId": "enable-and-bind-provider-tools",
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "description": "Team ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "tool_group_instance_id",
+            "in": "path",
+            "description": "Provider account / tool-group instance ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "team_id",
+            "in": "path",
+            "description": "Team ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EnableAndBindToolsBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Per-tool enablement and per-server binding results. The complete field is false when any item failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EnableAndBindToolsResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid or duplicate tool/server selection; no mutations were attempted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized; no mutations were attempted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Caller cannot manage the provider account; no mutations were attempted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Provider account or explicitly selected tool not found; no mutations were attempted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Failed before an observable per-item result could be returned",
             "content": {
               "application/json": {
                 "schema": {
@@ -22348,6 +23812,124 @@
             }
           }
         }
+      }
+    },
+    "/api/v1/team/{team_id}/openbot/agents/{agent_id}/bundle": {
+      "put": {
+        "tags": [
+          "openbot",
+          "v1"
+        ],
+        "summary": "Reconcile OpenBot agent bundle",
+        "description": "Idempotently reconciles the agent, Mission Control channel, authored skills and registry, MCP server, and tool-group bindings in one request.",
+        "operationId": "reconcile-openbot-agent-bundle",
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "agent_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "team_id",
+            "in": "path",
+            "description": "Team ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReconcileOpenBotAgentBundleBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReconcileOpenBotAgentBundleResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          },
+          {
+            "bearer_token": []
+          }
+        ]
+      }
+    },
+    "/api/v1/team/{team_id}/openbot/plugins/catalog": {
+      "get": {
+        "tags": [
+          "openbot",
+          "v1"
+        ],
+        "summary": "Get the OpenBot plugins catalog",
+        "description": "Returns the MCP providers, accounts, servers, skills, providers, and registries needed by the OpenBot plugins screen in one request.",
+        "operationId": "get-openbot-plugins-catalog",
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "team_id",
+            "in": "path",
+            "description": "Team ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpenBotPluginsCatalogResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          },
+          {
+            "bearer_token": []
+          }
+        ]
       }
     },
     "/api/v1/team/{team_id}/provider-setup/catalog": {
@@ -40084,6 +41666,298 @@
           }
         }
       },
+      "Automation": {
+        "type": "object",
+        "required": [
+          "id",
+          "org_id",
+          "team_id",
+          "authorization",
+          "created_by_user_id",
+          "agent_id",
+          "name",
+          "instruction",
+          "enabled",
+          "status",
+          "generation",
+          "applied_generation",
+          "triggers",
+          "created_at",
+          "updated_at"
+        ],
+        "properties": {
+          "agent_id": {
+            "type": "string"
+          },
+          "applied_generation": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "authorization": {
+            "$ref": "#/components/schemas/ResourceAuthorizationModes"
+          },
+          "created_at": {
+            "$ref": "#/components/schemas/WrappedChronoDateTime"
+          },
+          "created_by_user_id": {
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "error_message": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "generation": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "id": {
+            "$ref": "#/components/schemas/WrappedUuidV4"
+          },
+          "instruction": {
+            "type": "string"
+          },
+          "last_error": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Execution error paired with the latest materialized schedule execution."
+          },
+          "last_run_at": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/WrappedChronoDateTime",
+                "description": "Latest materialized schedule execution, independent of reconciliation status."
+              }
+            ]
+          },
+          "last_session_id": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/WrappedUuidV4",
+                "description": "Session created by `last_run_at`, when one was recorded."
+              }
+            ]
+          },
+          "name": {
+            "type": "string"
+          },
+          "org_id": {
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/AutomationStatus"
+          },
+          "team_id": {
+            "type": "string"
+          },
+          "triggers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AutomationTrigger"
+            }
+          },
+          "updated_at": {
+            "$ref": "#/components/schemas/WrappedChronoDateTime"
+          }
+        }
+      },
+      "AutomationPaginatedResponse": {
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Automation"
+            }
+          },
+          "next_page_token": {
+            "type": "string"
+          }
+        }
+      },
+      "AutomationStatus": {
+        "type": "string",
+        "enum": [
+          "reconciling",
+          "active",
+          "error",
+          "deleting"
+        ]
+      },
+      "AutomationTrigger": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/AutomationTriggerSpec"
+          },
+          {
+            "type": "object",
+            "required": [
+              "id",
+              "created_at",
+              "updated_at"
+            ],
+            "properties": {
+              "created_at": {
+                "$ref": "#/components/schemas/WrappedChronoDateTime"
+              },
+              "id": {
+                "$ref": "#/components/schemas/WrappedUuidV4"
+              },
+              "last_error": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Schedule-only live projection from the materialized ChatKit routine."
+              },
+              "last_run_at": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/components/schemas/WrappedChronoDateTime",
+                    "description": "Schedule-only live projection from the materialized ChatKit routine."
+                  }
+                ]
+              },
+              "last_session_id": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/components/schemas/WrappedUuidV4",
+                    "description": "Schedule-only live projection from the materialized ChatKit routine."
+                  }
+                ]
+              },
+              "materialized_resource_id": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/components/schemas/WrappedUuidV4"
+                  }
+                ]
+              },
+              "next_run_at": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/components/schemas/WrappedChronoDateTime",
+                    "description": "Schedule-only live projection from the materialized ChatKit routine."
+                  }
+                ]
+              },
+              "schedule_description": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Schedule-only live projection from the materialized ChatKit routine."
+              },
+              "updated_at": {
+                "$ref": "#/components/schemas/WrappedChronoDateTime"
+              }
+            }
+          }
+        ]
+      },
+      "AutomationTriggerInput": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/AutomationTriggerSpec"
+          },
+          {
+            "type": "object",
+            "required": [
+              "id"
+            ],
+            "properties": {
+              "id": {
+                "$ref": "#/components/schemas/WrappedUuidV4"
+              }
+            }
+          }
+        ]
+      },
+      "AutomationTriggerSpec": {
+        "oneOf": [
+          {
+            "type": "object",
+            "required": [
+              "schedule",
+              "kind"
+            ],
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "schedule"
+                ]
+              },
+              "schedule": {
+                "type": "string"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "signal_provider_instance_id",
+              "signal_type",
+              "kind"
+            ],
+            "properties": {
+              "filter": {
+                "$ref": "#/components/schemas/SignalRuleFilter"
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "event"
+                ]
+              },
+              "session_policy": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/components/schemas/SignalSessionPolicy",
+                    "description": "Omitted policies are resolved by Tilde to a new session per delivery."
+                  }
+                ]
+              },
+              "signal_provider_instance_id": {
+                "type": "string"
+              },
+              "signal_type": {
+                "type": "string"
+              }
+            }
+          }
+        ]
+      },
       "BillingContext": {
         "type": "object",
         "description": "Typed billing bootstrap response for the selected organization.",
@@ -40253,427 +42127,6 @@
             "$ref": "#/components/schemas/WrappedChronoDateTime"
           }
         }
-      },
-      "BrowserDefinition": {
-        "type": "object",
-        "description": "Reusable browser definition that controls which managed credentials are\nsurfaced to browser automation tools.",
-        "required": [
-          "id",
-          "org_id",
-          "team_id",
-          "name",
-          "managed_credential_ids",
-          "created_at",
-          "updated_at"
-        ],
-        "properties": {
-          "created_at": {
-            "$ref": "#/components/schemas/WrappedChronoDateTime"
-          },
-          "deleted_at": {
-            "oneOf": [
-              {
-                "type": "null"
-              },
-              {
-                "$ref": "#/components/schemas/WrappedChronoDateTime"
-              }
-            ]
-          },
-          "id": {
-            "$ref": "#/components/schemas/WrappedUuidV4"
-          },
-          "managed_credential_ids": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/WrappedUuidV4"
-            }
-          },
-          "name": {
-            "type": "string"
-          },
-          "org_id": {
-            "type": "string"
-          },
-          "team_id": {
-            "type": "string"
-          },
-          "tool_group_instance_id": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "updated_at": {
-            "$ref": "#/components/schemas/WrappedChronoDateTime"
-          }
-        }
-      },
-      "BrowserDefinitionPaginatedResponse": {
-        "type": "object",
-        "required": [
-          "items"
-        ],
-        "properties": {
-          "items": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/BrowserDefinition"
-            }
-          },
-          "next_page_token": {
-            "type": "string"
-          }
-        }
-      },
-      "BrowserSession": {
-        "type": "object",
-        "description": "Persisted browser session row.",
-        "required": [
-          "id",
-          "org_id",
-          "team_id",
-          "browserbase_session_id",
-          "status",
-          "runtime_status",
-          "browser_settings",
-          "user_metadata",
-          "proxy_bytes",
-          "keep_alive",
-          "extension_version",
-          "browserbase_extension_id",
-          "created_at",
-          "updated_at"
-        ],
-        "properties": {
-          "browser_settings": {
-            "$ref": "#/components/schemas/BrowserSettings"
-          },
-          "browserbase_created_at": {
-            "oneOf": [
-              {
-                "type": "null"
-              },
-              {
-                "$ref": "#/components/schemas/WrappedChronoDateTime"
-              }
-            ]
-          },
-          "browserbase_extension_id": {
-            "type": "string"
-          },
-          "browserbase_project_id": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "browserbase_session_id": {
-            "type": "string"
-          },
-          "browserbase_updated_at": {
-            "oneOf": [
-              {
-                "type": "null"
-              },
-              {
-                "$ref": "#/components/schemas/WrappedChronoDateTime"
-              }
-            ]
-          },
-          "context_id": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "created_at": {
-            "$ref": "#/components/schemas/WrappedChronoDateTime"
-          },
-          "current_title": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "current_url": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "deleted_at": {
-            "oneOf": [
-              {
-                "type": "null"
-              },
-              {
-                "$ref": "#/components/schemas/WrappedChronoDateTime"
-              }
-            ]
-          },
-          "ended_at": {
-            "oneOf": [
-              {
-                "type": "null"
-              },
-              {
-                "$ref": "#/components/schemas/WrappedChronoDateTime"
-              }
-            ]
-          },
-          "expires_at": {
-            "oneOf": [
-              {
-                "type": "null"
-              },
-              {
-                "$ref": "#/components/schemas/WrappedChronoDateTime"
-              }
-            ]
-          },
-          "extension_version": {
-            "type": "string"
-          },
-          "id": {
-            "$ref": "#/components/schemas/WrappedUuidV4"
-          },
-          "keep_alive": {
-            "type": "boolean"
-          },
-          "name": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "org_id": {
-            "type": "string"
-          },
-          "proxy_bytes": {
-            "type": "integer",
-            "format": "int64"
-          },
-          "region": {
-            "oneOf": [
-              {
-                "type": "null"
-              },
-              {
-                "$ref": "#/components/schemas/BrowserbaseRegion"
-              }
-            ]
-          },
-          "runtime_last_seen_at": {
-            "oneOf": [
-              {
-                "type": "null"
-              },
-              {
-                "$ref": "#/components/schemas/WrappedChronoDateTime"
-              }
-            ]
-          },
-          "runtime_status": {
-            "$ref": "#/components/schemas/RuntimeStatus"
-          },
-          "started_at": {
-            "oneOf": [
-              {
-                "type": "null"
-              },
-              {
-                "$ref": "#/components/schemas/WrappedChronoDateTime"
-              }
-            ]
-          },
-          "status": {
-            "$ref": "#/components/schemas/BrowserSessionStatus"
-          },
-          "team_id": {
-            "type": "string"
-          },
-          "updated_at": {
-            "$ref": "#/components/schemas/WrappedChronoDateTime"
-          },
-          "user_metadata": {
-            "$ref": "#/components/schemas/WrappedJsonValue"
-          }
-        }
-      },
-      "BrowserSessionDebug": {
-        "type": "object",
-        "description": "Browserbase live/debug URL response.",
-        "required": [
-          "debugger_fullscreen_url",
-          "debugger_url",
-          "ws_url",
-          "pages"
-        ],
-        "properties": {
-          "debugger_fullscreen_url": {
-            "type": "string"
-          },
-          "debugger_url": {
-            "type": "string"
-          },
-          "pages": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/BrowserSessionDebugPage"
-            }
-          },
-          "ws_url": {
-            "type": "string"
-          }
-        }
-      },
-      "BrowserSessionDebugPage": {
-        "type": "object",
-        "description": "Browserbase live/debug URL response.",
-        "required": [
-          "id",
-          "url"
-        ],
-        "properties": {
-          "debugger_fullscreen_url": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "debugger_url": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "favicon_url": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "id": {
-            "type": "string"
-          },
-          "title": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "url": {
-            "type": "string"
-          }
-        }
-      },
-      "BrowserSessionPaginatedResponse": {
-        "type": "object",
-        "required": [
-          "items"
-        ],
-        "properties": {
-          "items": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/BrowserSession"
-            }
-          },
-          "next_page_token": {
-            "type": "string"
-          }
-        }
-      },
-      "BrowserSessionStatus": {
-        "type": "string",
-        "description": "Browserbase lifecycle status mirrored onto Tilde sessions.",
-        "enum": [
-          "pending",
-          "running",
-          "error",
-          "timed_out",
-          "completed",
-          "release_requested",
-          "deleted"
-        ]
-      },
-      "BrowserSessionUpdateStatus": {
-        "type": "string",
-        "description": "Mutable lifecycle action accepted by PATCH.",
-        "enum": [
-          "request_release"
-        ]
-      },
-      "BrowserSettings": {
-        "type": "object",
-        "description": "Browser settings stored locally and forwarded to Browserbase.",
-        "properties": {
-          "initial_url": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "keep_alive": {
-            "type": "boolean"
-          },
-          "region": {
-            "oneOf": [
-              {
-                "type": "null"
-              },
-              {
-                "$ref": "#/components/schemas/BrowserbaseRegion"
-              }
-            ]
-          },
-          "timeout_seconds": {
-            "type": [
-              "integer",
-              "null"
-            ],
-            "format": "int64"
-          },
-          "viewport": {
-            "oneOf": [
-              {
-                "type": "null"
-              },
-              {
-                "$ref": "#/components/schemas/BrowserViewport"
-              }
-            ]
-          }
-        }
-      },
-      "BrowserViewport": {
-        "type": "object",
-        "description": "A viewport requested for a Browserbase session.",
-        "required": [
-          "width",
-          "height"
-        ],
-        "properties": {
-          "height": {
-            "type": "integer",
-            "format": "int64"
-          },
-          "width": {
-            "type": "integer",
-            "format": "int64"
-          }
-        }
-      },
-      "BrowserbaseRegion": {
-        "type": "string",
-        "description": "Browserbase regions supported by the Browserbase Sessions API.",
-        "enum": [
-          "us-west-2",
-          "us-east-1",
-          "eu-central-1",
-          "ap-southeast-1"
-        ]
       },
       "BulkAddMcpServerInstanceFunctionItem": {
         "type": "object",
@@ -41309,6 +42762,110 @@
           "human",
           "agent"
         ]
+      },
+      "ChatKitSearchAgent": {
+        "type": "object",
+        "description": "Agent context included when an agent identity or display name matched.",
+        "required": [
+          "id",
+          "display_name"
+        ],
+        "properties": {
+          "display_name": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          }
+        }
+      },
+      "ChatKitSearchHit": {
+        "type": "object",
+        "description": "One result from consolidated ChatKit full-text search.",
+        "required": [
+          "kind",
+          "session"
+        ],
+        "properties": {
+          "agent": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ChatKitSearchAgent"
+              }
+            ]
+          },
+          "kind": {
+            "$ref": "#/components/schemas/ChatKitSearchHitKind"
+          },
+          "message": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/Message"
+              }
+            ]
+          },
+          "session": {
+            "$ref": "#/components/schemas/ChatKitSearchSession"
+          }
+        }
+      },
+      "ChatKitSearchHitKind": {
+        "type": "string",
+        "description": "Kind of resource that matched a consolidated ChatKit search query.",
+        "enum": [
+          "session_title",
+          "agent",
+          "message"
+        ]
+      },
+      "ChatKitSearchHitPaginatedResponse": {
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ChatKitSearchHit"
+            }
+          },
+          "next_page_token": {
+            "type": "string"
+          }
+        }
+      },
+      "ChatKitSearchSession": {
+        "type": "object",
+        "description": "Session context included with every consolidated ChatKit search hit.",
+        "required": [
+          "id",
+          "created_at",
+          "updated_at"
+        ],
+        "properties": {
+          "created_at": {
+            "$ref": "#/components/schemas/WrappedChronoDateTime"
+          },
+          "id": {
+            "$ref": "#/components/schemas/WrappedUuidV4"
+          },
+          "title": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "updated_at": {
+            "$ref": "#/components/schemas/WrappedChronoDateTime"
+          }
+        }
       },
       "ChatKitSessionWithParticipants": {
         "type": "object",
@@ -41984,6 +43541,24 @@
           }
         }
       },
+      "ConfigureHostedOpenBotInstanceRequest": {
+        "type": "object",
+        "required": [
+          "environment"
+        ],
+        "properties": {
+          "environment": {
+            "type": "object",
+            "description": "User-owned runtime values installed into the canonical runtime project. Legacy split\ninstances continue to receive the values in both existing projects. Tilde derives tenant,\ninstance, OAuth, Computer, project, and platform identity from authenticated server state.",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "propertyNames": {
+              "type": "string"
+            }
+          }
+        }
+      },
       "ConnectMcpProviderCatalogEntryRequestInner": {
         "type": "object",
         "description": "User-controlled values accepted by every automatic catalogue connection.",
@@ -42306,85 +43881,33 @@
           }
         }
       },
-      "CreateBrowserDefinitionInner": {
+      "CreateAttachmentUploadsInner": {
         "type": "object",
-        "description": "Create-browser body.",
+        "description": "Batch of attachment upload requests for one ChatKit session.",
         "required": [
-          "name"
+          "items"
         ],
         "properties": {
-          "managed_credential_ids": {
+          "items": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/WrappedUuidV4"
+              "$ref": "#/components/schemas/CreateAttachmentUploadInner"
             }
-          },
-          "name": {
-            "type": "string"
           }
         }
       },
-      "CreateBrowserSessionInner": {
+      "CreateAttachmentUploadsResponse": {
         "type": "object",
-        "description": "Create-session body.",
+        "description": "Batch of presigned attachment uploads.",
+        "required": [
+          "items"
+        ],
         "properties": {
-          "context_id": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "initial_url": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "keep_alive": {
-            "type": "boolean"
-          },
-          "metadata": {
-            "oneOf": [
-              {
-                "type": "null"
-              },
-              {
-                "$ref": "#/components/schemas/WrappedJsonValue"
-              }
-            ]
-          },
-          "name": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "region": {
-            "oneOf": [
-              {
-                "type": "null"
-              },
-              {
-                "$ref": "#/components/schemas/BrowserbaseRegion"
-              }
-            ]
-          },
-          "timeout_seconds": {
-            "type": [
-              "integer",
-              "null"
-            ],
-            "format": "int64"
-          },
-          "viewport": {
-            "oneOf": [
-              {
-                "type": "null"
-              },
-              {
-                "$ref": "#/components/schemas/BrowserViewport"
-              }
-            ]
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CreateAttachmentUploadResponse"
+            }
           }
         }
       },
@@ -42519,6 +44042,70 @@
           },
           "tool_group_instance": {
             "$ref": "#/components/schemas/ToolGroupInstanceSerialized"
+          }
+        }
+      },
+      "CreateHostedOpenBotDeploymentRequest": {
+        "type": "object",
+        "required": [
+          "title",
+          "slug"
+        ],
+        "properties": {
+          "slug": {
+            "type": "string",
+            "description": "Globally unique label used for deterministic Tilde and Vercel resources."
+          },
+          "title": {
+            "type": "string",
+            "description": "User-facing title for the isolated OpenBot instance and its Tilde team."
+          }
+        }
+      },
+      "CreateHostedOpenBotReleaseFile": {
+        "type": "object",
+        "required": [
+          "path",
+          "sha1",
+          "size",
+          "mode"
+        ],
+        "properties": {
+          "mode": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "path": {
+            "type": "string"
+          },
+          "sha1": {
+            "type": "string"
+          },
+          "size": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "CreateHostedOpenBotReleaseRequest": {
+        "type": "object",
+        "required": [
+          "service",
+          "source_revision",
+          "files"
+        ],
+        "properties": {
+          "files": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CreateHostedOpenBotReleaseFile"
+            }
+          },
+          "service": {
+            "$ref": "#/components/schemas/HostedOpenBotReleaseService"
+          },
+          "source_revision": {
+            "type": "string"
           }
         }
       },
@@ -44851,6 +46438,17 @@
           }
         }
       },
+      "DeleteAutomationResponse": {
+        "type": "object",
+        "required": [
+          "deleted"
+        ],
+        "properties": {
+          "deleted": {
+            "type": "boolean"
+          }
+        }
+      },
       "DeleteChatKitAgentTurnQueueItemResponse": {
         "type": "object",
         "required": [
@@ -44987,6 +46585,139 @@
         ],
         "properties": {
           "path": {
+            "type": "string"
+          }
+        }
+      },
+      "EnableAndBindMcpServerResult": {
+        "type": "object",
+        "description": "Per-server result for an enable-and-bind operation.",
+        "required": [
+          "mcp_server_instance_id",
+          "succeeded",
+          "bound_tool_source_type_ids",
+          "already_bound_tool_source_type_ids"
+        ],
+        "properties": {
+          "already_bound_tool_source_type_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "bound_tool_source_type_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "error": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "mcp_server_instance_id": {
+            "type": "string"
+          },
+          "succeeded": {
+            "type": "boolean"
+          }
+        }
+      },
+      "EnableAndBindToolFailure": {
+        "type": "object",
+        "description": "A tool that could not be enabled. Other selected tools may still be bound.",
+        "required": [
+          "tool_source_type_id",
+          "error"
+        ],
+        "properties": {
+          "error": {
+            "type": "string"
+          },
+          "tool_source_type_id": {
+            "type": "string"
+          }
+        }
+      },
+      "EnableAndBindToolsBody": {
+        "type": "object",
+        "description": "Public body for enabling provider tools and binding them to MCP servers.",
+        "required": [
+          "mcp_server_instance_ids"
+        ],
+        "properties": {
+          "all_tools": {
+            "type": "boolean",
+            "description": "Select every tool exposed by the provider account. Must be false when\n`tool_source_type_ids` is non-empty."
+          },
+          "mcp_server_instance_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 50,
+            "minItems": 1
+          },
+          "tool_source_type_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Explicit tools to enable when `all_tools` is false.",
+            "maxItems": 500
+          }
+        }
+      },
+      "EnableAndBindToolsResponse": {
+        "type": "object",
+        "description": "Observable result of enabling tools and binding them to one or more MCP servers.",
+        "required": [
+          "tool_group_instance_id",
+          "selected_tool_source_type_ids",
+          "enabled_tool_source_type_ids",
+          "already_enabled_tool_source_type_ids",
+          "failed_tools",
+          "mcp_servers",
+          "complete"
+        ],
+        "properties": {
+          "already_enabled_tool_source_type_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "complete": {
+            "type": "boolean",
+            "description": "True only when every selected tool was enabled and every server binding succeeded."
+          },
+          "enabled_tool_source_type_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "failed_tools": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EnableAndBindToolFailure"
+            }
+          },
+          "mcp_servers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EnableAndBindMcpServerResult"
+            }
+          },
+          "selected_tool_source_type_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "tool_group_instance_id": {
             "type": "string"
           }
         }
@@ -45252,70 +46983,6 @@
           }
         }
       },
-      "FillFormBody": {
-        "type": "object",
-        "required": [
-          "instruction"
-        ],
-        "properties": {
-          "browser_definition_id": {
-            "oneOf": [
-              {
-                "type": "null"
-              },
-              {
-                "$ref": "#/components/schemas/WrappedUuidV4"
-              }
-            ]
-          },
-          "instruction": {
-            "type": "string"
-          }
-        }
-      },
-      "FillFormResponse": {
-        "type": "object",
-        "required": [
-          "id",
-          "browser_session_id",
-          "state",
-          "submitted",
-          "filled_fields_count",
-          "selected_credential_count",
-          "runtime_event_id"
-        ],
-        "properties": {
-          "browser_session_id": {
-            "$ref": "#/components/schemas/WrappedUuidV4"
-          },
-          "error": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "filled_fields_count": {
-            "type": "integer",
-            "minimum": 0
-          },
-          "id": {
-            "$ref": "#/components/schemas/WrappedUuidV4"
-          },
-          "runtime_event_id": {
-            "$ref": "#/components/schemas/WrappedUuidV4"
-          },
-          "selected_credential_count": {
-            "type": "integer",
-            "minimum": 0
-          },
-          "state": {
-            "type": "string"
-          },
-          "submitted": {
-            "type": "boolean"
-          }
-        }
-      },
       "GenerateLocalRuntimeTunnelApiKeyResponse": {
         "type": "object",
         "required": [
@@ -45517,6 +47184,301 @@
             "type": "string"
           }
         }
+      },
+      "HostedOpenBotDeployment": {
+        "type": "object",
+        "required": [
+          "instance_id",
+          "title",
+          "slug",
+          "org_id",
+          "team_id",
+          "hostname",
+          "deployment_url",
+          "status",
+          "vercel_control_project",
+          "vercel_agent_project",
+          "vercel_sandbox",
+          "bootstrap_command_id",
+          "oauth"
+        ],
+        "properties": {
+          "bootstrap_command_id": {
+            "type": "string"
+          },
+          "deployment_url": {
+            "type": "string"
+          },
+          "hostname": {
+            "type": "string"
+          },
+          "instance_id": {
+            "type": "string"
+          },
+          "oauth": {
+            "$ref": "#/components/schemas/OpenBotDeployment"
+          },
+          "org_id": {
+            "type": "string"
+          },
+          "slug": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "team_id": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "vercel_agent_project": {
+            "type": "string",
+            "description": "Deprecated compatibility projection. New instances mirror the runtime project here.",
+            "deprecated": true
+          },
+          "vercel_control_project": {
+            "type": "string",
+            "description": "Deprecated compatibility projection. New instances mirror the runtime project here.",
+            "deprecated": true
+          },
+          "vercel_runtime_project": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Canonical Vercel project for combined web, control, and agent runtime releases.\nThis is absent only for pre-consolidation instances that still use split projects."
+          },
+          "vercel_sandbox": {
+            "type": "string"
+          }
+        }
+      },
+      "HostedOpenBotInstance": {
+        "type": "object",
+        "required": [
+          "id",
+          "org_id",
+          "team_id",
+          "title",
+          "slug",
+          "hostname",
+          "status",
+          "vercel_control_project_id",
+          "vercel_control_project_name",
+          "vercel_agent_project_id",
+          "vercel_agent_project_name",
+          "vercel_sandbox_name",
+          "computer_service_url",
+          "created_at",
+          "updated_at"
+        ],
+        "properties": {
+          "bootstrap_command_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "computer_image": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "computer_service_url": {
+            "type": "string"
+          },
+          "created_at": {
+            "$ref": "#/components/schemas/WrappedChronoDateTime"
+          },
+          "hostname": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "org_id": {
+            "type": "string"
+          },
+          "slug": {
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/HostedOpenBotInstanceStatus"
+          },
+          "team_id": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "updated_at": {
+            "$ref": "#/components/schemas/WrappedChronoDateTime"
+          },
+          "vercel_agent_project_id": {
+            "type": "string",
+            "description": "Deprecated compatibility projection. New instances mirror the runtime project here.",
+            "deprecated": true
+          },
+          "vercel_agent_project_name": {
+            "type": "string",
+            "description": "Deprecated compatibility projection. New instances mirror the runtime project here.",
+            "deprecated": true
+          },
+          "vercel_control_project_id": {
+            "type": "string",
+            "description": "Deprecated compatibility projection. New instances mirror the runtime project here.",
+            "deprecated": true
+          },
+          "vercel_control_project_name": {
+            "type": "string",
+            "description": "Deprecated compatibility projection. New instances mirror the runtime project here.",
+            "deprecated": true
+          },
+          "vercel_runtime_project_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Canonical Vercel project ID for combined web, control, and agent runtime releases.\nThis is absent on legacy instances that retain split control and agent projects."
+          },
+          "vercel_runtime_project_name": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Canonical Vercel project name for combined web, control, and agent runtime releases.\nThis is absent on legacy instances that retain split control and agent projects."
+          },
+          "vercel_sandbox_name": {
+            "type": "string"
+          }
+        }
+      },
+      "HostedOpenBotInstanceStatus": {
+        "type": "string",
+        "enum": [
+          "provisioning",
+          "active",
+          "error",
+          "deleting"
+        ]
+      },
+      "HostedOpenBotRelease": {
+        "type": "object",
+        "required": [
+          "id",
+          "instance_id",
+          "org_id",
+          "team_id",
+          "service",
+          "source_revision",
+          "status",
+          "files",
+          "created_at",
+          "updated_at"
+        ],
+        "properties": {
+          "created_at": {
+            "$ref": "#/components/schemas/WrappedChronoDateTime"
+          },
+          "deployment_url": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "error_message": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "files": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HostedOpenBotReleaseFile"
+            }
+          },
+          "id": {
+            "type": "string"
+          },
+          "instance_id": {
+            "type": "string"
+          },
+          "org_id": {
+            "type": "string"
+          },
+          "service": {
+            "$ref": "#/components/schemas/HostedOpenBotReleaseService"
+          },
+          "source_revision": {
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/HostedOpenBotReleaseStatus"
+          },
+          "team_id": {
+            "type": "string"
+          },
+          "updated_at": {
+            "$ref": "#/components/schemas/WrappedChronoDateTime"
+          },
+          "vercel_deployment_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "HostedOpenBotReleaseFile": {
+        "type": "object",
+        "required": [
+          "path",
+          "sha1",
+          "size",
+          "mode",
+          "uploaded"
+        ],
+        "properties": {
+          "mode": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "path": {
+            "type": "string"
+          },
+          "sha1": {
+            "type": "string"
+          },
+          "size": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "uploaded": {
+            "type": "boolean"
+          }
+        }
+      },
+      "HostedOpenBotReleaseService": {
+        "type": "string",
+        "enum": [
+          "runtime",
+          "control",
+          "agents"
+        ]
+      },
+      "HostedOpenBotReleaseStatus": {
+        "type": "string",
+        "enum": [
+          "uploading",
+          "finalizing",
+          "deploying",
+          "ready",
+          "failed"
+        ]
       },
       "Human": {
         "type": "object",
@@ -46232,6 +48194,24 @@
           }
         }
       },
+      "IssueMissionControlSocketTicketRequest": {
+        "type": "object",
+        "required": [
+          "transport"
+        ],
+        "properties": {
+          "origin": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Required for browser tickets and forbidden for native tickets. Browser\norigins must match this OpenBot registration."
+          },
+          "transport": {
+            "$ref": "#/components/schemas/MissionControlTicketTransport"
+          }
+        }
+      },
       "JsonEqualsPredicate": {
         "type": "object",
         "required": [
@@ -46366,6 +48346,13 @@
             "items": {
               "$ref": "#/components/schemas/ProviderSetupDescriptor"
             }
+          },
+          "resources": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WrappedJsonValue"
+            },
+            "description": "Existing domain resources that can be selected without another list request."
           }
         }
       },
@@ -48130,6 +50117,12 @@
           "id": {
             "type": "string"
           },
+          "last_message_preview": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "last_user_message_at": {
             "oneOf": [
               {
@@ -48151,6 +50144,105 @@
           },
           "updated_at": {
             "$ref": "#/components/schemas/WrappedChronoDateTime"
+          }
+        }
+      },
+      "MissionControlAttachmentCompletion": {
+        "type": "object",
+        "description": "Attachment upload details finalized atomically with a submitted turn.",
+        "required": [
+          "attachment_id"
+        ],
+        "properties": {
+          "attachment_id": {
+            "$ref": "#/components/schemas/WrappedUuidV4"
+          },
+          "sha256": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "size_bytes": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          }
+        }
+      },
+      "MissionControlBootstrapResponse": {
+        "type": "object",
+        "description": "Mission Control bootstrap projection for the sidebar and optional active conversation.",
+        "required": [
+          "sidebar"
+        ],
+        "properties": {
+          "active_conversation": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/MissionControlConversationSnapshot"
+              }
+            ]
+          },
+          "active_session_id": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/WrappedUuidV4"
+              }
+            ]
+          },
+          "sidebar": {
+            "$ref": "#/components/schemas/MissionControlSidebarResponse"
+          }
+        }
+      },
+      "MissionControlConversationSnapshot": {
+        "type": "object",
+        "description": "Initial messages and pending queue state for one Mission Control session.",
+        "required": [
+          "messages",
+          "queued_turns",
+          "snapshot_revision"
+        ],
+        "properties": {
+          "messages": {
+            "$ref": "#/components/schemas/MessagePaginatedResponse"
+          },
+          "queued_turns": {
+            "$ref": "#/components/schemas/MissionControlQueuedTurns"
+          },
+          "snapshot_revision": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "MissionControlQueuedTurns": {
+        "type": "object",
+        "description": "Concrete pending-turn page used by Mission Control aggregate responses.",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ChatKitAgentTurnQueueItem"
+            }
+          },
+          "next_page_token": {
+            "type": [
+              "string",
+              "null"
+            ]
           }
         }
       },
@@ -48213,6 +50305,34 @@
             ]
           }
         }
+      },
+      "MissionControlSocketTicket": {
+        "type": "object",
+        "required": [
+          "ticket",
+          "protocol",
+          "expires_at"
+        ],
+        "properties": {
+          "expires_at": {
+            "$ref": "#/components/schemas/WrappedChronoDateTime"
+          },
+          "protocol": {
+            "type": "string",
+            "description": "Stable subprotocol prefix. Append `.` and the returned ticket."
+          },
+          "ticket": {
+            "type": "string",
+            "description": "Short-lived credential presented through the WebSocket subprotocol header."
+          }
+        }
+      },
+      "MissionControlTicketTransport": {
+        "type": "string",
+        "enum": [
+          "browser",
+          "native"
+        ]
       },
       "MoveWikiPageBody": {
         "type": "object",
@@ -48298,6 +50418,29 @@
           }
         }
       },
+      "OpenBotAgentSkillInput": {
+        "type": "object",
+        "required": [
+          "name",
+          "description",
+          "content",
+          "source_path"
+        ],
+        "properties": {
+          "content": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "source_path": {
+            "type": "string"
+          }
+        }
+      },
       "OpenBotDeployment": {
         "type": "object",
         "required": [
@@ -48355,6 +50498,63 @@
           },
           "updated_at": {
             "$ref": "#/components/schemas/WrappedChronoDateTime"
+          }
+        }
+      },
+      "OpenBotPluginsCatalogResponse": {
+        "type": "object",
+        "description": "Inputs needed to render and mutate the OpenBot plugins screen.",
+        "required": [
+          "tool_providers",
+          "tool_accounts",
+          "mcp_servers",
+          "proxied_mcp_servers",
+          "skills",
+          "skill_providers",
+          "skill_registries"
+        ],
+        "properties": {
+          "mcp_servers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WrappedJsonValue"
+            }
+          },
+          "proxied_mcp_servers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WrappedJsonValue"
+            }
+          },
+          "skill_providers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WrappedJsonValue"
+            }
+          },
+          "skill_registries": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WrappedJsonValue"
+            }
+          },
+          "skills": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WrappedJsonValue"
+            }
+          },
+          "tool_accounts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WrappedJsonValue"
+            }
+          },
+          "tool_providers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WrappedJsonValue"
+            }
           }
         }
       },
@@ -50922,6 +53122,44 @@
         ],
         "description": "How a stored credential is materialized into HTTP request shape when the\nproxy forwards a request upstream."
       },
+      "PutAutomationBody": {
+        "type": "object",
+        "required": [
+          "agent_id",
+          "name",
+          "instruction",
+          "triggers"
+        ],
+        "properties": {
+          "agent_id": {
+            "type": "string"
+          },
+          "authorization": {
+            "$ref": "#/components/schemas/ResourceAuthorizationModes"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "initial_grants": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ResourceGrantRequest"
+            }
+          },
+          "instruction": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "triggers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AutomationTriggerInput"
+            }
+          }
+        }
+      },
       "ReasoningUIPart": {
         "type": "object",
         "description": "Reasoning UI part - represents model reasoning/thinking",
@@ -50969,6 +53207,102 @@
           },
           "query": {
             "type": "string"
+          }
+        }
+      },
+      "ReconcileOpenBotAgentBundleBody": {
+        "type": "object",
+        "required": [
+          "display_name",
+          "endpoint_url",
+          "channel_id",
+          "channel_display_name",
+          "skill_registry_name",
+          "skill_registry_description",
+          "mcp_server_id",
+          "mcp_server_name"
+        ],
+        "properties": {
+          "channel_display_name": {
+            "type": "string"
+          },
+          "channel_id": {
+            "type": "string"
+          },
+          "display_name": {
+            "type": "string"
+          },
+          "endpoint_credentials_available": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "Whether the caller still has the agent's one-time endpoint credentials.\n`false` replaces an otherwise unrecoverable existing agent before reconciliation."
+          },
+          "endpoint_url": {
+            "type": "string"
+          },
+          "local_running_endpoint": {
+            "type": "boolean"
+          },
+          "mcp_server_id": {
+            "type": "string"
+          },
+          "mcp_server_name": {
+            "type": "string"
+          },
+          "skill_registry_description": {
+            "type": "string"
+          },
+          "skill_registry_name": {
+            "type": "string"
+          },
+          "skills": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OpenBotAgentSkillInput"
+            }
+          },
+          "tool_group_instance_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "ReconcileOpenBotAgentBundleResponse": {
+        "type": "object",
+        "required": [
+          "agent",
+          "channel",
+          "skill_registry",
+          "mcp_server"
+        ],
+        "properties": {
+          "agent": {
+            "$ref": "#/components/schemas/Inbox"
+          },
+          "api_key": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "channel": {
+            "$ref": "#/components/schemas/Inbox"
+          },
+          "mcp_server": {
+            "$ref": "#/components/schemas/McpServerInstanceSerializedWithFunctions"
+          },
+          "skill_registry": {
+            "$ref": "#/components/schemas/SkillRegistry"
+          },
+          "webhook_signing_key": {
+            "type": [
+              "string",
+              "null"
+            ]
           }
         }
       },
@@ -52430,6 +54764,37 @@
           }
         }
       },
+      "RunAutomationBody": {
+        "type": "object",
+        "required": [
+          "run_id"
+        ],
+        "properties": {
+          "run_id": {
+            "$ref": "#/components/schemas/WrappedUuidV4",
+            "description": "Stable client run identity used for deduplication."
+          }
+        }
+      },
+      "RunAutomationResponse": {
+        "type": "object",
+        "required": [
+          "run_id",
+          "session_id",
+          "duplicate"
+        ],
+        "properties": {
+          "duplicate": {
+            "type": "boolean"
+          },
+          "run_id": {
+            "$ref": "#/components/schemas/WrappedUuidV4"
+          },
+          "session_id": {
+            "$ref": "#/components/schemas/WrappedUuidV4"
+          }
+        }
+      },
       "RuntimeConfig": {
         "type": "object",
         "required": [
@@ -52476,16 +54841,6 @@
             ]
           }
         }
-      },
-      "RuntimeStatus": {
-        "type": "string",
-        "description": "Trusted extension runtime connection status for a Tilde browser session.",
-        "enum": [
-          "waiting",
-          "connected",
-          "disconnected",
-          "error"
-        ]
       },
       "SelectDebugAuthProfileRequest": {
         "type": "object",
@@ -54585,6 +56940,7 @@
         "type": "object",
         "description": "Stored event representation returned by event-history routes.",
         "required": [
+          "revision",
           "id",
           "kind",
           "payload",
@@ -54623,6 +56979,11 @@
           "payload": {
             "$ref": "#/components/schemas/WrappedJsonValue"
           },
+          "revision": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Monotonically increasing durable event revision."
+          },
           "session_id": {
             "type": [
               "string",
@@ -54645,6 +57006,56 @@
           },
           "next_page_token": {
             "type": "string"
+          }
+        }
+      },
+      "SubmitMissionControlTurnRequestInner": {
+        "type": "object",
+        "description": "Body for creating a session when needed and submitting one owner turn.",
+        "required": [
+          "text"
+        ],
+        "properties": {
+          "attachments": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MissionControlAttachmentCompletion"
+            }
+          },
+          "session_id": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/WrappedUuidV4"
+              }
+            ]
+          },
+          "text": {
+            "type": "string"
+          },
+          "title": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "SubmitMissionControlTurnResponse": {
+        "type": "object",
+        "description": "Result of submitting one owner turn with canonical conversation state.",
+        "required": [
+          "session",
+          "conversation"
+        ],
+        "properties": {
+          "conversation": {
+            "$ref": "#/components/schemas/MissionControlConversationSnapshot"
+          },
+          "session": {
+            "$ref": "#/components/schemas/Session"
           }
         }
       },
@@ -55911,59 +58322,6 @@
         ],
         "description": "Union of all UI message part types"
       },
-      "UpdateBrowserDefinitionBody": {
-        "type": "object",
-        "description": "Update-browser body.",
-        "properties": {
-          "managed_credential_ids": {
-            "type": [
-              "array",
-              "null"
-            ],
-            "items": {
-              "$ref": "#/components/schemas/WrappedUuidV4"
-            }
-          },
-          "name": {
-            "type": [
-              "string",
-              "null"
-            ]
-          }
-        }
-      },
-      "UpdateBrowserSessionBody": {
-        "type": "object",
-        "description": "Update-session body.",
-        "properties": {
-          "metadata": {
-            "oneOf": [
-              {
-                "type": "null"
-              },
-              {
-                "$ref": "#/components/schemas/WrappedJsonValue"
-              }
-            ]
-          },
-          "name": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "status": {
-            "oneOf": [
-              {
-                "type": "null"
-              },
-              {
-                "$ref": "#/components/schemas/BrowserSessionUpdateStatus"
-              }
-            ]
-          }
-        }
-      },
       "UpdateChatKitChatProviderRequestInner": {
         "type": "object",
         "description": "Request body for updating a ChatKit chat provider.",
@@ -56043,6 +58401,18 @@
               "boolean",
               "null"
             ]
+          }
+        }
+      },
+      "UpdateHostedOpenBotComputerImageRequest": {
+        "type": "object",
+        "required": [
+          "image"
+        ],
+        "properties": {
+          "image": {
+            "type": "string",
+            "description": "Immutable VCR digest scoped to this instance's runtime project, or its legacy control\nproject for a pre-consolidation instance."
           }
         }
       },

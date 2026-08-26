@@ -295,22 +295,31 @@ export function createOpenBotRuntime(options: OpenBotRuntimeOptions): OpenBotRun
     }
   }
 
-  async function refreshSidebar(silent = false): Promise<void> {
+  async function refreshSidebar(silent = false, hydrateMessagePreviews = true): Promise<void> {
     if (!silent) updateSidebar({ loading: true, error: "" });
     try {
       const response = await options.client.getSidebar("", agentSort, sessionSort);
-      const agents = await Promise.all(
-        response.items.map(async (agent) => {
-          const latestSession = agent.sessions.items[0];
-          if (!latestSession) return agent;
-          try {
-            const page = await options.client.getMessages(latestSession.id);
-            return { ...agent, last_message_preview: latestMessagePreview(page.items) };
-          } catch {
-            return agent;
-          }
-        }),
-      );
+      const agents = hydrateMessagePreviews
+        ? await Promise.all(
+            response.items.map(async (agent) => {
+              const latestSession = agent.sessions.items[0];
+              if (!latestSession) return agent;
+              try {
+                const page = await options.client.getMessages(latestSession.id);
+                return { ...agent, last_message_preview: latestMessagePreview(page.items) };
+              } catch {
+                return agent;
+              }
+            }),
+          )
+        : response.items.map((agent) => {
+            const existing = store
+              .getState()
+              .sidebar.agents.find((candidate) => candidate.id === agent.id);
+            return agent.last_message_preview || !existing?.last_message_preview
+              ? agent
+              : { ...agent, last_message_preview: existing.last_message_preview };
+          });
       const currentAgentId = store.getState().sidebar.selectedAgentId;
       const selectedAgentId = agents.some((agent) => agent.id === currentAgentId)
         ? currentAgentId
@@ -546,7 +555,9 @@ export function createOpenBotRuntime(options: OpenBotRuntimeOptions): OpenBotRun
               rememberMissionControlEvent(event.id, seenEventIds);
             },
             async () => {
-              await refreshSidebar(true);
+              // The socket-ready barrier must not wait for every inactive bot's message preview.
+              // One slow history request would otherwise hold every subsequent live event.
+              await refreshSidebar(true, false);
               const sessionId = store.getState().conversation.selectedSessionId;
               if (sessionId)
                 await Promise.all([refreshMessages(sessionId), refreshQueue(sessionId)]);

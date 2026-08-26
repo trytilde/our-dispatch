@@ -189,6 +189,76 @@ export type AutoProvisionToolGroupInstanceResponse = {
     tool_group_instance?: null | ToolGroupInstanceSerialized;
 };
 
+export type Automation = {
+    agent_id: string;
+    applied_generation: number;
+    authorization: ResourceAuthorizationModes;
+    created_at: WrappedChronoDateTime;
+    created_by_user_id: string;
+    enabled: boolean;
+    error_message?: string | null;
+    generation: number;
+    id: WrappedUuidV4;
+    instruction: string;
+    /**
+     * Execution error paired with the latest materialized schedule execution.
+     */
+    last_error?: string | null;
+    last_run_at?: null | WrappedChronoDateTime;
+    last_session_id?: null | WrappedUuidV4;
+    name: string;
+    org_id: string;
+    status: AutomationStatus;
+    team_id: string;
+    triggers: Array<AutomationTrigger>;
+    updated_at: WrappedChronoDateTime;
+};
+
+export type AutomationPaginatedResponse = {
+    items: Array<Automation>;
+    next_page_token?: string;
+};
+
+export enum AutomationStatus {
+    RECONCILING = 'reconciling',
+    ACTIVE = 'active',
+    ERROR = 'error',
+    DELETING = 'deleting'
+}
+
+export type AutomationTrigger = AutomationTriggerSpec & {
+    created_at: WrappedChronoDateTime;
+    id: WrappedUuidV4;
+    /**
+     * Schedule-only live projection from the materialized ChatKit routine.
+     */
+    last_error?: string | null;
+    last_run_at?: null | WrappedChronoDateTime;
+    last_session_id?: null | WrappedUuidV4;
+    materialized_resource_id?: null | WrappedUuidV4;
+    next_run_at?: null | WrappedChronoDateTime;
+    /**
+     * Schedule-only live projection from the materialized ChatKit routine.
+     */
+    schedule_description?: string | null;
+    updated_at: WrappedChronoDateTime;
+};
+
+export type AutomationTriggerInput = AutomationTriggerSpec & {
+    id: WrappedUuidV4;
+};
+
+export type AutomationTriggerSpec = {
+    kind: 'schedule';
+    schedule: string;
+} | {
+    filter?: SignalRuleFilter;
+    kind: 'event';
+    session_policy?: null | SignalSessionPolicy;
+    signal_provider_instance_id: string;
+    signal_type: string;
+};
+
 /**
  * Typed billing bootstrap response for the selected organization.
  */
@@ -243,136 +313,6 @@ export type BrokerState = {
     team_id: string;
     updated_at: WrappedChronoDateTime;
 };
-
-/**
- * Reusable browser definition that controls which managed credentials are
- * surfaced to browser automation tools.
- */
-export type BrowserDefinition = {
-    created_at: WrappedChronoDateTime;
-    deleted_at?: null | WrappedChronoDateTime;
-    id: WrappedUuidV4;
-    managed_credential_ids: Array<WrappedUuidV4>;
-    name: string;
-    org_id: string;
-    team_id: string;
-    tool_group_instance_id?: string | null;
-    updated_at: WrappedChronoDateTime;
-};
-
-export type BrowserDefinitionPaginatedResponse = {
-    items: Array<BrowserDefinition>;
-    next_page_token?: string;
-};
-
-/**
- * Persisted browser session row.
- */
-export type BrowserSession = {
-    browser_settings: BrowserSettings;
-    browserbase_created_at?: null | WrappedChronoDateTime;
-    browserbase_extension_id: string;
-    browserbase_project_id?: string | null;
-    browserbase_session_id: string;
-    browserbase_updated_at?: null | WrappedChronoDateTime;
-    context_id?: string | null;
-    created_at: WrappedChronoDateTime;
-    current_title?: string | null;
-    current_url?: string | null;
-    deleted_at?: null | WrappedChronoDateTime;
-    ended_at?: null | WrappedChronoDateTime;
-    expires_at?: null | WrappedChronoDateTime;
-    extension_version: string;
-    id: WrappedUuidV4;
-    keep_alive: boolean;
-    name?: string | null;
-    org_id: string;
-    proxy_bytes: number;
-    region?: null | BrowserbaseRegion;
-    runtime_last_seen_at?: null | WrappedChronoDateTime;
-    runtime_status: RuntimeStatus;
-    started_at?: null | WrappedChronoDateTime;
-    status: BrowserSessionStatus;
-    team_id: string;
-    updated_at: WrappedChronoDateTime;
-    user_metadata: WrappedJsonValue;
-};
-
-/**
- * Browserbase live/debug URL response.
- */
-export type BrowserSessionDebug = {
-    debugger_fullscreen_url: string;
-    debugger_url: string;
-    pages: Array<BrowserSessionDebugPage>;
-    ws_url: string;
-};
-
-/**
- * Browserbase live/debug URL response.
- */
-export type BrowserSessionDebugPage = {
-    debugger_fullscreen_url?: string | null;
-    debugger_url?: string | null;
-    favicon_url?: string | null;
-    id: string;
-    title?: string | null;
-    url: string;
-};
-
-export type BrowserSessionPaginatedResponse = {
-    items: Array<BrowserSession>;
-    next_page_token?: string;
-};
-
-/**
- * Browserbase lifecycle status mirrored onto Tilde sessions.
- */
-export enum BrowserSessionStatus {
-    PENDING = 'pending',
-    RUNNING = 'running',
-    ERROR = 'error',
-    TIMED_OUT = 'timed_out',
-    COMPLETED = 'completed',
-    RELEASE_REQUESTED = 'release_requested',
-    DELETED = 'deleted'
-}
-
-/**
- * Mutable lifecycle action accepted by PATCH.
- */
-export enum BrowserSessionUpdateStatus {
-    REQUEST_RELEASE = 'request_release'
-}
-
-/**
- * Browser settings stored locally and forwarded to Browserbase.
- */
-export type BrowserSettings = {
-    initial_url?: string | null;
-    keep_alive?: boolean;
-    region?: null | BrowserbaseRegion;
-    timeout_seconds?: number | null;
-    viewport?: null | BrowserViewport;
-};
-
-/**
- * A viewport requested for a Browserbase session.
- */
-export type BrowserViewport = {
-    height: number;
-    width: number;
-};
-
-/**
- * Browserbase regions supported by the Browserbase Sessions API.
- */
-export enum BrowserbaseRegion {
-    US_WEST_2 = 'us-west-2',
-    US_EAST_1 = 'us-east-1',
-    EU_CENTRAL_1 = 'eu-central-1',
-    AP_SOUTHEAST_1 = 'ap-southeast-1'
-}
 
 /**
  * One function mapping in a bulk add request.
@@ -624,6 +564,48 @@ export enum ChatKitParticipantType {
 }
 
 /**
+ * Agent context included when an agent identity or display name matched.
+ */
+export type ChatKitSearchAgent = {
+    display_name: string;
+    id: string;
+};
+
+/**
+ * One result from consolidated ChatKit full-text search.
+ */
+export type ChatKitSearchHit = {
+    agent?: null | ChatKitSearchAgent;
+    kind: ChatKitSearchHitKind;
+    message?: null | Message;
+    session: ChatKitSearchSession;
+};
+
+/**
+ * Kind of resource that matched a consolidated ChatKit search query.
+ */
+export enum ChatKitSearchHitKind {
+    SESSION_TITLE = 'session_title',
+    AGENT = 'agent',
+    MESSAGE = 'message'
+}
+
+export type ChatKitSearchHitPaginatedResponse = {
+    items: Array<ChatKitSearchHit>;
+    next_page_token?: string;
+};
+
+/**
+ * Session context included with every consolidated ChatKit search hit.
+ */
+export type ChatKitSearchSession = {
+    created_at: WrappedChronoDateTime;
+    id: WrappedUuidV4;
+    title?: string | null;
+    updated_at: WrappedChronoDateTime;
+};
+
+/**
  * ChatKit session response with explicit participants.
  */
 export type ChatKitSessionWithParticipants = {
@@ -805,6 +787,17 @@ export type ConfigurationSchema = {
     user_credential: JsonSchema;
 };
 
+export type ConfigureHostedOpenBotInstanceRequest = {
+    /**
+     * User-owned runtime values installed into the canonical runtime project. Legacy split
+     * instances continue to receive the values in both existing projects. Tilde derives tenant,
+     * instance, OAuth, Computer, project, and platform identity from authenticated server state.
+     */
+    environment: {
+        [key: string]: string;
+    };
+};
+
 /**
  * User-controlled values accepted by every automatic catalogue connection.
  */
@@ -899,25 +892,17 @@ export type CreateAttachmentUploadResponse = {
 };
 
 /**
- * Create-browser body.
+ * Batch of attachment upload requests for one ChatKit session.
  */
-export type CreateBrowserDefinitionInner = {
-    managed_credential_ids?: Array<WrappedUuidV4>;
-    name: string;
+export type CreateAttachmentUploadsInner = {
+    items: Array<CreateAttachmentUploadInner>;
 };
 
 /**
- * Create-session body.
+ * Batch of presigned attachment uploads.
  */
-export type CreateBrowserSessionInner = {
-    context_id?: string | null;
-    initial_url?: string | null;
-    keep_alive?: boolean;
-    metadata?: null | WrappedJsonValue;
-    name?: string | null;
-    region?: null | BrowserbaseRegion;
-    timeout_seconds?: number | null;
-    viewport?: null | BrowserViewport;
+export type CreateAttachmentUploadsResponse = {
+    items: Array<CreateAttachmentUploadResponse>;
 };
 
 /**
@@ -951,6 +936,30 @@ export type CreateCustomToolProviderResponse = {
     signing_key: string;
     signing_key_metadata: WebhookSigningKeyMetadata;
     tool_group_instance: ToolGroupInstanceSerialized;
+};
+
+export type CreateHostedOpenBotDeploymentRequest = {
+    /**
+     * Globally unique label used for deterministic Tilde and Vercel resources.
+     */
+    slug: string;
+    /**
+     * User-facing title for the isolated OpenBot instance and its Tilde team.
+     */
+    title: string;
+};
+
+export type CreateHostedOpenBotReleaseFile = {
+    mode: number;
+    path: string;
+    sha1: string;
+    size: number;
+};
+
+export type CreateHostedOpenBotReleaseRequest = {
+    files: Array<CreateHostedOpenBotReleaseFile>;
+    service: HostedOpenBotReleaseService;
+    source_revision: string;
 };
 
 export type CreateHumanApprovalActionRequestInner = {
@@ -1570,6 +1579,10 @@ export type DebugAuthProfilesResponse = {
     profiles: Array<string>;
 };
 
+export type DeleteAutomationResponse = {
+    deleted: boolean;
+};
+
 export type DeleteChatKitAgentTurnQueueItemResponse = {
     deleted: boolean;
 };
@@ -1624,6 +1637,57 @@ export type DirectTokenPayment = {
  */
 export type DownloadSkillPackageFileRequest = {
     path: string;
+};
+
+/**
+ * Per-server result for an enable-and-bind operation.
+ */
+export type EnableAndBindMcpServerResult = {
+    already_bound_tool_source_type_ids: Array<string>;
+    bound_tool_source_type_ids: Array<string>;
+    error?: string | null;
+    mcp_server_instance_id: string;
+    succeeded: boolean;
+};
+
+/**
+ * A tool that could not be enabled. Other selected tools may still be bound.
+ */
+export type EnableAndBindToolFailure = {
+    error: string;
+    tool_source_type_id: string;
+};
+
+/**
+ * Public body for enabling provider tools and binding them to MCP servers.
+ */
+export type EnableAndBindToolsBody = {
+    /**
+     * Select every tool exposed by the provider account. Must be false when
+     * `tool_source_type_ids` is non-empty.
+     */
+    all_tools?: boolean;
+    mcp_server_instance_ids: Array<string>;
+    /**
+     * Explicit tools to enable when `all_tools` is false.
+     */
+    tool_source_type_ids?: Array<string>;
+};
+
+/**
+ * Observable result of enabling tools and binding them to one or more MCP servers.
+ */
+export type EnableAndBindToolsResponse = {
+    already_enabled_tool_source_type_ids: Array<string>;
+    /**
+     * True only when every selected tool was enabled and every server binding succeeded.
+     */
+    complete: boolean;
+    enabled_tool_source_type_ids: Array<string>;
+    failed_tools: Array<EnableAndBindToolFailure>;
+    mcp_servers: Array<EnableAndBindMcpServerResult>;
+    selected_tool_source_type_ids: Array<string>;
+    tool_group_instance_id: string;
 };
 
 export type EnableToolInstanceParamsInner = {
@@ -1713,22 +1777,6 @@ export type FileUiPart = {
     url: string;
 };
 
-export type FillFormBody = {
-    browser_definition_id?: null | WrappedUuidV4;
-    instruction: string;
-};
-
-export type FillFormResponse = {
-    browser_session_id: WrappedUuidV4;
-    error?: string | null;
-    filled_fields_count: number;
-    id: WrappedUuidV4;
-    runtime_event_id: WrappedUuidV4;
-    selected_credential_count: number;
-    state: string;
-    submitted: boolean;
-};
-
 export type GenerateLocalRuntimeTunnelApiKeyResponse = {
     api_key: string;
     api_key_id: string;
@@ -1791,6 +1839,132 @@ export type HashedApiKey = {
 export type HealthCheckResponse = {
     status: string;
 };
+
+export type HostedOpenBotDeployment = {
+    bootstrap_command_id: string;
+    deployment_url: string;
+    hostname: string;
+    instance_id: string;
+    oauth: OpenBotDeployment;
+    org_id: string;
+    slug: string;
+    status: string;
+    team_id: string;
+    title: string;
+    /**
+     * Deprecated compatibility projection. New instances mirror the runtime project here.
+     *
+     * @deprecated
+     */
+    vercel_agent_project: string;
+    /**
+     * Deprecated compatibility projection. New instances mirror the runtime project here.
+     *
+     * @deprecated
+     */
+    vercel_control_project: string;
+    /**
+     * Canonical Vercel project for combined web, control, and agent runtime releases.
+     * This is absent only for pre-consolidation instances that still use split projects.
+     */
+    vercel_runtime_project?: string | null;
+    vercel_sandbox: string;
+};
+
+export type HostedOpenBotInstance = {
+    bootstrap_command_id?: string | null;
+    computer_image?: string | null;
+    computer_service_url: string;
+    created_at: WrappedChronoDateTime;
+    hostname: string;
+    id: string;
+    org_id: string;
+    slug: string;
+    status: HostedOpenBotInstanceStatus;
+    team_id: string;
+    title: string;
+    updated_at: WrappedChronoDateTime;
+    /**
+     * Deprecated compatibility projection. New instances mirror the runtime project here.
+     *
+     * @deprecated
+     */
+    vercel_agent_project_id: string;
+    /**
+     * Deprecated compatibility projection. New instances mirror the runtime project here.
+     *
+     * @deprecated
+     */
+    vercel_agent_project_name: string;
+    /**
+     * Deprecated compatibility projection. New instances mirror the runtime project here.
+     *
+     * @deprecated
+     */
+    vercel_control_project_id: string;
+    /**
+     * Deprecated compatibility projection. New instances mirror the runtime project here.
+     *
+     * @deprecated
+     */
+    vercel_control_project_name: string;
+    /**
+     * Canonical Vercel project ID for combined web, control, and agent runtime releases.
+     * This is absent on legacy instances that retain split control and agent projects.
+     */
+    vercel_runtime_project_id?: string | null;
+    /**
+     * Canonical Vercel project name for combined web, control, and agent runtime releases.
+     * This is absent on legacy instances that retain split control and agent projects.
+     */
+    vercel_runtime_project_name?: string | null;
+    vercel_sandbox_name: string;
+};
+
+export enum HostedOpenBotInstanceStatus {
+    PROVISIONING = 'provisioning',
+    ACTIVE = 'active',
+    ERROR = 'error',
+    DELETING = 'deleting'
+}
+
+export type HostedOpenBotRelease = {
+    created_at: WrappedChronoDateTime;
+    deployment_url?: string | null;
+    error_message?: string | null;
+    files: Array<HostedOpenBotReleaseFile>;
+    id: string;
+    instance_id: string;
+    org_id: string;
+    service: HostedOpenBotReleaseService;
+    source_revision: string;
+    status: HostedOpenBotReleaseStatus;
+    team_id: string;
+    updated_at: WrappedChronoDateTime;
+    vercel_deployment_id?: string | null;
+};
+
+export type HostedOpenBotReleaseFile = {
+    mode: number;
+    path: string;
+    sha1: string;
+    size: number;
+    uploaded: boolean;
+};
+
+export enum HostedOpenBotReleaseService {
+    RUNTIME = 'runtime',
+    CONTROL = 'control',
+    AGENTS = 'agents'
+}
+
+export enum HostedOpenBotReleaseStatus {
+    UPLOADING = 'uploading',
+    FINALIZING = 'finalizing',
+    DEPLOYING = 'deploying',
+    READY = 'ready',
+    FAILED = 'failed'
+}
 
 /**
  * Authenticated human identity.
@@ -2018,6 +2192,15 @@ export type InvokeToolInstanceParamsInner = {
     params: WrappedJsonValue;
 };
 
+export type IssueMissionControlSocketTicketRequest = {
+    /**
+     * Required for browser tickets and forbidden for native tickets. Browser
+     * origins must match this OpenBot registration.
+     */
+    origin?: string | null;
+    transport: MissionControlTicketTransport;
+};
+
 export type JsonEqualsPredicate = {
     path: string;
     value: {
@@ -2062,6 +2245,10 @@ export type ListOpenBotDeploymentsResponse = {
 export type ListProviderSetupCatalogResponse = {
     domain: string;
     providers: Array<ProviderSetupDescriptor>;
+    /**
+     * Existing domain resources that can be selected without another list request.
+     */
+    resources?: Array<WrappedJsonValue>;
 };
 
 export type ListProxiedSkillProvidersResponse = {
@@ -2612,11 +2799,47 @@ export type MissionControlAgentSummary = {
     endpoint_url?: string | null;
     has_vercel_ui_endpoint: boolean;
     id: string;
+    last_message_preview?: string | null;
     last_user_message_at?: null | WrappedChronoDateTime;
     provider_id: string;
     sessions: MissionControlAgentSessionsResponse;
     status: string;
     updated_at: WrappedChronoDateTime;
+};
+
+/**
+ * Attachment upload details finalized atomically with a submitted turn.
+ */
+export type MissionControlAttachmentCompletion = {
+    attachment_id: WrappedUuidV4;
+    sha256?: string | null;
+    size_bytes?: number | null;
+};
+
+/**
+ * Mission Control bootstrap projection for the sidebar and optional active conversation.
+ */
+export type MissionControlBootstrapResponse = {
+    active_conversation?: null | MissionControlConversationSnapshot;
+    active_session_id?: null | WrappedUuidV4;
+    sidebar: MissionControlSidebarResponse;
+};
+
+/**
+ * Initial messages and pending queue state for one Mission Control session.
+ */
+export type MissionControlConversationSnapshot = {
+    messages: MessagePaginatedResponse;
+    queued_turns: MissionControlQueuedTurns;
+    snapshot_revision: number;
+};
+
+/**
+ * Concrete pending-turn page used by Mission Control aggregate responses.
+ */
+export type MissionControlQueuedTurns = {
+    items: Array<ChatKitAgentTurnQueueItem>;
+    next_page_token?: string | null;
 };
 
 /**
@@ -2638,6 +2861,23 @@ export type MissionControlSidebarResponse = {
     items: Array<MissionControlAgentSummary>;
     next_page_token?: string | null;
 };
+
+export type MissionControlSocketTicket = {
+    expires_at: WrappedChronoDateTime;
+    /**
+     * Stable subprotocol prefix. Append `.` and the returned ticket.
+     */
+    protocol: string;
+    /**
+     * Short-lived credential presented through the WebSocket subprotocol header.
+     */
+    ticket: string;
+};
+
+export enum MissionControlTicketTransport {
+    BROWSER = 'browser',
+    NATIVE = 'native'
+}
 
 export type MoveWikiPageBody = {
     expected_revision: number;
@@ -2668,6 +2908,13 @@ export type OntologyRelationshipTypeDefinition = {
     target_page_type_keys: Array<string>;
 };
 
+export type OpenBotAgentSkillInput = {
+    content: string;
+    description: string;
+    name: string;
+    source_path: string;
+};
+
 export type OpenBotDeployment = {
     audience: string;
     authorization_endpoint: string;
@@ -2681,6 +2928,19 @@ export type OpenBotDeployment = {
     scope: string;
     token_endpoint: string;
     updated_at: WrappedChronoDateTime;
+};
+
+/**
+ * Inputs needed to render and mutate the OpenBot plugins screen.
+ */
+export type OpenBotPluginsCatalogResponse = {
+    mcp_servers: Array<WrappedJsonValue>;
+    proxied_mcp_servers: Array<WrappedJsonValue>;
+    skill_providers: Array<WrappedJsonValue>;
+    skill_registries: Array<WrappedJsonValue>;
+    skills: Array<WrappedJsonValue>;
+    tool_accounts: Array<WrappedJsonValue>;
+    tool_providers: Array<WrappedJsonValue>;
 };
 
 export type OrgOidcProvider = {
@@ -3374,6 +3634,16 @@ export type ProxyCredentialTemplate = {
     kind: 'query_param';
 };
 
+export type PutAutomationBody = {
+    agent_id: string;
+    authorization?: ResourceAuthorizationModes;
+    enabled?: boolean;
+    initial_grants?: Array<ResourceGrantRequest>;
+    instruction: string;
+    name: string;
+    triggers: Array<AutomationTriggerInput>;
+};
+
 /**
  * Reasoning UI part - represents model reasoning/thinking
  */
@@ -3386,6 +3656,34 @@ export type ReasoningUiPart = {
 export type RecallMemoryBody = {
     max_tokens?: number | null;
     query: string;
+};
+
+export type ReconcileOpenBotAgentBundleBody = {
+    channel_display_name: string;
+    channel_id: string;
+    display_name: string;
+    /**
+     * Whether the caller still has the agent's one-time endpoint credentials.
+     * `false` replaces an otherwise unrecoverable existing agent before reconciliation.
+     */
+    endpoint_credentials_available?: boolean | null;
+    endpoint_url: string;
+    local_running_endpoint?: boolean;
+    mcp_server_id: string;
+    mcp_server_name: string;
+    skill_registry_description: string;
+    skill_registry_name: string;
+    skills?: Array<OpenBotAgentSkillInput>;
+    tool_group_instance_ids?: Array<string>;
+};
+
+export type ReconcileOpenBotAgentBundleResponse = {
+    agent: Inbox;
+    api_key?: string | null;
+    channel: Inbox;
+    mcp_server: McpServerInstanceSerializedWithFunctions;
+    skill_registry: SkillRegistry;
+    webhook_signing_key?: string | null;
 };
 
 export type ReflectMemoryBody = {
@@ -3868,6 +4166,19 @@ export type RoutinePaginatedResponse = {
     next_page_token?: string;
 };
 
+export type RunAutomationBody = {
+    /**
+     * Stable client run identity used for deduplication.
+     */
+    run_id: WrappedUuidV4;
+};
+
+export type RunAutomationResponse = {
+    duplicate: boolean;
+    run_id: WrappedUuidV4;
+    session_id: WrappedUuidV4;
+};
+
 export type RuntimeConfig = {
     clerk_domain?: string | null;
     debug_auth_profiles_enabled: boolean;
@@ -3879,16 +4190,6 @@ export type RuntimeConfig = {
     sentry_dsn: string;
     sentry_react_dsn?: string | null;
 };
-
-/**
- * Trusted extension runtime connection status for a Tilde browser session.
- */
-export enum RuntimeStatus {
-    WAITING = 'waiting',
-    CONNECTED = 'connected',
-    DISCONNECTED = 'disconnected',
-    ERROR = 'error'
-}
 
 export type SelectDebugAuthProfileRequest = {
     profile: string;
@@ -4514,12 +4815,34 @@ export type StoredEvent = {
     kind: string;
     parent_session_id?: string | null;
     payload: WrappedJsonValue;
+    /**
+     * Monotonically increasing durable event revision.
+     */
+    revision: number;
     session_id?: string | null;
 };
 
 export type StoredEventPaginatedResponse = {
     items: Array<StoredEvent>;
     next_page_token?: string;
+};
+
+/**
+ * Body for creating a session when needed and submitting one owner turn.
+ */
+export type SubmitMissionControlTurnRequestInner = {
+    attachments?: Array<MissionControlAttachmentCompletion>;
+    session_id?: null | WrappedUuidV4;
+    text: string;
+    title?: string | null;
+};
+
+/**
+ * Result of submitting one owner turn with canonical conversation state.
+ */
+export type SubmitMissionControlTurnResponse = {
+    conversation: MissionControlConversationSnapshot;
+    session: Session;
 };
 
 /**
@@ -4883,23 +5206,6 @@ export type UiMessagePart = (TextUiPart & {
 });
 
 /**
- * Update-browser body.
- */
-export type UpdateBrowserDefinitionBody = {
-    managed_credential_ids?: Array<WrappedUuidV4> | null;
-    name?: string | null;
-};
-
-/**
- * Update-session body.
- */
-export type UpdateBrowserSessionBody = {
-    metadata?: null | WrappedJsonValue;
-    name?: string | null;
-    status?: null | BrowserSessionUpdateStatus;
-};
-
-/**
  * Request body for updating a ChatKit chat provider.
  */
 export type UpdateChatKitChatProviderRequestInner = {
@@ -4918,6 +5224,14 @@ export type UpdateCustomToolProviderRequestInner = {
     discovery_url?: string | null;
     display_name?: string | null;
     local_running_endpoint?: boolean | null;
+};
+
+export type UpdateHostedOpenBotComputerImageRequest = {
+    /**
+     * Immutable VCR digest scoped to this instance's runtime project, or its legacy control
+     * project for a pre-consolidation instance.
+     */
+    image: string;
 };
 
 /**
@@ -6685,6 +6999,48 @@ export type CreateOrganizationResponses = {
 
 export type CreateOrganizationResponse = CreateOrganizationResponses[keyof CreateOrganizationResponses];
 
+export type CreateHostedOpenbotDeploymentData = {
+    body: CreateHostedOpenBotDeploymentRequest;
+    path: {
+        /**
+         * Owning Tilde organization ID
+         */
+        org_id: string;
+    };
+    query?: never;
+    url: '/api/v1/identity/organizations/{org_id}/openbot/deployments';
+};
+
+export type CreateHostedOpenbotDeploymentErrors = {
+    /**
+     * Invalid title or slug
+     */
+    400: Error;
+    /**
+     * Unauthorized
+     */
+    401: Error;
+    /**
+     * Not an organization administrator
+     */
+    403: Error;
+    /**
+     * Hosted OpenBot provisioning is unavailable
+     */
+    503: Error;
+};
+
+export type CreateHostedOpenbotDeploymentError = CreateHostedOpenbotDeploymentErrors[keyof CreateHostedOpenbotDeploymentErrors];
+
+export type CreateHostedOpenbotDeploymentResponses = {
+    /**
+     * Hosted OpenBot provisioning started
+     */
+    200: HostedOpenBotDeployment;
+};
+
+export type CreateHostedOpenbotDeploymentResponse = CreateHostedOpenbotDeploymentResponses[keyof CreateHostedOpenbotDeploymentResponses];
+
 export type DeleteOrganizationData = {
     body?: never;
     path: {
@@ -7859,7 +8215,7 @@ export type ListPublicAvailableToolGroupsResponses = {
 
 export type ListPublicAvailableToolGroupsResponse = ListPublicAvailableToolGroupsResponses[keyof ListPublicAvailableToolGroupsResponses];
 
-export type ListBrowserDefinitionsData = {
+export type AutomationsListData = {
     body?: never;
     path: {
         /**
@@ -7868,291 +8224,205 @@ export type ListBrowserDefinitionsData = {
         team_id: string;
     };
     query?: {
+        agent_id?: string | null;
+        status?: null | AutomationStatus;
         page_size?: number;
         next_page_token?: string | null;
-        status?: null | BrowserSessionStatus;
-        runtime_status?: null | RuntimeStatus;
-        include_deleted?: boolean;
     };
-    url: '/api/v1/team/{team_id}/browser-definition';
+    url: '/api/v1/team/{team_id}/automations';
 };
 
-export type ListBrowserDefinitionsResponses = {
-    /**
-     * Browser definitions
-     */
-    200: BrowserDefinitionPaginatedResponse;
+export type AutomationsListResponses = {
+    200: AutomationPaginatedResponse;
 };
 
-export type ListBrowserDefinitionsResponse = ListBrowserDefinitionsResponses[keyof ListBrowserDefinitionsResponses];
+export type AutomationsListResponse = AutomationsListResponses[keyof AutomationsListResponses];
 
-export type CreateBrowserDefinitionData = {
-    body: CreateBrowserDefinitionInner;
-    path: {
-        /**
-         * Team ID
-         */
-        team_id: string;
-    };
-    query?: never;
-    url: '/api/v1/team/{team_id}/browser-definition';
-};
-
-export type CreateBrowserDefinitionResponses = {
-    /**
-     * Created browser definition
-     */
-    200: BrowserDefinition;
-};
-
-export type CreateBrowserDefinitionResponse = CreateBrowserDefinitionResponses[keyof CreateBrowserDefinitionResponses];
-
-export type DeleteBrowserDefinitionData = {
+export type AutomationsDeleteData = {
     body?: never;
     path: {
         /**
          * Team ID
          */
         team_id: string;
-        id: WrappedUuidV4;
+        automation_id: WrappedUuidV4;
     };
     query?: never;
-    url: '/api/v1/team/{team_id}/browser-definition/{id}';
+    url: '/api/v1/team/{team_id}/automations/{automation_id}';
 };
 
-export type DeleteBrowserDefinitionResponses = {
-    /**
-     * Deleted browser definition
-     */
+export type AutomationsDeleteResponses = {
+    200: DeleteAutomationResponse;
+};
+
+export type AutomationsDeleteResponse = AutomationsDeleteResponses[keyof AutomationsDeleteResponses];
+
+export type AutomationsGetData = {
+    body?: never;
+    path: {
+        /**
+         * Team ID
+         */
+        team_id: string;
+        automation_id: WrappedUuidV4;
+    };
+    query?: never;
+    url: '/api/v1/team/{team_id}/automations/{automation_id}';
+};
+
+export type AutomationsGetErrors = {
+    404: Error;
+};
+
+export type AutomationsGetError = AutomationsGetErrors[keyof AutomationsGetErrors];
+
+export type AutomationsGetResponses = {
+    200: Automation;
+};
+
+export type AutomationsGetResponse = AutomationsGetResponses[keyof AutomationsGetResponses];
+
+export type AutomationsPutData = {
+    body: PutAutomationBody;
+    path: {
+        /**
+         * Team ID
+         */
+        team_id: string;
+        automation_id: WrappedUuidV4;
+    };
+    query?: never;
+    url: '/api/v1/team/{team_id}/automations/{automation_id}';
+};
+
+export type AutomationsPutErrors = {
+    400: Error;
+};
+
+export type AutomationsPutError = AutomationsPutErrors[keyof AutomationsPutErrors];
+
+export type AutomationsPutResponses = {
+    200: Automation;
+};
+
+export type AutomationsPutResponse = AutomationsPutResponses[keyof AutomationsPutResponses];
+
+export type AutomationsSetOwnershipData = {
+    body: SetResourceAccessModeRequest;
+    path: {
+        /**
+         * Team ID
+         */
+        team_id: string;
+        automation_id: WrappedUuidV4;
+    };
+    query?: never;
+    url: '/api/v1/team/{team_id}/automations/{automation_id}/ownership';
+};
+
+export type AutomationsSetOwnershipResponses = {
+    200: ResourceAuthorization;
+};
+
+export type AutomationsSetOwnershipResponse = AutomationsSetOwnershipResponses[keyof AutomationsSetOwnershipResponses];
+
+export type AutomationsRunData = {
+    body: RunAutomationBody;
+    path: {
+        /**
+         * Team ID
+         */
+        team_id: string;
+        automation_id: WrappedUuidV4;
+    };
+    query?: never;
+    url: '/api/v1/team/{team_id}/automations/{automation_id}/run';
+};
+
+export type AutomationsRunResponses = {
+    200: RunAutomationResponse;
+};
+
+export type AutomationsRunResponse = AutomationsRunResponses[keyof AutomationsRunResponses];
+
+export type AutomationsSetVisibilityData = {
+    body: SetResourceAccessModeRequest;
+    path: {
+        /**
+         * Team ID
+         */
+        team_id: string;
+        automation_id: WrappedUuidV4;
+    };
+    query?: never;
+    url: '/api/v1/team/{team_id}/automations/{automation_id}/visibility';
+};
+
+export type AutomationsSetVisibilityResponses = {
+    200: ResourceAuthorization;
+};
+
+export type AutomationsSetVisibilityResponse = AutomationsSetVisibilityResponses[keyof AutomationsSetVisibilityResponses];
+
+export type AutomationsListGrantsData = {
+    body?: never;
+    path: {
+        /**
+         * Team ID
+         */
+        team_id: string;
+        automation_id: WrappedUuidV4;
+        plane: ResourceGrantPlane;
+    };
+    query?: never;
+    url: '/api/v1/team/{team_id}/automations/{automation_id}/{plane}/grants';
+};
+
+export type AutomationsListGrantsResponses = {
+    200: Array<ResourceGrant>;
+};
+
+export type AutomationsListGrantsResponse = AutomationsListGrantsResponses[keyof AutomationsListGrantsResponses];
+
+export type AutomationsAddGrantData = {
+    body: CreateResourcePlaneGrantRequest;
+    path: {
+        /**
+         * Team ID
+         */
+        team_id: string;
+        automation_id: WrappedUuidV4;
+        plane: ResourceGrantPlane;
+    };
+    query?: never;
+    url: '/api/v1/team/{team_id}/automations/{automation_id}/{plane}/grants';
+};
+
+export type AutomationsAddGrantResponses = {
+    200: ResourceGrant;
+};
+
+export type AutomationsAddGrantResponse = AutomationsAddGrantResponses[keyof AutomationsAddGrantResponses];
+
+export type AutomationsRemoveGrantData = {
+    body?: never;
+    path: {
+        /**
+         * Team ID
+         */
+        team_id: string;
+        automation_id: WrappedUuidV4;
+        plane: ResourceGrantPlane;
+        principal_type: ResourcePrincipalType;
+        principal_id: string;
+    };
+    query?: never;
+    url: '/api/v1/team/{team_id}/automations/{automation_id}/{plane}/grants/{principal_type}/{principal_id}';
+};
+
+export type AutomationsRemoveGrantResponses = {
     200: unknown;
 };
-
-export type GetBrowserDefinitionData = {
-    body?: never;
-    path: {
-        /**
-         * Team ID
-         */
-        team_id: string;
-        id: WrappedUuidV4;
-    };
-    query?: never;
-    url: '/api/v1/team/{team_id}/browser-definition/{id}';
-};
-
-export type GetBrowserDefinitionResponses = {
-    /**
-     * Browser definition
-     */
-    200: BrowserDefinition;
-};
-
-export type GetBrowserDefinitionResponse = GetBrowserDefinitionResponses[keyof GetBrowserDefinitionResponses];
-
-export type UpdateBrowserDefinitionData = {
-    body: UpdateBrowserDefinitionBody;
-    path: {
-        /**
-         * Team ID
-         */
-        team_id: string;
-        id: WrappedUuidV4;
-    };
-    query?: never;
-    url: '/api/v1/team/{team_id}/browser-definition/{id}';
-};
-
-export type UpdateBrowserDefinitionResponses = {
-    /**
-     * Updated browser definition
-     */
-    200: BrowserDefinition;
-};
-
-export type UpdateBrowserDefinitionResponse = UpdateBrowserDefinitionResponses[keyof UpdateBrowserDefinitionResponses];
-
-export type ListBrowserManagedCredentialsData = {
-    body?: never;
-    path: {
-        /**
-         * Team ID
-         */
-        team_id: string;
-    };
-    query?: {
-        page_size?: number;
-        next_page_token?: string | null;
-        status?: null | BrowserSessionStatus;
-        runtime_status?: null | RuntimeStatus;
-        include_deleted?: boolean;
-    };
-    url: '/api/v1/team/{team_id}/browser-password-manager/credential';
-};
-
-export type ListBrowserManagedCredentialsResponses = {
-    /**
-     * Browser password manager credentials
-     */
-    200: ManagedUserCredentialSummaryPaginatedResponse;
-};
-
-export type ListBrowserManagedCredentialsResponse = ListBrowserManagedCredentialsResponses[keyof ListBrowserManagedCredentialsResponses];
-
-export type ListBrowserSessionsData = {
-    body?: never;
-    path: {
-        /**
-         * Team ID
-         */
-        team_id: string;
-    };
-    query?: {
-        page_size?: number;
-        next_page_token?: string | null;
-        status?: null | BrowserSessionStatus;
-        runtime_status?: null | RuntimeStatus;
-        include_deleted?: boolean;
-    };
-    url: '/api/v1/team/{team_id}/browser-session';
-};
-
-export type ListBrowserSessionsResponses = {
-    /**
-     * Browser sessions
-     */
-    200: BrowserSessionPaginatedResponse;
-};
-
-export type ListBrowserSessionsResponse = ListBrowserSessionsResponses[keyof ListBrowserSessionsResponses];
-
-export type CreateBrowserSessionData = {
-    body: CreateBrowserSessionInner;
-    path: {
-        /**
-         * Team ID
-         */
-        team_id: string;
-    };
-    query?: never;
-    url: '/api/v1/team/{team_id}/browser-session';
-};
-
-export type CreateBrowserSessionResponses = {
-    /**
-     * Created browser session
-     */
-    200: BrowserSession;
-};
-
-export type CreateBrowserSessionResponse = CreateBrowserSessionResponses[keyof CreateBrowserSessionResponses];
-
-export type DeleteBrowserSessionData = {
-    body?: never;
-    path: {
-        /**
-         * Team ID
-         */
-        team_id: string;
-        id: string;
-    };
-    query?: never;
-    url: '/api/v1/team/{team_id}/browser-session/{id}';
-};
-
-export type DeleteBrowserSessionResponses = {
-    /**
-     * Deleted browser session
-     */
-    200: unknown;
-};
-
-export type GetBrowserSessionData = {
-    body?: never;
-    path: {
-        /**
-         * Team ID
-         */
-        team_id: string;
-        id: string;
-    };
-    query?: never;
-    url: '/api/v1/team/{team_id}/browser-session/{id}';
-};
-
-export type GetBrowserSessionResponses = {
-    /**
-     * Browser session
-     */
-    200: BrowserSession;
-};
-
-export type GetBrowserSessionResponse = GetBrowserSessionResponses[keyof GetBrowserSessionResponses];
-
-export type UpdateBrowserSessionData = {
-    body: UpdateBrowserSessionBody;
-    path: {
-        /**
-         * Team ID
-         */
-        team_id: string;
-        id: string;
-    };
-    query?: never;
-    url: '/api/v1/team/{team_id}/browser-session/{id}';
-};
-
-export type UpdateBrowserSessionResponses = {
-    /**
-     * Updated browser session
-     */
-    200: BrowserSession;
-};
-
-export type UpdateBrowserSessionResponse = UpdateBrowserSessionResponses[keyof UpdateBrowserSessionResponses];
-
-export type GetBrowserSessionDebugData = {
-    body?: never;
-    path: {
-        /**
-         * Team ID
-         */
-        team_id: string;
-        id: string;
-    };
-    query?: never;
-    url: '/api/v1/team/{team_id}/browser-session/{id}/debug';
-};
-
-export type GetBrowserSessionDebugResponses = {
-    /**
-     * Browserbase live debug URLs
-     */
-    200: BrowserSessionDebug;
-};
-
-export type GetBrowserSessionDebugResponse = GetBrowserSessionDebugResponses[keyof GetBrowserSessionDebugResponses];
-
-export type FillBrowserSessionFormData = {
-    body: FillFormBody;
-    path: {
-        /**
-         * Team ID
-         */
-        team_id: string;
-        id: string;
-    };
-    query?: never;
-    url: '/api/v1/team/{team_id}/browser-session/{id}/fill-form';
-};
-
-export type FillBrowserSessionFormResponses = {
-    /**
-     * Fill-form result
-     */
-    200: FillFormResponse;
-};
-
-export type FillBrowserSessionFormResponse = FillBrowserSessionFormResponses[keyof FillBrowserSessionFormResponses];
 
 export type ListInboxAgentsData = {
     body?: never;
@@ -9376,6 +9646,100 @@ export type ChatkitMissionControlSendMessageResponses = {
 
 export type ChatkitMissionControlSendMessageResponse = ChatkitMissionControlSendMessageResponses[keyof ChatkitMissionControlSendMessageResponses];
 
+export type ChatkitMissionControlSubmitTurnData = {
+    body: SubmitMissionControlTurnRequestInner;
+    path: {
+        /**
+         * Team ID
+         */
+        team_id: string;
+        /**
+         * Agent inbox ID
+         */
+        agent_id: string;
+    };
+    query?: never;
+    url: '/api/v1/team/{team_id}/chatkit/mission-control/agents/{agent_id}/turns';
+};
+
+export type ChatkitMissionControlSubmitTurnResponses = {
+    /**
+     * Submitted Mission Control turn
+     */
+    200: SubmitMissionControlTurnResponse;
+};
+
+export type ChatkitMissionControlSubmitTurnResponse = ChatkitMissionControlSubmitTurnResponses[keyof ChatkitMissionControlSubmitTurnResponses];
+
+export type ChatkitMissionControlBootstrapData = {
+    body?: never;
+    path: {
+        /**
+         * Team ID
+         */
+        team_id: string;
+    };
+    query?: {
+        agent_page_size?: number;
+        session_page_size?: number;
+        message_page_size?: number;
+        queue_page_size?: number;
+        active_session_id?: null | WrappedUuidV4;
+        agent_sort?: string | null;
+        session_sort?: string | null;
+        q?: string | null;
+    };
+    url: '/api/v1/team/{team_id}/chatkit/mission-control/bootstrap';
+};
+
+export type ChatkitMissionControlBootstrapResponses = {
+    /**
+     * Mission Control bootstrap projection
+     */
+    200: MissionControlBootstrapResponse;
+};
+
+export type ChatkitMissionControlBootstrapResponse = ChatkitMissionControlBootstrapResponses[keyof ChatkitMissionControlBootstrapResponses];
+
+export type ChatkitSearchData = {
+    body?: never;
+    path: {
+        /**
+         * Team ID
+         */
+        team_id: string;
+    };
+    query: {
+        q: string;
+        session_id?: null | WrappedUuidV4;
+        page_size?: number;
+        next_page_token?: string | null;
+    };
+    url: '/api/v1/team/{team_id}/chatkit/mission-control/search';
+};
+
+export type ChatkitSearchErrors = {
+    /**
+     * Invalid query or pagination cursor
+     */
+    400: Error;
+    /**
+     * Scoped session not found
+     */
+    404: Error;
+};
+
+export type ChatkitSearchError = ChatkitSearchErrors[keyof ChatkitSearchErrors];
+
+export type ChatkitSearchResponses = {
+    /**
+     * Consolidated ChatKit search results
+     */
+    200: ChatKitSearchHitPaginatedResponse;
+};
+
+export type ChatkitSearchResponse = ChatkitSearchResponses[keyof ChatkitSearchResponses];
+
 export type ChatkitMissionControlInterruptSessionData = {
     body?: never;
     path: {
@@ -9478,6 +9842,34 @@ export type ChatkitMissionControlRenameThreadResponses = {
 };
 
 export type ChatkitMissionControlRenameThreadResponse = ChatkitMissionControlRenameThreadResponses[keyof ChatkitMissionControlRenameThreadResponses];
+
+export type ChatkitMissionControlConversationSnapshotData = {
+    body?: never;
+    path: {
+        /**
+         * Team ID
+         */
+        team_id: string;
+        /**
+         * Session ID
+         */
+        session_id: WrappedUuidV4;
+    };
+    query?: {
+        message_page_size?: number;
+        queue_page_size?: number;
+    };
+    url: '/api/v1/team/{team_id}/chatkit/mission-control/sessions/{session_id}/snapshot';
+};
+
+export type ChatkitMissionControlConversationSnapshotResponses = {
+    /**
+     * Mission Control conversation snapshot
+     */
+    200: MissionControlConversationSnapshot;
+};
+
+export type ChatkitMissionControlConversationSnapshotResponse = ChatkitMissionControlConversationSnapshotResponses[keyof ChatkitMissionControlConversationSnapshotResponses];
 
 export type ChatkitMissionControlSidebarData = {
     body?: never;
@@ -10086,6 +10478,44 @@ export type GetAttachmentDownloadUrlResponses = {
 };
 
 export type GetAttachmentDownloadUrlResponse2 = GetAttachmentDownloadUrlResponses[keyof GetAttachmentDownloadUrlResponses];
+
+export type CreateAttachmentUploadsData = {
+    body: CreateAttachmentUploadsInner;
+    path: {
+        /**
+         * Team ID
+         */
+        team_id: string;
+        /**
+         * Session ID
+         */
+        session_id: WrappedUuidV4;
+    };
+    query?: never;
+    url: '/api/v1/team/{team_id}/chatkit/session/{session_id}/attachments/upload';
+};
+
+export type CreateAttachmentUploadsErrors = {
+    /**
+     * Bad Request
+     */
+    400: Error;
+    /**
+     * Internal Server Error
+     */
+    500: Error;
+};
+
+export type CreateAttachmentUploadsError = CreateAttachmentUploadsErrors[keyof CreateAttachmentUploadsErrors];
+
+export type CreateAttachmentUploadsResponses = {
+    /**
+     * Create attachment uploads
+     */
+    200: CreateAttachmentUploadsResponse;
+};
+
+export type CreateAttachmentUploadsResponse2 = CreateAttachmentUploadsResponses[keyof CreateAttachmentUploadsResponses];
 
 export type GetSessionEventHistoryData = {
     body?: never;
@@ -12061,6 +12491,219 @@ export type RegisterOpenbotDeploymentResponses = {
 
 export type RegisterOpenbotDeploymentResponse = RegisterOpenbotDeploymentResponses[keyof RegisterOpenbotDeploymentResponses];
 
+export type GetHostedOpenbotInstanceData = {
+    body?: never;
+    path: {
+        /**
+         * Team ID
+         */
+        team_id: string;
+        instance_id: string;
+    };
+    query?: never;
+    url: '/api/v1/team/{team_id}/identity/openbot/instances/{instance_id}';
+};
+
+export type GetHostedOpenbotInstanceErrors = {
+    404: Error;
+};
+
+export type GetHostedOpenbotInstanceError = GetHostedOpenbotInstanceErrors[keyof GetHostedOpenbotInstanceErrors];
+
+export type GetHostedOpenbotInstanceResponses = {
+    200: HostedOpenBotInstance;
+};
+
+export type GetHostedOpenbotInstanceResponse = GetHostedOpenbotInstanceResponses[keyof GetHostedOpenbotInstanceResponses];
+
+export type UpdateHostedOpenbotComputerImageData = {
+    body: UpdateHostedOpenBotComputerImageRequest;
+    path: {
+        /**
+         * Team ID
+         */
+        team_id: string;
+        instance_id: string;
+    };
+    query?: never;
+    url: '/api/v1/team/{team_id}/identity/openbot/instances/{instance_id}/computer-image';
+};
+
+export type UpdateHostedOpenbotComputerImageErrors = {
+    400: Error;
+};
+
+export type UpdateHostedOpenbotComputerImageError = UpdateHostedOpenbotComputerImageErrors[keyof UpdateHostedOpenbotComputerImageErrors];
+
+export type UpdateHostedOpenbotComputerImageResponses = {
+    200: HostedOpenBotInstance;
+};
+
+export type UpdateHostedOpenbotComputerImageResponse = UpdateHostedOpenbotComputerImageResponses[keyof UpdateHostedOpenbotComputerImageResponses];
+
+export type ConfigureHostedOpenbotInstanceData = {
+    body: ConfigureHostedOpenBotInstanceRequest;
+    path: {
+        /**
+         * Team ID
+         */
+        team_id: string;
+        instance_id: string;
+    };
+    query?: never;
+    url: '/api/v1/team/{team_id}/identity/openbot/instances/{instance_id}/configuration';
+};
+
+export type ConfigureHostedOpenbotInstanceErrors = {
+    400: Error;
+};
+
+export type ConfigureHostedOpenbotInstanceError = ConfigureHostedOpenbotInstanceErrors[keyof ConfigureHostedOpenbotInstanceErrors];
+
+export type ConfigureHostedOpenbotInstanceResponses = {
+    200: HostedOpenBotInstance;
+};
+
+export type ConfigureHostedOpenbotInstanceResponse = ConfigureHostedOpenbotInstanceResponses[keyof ConfigureHostedOpenbotInstanceResponses];
+
+export type CreateHostedOpenbotReleaseData = {
+    body: CreateHostedOpenBotReleaseRequest;
+    path: {
+        /**
+         * Team ID
+         */
+        team_id: string;
+        instance_id: string;
+    };
+    query?: never;
+    url: '/api/v1/team/{team_id}/identity/openbot/instances/{instance_id}/releases';
+};
+
+export type CreateHostedOpenbotReleaseErrors = {
+    400: Error;
+};
+
+export type CreateHostedOpenbotReleaseError = CreateHostedOpenbotReleaseErrors[keyof CreateHostedOpenbotReleaseErrors];
+
+export type CreateHostedOpenbotReleaseResponses = {
+    200: HostedOpenBotRelease;
+};
+
+export type CreateHostedOpenbotReleaseResponse = CreateHostedOpenbotReleaseResponses[keyof CreateHostedOpenbotReleaseResponses];
+
+export type GetHostedOpenbotReleaseData = {
+    body?: never;
+    path: {
+        /**
+         * Team ID
+         */
+        team_id: string;
+        instance_id: string;
+        release_id: string;
+    };
+    query?: never;
+    url: '/api/v1/team/{team_id}/identity/openbot/instances/{instance_id}/releases/{release_id}';
+};
+
+export type GetHostedOpenbotReleaseErrors = {
+    404: Error;
+};
+
+export type GetHostedOpenbotReleaseError = GetHostedOpenbotReleaseErrors[keyof GetHostedOpenbotReleaseErrors];
+
+export type GetHostedOpenbotReleaseResponses = {
+    200: HostedOpenBotRelease;
+};
+
+export type GetHostedOpenbotReleaseResponse = GetHostedOpenbotReleaseResponses[keyof GetHostedOpenbotReleaseResponses];
+
+export type UploadHostedOpenbotReleaseFileData = {
+    body: Array<number>;
+    path: {
+        /**
+         * Team ID
+         */
+        team_id: string;
+        instance_id: string;
+        release_id: string;
+        sha1: string;
+    };
+    query?: never;
+    url: '/api/v1/team/{team_id}/identity/openbot/instances/{instance_id}/releases/{release_id}/files/{sha1}';
+};
+
+export type UploadHostedOpenbotReleaseFileErrors = {
+    400: Error;
+};
+
+export type UploadHostedOpenbotReleaseFileError = UploadHostedOpenbotReleaseFileErrors[keyof UploadHostedOpenbotReleaseFileErrors];
+
+export type UploadHostedOpenbotReleaseFileResponses = {
+    200: HostedOpenBotRelease;
+};
+
+export type UploadHostedOpenbotReleaseFileResponse = UploadHostedOpenbotReleaseFileResponses[keyof UploadHostedOpenbotReleaseFileResponses];
+
+export type FinalizeHostedOpenbotReleaseData = {
+    body?: never;
+    path: {
+        /**
+         * Team ID
+         */
+        team_id: string;
+        instance_id: string;
+        release_id: string;
+    };
+    query?: never;
+    url: '/api/v1/team/{team_id}/identity/openbot/instances/{instance_id}/releases/{release_id}/finalize';
+};
+
+export type FinalizeHostedOpenbotReleaseErrors = {
+    400: Error;
+};
+
+export type FinalizeHostedOpenbotReleaseError = FinalizeHostedOpenbotReleaseErrors[keyof FinalizeHostedOpenbotReleaseErrors];
+
+export type FinalizeHostedOpenbotReleaseResponses = {
+    200: HostedOpenBotRelease;
+};
+
+export type FinalizeHostedOpenbotReleaseResponse = FinalizeHostedOpenbotReleaseResponses[keyof FinalizeHostedOpenbotReleaseResponses];
+
+export type IssueOpenbotMissionControlTicketData = {
+    body: IssueMissionControlSocketTicketRequest;
+    path: {
+        /**
+         * Team ID
+         */
+        team_id: string;
+    };
+    query?: never;
+    url: '/api/v1/team/{team_id}/identity/openbot/mission-control-ticket';
+};
+
+export type IssueOpenbotMissionControlTicketErrors = {
+    /**
+     * Invalid OpenBot access token
+     */
+    401: Error;
+    /**
+     * Token is not bound to this team
+     */
+    403: Error;
+};
+
+export type IssueOpenbotMissionControlTicketError = IssueOpenbotMissionControlTicketErrors[keyof IssueOpenbotMissionControlTicketErrors];
+
+export type IssueOpenbotMissionControlTicketResponses = {
+    /**
+     * Short-lived Mission Control socket ticket
+     */
+    200: MissionControlSocketTicket;
+};
+
+export type IssueOpenbotMissionControlTicketResponse = IssueOpenbotMissionControlTicketResponses[keyof IssueOpenbotMissionControlTicketResponses];
+
 export type ListManagedUserCredentialsData = {
     body?: never;
     path: {
@@ -13232,6 +13875,98 @@ export type McpServerPlaygroundChatResponses = {
     200: unknown;
 };
 
+export type UnbindToolGroupFromMcpServerData = {
+    body?: never;
+    path: {
+        /**
+         * Team ID
+         */
+        team_id: string;
+        /**
+         * MCP server instance ID
+         */
+        mcp_server_instance_id: string;
+        /**
+         * Tool group instance ID
+         */
+        tool_group_instance_id: string;
+    };
+    query?: never;
+    url: '/api/v1/team/{team_id}/mcp/mcp-server/{mcp_server_instance_id}/tool-group/{tool_group_instance_id}';
+};
+
+export type UnbindToolGroupFromMcpServerErrors = {
+    /**
+     * Bad Request
+     */
+    400: Error;
+    /**
+     * Not Found
+     */
+    404: Error;
+    /**
+     * Internal Server Error
+     */
+    500: Error;
+};
+
+export type UnbindToolGroupFromMcpServerError = UnbindToolGroupFromMcpServerErrors[keyof UnbindToolGroupFromMcpServerErrors];
+
+export type UnbindToolGroupFromMcpServerResponses = {
+    /**
+     * Unbound tool group
+     */
+    200: McpServerInstanceSerializedWithFunctions;
+};
+
+export type UnbindToolGroupFromMcpServerResponse = UnbindToolGroupFromMcpServerResponses[keyof UnbindToolGroupFromMcpServerResponses];
+
+export type BindToolGroupToMcpServerData = {
+    body?: never;
+    path: {
+        /**
+         * Team ID
+         */
+        team_id: string;
+        /**
+         * MCP server instance ID
+         */
+        mcp_server_instance_id: string;
+        /**
+         * Tool group instance ID
+         */
+        tool_group_instance_id: string;
+    };
+    query?: never;
+    url: '/api/v1/team/{team_id}/mcp/mcp-server/{mcp_server_instance_id}/tool-group/{tool_group_instance_id}';
+};
+
+export type BindToolGroupToMcpServerErrors = {
+    /**
+     * Bad Request
+     */
+    400: Error;
+    /**
+     * Not Found
+     */
+    404: Error;
+    /**
+     * Internal Server Error
+     */
+    500: Error;
+};
+
+export type BindToolGroupToMcpServerError = BindToolGroupToMcpServerErrors[keyof BindToolGroupToMcpServerErrors];
+
+export type BindToolGroupToMcpServerResponses = {
+    /**
+     * Bound tool group
+     */
+    200: McpServerInstanceSerializedWithFunctions;
+};
+
+export type BindToolGroupToMcpServerResponse = BindToolGroupToMcpServerResponses[keyof BindToolGroupToMcpServerResponses];
+
 export type ListMcpProviderCatalogData = {
     body?: never;
     path: {
@@ -13917,7 +14652,16 @@ export type UpdateToolGroupInstanceData = {
          */
         tool_group_instance_id: string;
     };
-    query?: never;
+    query?: {
+        /**
+         * Hold the request until this status is observed or the timeout expires.
+         */
+        wait_for_status?: string;
+        /**
+         * Long-poll timeout in milliseconds, clamped to 30 seconds.
+         */
+        timeout_ms?: number;
+    };
     url: '/api/v1/team/{team_id}/mcp/tool-group/{tool_group_instance_id}';
 };
 
@@ -14154,6 +14898,56 @@ export type InvokeToolResponses = {
 };
 
 export type InvokeToolResponse = InvokeToolResponses[keyof InvokeToolResponses];
+
+export type EnableAndBindProviderToolsData = {
+    body: EnableAndBindToolsBody;
+    path: {
+        /**
+         * Team ID
+         */
+        team_id: string;
+        /**
+         * Provider account / tool-group instance ID
+         */
+        tool_group_instance_id: string;
+    };
+    query?: never;
+    url: '/api/v1/team/{team_id}/mcp/tool-group/{tool_group_instance_id}/tools/enable-and-bind';
+};
+
+export type EnableAndBindProviderToolsErrors = {
+    /**
+     * Invalid or duplicate tool/server selection; no mutations were attempted
+     */
+    400: Error;
+    /**
+     * Unauthorized; no mutations were attempted
+     */
+    401: Error;
+    /**
+     * Caller cannot manage the provider account; no mutations were attempted
+     */
+    403: Error;
+    /**
+     * Provider account or explicitly selected tool not found; no mutations were attempted
+     */
+    404: Error;
+    /**
+     * Failed before an observable per-item result could be returned
+     */
+    500: Error;
+};
+
+export type EnableAndBindProviderToolsError = EnableAndBindProviderToolsErrors[keyof EnableAndBindProviderToolsErrors];
+
+export type EnableAndBindProviderToolsResponses = {
+    /**
+     * Per-tool enablement and per-server binding results. The complete field is false when any item failed
+     */
+    200: EnableAndBindToolsResponse;
+};
+
+export type EnableAndBindProviderToolsResponse = EnableAndBindProviderToolsResponses[keyof EnableAndBindProviderToolsResponses];
 
 export type ListToolsData = {
     body?: never;
@@ -14790,6 +15584,43 @@ export type RetryMemorySourceSyncResponses = {
 };
 
 export type RetryMemorySourceSyncResponse = RetryMemorySourceSyncResponses[keyof RetryMemorySourceSyncResponses];
+
+export type ReconcileOpenbotAgentBundleData = {
+    body: ReconcileOpenBotAgentBundleBody;
+    path: {
+        /**
+         * Team ID
+         */
+        team_id: string;
+        agent_id: string;
+    };
+    query?: never;
+    url: '/api/v1/team/{team_id}/openbot/agents/{agent_id}/bundle';
+};
+
+export type ReconcileOpenbotAgentBundleResponses = {
+    200: ReconcileOpenBotAgentBundleResponse;
+};
+
+export type ReconcileOpenbotAgentBundleResponse = ReconcileOpenbotAgentBundleResponses[keyof ReconcileOpenbotAgentBundleResponses];
+
+export type GetOpenbotPluginsCatalogData = {
+    body?: never;
+    path: {
+        /**
+         * Team ID
+         */
+        team_id: string;
+    };
+    query?: never;
+    url: '/api/v1/team/{team_id}/openbot/plugins/catalog';
+};
+
+export type GetOpenbotPluginsCatalogResponses = {
+    200: OpenBotPluginsCatalogResponse;
+};
+
+export type GetOpenbotPluginsCatalogResponse = GetOpenbotPluginsCatalogResponses[keyof GetOpenbotPluginsCatalogResponses];
 
 export type ProviderSetupCatalogData = {
     body?: never;
