@@ -42,6 +42,15 @@ describe("TildeAgentProvider", () => {
       .spyOn(TildeToolReconciler.prototype, "deployExternalResources")
       .mockResolvedValue();
     const context = await agentContext("scout");
+    const persistedSecrets: string[] = [];
+    context.persistence = {
+      setEnvironment: async () => undefined,
+      setSecret: async (name) => {
+        persistedSecrets.push(name);
+      },
+      unsetEnvironment: async () => undefined,
+      unsetSecret: async () => undefined,
+    };
     let channelCreated = false;
     let polled = false;
     const requests: Request[] = [];
@@ -74,6 +83,11 @@ describe("TildeAgentProvider", () => {
             values: { api_key: "agent-api-key", webhook_signing_key: "signing-key" },
           });
         if (request.method === "PUT" && path.endsWith("/agents/scout/avatar")) {
+          expect(persistedSecrets).toEqual([
+            "AGENT_SCOUT_API_KEY",
+            "AGENT_SCOUT_WEBHOOK_SIGNING_KEY",
+          ]);
+          expect(context.environment.AGENT_SCOUT_API_KEY).toBe("agent-api-key");
           expect(request.headers.get("authorization")).toBe("Bearer agent-api-key");
           expect(request.headers.get("content-type")).toBe("image/png");
           const bytes = new Uint8Array(await request.arrayBuffer());

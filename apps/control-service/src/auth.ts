@@ -8,6 +8,13 @@ import type {
   OwnerPrincipal,
 } from "@tryopenbot/auth-provider";
 
+declare module "hono" {
+  interface ContextVariableMap {
+    ownerPrincipal: OwnerPrincipal;
+    ownerAccessToken: string;
+  }
+}
+
 const accessCookie = "openbot_access";
 const refreshCookie = "openbot_refresh";
 const stateCookie = "openbot_oauth_state";
@@ -110,6 +117,7 @@ export function requireOwner(
     const authenticated = await authenticate(context, provider, options);
     if (!authenticated) return context.json({ error: "Authentication required" }, 401);
     context.set("ownerPrincipal", authenticated.principal);
+    context.set("ownerAccessToken", authenticated.accessToken);
     await next();
   };
 }

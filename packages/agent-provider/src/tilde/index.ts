@@ -208,6 +208,9 @@ export class TildeAgentProvider implements AgentProvider {
           webhookSigningKey: claimed.values.webhook_signing_key,
         };
     }
+    // One-time outputs are irrecoverable after claiming. Persist them before avatar upload,
+    // external integrations, or any other fallible reconciliation work.
+    await this.#persistAgentSecrets(context, slug, prefix, createdSecrets);
     const agentApiKey = createdSecrets?.apiKey ?? context.environment[apiKeyName]?.trim();
     if (!agentApiKey)
       throw new AgentProviderError(
@@ -241,7 +244,6 @@ export class TildeAgentProvider implements AgentProvider {
     );
     await Promise.all([
       this.#ensureMissionControlChannel(slug, slug, context.agentKind ?? "subagent"),
-      this.#persistAgentSecrets(context, slug, prefix, createdSecrets),
       this.#tools.deployExternalResources(context),
       unsetEnvironment(context, `${prefix}_AGENT_ID`),
       unsetEnvironment(context, `${prefix}_PROVIDER_ID`),

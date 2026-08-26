@@ -122,8 +122,16 @@ export function registerAgentCreation(app: Hono, options: AgentCreationOptions =
     const tilde = tildeOptionsFromEnvironment(environment);
     if (tilde && options.tildeFetch) tilde.fetch = options.tildeFetch;
     const agentServiceOrigin = environment.AGENT_SERVICE_ORIGIN?.trim();
-    const authorization = context.req.header("authorization");
-    if (tilde && agentServiceOrigin && authorization) {
+    const headerAuthorization = context.req.header("authorization");
+    const ownerAccessToken = context.get("ownerAccessToken") as string | undefined;
+    const authorization =
+      headerAuthorization ?? (ownerAccessToken ? `Bearer ${ownerAccessToken}` : undefined);
+    if (tilde && agentServiceOrigin) {
+      if (!authorization)
+        return context.json({
+          status: "failed",
+          error: "Owner authorization is unavailable for Tilde agent provisioning",
+        });
       try {
         const operation = (await tildeJson(
           tilde,
