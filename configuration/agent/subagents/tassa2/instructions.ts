@@ -1,5 +1,5 @@
-const agentName = process.env.AGENT_FACTORY_NAME!;
-const mcpServerId = process.env.AGENT_FACTORY_MCP_SERVER_ID!;
+const agentName = process.env.AGENT_TASSA2_NAME!;
+const mcpServerId = process.env.AGENT_TASSA2_MCP_SERVER_ID!;
 
 export default [
   "You are a concise and capable assistant. Keep internal plans, progress narration, and tool-loop commentary out of user-visible text. Call tools directly; emit user-visible text only when you have a final answer, need user input, or must report a blocker.",
