@@ -12,17 +12,41 @@ import {
 import { developmentChildEnvironment, loadLocalEnvironment } from "../environment.js";
 import { repositoryRoot } from "../paths.js";
 import { clearLiveAgentServiceOrigin, writeLiveAgentServiceOrigin } from "../live-agent-service.js";
+// # DO NOT UPSTREAM
+// #reason: Fork-only private API bootstrap and make dev supervision.
+import { localTildeApiEnvironment, prepareLocalTildeApi } from "../local-tilde-api.js";
+// #END DO NOT UPSTREAM
 import { run, runChecked, supervise } from "../processes.js";
 import { createStreamingProgress } from "../ui.js";
 import { inkPrompts } from "./init.js";
 
-export async function runDevelopment(): Promise<never> {
+export interface DevelopmentOptions {
+  // # DO NOT UPSTREAM
+  // #reason: Fork-only switch for the private trytilde/api development submodule.
+  tildeBaseUrl?: string;
+  // #END DO NOT UPSTREAM
+}
+
+export async function runDevelopment(options: DevelopmentOptions = {}): Promise<never> {
+  // # DO NOT UPSTREAM
+  // #reason: Fork-only private API bootstrap and make dev supervision.
+  const localTildeApi = await prepareLocalTildeApi(options);
+  if (localTildeApi)
+    process.once("exit", () => {
+      if (!localTildeApi.killed) localTildeApi.kill("SIGTERM");
+    });
+  // #END DO NOT UPSTREAM
   // Snapshot the shell before loadLocalEnvironment merges the decrypted deployment configuration
   // into process.env. Development children inherit this and the wiring named below, nothing else.
   const shellEnvironment = { ...process.env };
-  const env = await loadLocalEnvironment({
+  let env = await loadLocalEnvironment({
     prompts: process.stdin.isTTY && process.stdout.isTTY ? inkPrompts : undefined,
   });
+  // # DO NOT UPSTREAM
+  // #reason: Fork-only routing of this process to the private local Tilde API.
+  env = localTildeApiEnvironment(env, options);
+  if (options.tildeBaseUrl) process.env.TILDE_BASE_URL = options.tildeBaseUrl;
+  // #END DO NOT UPSTREAM
   const serverPort = env.PORT ?? "4100";
   const configuration = await loadDevelopmentConfiguration(env);
   const infrastructureProgress = createStreamingProgress(
@@ -92,6 +116,10 @@ export async function runDevelopment(): Promise<never> {
     developmentChildEnvironment(shellEnvironment, { OPENBOT_CONTROL_PORT: serverPort }),
   );
   const children = [server.child, web];
+  // # DO NOT UPSTREAM
+  // #reason: Fork-only supervision of make dev in the private trytilde/api submodule.
+  if (localTildeApi) children.push(localTildeApi);
+  // #END DO NOT UPSTREAM
 
   const canLaunchDesktop =
     env.NO_DESKTOP !== "1" &&

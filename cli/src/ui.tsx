@@ -27,6 +27,12 @@ export interface SyncReportView {
   errors: readonly string[];
 }
 
+let devCommand = "dev";
+// # DO NOT UPSTREAM
+// #reason: Fork-only help text for the private local Tilde API workflow.
+devCommand += " [--local-tilde-api [ORIGIN]]";
+// #END DO NOT UPSTREAM
+
 const commands = [
   ["init", "Initialize OpenBot interactively"],
   ["init --non-interactive --json", "Initialize from JSON answers on stdin"],
@@ -40,7 +46,7 @@ const commands = [
   ["tunnel", "Run a local command behind a Tilde tunnel"],
   ["plugin", "Configure Tilde resources for a coding-agent CLI"],
   ["sdk", "Develop and verify the Tilde SDK packages"],
-  ["dev", "Start the local OpenBot development environment"],
+  [devCommand, "Start the local OpenBot development environment"],
   ["check", "Run repository validation"],
   ["build", "Build the deployable application shell"],
   ["test", "Run repository tests"],

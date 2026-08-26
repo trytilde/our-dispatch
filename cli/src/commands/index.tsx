@@ -7,7 +7,11 @@ import { markDiagnosticExit } from "../diagnostics.js";
 import { repositoryRoot } from "../paths.js";
 import { Help, Success } from "../ui.js";
 import { runProductionDeploy } from "./deploy.js";
-import { runDevelopment } from "./dev.js";
+import { runDevelopment, type DevelopmentOptions } from "./dev.js";
+// # DO NOT UPSTREAM
+// #reason: Fork-only CLI parsing for the private local Tilde API workflow.
+import { parseLocalTildeApiOptions } from "../local-tilde-api.js";
+// #END DO NOT UPSTREAM
 import { runEnvironment } from "./env.js";
 import { runInitialization } from "./init.js";
 import { runNewAgent } from "./new-agent.js";
@@ -72,9 +76,17 @@ export async function runCommand(command: string, args: readonly string[]): Prom
     return show(<Success title={`Agent ${agent.name} created at ${agentPath}`} />);
   }
   if (command === "dev") {
-    rejectArguments(command, args);
+    let parseDevelopmentOptions = (): DevelopmentOptions => {
+      rejectArguments(command, args);
+      return {};
+    };
+    // # DO NOT UPSTREAM
+    // #reason: Fork-only --local-tilde-api option; upstream dev accepts no arguments.
+    parseDevelopmentOptions = () => parseLocalTildeApiOptions(args);
+    // #END DO NOT UPSTREAM
+    const options = parseDevelopmentOptions();
     if (process.stdout.isTTY) show(<Success title="Starting OpenBot development" />);
-    return runDevelopment();
+    return runDevelopment(options);
   }
   if (command === "orchestrate") {
     rejectArguments(command, args);
