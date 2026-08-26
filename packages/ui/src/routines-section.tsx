@@ -1,4 +1,4 @@
-import { CirclePauseIcon, ClockIcon, PlusIcon } from "lucide-react";
+import { CirclePauseIcon, ClockIcon } from "lucide-react";
 import { routineDetail, type Routine, type SignalProvider } from "@tryopenbot/client-runtime";
 
 /**
@@ -25,18 +25,6 @@ export function RoutinesSection({
   const sorted = [...routines].sort((a, b) => Number(b.enabled) - Number(a.enabled));
   return (
     <section className="flex min-h-0 flex-1 flex-col overflow-y-auto px-3 py-2.5">
-      <div className="flex items-center justify-between px-1.5 pb-1.5">
-        <h3 className="text-[12.5px] font-semibold text-ink">Routines</h3>
-        <button
-          aria-label="Create Routine"
-          className="flex size-6 items-center justify-center rounded-control text-ink-2
-            transition-colors hover:bg-hover hover:text-ink"
-          onClick={onCreate}
-          type="button"
-        >
-          <PlusIcon aria-hidden className="size-4" />
-        </button>
-      </div>
       {sorted.length > 0 ? (
         <div className="flex flex-col gap-0.5">
           {sorted.map((routine) => (
@@ -73,7 +61,7 @@ export function RoutinesSection({
             onClick={onCreate}
             type="button"
           >
-            Create Routine
+            Create your first routine
           </button>
         </div>
       ) : null}

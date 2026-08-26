@@ -12,10 +12,12 @@ import {
 import {
   BackIcon,
   BotSelectionDialog,
+  ClockIcon,
   ConnectorSetupDialog,
   getThemePreference,
   PluginsIcon,
   PluginsCatalog,
+  resolvePluginIconUrl,
   SettingsIcon,
   setThemePreference,
   type ConnectorSetupSubmit,
@@ -26,11 +28,17 @@ import {
 import { openBotRuntime } from "../runtime.js";
 import { SignalConnectContainer } from "./agent-details.js";
 
-const sections = [
+const settingsSections = [
   { id: "general", label: "General", icon: SettingsIcon, to: "/settings/general" },
-  { id: "plugins", label: "Plugins", icon: PluginsIcon, to: "/settings/plugins" },
-  { id: "signals", label: "Signals", icon: SignalsIcon, to: "/settings/signals" },
 ] as const;
+
+const pluginSections = [
+  { id: "tools", label: "Tools", icon: PluginsIcon, to: "/settings/plugins/tools" },
+  { id: "skills", label: "Skills", icon: SignalsIcon, to: "/settings/plugins/skills" },
+  { id: "routines", label: "Routines", icon: ClockIcon, to: "/settings/plugins/routines" },
+] as const;
+
+const sections = [...settingsSections, ...pluginSections] as const;
 
 const themeOptions: readonly { value: ThemePreference; label: string }[] = [
   { value: "system", label: "System" },
@@ -62,7 +70,61 @@ function SettingsContent({ children, width }: SettingsContentProps) {
   );
 }
 
-function PluginsSettings({ agents }: { agents: readonly ChatAgent[] }) {
+function assignmentIds(current: readonly string[], agentId: string, enabled: boolean): string[] {
+  return enabled ? [...new Set([...current, agentId])] : current.filter((id) => id !== agentId);
+}
+
+function updateToolAssignment(
+  catalog: PluginsCatalogSnapshot,
+  accountId: string,
+  agentId: string,
+  enabled: boolean,
+): PluginsCatalogSnapshot {
+  return {
+    ...catalog,
+    tools: catalog.tools.map((entry) => ({
+      ...entry,
+      accounts: entry.accounts.map((account) =>
+        account.id === accountId
+          ? {
+              ...account,
+              assigned_agent_ids: assignmentIds(account.assigned_agent_ids, agentId, enabled),
+            }
+          : account,
+      ),
+    })),
+  };
+}
+
+function updateSkillAssignment(
+  catalog: PluginsCatalogSnapshot,
+  skillId: string,
+  agentId: string,
+  enabled: boolean,
+): PluginsCatalogSnapshot {
+  return {
+    ...catalog,
+    skills: catalog.skills.map((provider) => ({
+      ...provider,
+      skills: provider.skills.map((skill) =>
+        skill.id === skillId
+          ? {
+              ...skill,
+              assigned_agent_ids: assignmentIds(skill.assigned_agent_ids, agentId, enabled),
+            }
+          : skill,
+      ),
+    })),
+  };
+}
+
+function PluginsSettings({
+  agents,
+  kind,
+}: {
+  agents: readonly ChatAgent[];
+  kind: "tools" | "skills";
+}) {
   const [catalog, setCatalog] = useState<PluginsCatalogSnapshot>({ tools: [], skills: [] });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -73,6 +135,9 @@ function PluginsSettings({ agents }: { agents: readonly ChatAgent[] }) {
     authorizationUrl?: string;
   } | null>(null);
   const [createdAccountId, setCreatedAccountId] = useState<string | null>(null);
+  const [createdAccountPendingAgentId, setCreatedAccountPendingAgentId] = useState<string | null>(
+    null,
+  );
   const setupWatcher = useRef<AbortController | null>(null);
   const agentIds = useMemo(() => agents.map((agent) => agent.id), [agents]);
   const agentIdsKey = agentIds.join("\0");
@@ -108,20 +173,71 @@ function PluginsSettings({ agents }: { agents: readonly ChatAgent[] }) {
     setSetup(null);
   }
 
-  async function updateTool(accountId: string, agentId: string, enabled: boolean) {
+  async function mutateToolAssignment(
+    accountId: string,
+    agentId: string,
+    enabled: boolean,
+  ): Promise<boolean> {
+    const previouslyEnabled = catalog.tools.some((entry) =>
+      entry.accounts.some(
+        (account) => account.id === accountId && account.assigned_agent_ids.includes(agentId),
+      ),
+    );
+    setError("");
+    setCatalog((current) => updateToolAssignment(current, accountId, agentId, enabled));
     try {
       await openBotRuntime.client.setToolAccountForAgent(accountId, agentId, enabled);
-      await refresh();
+      return true;
     } catch (reason) {
+      setCatalog((current) => updateToolAssignment(current, accountId, agentId, previouslyEnabled));
       setError(reason instanceof Error ? reason.message : "Could not update tool");
+      return false;
     }
   }
 
+  async function updateTool(accountId: string, agentId: string, enabled: boolean): Promise<void> {
+    await mutateToolAssignment(accountId, agentId, enabled);
+  }
+
+  async function deleteToolAccounts(accountIds: readonly string[]): Promise<void> {
+    setError("");
+    try {
+      await openBotRuntime.client.deleteConnectorAccounts(accountIds);
+      setCatalog((current) => ({
+        ...current,
+        tools: current.tools.map((entry) => ({
+          ...entry,
+          accounts: entry.accounts.filter((account) => !accountIds.includes(account.id)),
+        })),
+      }));
+    } catch (reason) {
+      await refresh();
+      const message = reason instanceof Error ? reason.message : "Could not delete tool account";
+      setError(message);
+      throw new Error(message);
+    }
+  }
+
+  async function assignCreatedAccount(agentId: string): Promise<void> {
+    if (!createdAccountId || createdAccountPendingAgentId) return;
+    setCreatedAccountPendingAgentId(agentId);
+    const added = await mutateToolAssignment(createdAccountId, agentId, true);
+    setCreatedAccountPendingAgentId(null);
+    if (added) setCreatedAccountId(null);
+  }
+
   async function updateSkill(skillId: string, agentId: string, enabled: boolean) {
+    const previouslyEnabled = catalog.skills.some((provider) =>
+      provider.skills.some(
+        (skill) => skill.id === skillId && skill.assigned_agent_ids.includes(agentId),
+      ),
+    );
+    setError("");
+    setCatalog((current) => updateSkillAssignment(current, skillId, agentId, enabled));
     try {
       await openBotRuntime.client.setSkillForAgent(skillId, agentId, enabled);
-      await refresh();
     } catch (reason) {
+      setCatalog((current) => updateSkillAssignment(current, skillId, agentId, previouslyEnabled));
       setError(reason instanceof Error ? reason.message : "Could not update skill");
     }
   }
@@ -174,11 +290,20 @@ function PluginsSettings({ agents }: { agents: readonly ChatAgent[] }) {
   const setupProvider = setup
     ? catalog.tools.find(({ provider }) => provider.type_id === setup.providerId)?.provider
     : undefined;
+  const setupProviderIconUrl = setupProvider
+    ? resolvePluginIconUrl(
+        setupProvider.icon_url,
+        setupProvider.icon_slug,
+        setupProvider.type_id,
+        setupProvider.name,
+      )
+    : undefined;
 
   return (
     <>
       <PluginsCatalog
         agents={agents.map((agent) => ({ id: agent.id, name: agent.display_name }))}
+        kind={kind}
         toolProviders={catalog.tools
           .filter(({ provider }) => !provider.categories?.includes("system"))
           .map(({ provider, accounts }) => ({
@@ -212,13 +337,14 @@ function PluginsSettings({ agents }: { agents: readonly ChatAgent[] }) {
         loading={loading}
         {...(error ? { error } : {})}
         onAddToolAccount={(providerId) => setSetup({ providerId, submitting: false })}
+        onDeleteToolAccounts={deleteToolAccounts}
         onSetSkill={updateSkill}
         onSetToolAccount={updateTool}
       />
       {setup && setupProvider ? (
         <ConnectorSetupDialog
           providerName={setupProvider.name}
-          {...(setupProvider.icon_url ? { providerIconUrl: setupProvider.icon_url } : {})}
+          {...(setupProviderIconUrl ? { providerIconUrl: setupProviderIconUrl } : {})}
           credentialSources={setupProvider.credential_sources.map((source) => ({
             typeId: source.type_id,
             name: source.name,
@@ -243,14 +369,12 @@ function PluginsSettings({ agents }: { agents: readonly ChatAgent[] }) {
       ) : null}
       <BotSelectionDialog
         agents={agents.map((agent) => ({ id: agent.id, name: agent.display_name }))}
-        onClose={() => setCreatedAccountId(null)}
-        onSelect={(agentId) => {
-          if (!createdAccountId) return;
-          const accountId = createdAccountId;
-          setCreatedAccountId(null);
-          void updateTool(accountId, agentId, true);
+        onClose={() => {
+          if (!createdAccountPendingAgentId) setCreatedAccountId(null);
         }}
+        onSelect={(agentId) => void assignCreatedAccount(agentId)}
         open={createdAccountId !== null}
+        pendingAgentIds={createdAccountPendingAgentId ? [createdAccountPendingAgentId] : []}
         title="Add account to bot"
       />
     </>
@@ -292,7 +416,26 @@ export function SettingsApp({ section = "general" }: SettingsAppProps = {}) {
           Back
         </button>
         <h1 className="px-2.5 pb-1 text-[13px] font-semibold text-ink">Settings</h1>
-        {sections.map((item) => {
+        {settingsSections.map((item) => {
+          const Icon = item.icon;
+          const selected = item.id === section;
+          return (
+            <button
+              aria-current={selected ? "page" : undefined}
+              className={`flex h-8 w-full items-center gap-2 rounded-control px-2.5 text-left
+                text-[12.5px] font-medium transition-[background-color,color] duration-150
+                hover:bg-hover hover:text-ink ${selected ? "bg-hover-2 text-ink" : "text-ink-2"}`}
+              key={item.id}
+              onClick={() => void navigate({ to: item.to })}
+              type="button"
+            >
+              <Icon className="size-4 shrink-0 fill-none stroke-current stroke-[1.3]" />
+              {item.label}
+            </button>
+          );
+        })}
+        <h2 className="px-2.5 pt-4 pb-1 text-[13px] font-semibold text-ink">Plugins</h2>
+        {pluginSections.map((item) => {
           const Icon = item.icon;
           const selected = item.id === section;
           return (
@@ -313,11 +456,11 @@ export function SettingsApp({ section = "general" }: SettingsAppProps = {}) {
       </aside>
 
       <section className="min-w-0 flex-1 overflow-y-auto">
-        {section === "plugins" ? (
+        {section === "tools" || section === "skills" ? (
           <SettingsContent width="wide">
-            <PluginsSettings agents={agents} />
+            <PluginsSettings agents={agents} kind={section} />
           </SettingsContent>
-        ) : section === "signals" ? (
+        ) : section === "routines" ? (
           <SettingsContent width="constrained">
             <SignalsSettingsContainer />
           </SettingsContent>
@@ -459,9 +602,21 @@ export function SettingsGeneralApp() {
 }
 
 export function SettingsPluginsApp() {
-  return <SettingsApp section="plugins" />;
+  return <SettingsApp section="tools" />;
 }
 
 export function SettingsSignalsApp() {
-  return <SettingsApp section="signals" />;
+  return <SettingsApp section="routines" />;
+}
+
+export function SettingsToolsApp() {
+  return <SettingsApp section="tools" />;
+}
+
+export function SettingsSkillsApp() {
+  return <SettingsApp section="skills" />;
+}
+
+export function SettingsRoutinesApp() {
+  return <SettingsApp section="routines" />;
 }

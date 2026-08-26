@@ -1,7 +1,10 @@
 import type { Context, Hono } from "hono";
 
 const defaultBaseUrl = "https://api.trytilde.ai";
-const defaultDekAlias = "default";
+
+function teamDefaultDekAlias(teamId: string): string {
+  return `team:${teamId}:default`;
+}
 
 export interface ConnectorRouteOptions {
   apiKey: string;
@@ -72,6 +75,24 @@ interface UpstreamProxiedMcpServerListItem {
   };
   tool_group_instance: UpstreamAccount;
   tool_count: number;
+}
+
+interface UpstreamManagedMcpProvider {
+  id: string;
+  name: string;
+  description: string;
+  endpoint_url: string;
+  categories: string[];
+  connection_method: "manual" | "no_auth" | "oauth_dynamic_client_registration";
+  suggested_auth_mode?: "api_key" | "bearer_token" | "oauth_authorization_code" | null;
+  api_key_location?: "header" | "query_parameter" | null;
+  api_key_header_name?: string | null;
+  api_key_header_prefix?: string | null;
+  api_key_query_param_name?: string | null;
+  oauth_authorization_endpoint?: string | null;
+  oauth_token_endpoint?: string | null;
+  oauth_scopes?: string[];
+  tool_provider_type_id?: string;
 }
 
 interface UpstreamSkill {
@@ -153,6 +174,19 @@ export function registerConnectorRoutes(
     if (!resolved) return unavailable(context);
     const provider = context.req.query("provider")?.trim();
     try {
+      const managedProviderId = provider ? managedMcpProviderId(provider) : undefined;
+      if (managedProviderId) {
+        const proxiedServers = await listProxiedMcpServers(resolved, context.req.raw.signal);
+        return context.json({
+          items: proxiedServers
+            .filter((item) => managedMcpCatalogId(item) === managedProviderId)
+            .map((item) => ({
+              ...serializeAccount(item.tool_group_instance),
+              display_name: item.server.display_name,
+              provider_type_id: provider,
+            })),
+        });
+      }
       const accounts = await listAccounts(resolved);
       const filtered = provider
         ? accounts.filter((account) => account.tool_group_source_type_id === provider)
@@ -173,6 +207,11 @@ export function registerConnectorRoutes(
       return context.json({ error: error instanceof Error ? error.message : "Invalid body" }, 400);
     }
     try {
+      const managedProviderId = managedMcpProviderId(body.providerTypeId);
+      if (managedProviderId) {
+        return await createManagedMcpAccount(context, resolved, managedProviderId, body);
+      }
+
       const providers = await listProviders(resolved);
       const provider = providers.find((candidate) => candidate.type_id === body.providerTypeId);
       const credentialSource = provider?.credential_sources?.find(
@@ -239,6 +278,23 @@ export function registerConnectorRoutes(
     }
   });
 
+  app.delete("/api/connectors/accounts", async (context) => {
+    const resolved = options();
+    if (!resolved) return unavailable(context);
+    let accountIds: string[];
+    try {
+      accountIds = parseDeleteAccountIds(await context.req.json());
+    } catch (error) {
+      return context.json({ error: error instanceof Error ? error.message : "Invalid body" }, 400);
+    }
+    try {
+      await deleteConnectorAccounts(resolved, accountIds, context.req.raw.signal);
+      return context.json({ ok: true });
+    } catch (error) {
+      return upstreamFailure(context, error);
+    }
+  });
+
   app.get("/api/plugins", async (context) => {
     const resolved = options();
     if (!resolved) return unavailable(context);
@@ -248,6 +304,7 @@ export function registerConnectorRoutes(
     try {
       const [
         providers,
+        managedProviders,
         accounts,
         servers,
         proxiedServers,
@@ -256,6 +313,7 @@ export function registerConnectorRoutes(
         registries,
       ] = await Promise.all([
         listProviders(resolved, context.req.raw.signal),
+        listManagedMcpProviders(resolved, context.req.raw.signal),
         listAccounts(resolved, context.req.raw.signal),
         listMcpServers(resolved, context.req.raw.signal),
         listProxiedMcpServers(resolved, context.req.raw.signal),
@@ -273,6 +331,7 @@ export function registerConnectorRoutes(
         tools: serializeToolsCatalog(
           resolved,
           providers,
+          managedProviders,
           accounts,
           proxiedServers,
           agentIds,
@@ -367,6 +426,129 @@ interface CreateAccountBody {
   returnUrl?: string;
 }
 
+async function createManagedMcpAccount(
+  context: Context,
+  options: ConnectorRouteOptions,
+  providerId: string,
+  body: CreateAccountBody,
+): Promise<Response> {
+  const provider = (await listManagedMcpProviders(options, context.req.raw.signal)).find(
+    (candidate) =>
+      candidate.id === providerId && managedMcpProviderTypeId(candidate) === body.providerTypeId,
+  );
+  if (!provider) return context.json({ error: "Unknown managed MCP provider" }, 404);
+
+  if (provider.connection_method !== "manual") {
+    const result = (await tildeJson(
+      options,
+      `/mcp/provider-catalog/${encodeURIComponent(provider.id)}/connect`,
+      { display_name: body.displayName, return_url: body.returnUrl ?? null },
+      context.req.raw.signal,
+    )) as Record<string, unknown>;
+    return managedMcpAccountResponse(context, result);
+  }
+
+  if (provider.suggested_auth_mode === "oauth_authorization_code") {
+    const values = body.resourceServerValues;
+    const clientId = text(values?.client_id);
+    const clientSecret = text(values?.client_secret);
+    if (!clientId || !clientSecret) {
+      throw new ConnectorUpstreamError("Client ID and client secret are required", 400);
+    }
+    const oauth = (await tildeJson(
+      options,
+      "/mcp/proxied-mcp-servers/oauth/start",
+      {
+        catalog_provider_id: provider.id,
+        name: body.displayName,
+        url: provider.endpoint_url,
+        auth_uri: provider.oauth_authorization_endpoint,
+        token_uri: provider.oauth_token_endpoint,
+        client_id: clientId,
+        client_secret: clientSecret,
+        scopes: provider.oauth_scopes ?? [],
+        return_url: body.returnUrl ?? null,
+      },
+      context.req.raw.signal,
+    )) as Record<string, unknown>;
+    return managedMcpAuthorizationResponse(context, oauth);
+  }
+
+  const credentialSource = managedMcpCredentialSource(provider);
+  const resourceServerCredentialId = await maybeCreateCredential(
+    options,
+    credentialSource.type_id,
+    "resource-server",
+    credentialSource.configuration_schema?.resource_server,
+    body.resourceServerValues,
+  );
+  const connection = (await tildeJson(
+    options,
+    "/mcp/proxied-mcp-servers",
+    {
+      catalog_provider_id: provider.id,
+      name: body.displayName,
+      url: provider.endpoint_url,
+      auth_mode: provider.suggested_auth_mode,
+      api_key_location: provider.api_key_location ?? "header",
+      api_key_header_name: provider.api_key_header_name ?? "Authorization",
+      api_key_header_prefix: provider.api_key_header_prefix ?? null,
+      api_key_query_param_name: provider.api_key_query_param_name ?? "api_key",
+      local_running_endpoint: false,
+      oauth_scopes: [],
+      resource_server_credential_id: resourceServerCredentialId ?? null,
+      user_credential_id: null,
+    },
+    context.req.raw.signal,
+  )) as Record<string, unknown>;
+  return managedMcpCreatedResponse(context, connection);
+}
+
+function managedMcpAccountResponse(context: Context, result: Record<string, unknown>): Response {
+  if (result.status === "authorization_required" && isRecord(result.oauth)) {
+    return managedMcpAuthorizationResponse(context, result.oauth);
+  }
+  if (result.status === "connected" && isRecord(result.connection)) {
+    return managedMcpCreatedResponse(context, result.connection);
+  }
+  throw new ConnectorUpstreamError("Tilde returned an invalid managed provider response", 502);
+}
+
+function managedMcpAuthorizationResponse(
+  context: Context,
+  oauth: Record<string, unknown>,
+): Response {
+  const account = valueRecord(oauth.tool_group_instance);
+  const broker = valueRecord(oauth.broker_response);
+  if (!account || !broker) {
+    throw new ConnectorUpstreamError("Tilde returned an invalid OAuth response", 502);
+  }
+  const authorizationUrl = brokerRedirectUrl(broker);
+  if (!authorizationUrl) {
+    throw new ConnectorUpstreamError("Tilde returned no authorization URL", 502);
+  }
+  return context.json(
+    {
+      status: "authorize",
+      account: serializeAccount(account as unknown as UpstreamAccount),
+      authorization_url: authorizationUrl,
+    },
+    201,
+  );
+}
+
+function managedMcpCreatedResponse(
+  context: Context,
+  connection: Record<string, unknown>,
+): Response {
+  const account = valueRecord(connection.tool_group_instance);
+  if (!account) throw new ConnectorUpstreamError("Tilde returned no managed provider account", 502);
+  return context.json(
+    { status: "created", account: serializeAccount(account as unknown as UpstreamAccount) },
+    201,
+  );
+}
+
 function parseCreateAccountBody(value: unknown): CreateAccountBody {
   if (typeof value !== "object" || value === null) throw new Error("Invalid connector request");
   const record = value as Record<string, unknown>;
@@ -386,6 +568,37 @@ function parseCreateAccountBody(value: unknown): CreateAccountBody {
     userCredentialValues: valueRecord(record.user_credential_values),
     ...(returnUrl ? { returnUrl } : {}),
   };
+}
+
+function parseDeleteAccountIds(value: unknown): string[] {
+  const record = valueRecord(value);
+  if (!record || !Array.isArray(record.account_ids)) throw new Error("account_ids is required");
+  const accountIds = [
+    ...new Set(
+      record.account_ids.map((accountId) => text(accountId)).filter((accountId) => accountId),
+    ),
+  ];
+  if (accountIds.length === 0) throw new Error("account_ids must contain at least one account");
+  return accountIds;
+}
+
+async function deleteConnectorAccounts(
+  options: ConnectorRouteOptions,
+  accountIds: readonly string[],
+  signal?: AbortSignal,
+): Promise<void> {
+  const proxiedServers = await listProxiedMcpServers(options, signal);
+  const proxiedAccountIds = new Set(
+    proxiedServers.map((item) => item.server.tool_group_instance_id),
+  );
+  await Promise.all(
+    accountIds.map((accountId) => {
+      const path = proxiedAccountIds.has(accountId)
+        ? `/mcp/proxied-mcp-servers/${encodeURIComponent(accountId)}`
+        : `/mcp/tool-group/${encodeURIComponent(accountId)}`;
+      return tildeRequest(options, path, "DELETE", undefined, signal);
+    }),
+  );
 }
 
 function text(value: unknown): string {
@@ -414,14 +627,15 @@ async function maybeCreateCredential(
     );
   }
   const basePath = `/credential/source/${encodeURIComponent(credentialSourceTypeId)}/${kind}`;
+  const dekAlias = teamDefaultDekAlias(options.teamId);
   const encrypted = await tildeJson(options, `${basePath}/encrypt`, {
-    dek_alias: defaultDekAlias,
+    dek_alias: dekAlias,
     value: values,
   });
   const bodyKey =
     kind === "resource-server" ? "resource_server_configuration" : "user_credential_configuration";
   const created = (await tildeJson(options, basePath, {
-    dek_alias: defaultDekAlias,
+    dek_alias: dekAlias,
     [bodyKey]: encrypted,
     metadata: null,
   })) as { id?: unknown };
@@ -460,6 +674,17 @@ async function listProviders(
   return pageItems(page) as UpstreamProvider[];
 }
 
+async function listManagedMcpProviders(
+  options: ConnectorRouteOptions,
+  signal?: AbortSignal,
+): Promise<UpstreamManagedMcpProvider[]> {
+  const page = (await tildeJson(options, "/mcp/provider-catalog", undefined, signal)) as Record<
+    string,
+    unknown
+  >;
+  return pageItems(page) as UpstreamManagedMcpProvider[];
+}
+
 async function listAccounts(
   options: ConnectorRouteOptions,
   signal?: AbortSignal,
@@ -492,7 +717,7 @@ async function listProxiedMcpServers(
 ): Promise<UpstreamProxiedMcpServerListItem[]> {
   const page = (await tildeJson(
     options,
-    "/mcp/proxied-mcp-servers?page_size=500",
+    "/mcp/proxied-mcp-servers?page_size=500&include_catalog_managed=true",
     undefined,
     signal,
   )) as Record<string, unknown>;
@@ -571,6 +796,7 @@ function displaySkillName(name: string, agentIds: readonly string[]): string {
 function serializeToolsCatalog(
   options: ConnectorRouteOptions,
   providers: readonly UpstreamProvider[],
+  managedProviders: readonly UpstreamManagedMcpProvider[],
   accounts: readonly UpstreamAccount[],
   proxiedServers: readonly UpstreamProxiedMcpServerListItem[],
   agentIds: readonly string[],
@@ -590,8 +816,22 @@ function serializeToolsCatalog(
           assigned_agent_ids: assignedAgentIds(account.id, agentIds, agentServers),
         })),
     }));
+  const managedMcpProviders = managedProviders.map((provider) => {
+    const providerId = managedMcpProviderTypeId(provider);
+    const connections = proxiedServers.filter((item) => managedMcpCatalogId(item) === provider.id);
+    return {
+      provider: serializeProvider(managedMcpProviderSource(provider)),
+      accounts: connections.map((item) => ({
+        ...serializeAccount(item.tool_group_instance),
+        display_name: item.server.display_name,
+        provider_type_id: providerId,
+        assigned_agent_ids: assignedAgentIds(item.tool_group_instance.id, agentIds, agentServers),
+      })),
+    };
+  });
   const groups = new Map<string, UpstreamProxiedMcpServerListItem[]>();
   for (const item of proxiedServers) {
+    if (managedMcpCatalogId(item)) continue;
     const url = proxiedMcpUrl(item);
     if (!url) continue;
     const group = groups.get(url) ?? [];
@@ -623,7 +863,96 @@ function serializeToolsCatalog(
       })),
     };
   });
-  return [...toolkitProviders, ...proxiedProviders];
+  return [...toolkitProviders, ...managedMcpProviders, ...proxiedProviders];
+}
+
+const managedMcpPrefix = "managed_mcp:";
+
+function managedMcpProviderTypeId(provider: UpstreamManagedMcpProvider): string {
+  return provider.tool_provider_type_id || `${managedMcpPrefix}${provider.id}`;
+}
+
+function managedMcpProviderId(typeId: string): string | undefined {
+  return typeId.startsWith(managedMcpPrefix) ? typeId.slice(managedMcpPrefix.length) : undefined;
+}
+
+function managedMcpCatalogId(item: UpstreamProxiedMcpServerListItem): string | undefined {
+  if (!isRecord(item.server.endpoint_configuration)) return undefined;
+  return firstText(item.server.endpoint_configuration.catalog_provider_id);
+}
+
+function managedMcpProviderSource(provider: UpstreamManagedMcpProvider): UpstreamProvider {
+  return {
+    type_id: managedMcpProviderTypeId(provider),
+    name: provider.name,
+    documentation: provider.description,
+    icon_slug: provider.id,
+    categories: provider.categories,
+    credential_sources: [managedMcpCredentialSource(provider)],
+  };
+}
+
+function managedMcpCredentialSource(
+  provider: UpstreamManagedMcpProvider,
+): UpstreamCredentialSource {
+  const emptySchema = { type: "object", properties: {}, additionalProperties: false };
+  if (provider.connection_method !== "manual") {
+    const oauth = provider.connection_method === "oauth_dynamic_client_registration";
+    return {
+      type_id: oauth ? "managed_mcp_oauth" : "managed_mcp_no_auth",
+      display_name: oauth ? "Sign in with your browser" : "No authentication",
+      documentation: oauth
+        ? "Sign in with your provider account."
+        : "This provider does not require credentials.",
+      requires_brokering: oauth,
+      supports_auto_display_name: false,
+      display_name_description: `A label for this ${provider.name} connection.`,
+      configuration_schema: { resource_server: emptySchema, user_credential: emptySchema },
+    };
+  }
+
+  if (provider.suggested_auth_mode === "oauth_authorization_code") {
+    return {
+      type_id: "oauth_auth_flow",
+      display_name: "OAuth application",
+      documentation: "Enter the OAuth application registered with this provider.",
+      requires_brokering: true,
+      supports_auto_display_name: false,
+      display_name_description: `A label for this ${provider.name} connection.`,
+      configuration_schema: {
+        resource_server: {
+          type: "object",
+          properties: {
+            client_id: { type: "string", title: "Client ID" },
+            client_secret: { type: "string", title: "Client secret", format: "password" },
+          },
+          required: ["client_id", "client_secret"],
+          additionalProperties: false,
+        },
+        user_credential: emptySchema,
+      },
+    };
+  }
+
+  const bearer = provider.suggested_auth_mode === "bearer_token";
+  const label = bearer ? "Bearer token" : "API key";
+  return {
+    type_id: "api_key",
+    display_name: label,
+    documentation: `Enter the ${label.toLowerCase()} for this provider.`,
+    requires_brokering: false,
+    supports_auto_display_name: false,
+    display_name_description: `A label for this ${provider.name} connection.`,
+    configuration_schema: {
+      resource_server: {
+        type: "object",
+        properties: { api_key: { type: "string", title: label, format: "password" } },
+        required: ["api_key"],
+        additionalProperties: false,
+      },
+      user_credential: emptySchema,
+    },
+  };
 }
 
 function assignedAgentIds(

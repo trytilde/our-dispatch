@@ -109,7 +109,182 @@ describe("OpenBot runtime", () => {
     runtime.dispose();
   });
 
+  it("selects the authenticated user's stable session instead of the newest thread", async () => {
+    const now = "2026-08-25T10:00:00.000Z";
+    const getMessages = vi.fn(async () => ({ items: [], next_page_token: null }));
+    const getAgentSessions = vi.fn(async () => ({
+      items: [
+        {
+          id: "older-thread",
+          title: "Earlier investigation",
+          created_at: "2026-08-23T10:00:00.000Z",
+          updated_at: "2026-08-23T10:00:00.000Z",
+        },
+      ],
+      next_page_token: null,
+    }));
+    const baseClient = createOpenBotClient({
+      fetch: async () => {
+        throw new Error("Unexpected HTTP request");
+      },
+    });
+    const client: OpenBotClient = {
+      ...baseClient,
+      getSession: async () => ({
+        authenticated: true,
+        user: { subject: "owner-one", name: "Owner One" },
+      }),
+      getSidebar: async () => ({
+        items: [
+          {
+            id: "agent-one",
+            display_name: "Agent One",
+            provider_id: "tilde",
+            status: "ready",
+            sessions: {
+              next_page_token: "page-two",
+              items: [
+                {
+                  id: "newest-thread",
+                  title: "Deployment investigation",
+                  created_at: now,
+                  updated_at: now,
+                },
+                {
+                  id: "owner-default",
+                  lookup_key: "openbot:user:owner-one:agent:agent-one",
+                  created_at: "2026-08-24T10:00:00.000Z",
+                  updated_at: "2026-08-24T10:00:00.000Z",
+                },
+              ],
+            },
+          },
+        ],
+      }),
+      getAgentSessions,
+      getMessages,
+      getQueuedTurns: async () => ({ items: [], next_page_token: null }),
+      observeMissionControl: async (signal) => {
+        await new Promise<void>((resolve) =>
+          signal.addEventListener("abort", () => resolve(), { once: true }),
+        );
+      },
+    };
+    const runtime = createOpenBotRuntime({
+      client,
+      auth: createClientAuthAdapter(client, { signIn: async () => undefined }),
+    });
+
+    await runtime.actions.initialize();
+
+    expect(runtime.store.getState().conversation.selectedSessionId).toBe("owner-default");
+    expect(runtime.store.getState().sidebar.agents[0]?.sessions.items).toHaveLength(3);
+    expect(getAgentSessions).toHaveBeenCalledWith("agent-one", "page-two", "updated_at");
+    expect(getMessages).toHaveBeenCalledWith("owner-default");
+    runtime.dispose();
+  });
+
+  it("creates the authenticated user's default session with a stable lookup key", async () => {
+    const createdAt = "2026-08-25T10:00:00.000Z";
+    const baseClient = createOpenBotClient({
+      fetch: async () => {
+        throw new Error("Unexpected HTTP request");
+      },
+    });
+    const createSession = vi.fn(async () => ({
+      id: "owner-default",
+      lookup_key: "openbot:user:owner-one:agent:agent-one",
+      created_at: createdAt,
+      updated_at: createdAt,
+    }));
+    const client: OpenBotClient = {
+      ...baseClient,
+      getSession: async () => ({
+        authenticated: true,
+        user: { subject: "owner-one", name: "Owner One" },
+      }),
+      getSidebar: async () => ({
+        items: [
+          {
+            id: "agent-one",
+            display_name: "Agent One",
+            provider_id: "tilde",
+            status: "ready",
+            sessions: { items: [] },
+          },
+        ],
+      }),
+      createSession,
+      getMessages: async () => ({ items: [], next_page_token: null }),
+      getQueuedTurns: async () => ({ items: [], next_page_token: null }),
+      observeMissionControl: async (signal) => {
+        await new Promise<void>((resolve) =>
+          signal.addEventListener("abort", () => resolve(), { once: true }),
+        );
+      },
+    };
+    const runtime = createOpenBotRuntime({
+      client,
+      auth: createClientAuthAdapter(client, { signIn: async () => undefined }),
+    });
+
+    await runtime.actions.initialize();
+    await expect(runtime.actions.ensureSession()).resolves.toBe("owner-default");
+
+    expect(createSession).toHaveBeenCalledWith("agent-one", {
+      title: "Agent One",
+      lookupKey: "openbot:user:owner-one:agent:agent-one",
+    });
+    runtime.dispose();
+  });
+
+  it("loads agent navigation without hydrating chat messages or observers", async () => {
+    const now = "2026-08-24T10:00:00.000Z";
+    const baseClient = createOpenBotClient({
+      fetch: async () => {
+        throw new Error("Unexpected HTTP request");
+      },
+    });
+    const getMessages = vi.fn(async () => ({ items: [], next_page_token: null }));
+    const observeMissionControl = vi.fn(async () => undefined);
+    const client: OpenBotClient = {
+      ...baseClient,
+      getSession: async () => ({
+        authenticated: true,
+        user: { subject: "owner-one", name: "Owner One" },
+      }),
+      getSidebar: async () => ({
+        items: [
+          {
+            id: "agent-one",
+            display_name: "Agent One",
+            provider_id: "tilde",
+            status: "ready",
+            sessions: {
+              items: [{ id: "session-one", created_at: now, updated_at: now }],
+            },
+          },
+        ],
+      }),
+      getMessages,
+      observeMissionControl,
+    };
+    const runtime = createOpenBotRuntime({
+      client,
+      auth: createClientAuthAdapter(client, { signIn: async () => undefined }),
+    });
+
+    await runtime.actions.initialize({ workspace: false });
+
+    expect(runtime.store.getState().sidebar.agents.map(({ id }) => id)).toEqual(["agent-one"]);
+    expect(runtime.store.getState().conversation.selectedSessionId).toBe("");
+    expect(getMessages).not.toHaveBeenCalled();
+    expect(observeMissionControl).not.toHaveBeenCalled();
+    runtime.dispose();
+  });
+
   it("captures initial sidebar failures without leaking an unhandled rejection", async () => {
+    let sidebarRequests = 0;
     const client = createOpenBotClient({
       fetch: async (input) => {
         const url =
@@ -119,6 +294,7 @@ describe("OpenBot runtime", () => {
             authenticated: true,
             user: { subject: "owner-one", name: "Owner One" },
           });
+        if (url.includes("/mission-control/sidebar")) sidebarRequests += 1;
         return Response.json({ error: "Chat unavailable" }, { status: 503 });
       },
     });
@@ -130,6 +306,7 @@ describe("OpenBot runtime", () => {
     await expect(runtime.actions.initialize()).resolves.toBeUndefined();
     expect(runtime.store.getState().sidebar.error).toBe("Chat unavailable");
     expect(runtime.store.getState().sidebar.loading).toBe(false);
+    expect(sidebarRequests).toBe(1);
     runtime.dispose();
   });
 
@@ -155,7 +332,10 @@ describe("OpenBot runtime", () => {
             provider_id: "tilde",
             status: "ready",
             sessions: {
-              items: [{ id: "session-one", created_at: now, updated_at: now }],
+              items: [
+                { id: "session-one", created_at: now, updated_at: now },
+                { id: "session-one-thread", created_at: now, updated_at: now },
+              ],
             },
           },
           {
@@ -195,6 +375,12 @@ describe("OpenBot runtime", () => {
         },
       },
     });
+    const agentOneThread = runtime.store
+      .getState()
+      .sidebar.agents[0]?.sessions.items.find((session) => session.id === "session-one-thread");
+    if (!agentOneThread) throw new Error("Expected the second session for agent one");
+    await runtime.actions.selectSession("agent-one", agentOneThread);
+    expect(runtime.store.getState().conversation.agentBusy).toBe(false);
     await runtime.actions.selectAgent("agent-two");
     emitEvent({
       id: "stream-one",
@@ -213,6 +399,7 @@ describe("OpenBot runtime", () => {
     });
 
     expect(runtime.store.getState().sidebar.busyAgentIds).toContain("agent-one");
+    expect(runtime.store.getState().sidebar.busySessionIds).toContain("session-one");
     expect(runtime.store.getState().conversation.agentBusy).toBe(false);
     const backgroundAgent = runtime.store
       .getState()
@@ -232,6 +419,7 @@ describe("OpenBot runtime", () => {
       },
     });
     expect(runtime.store.getState().sidebar.busyAgentIds).not.toContain("agent-one");
+    expect(runtime.store.getState().sidebar.busySessionIds).not.toContain("session-one");
     runtime.dispose();
   });
 

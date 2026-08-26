@@ -20,6 +20,7 @@ import {
   latestMessagePreview,
   messageText,
   type QueuedTurn,
+  agentConversationSessions,
 } from "@tryopenbot/client-runtime";
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import { useStore } from "zustand";
@@ -59,6 +60,10 @@ import { useClientWorkspace } from "../workspaces.js";
 import { shouldExpandComposer } from "./composer-layout.js";
 
 export function OpenBotApp() {
+  useEffect(() => {
+    void openBotRuntime.actions.initialize({ workspace: true });
+  }, []);
+
   const auth = useStore(openBotRuntime.store, (state) => state.auth);
   const sidebar = useStore(openBotRuntime.store, (state) => state.sidebar);
   const conversation = useStore(openBotRuntime.store, (state) => state.conversation);
@@ -184,12 +189,68 @@ export function OpenBotApp() {
   );
   const threadRoot = visibleMessages.find((message) => message.id === threadRootId);
 
-  const filteredAgents = useMemo(() => {
+  const sidebarChats = useMemo(() => {
+    const chats = agents.flatMap((agent) => {
+      const userId = auth.session?.user.subject ?? "";
+      const { userSession, threads } = agentConversationSessions(agent, userId);
+      const row = (
+        session: (typeof agent.sessions.items)[number] | undefined,
+        badge: "bot" | "thread",
+      ) => {
+        const selected = agent.id === agentId && session?.id === sessionId;
+        return {
+          id: session ? `session:${session.id}` : `user:${agent.id}`,
+          avatarId: agent.id,
+          badge,
+          name: badge === "bot" ? agent.display_name : session?.title?.trim() || "Untitled thread",
+          lastMessage:
+            selected || (agent.id === agentId && !session && !sessionId)
+              ? latestMessagePreview(messages)
+              : badge === "bot" && session?.id === agent.sessions.items[0]?.id
+                ? agent.last_message_preview || ""
+                : "",
+          updatedAt: session?.last_user_message_at || session?.updated_at,
+          unread: session?.unread,
+          busy: session ? sidebar.busySessionIds.includes(session.id) : false,
+        };
+      };
+      return [row(userSession, "bot"), ...threads.map((session) => row(session, "thread"))];
+    });
     const query = search.trim().toLowerCase();
     return query
-      ? agents.filter((agent) => agent.display_name.toLowerCase().includes(query))
-      : agents;
-  }, [agents, search]);
+      ? chats.filter((chat) => `${chat.name} ${chat.badge}`.toLowerCase().includes(query))
+      : chats;
+  }, [
+    agentId,
+    agents,
+    auth.session?.user.subject,
+    messages,
+    search,
+    sessionId,
+    sidebar.busySessionIds,
+  ]);
+
+  const selectedSidebarChatId = sessionId ? `session:${sessionId}` : `user:${agentId}`;
+
+  function selectSidebarChat(chatId: string): void {
+    if (chatId.startsWith("user:")) {
+      const agent = agents.find((candidate) => `user:${candidate.id}` === chatId);
+      if (agent) selectAgent(agent);
+      return;
+    }
+    if (!chatId.startsWith("session:")) return;
+    const selectedSessionId = chatId.slice("session:".length);
+    for (const agent of agents) {
+      const session = agent.sessions.items.find((candidate) => candidate.id === selectedSessionId);
+      if (!session) continue;
+      clearFiles();
+      setReplyingTo(null);
+      setThreadRootId("");
+      restoredSessionRef.current = "";
+      void openBotRuntime.actions.selectSession(agent.id, session);
+      return;
+    }
+  }
 
   function selectAgent(agent: ChatAgent): void {
     clearFiles();
@@ -604,19 +665,8 @@ export function OpenBotApp() {
             : undefined
         }
         collapsed={layout.sidebarCollapsed}
-        agents={filteredAgents.map((agent) => ({
-          id: agent.id,
-          name: agent.display_name,
-          lastMessage:
-            agent.id === agentId
-              ? latestMessagePreview(messages) || agent.last_message_preview || ""
-              : agent.last_message_preview || "",
-          updatedAt: agent.last_user_message_at || agent.sessions.items[0]?.updated_at,
-          unread: agent.sessions.items.some((item) => item.unread),
-          busy: sidebar.busyAgentIds.includes(agent.id),
-          status: agent.status,
-        }))}
-        selectedAgentId={agentId}
+        agents={sidebarChats}
+        selectedAgentId={selectedSidebarChatId}
         loading={loading}
         hasMore={Boolean(nextAgentToken)}
         searchOpen={searchOpen}
@@ -624,15 +674,10 @@ export function OpenBotApp() {
         onSearchChange={setSearch}
         onSearchOpen={openSearch}
         onSearchClose={closeSearch}
-        onSelectAgent={(id) => {
-          const agent = agents.find((candidate) => candidate.id === id);
-          if (agent) {
-            selectAgent(agent);
-          }
-        }}
+        onSelectAgent={selectSidebarChat}
         onLoadMore={() => void loadMoreAgents()}
         onCreateAgent={() => setCreateAgentOpen(true)}
-        onOpenPlugins={() => void navigate({ to: "/settings/plugins" })}
+        onOpenPlugins={() => void navigate({ to: "/settings/plugins/tools" })}
         onOpenSettings={() => void navigate({ to: "/settings" })}
         onSwitchWorkspace={() => clientWorkspace.openWorkspaceSelector()}
         onSignOut={() => void openBotRuntime.actions.signOut()}

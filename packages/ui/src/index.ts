@@ -90,6 +90,7 @@ export {
   BotSelectionDialog,
   type BotSelectionDialogProps,
   PluginsCatalog,
+  resolvePluginIconUrl,
   type PluginsCatalogAgent,
   type PluginsCatalogProps,
   type PluginsCatalogSkill,

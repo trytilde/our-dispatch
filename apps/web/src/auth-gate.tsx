@@ -53,10 +53,12 @@ export function AuthGate({
   const [signingIn, setSigningIn] = useState(false);
   const [seen, setSeen] = useState<boolean | undefined>(skipOnboarding ? true : undefined);
 
-  // Starting the runtime here rather than deeper in the tree means the session check,
-  // sidebar load, and agent selection all happen before any screen renders.
+  // Settings only need authenticated agent navigation. The workspace upgrades this
+  // initialization to include conversations, previews, and the team event stream.
   useEffect(() => {
-    void openBotRuntime.actions.initialize();
+    void openBotRuntime.actions.initialize({
+      workspace: !window.location.pathname.startsWith("/settings"),
+    });
   }, []);
 
   useEffect(() => {
@@ -78,7 +80,7 @@ export function AuthGate({
         onSignIn={() => {
           setSigningIn(true);
           void openBotRuntime.actions
-            .signIn()
+            .signIn({ workspace: !window.location.pathname.startsWith("/settings") })
             .catch(() => undefined)
             .finally(() => setSigningIn(false));
         }}

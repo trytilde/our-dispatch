@@ -105,6 +105,7 @@ function connectorApp(
 function catalogResponses(call: UpstreamCall): Response | undefined {
   if (call.path === "/api/v1/team/team-1/mcp/available-tool-groups")
     return Response.json(providersPage);
+  if (call.path === "/api/v1/team/team-1/mcp/provider-catalog") return Response.json({ items: [] });
   if (call.path === "/api/v1/team/team-1/mcp/tool-group") return Response.json(accountsPage);
   if (call.path === "/api/v1/team/team-1/skill-providers") return Response.json({ items: [] });
   if (call.path === "/api/v1/team/team-1/mcp/proxied-mcp-servers")
@@ -169,6 +170,243 @@ describe("connector routes", () => {
         credential_source_type_id: "google_mail_managed_oauth",
       },
     ]);
+  });
+
+  it("deletes a toolkit account through the cascading tool-group endpoint", async () => {
+    const { app, calls } = connectorApp((call) => {
+      if (call.method === "DELETE" && call.path === "/api/v1/team/team-1/mcp/tool-group/tgi-work")
+        return Response.json({});
+      const catalog = catalogResponses(call);
+      if (catalog) return catalog;
+      return undefined;
+    });
+
+    const response = await app.request("https://openbot.test/api/connectors/accounts", {
+      method: "DELETE",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ account_ids: ["tgi-work"] }),
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ ok: true });
+    expect(calls).toContainEqual({
+      method: "DELETE",
+      path: "/api/v1/team/team-1/mcp/tool-group/tgi-work",
+      body: undefined,
+    });
+  });
+
+  it("deletes a proxied MCP account through its dedicated cascading endpoint", async () => {
+    const { app, calls } = connectorApp((call) => {
+      if (call.method === "GET" && call.path === "/api/v1/team/team-1/mcp/proxied-mcp-servers")
+        return Response.json({
+          items: [
+            {
+              server: {
+                id: "proxied-apollo",
+                display_name: "Sales team",
+                endpoint_configuration: {},
+                status: "active",
+                tool_group_instance_id: "apollo-account",
+                tool_group_source_type_id: "proxied_mcp_apollo_account",
+              },
+              tool_group_instance: {
+                id: "apollo-account",
+                display_name: "Sales team",
+                status: "active",
+              },
+              tool_count: 12,
+            },
+          ],
+        });
+      if (
+        call.method === "DELETE" &&
+        call.path === "/api/v1/team/team-1/mcp/proxied-mcp-servers/apollo-account"
+      )
+        return Response.json({});
+      return undefined;
+    });
+
+    const response = await app.request("https://openbot.test/api/connectors/accounts", {
+      method: "DELETE",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ account_ids: ["apollo-account"] }),
+    });
+
+    expect(response.status).toBe(200);
+    expect(calls).toContainEqual({
+      method: "DELETE",
+      path: "/api/v1/team/team-1/mcp/proxied-mcp-servers/apollo-account",
+      body: undefined,
+    });
+    expect(
+      calls.some(
+        (call) => call.method === "DELETE" && call.path.includes("/mcp/tool-group/apollo-account"),
+      ),
+    ).toBe(false);
+  });
+
+  it("includes unconnected managed MCP providers in the plugins catalog", async () => {
+    const { app } = connectorApp((call) => {
+      if (call.path.endsWith("/mcp/provider-catalog")) {
+        return Response.json({
+          items: [
+            {
+              id: "apollo",
+              tool_provider_type_id: "managed_mcp:apollo",
+              name: "Apollo.io",
+              description: "Search and enrich sales intelligence.",
+              endpoint_url: "https://mcp.apollo.io/mcp",
+              categories: ["sales", "productivity"],
+              connection_method: "oauth_dynamic_client_registration",
+            },
+          ],
+        });
+      }
+      if (call.path.endsWith("/mcp/available-tool-groups")) return Response.json({ items: [] });
+      if (call.path.endsWith("/mcp/tool-group")) return Response.json({ items: [] });
+      if (call.path.endsWith("/mcp/mcp-server")) return Response.json({ items: [] });
+      if (call.path.endsWith("/mcp/proxied-mcp-servers")) return Response.json({ items: [] });
+      if (call.path.endsWith("/skill")) return Response.json({ items: [] });
+      if (call.path.endsWith("/skill-providers")) return Response.json({ items: [] });
+      if (call.path.endsWith("/skill-registry")) return Response.json({ items: [] });
+      return undefined;
+    });
+
+    const response = await app.request("https://openbot.test/api/plugins");
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as {
+      tools: {
+        provider: Record<string, unknown>;
+        accounts: unknown[];
+      }[];
+    };
+    expect(body.tools).toEqual([
+      {
+        provider: expect.objectContaining({
+          type_id: "managed_mcp:apollo",
+          name: "Apollo.io",
+          icon_slug: "apollo",
+          categories: ["sales", "productivity"],
+          credential_sources: [
+            expect.objectContaining({
+              type_id: "managed_mcp_oauth",
+              requires_brokering: true,
+            }),
+          ],
+        }),
+        accounts: [],
+      },
+    ]);
+  });
+
+  it("connects a managed MCP provider through its server-authored catalog entry", async () => {
+    const { app, calls } = connectorApp((call) => {
+      if (call.path.endsWith("/mcp/provider-catalog")) {
+        return Response.json({
+          items: [
+            {
+              id: "apollo",
+              tool_provider_type_id: "managed_mcp:apollo",
+              name: "Apollo.io",
+              description: "Search and enrich sales intelligence.",
+              endpoint_url: "https://mcp.apollo.io/mcp",
+              categories: ["sales", "productivity"],
+              connection_method: "oauth_dynamic_client_registration",
+            },
+          ],
+        });
+      }
+      if (call.path.endsWith("/mcp/provider-catalog/apollo/connect")) {
+        return Response.json({
+          status: "authorization_required",
+          oauth: {
+            tool_group_instance: {
+              id: "apollo-account",
+              display_name: "Sales team",
+              status: "pending",
+              tool_group_source_type_id: "proxied_mcp_apollo_account",
+            },
+            broker_response: {
+              type: "broker_state",
+              action: { Redirect: { url: "https://apollo.test/authorize" } },
+            },
+          },
+        });
+      }
+      return undefined;
+    });
+
+    const response = await app.request("https://openbot.test/api/connectors/accounts", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        provider_type_id: "managed_mcp:apollo",
+        credential_source_type_id: "managed_mcp_oauth",
+        display_name: "Sales team",
+        return_url: "https://openbot.test/connectors/authorized",
+      }),
+    });
+
+    expect(response.status).toBe(201);
+    await expect(response.json()).resolves.toMatchObject({
+      status: "authorize",
+      account: { id: "apollo-account", display_name: "Sales team" },
+      authorization_url: "https://apollo.test/authorize",
+    });
+    expect(calls.find((call) => call.path.endsWith("/apollo/connect"))?.body).toEqual({
+      display_name: "Sales team",
+      return_url: "https://openbot.test/connectors/authorized",
+    });
+  });
+
+  it("polls a connected managed MCP account through its stable provider identity", async () => {
+    const { app } = connectorApp((call) => {
+      if (call.path.endsWith("/mcp/proxied-mcp-servers")) {
+        return Response.json({
+          items: [
+            {
+              server: {
+                id: "proxied-apollo",
+                display_name: "Sales team",
+                endpoint_configuration: {
+                  url: "https://mcp.apollo.io/mcp",
+                  catalog_provider_id: "apollo",
+                },
+                status: "active",
+                tool_group_instance_id: "apollo-account",
+                tool_group_source_type_id: "proxied_mcp_apollo_account",
+              },
+              tool_group_instance: {
+                id: "apollo-account",
+                display_name: "Sales team",
+                status: "active",
+                tool_group_source_type_id: "proxied_mcp_apollo_account",
+                credential_source_type_id: "oauth_auth_flow",
+              },
+              tool_count: 12,
+            },
+          ],
+        });
+      }
+      return undefined;
+    });
+
+    const response = await app.request(
+      "https://openbot.test/api/connectors/accounts?provider=managed_mcp%3Aapollo",
+    );
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      items: [
+        {
+          id: "apollo-account",
+          display_name: "Sales team",
+          status: "active",
+          provider_type_id: "managed_mcp:apollo",
+          credential_source_type_id: "oauth_auth_flow",
+        },
+      ],
+    });
   });
 
   it("projects Tilde MCP mappings and skill registries into the plugins catalog", async () => {
@@ -637,14 +875,17 @@ describe("connector routes", () => {
       },
     });
     const encrypt = calls.find((call) => call.path.endsWith("/user-credential/encrypt"));
-    expect(encrypt?.body).toEqual({ dek_alias: "default", value: { api_key: "tvly-secret" } });
+    expect(encrypt?.body).toEqual({
+      dek_alias: "team:team-1:default",
+      value: { api_key: "tvly-secret" },
+    });
     const create = calls.find(
       (call) =>
         call.path.endsWith("/credential/source/tavily_api_key/user-credential") &&
         !call.path.includes("encrypt"),
     );
     expect(create?.body).toMatchObject({
-      dek_alias: "default",
+      dek_alias: "team:team-1:default",
       user_credential_configuration: { ciphertext: "sealed" },
     });
     const instance = calls.find((call) =>

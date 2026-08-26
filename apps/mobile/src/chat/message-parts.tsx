@@ -12,6 +12,7 @@ import { useColor } from "@/hooks/useColor";
 import { SPACING } from "@/theme/globals";
 import type { MobileOpenBotRuntime } from "@/runtime/openbot-runtime";
 import { ConnectorSelectionPicker, connectorSelectionForPart } from "./connector-picker";
+import { projectActivityParts } from "./part-projection";
 
 export function MobileMessageParts({
   message,
@@ -22,11 +23,13 @@ export function MobileMessageParts({
   runtime: MobileOpenBotRuntime;
   textColor?: string;
 }) {
-  const parts = message.parts?.length
-    ? message.parts
-    : message.text
-      ? ([{ type: "text", text: message.text }] satisfies ChatPart[])
-      : [];
+  const parts = projectActivityParts(
+    message.parts?.length
+      ? message.parts
+      : message.text
+        ? ([{ type: "text", text: message.text }] satisfies ChatPart[])
+        : [],
+  );
 
   return (
     <View style={styles.partStack}>

@@ -91,6 +91,102 @@ test("loads the bare workspace without setup", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "What should OpenBot do?" })).toHaveCount(0);
 });
 
+test("lists the user's continuous chat and the agent's named threads", async ({ page }) => {
+  const messageRequests: string[] = [];
+  let eventSubscriptions = 0;
+  const defaultUpdatedAt = "2026-08-25T08:00:00.000Z";
+  await page.route("**/api/chat/**", async (route) => {
+    const path = new URL(route.request().url()).pathname;
+    if (path.endsWith("/mission-control/sidebar")) {
+      await route.fulfill({
+        json: {
+          items: [
+            {
+              id: "hello-world",
+              display_name: "Hello World",
+              provider_id: "chatkit.http-vercel-ai-sdk",
+              status: "enabled",
+              sessions: {
+                items: [
+                  {
+                    id: "older-thread",
+                    title: "Older investigation",
+                    created_at: "2026-08-23T08:00:00.000Z",
+                    updated_at: "2026-08-23T08:00:00.000Z",
+                  },
+                  {
+                    id: "user-session",
+                    lookup_key: "openbot:user:e2e-owner:agent:hello-world",
+                    title: "Legacy title is not shown",
+                    created_at: defaultUpdatedAt,
+                    updated_at: defaultUpdatedAt,
+                  },
+                  {
+                    id: "newer-thread",
+                    title: "Release planning",
+                    created_at: "2026-08-24T08:00:00.000Z",
+                    updated_at: "2026-08-24T08:00:00.000Z",
+                  },
+                ],
+              },
+            },
+          ],
+        },
+      });
+      return;
+    }
+    if (path.endsWith("/mission-control/events")) {
+      eventSubscriptions += 1;
+      await route.fulfill({ contentType: "text/event-stream", body: "" });
+      return;
+    }
+    if (path.endsWith("/agent-turn-queue")) {
+      await route.fulfill({ json: { items: [] } });
+      return;
+    }
+    if (path.endsWith("/messages")) {
+      const sessionId = path.split("/").at(-2) ?? "";
+      messageRequests.push(sessionId);
+      await route.fulfill({
+        json: {
+          items: [
+            {
+              id: `message-${sessionId}`,
+              type: "ui",
+              role: "assistant",
+              session_id: sessionId,
+              created_at: defaultUpdatedAt,
+              parts: [{ type: "text", text: `Opened ${sessionId}` }],
+            },
+          ],
+        },
+      });
+      return;
+    }
+    await route.fulfill({ status: 404, json: { error: `Unhandled route ${path}` } });
+  });
+
+  await page.goto("/");
+
+  const rows = page.locator("[data-menu-row]");
+  await expect(rows).toHaveCount(3);
+  await expect(rows.nth(0)).toContainText("bot");
+  await expect(rows.nth(0)).toContainText("Hello World");
+  await expect(rows.nth(0)).not.toContainText("Legacy title is not shown");
+  await expect(rows.nth(1)).toContainText("thread");
+  await expect(rows.nth(1)).toContainText("Release planning");
+  await expect(rows.nth(2)).toContainText("Older investigation");
+  await expect.poll(() => messageRequests).toEqual(["user-session"]);
+  await expect.poll(() => eventSubscriptions).toBeGreaterThan(0);
+
+  await rows.nth(1).click();
+  await expect.poll(() => messageRequests).toContain("newer-thread");
+  await expect(
+    page.locator(".message-list").getByText("Opened newer-thread", { exact: true }),
+  ).toBeVisible();
+  await expect(rows.nth(1)).toHaveAttribute("aria-current", "page");
+});
+
 test("opens a routine and persists its active state", async ({ page }) => {
   await routeDefaultWorkspace(page);
   const now = new Date().toISOString();
@@ -127,8 +223,16 @@ test("opens a routine and persists its active state", async ({ page }) => {
   });
 
   await page.goto("/");
-  await page.getByRole("button", { name: "Toggle details" }).click();
-  await expect(page.getByRole("complementary", { name: "Details" })).toBeVisible();
+  await page.getByRole("button", { name: "Toggle routines" }).click();
+  const routinesPanel = page.getByRole("complementary", { name: "Routines" });
+  await expect(routinesPanel).toBeVisible();
+  const addRoutine = routinesPanel.getByRole("button", { name: "Add" });
+  await expect(addRoutine).toBeVisible();
+  await expect(routinesPanel.getByRole("button", { name: "Close routines" })).toBeVisible();
+  await addRoutine.click();
+  await expect(page.getByRole("complementary", { name: "Routine" })).toBeVisible();
+  await expect(page.getByPlaceholder("Name this routine")).toBeVisible();
+  await page.getByRole("button", { name: "Back to Routines" }).click();
   await page.getByRole("button", { name: /Daily briefing/ }).click();
   const active = page.getByRole("switch", { name: "Active" });
   await expect(active).toBeChecked();
@@ -155,8 +259,9 @@ test("shows authenticated account details and account navigation on hover", asyn
   await accountButton.hover();
   const accountMenu = page.getByRole("menu", { name: "Account" });
   await expect(accountMenu).toBeVisible();
-  await expect(accountMenu.getByText("owner@example.com", { exact: true })).toBeVisible();
+  await expect(accountMenu.getByText("owner@example.com", { exact: true })).toHaveCount(0);
   await expect(accountMenu.getByText("OpenBot · Tilde", { exact: true })).toBeVisible();
+  await expect(accountMenu.getByRole("separator")).toHaveCount(1);
   await expect(accountMenu.getByRole("menuitem")).toHaveText([
     "Plugins",
     "Settings",
@@ -458,6 +563,7 @@ test("streams rich messages and uploads a file through Tilde ChatKit", async ({ 
           user_display_name: "Hello World",
           created_at: now,
           parts: [
+            { type: "text", text: "I’ll inspect the attachment before answering." },
             { type: "reasoning", text: "Inspecting the attachment", state: "done" },
             {
               type: "tool",
@@ -558,7 +664,7 @@ test("streams rich messages and uploads a file through Tilde ChatKit", async ({ 
   await accountButton.hover();
   const accountMenu = page.getByRole("menu", { name: "Account" });
   await expect(accountMenu).toBeVisible();
-  await expect(accountMenu.getByText("owner@example.com", { exact: true })).toBeVisible();
+  await expect(accountMenu.getByText("owner@example.com", { exact: true })).toHaveCount(0);
   await expect(accountMenu.getByText("OpenBot · Tilde", { exact: true })).toBeVisible();
   await expect(accountMenu.getByRole("menuitem")).toHaveText([
     "Plugins",
@@ -679,6 +785,14 @@ test("streams rich messages and uploads a file through Tilde ChatKit", async ({ 
   await expect(
     page.locator(".message-list").getByText("The file is clear and complete.", { exact: true }),
   ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: /Thinking I’ll inspect the attachment before answering/ }),
+  ).toBeVisible();
+  await expect(
+    page
+      .getByLabel("Agent message")
+      .filter({ hasText: "I’ll inspect the attachment before answering." }),
+  ).toHaveCount(0);
   await expect(page.getByText("Read this file", { exact: true })).toBeVisible();
   await expect(page.getByText("Read file")).toBeVisible();
   await page.getByRole("button", { name: /screenshot.png/ }).click();

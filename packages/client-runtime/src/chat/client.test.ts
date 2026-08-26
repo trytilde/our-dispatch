@@ -31,7 +31,7 @@ describe("OpenBot client", () => {
   it("scopes chat requests to the installation and validates sidebar resources", async () => {
     const fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       expect(requestUrl(input)).toBe(
-        "https://openbot.test/api/chat/mission-control/sidebar?agent_page_size=50&session_page_size=12&agent_sort=updated_at&session_sort=updated_at",
+        "https://openbot.test/api/chat/mission-control/sidebar?agent_page_size=50&session_page_size=50&agent_sort=updated_at&session_sort=updated_at",
       );
       expect(new Headers(init?.headers).get("authorization")).toBe("Bearer owner-token");
       return Response.json({
@@ -63,6 +63,35 @@ describe("OpenBot client", () => {
         },
       ],
     });
+  });
+
+  it("creates a stable per-user Mission Control session", async () => {
+    const fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      expect(requestUrl(input)).toBe("/api/chat/mission-control/agents/agent-one/sessions");
+      expect(init?.method).toBe("POST");
+      if (typeof init?.body !== "string") throw new Error("Expected a JSON request body");
+      expect(JSON.parse(init.body)).toEqual({
+        title: "Agent One",
+        lookup_key: "openbot:user:owner-one:agent:agent-one",
+      });
+      return Response.json({
+        session: {
+          id: "session-one",
+          lookup_key: "openbot:user:owner-one:agent:agent-one",
+          title: "Agent One",
+          created_at: "2026-08-25T10:00:00.000Z",
+          updated_at: "2026-08-25T10:00:00.000Z",
+        },
+      });
+    });
+    const client = createOpenBotClient({ fetch });
+
+    await expect(
+      client.createSession("agent-one", {
+        title: "Agent One",
+        lookupKey: "openbot:user:owner-one:agent:agent-one",
+      }),
+    ).resolves.toMatchObject({ id: "session-one" });
   });
 
   it("rejects malformed upstream resources at the client boundary", async () => {
@@ -129,10 +158,12 @@ describe("OpenBot client", () => {
     await expect(client.getPluginsCatalog(["agent-one", "agent-two"])).resolves.toMatchObject({
       tools: [{ accounts: [{ assigned_agent_ids: ["agent-one"] }] }],
     });
+    await client.deleteConnectorAccounts(["github/work", "github-personal"]);
     await client.setToolAccountForAgent("github-work", "agent-two", true);
     await client.setSkillForAgent("skill-one", "agent-one", false);
     expect(calls).toEqual([
       { method: "GET", url: "/api/plugins?agent_id=agent-one&agent_id=agent-two" },
+      { method: "DELETE", url: "/api/connectors/accounts" },
       { method: "POST", url: "/api/plugins/tools/github-work/agents/agent-two" },
       { method: "DELETE", url: "/api/plugins/skills/skill-one/agents/agent-one" },
     ]);

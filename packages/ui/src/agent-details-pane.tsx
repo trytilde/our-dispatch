@@ -4,7 +4,7 @@ import {
   useCallback,
   useState,
 } from "react";
-import { ArrowLeftIcon, XIcon } from "lucide-react";
+import { ArrowLeftIcon, PlusIcon, XIcon } from "lucide-react";
 
 /**
  * The right-hand agent details pane beside the conversation. Width is
@@ -28,9 +28,10 @@ function readWidth(): number {
 
 export interface AgentDetailsPaneProps {
   open: boolean;
-  /** "Details" on the overview, "Routine" when a routine is open. */
+  /** "Routines" on the overview, "Routine" when a routine is open. */
   title: string;
   onClose: () => void;
+  onAdd?: () => void;
   backLabel?: string;
   onBack?: () => void;
   children: ReactNode;
@@ -40,6 +41,7 @@ export function AgentDetailsPane({
   open,
   title,
   onClose,
+  onAdd,
   backLabel,
   onBack,
   children,
@@ -82,7 +84,7 @@ export function AgentDetailsPane({
   return (
     <section
       aria-hidden={!open}
-      aria-label="Details"
+      aria-label={title}
       className={`ob-details-pane ${open ? "open" : "closed"}`}
       inert={!open}
       role="complementary"
@@ -108,8 +110,19 @@ export function AgentDetailsPane({
           </button>
         ) : null}
         <h2 className="min-w-0 flex-1 truncate text-[12.5px] font-semibold text-ink">{title}</h2>
+        {onAdd ? (
+          <button
+            className="flex h-7 items-center gap-1 rounded-control px-2 text-[12px] font-medium
+              text-ink-2 transition-colors hover:bg-hover hover:text-ink"
+            onClick={onAdd}
+            type="button"
+          >
+            <PlusIcon aria-hidden className="size-3.5" />
+            Add
+          </button>
+        ) : null}
         <button
-          aria-label="Close details"
+          aria-label={`Close ${title.toLowerCase()}`}
           className="flex size-6 items-center justify-center rounded-control text-ink-3
             transition-colors hover:bg-hover hover:text-ink"
           onClick={onClose}

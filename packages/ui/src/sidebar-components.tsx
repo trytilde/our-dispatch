@@ -25,6 +25,8 @@ import {
 export interface SidebarAgent {
   id: string;
   name: string;
+  avatarId?: string;
+  badge?: "bot" | "thread";
   lastMessage?: string;
   updatedAt?: string;
   unread?: boolean;
@@ -66,17 +68,31 @@ export function AgentListItem({ agent, selected, onSelect }: AgentListItemProps)
         className="relative flex shrink-0"
         style={{ animation: "pop-in 250ms cubic-bezier(0.23,1,0.32,1) both" }}
       >
-        <AgentAvatar emphasis={hovered} id={agent.id} state={sidebarAvatarState(agent, selected)} />
+        <AgentAvatar
+          emphasis={hovered}
+          id={agent.avatarId ?? agent.id}
+          state={sidebarAvatarState(agent, selected)}
+        />
       </span>
       <span className="sidebar-agent-meta min-w-0 flex-1">
         <span className="flex items-baseline justify-between gap-2">
-          <strong
-            className={`truncate text-[13px] leading-tight ${
-              agent.unread ? "font-semibold text-ink" : "font-medium text-ink"
-            }`}
-          >
-            {agent.name}
-          </strong>
+          <span className="flex min-w-0 flex-1 items-center gap-1.5">
+            {agent.badge ? (
+              <span
+                className="shrink-0 rounded-[5px] border border-line-strong bg-inset px-1.5 py-0.5
+                  text-[9px] font-medium leading-none tracking-[0.02em] text-ink-3"
+              >
+                {agent.badge}
+              </span>
+            ) : null}
+            <strong
+              className={`truncate text-[13px] leading-tight ${
+                agent.unread ? "font-semibold text-ink" : "font-medium text-ink"
+              }`}
+            >
+              {agent.name}
+            </strong>
+          </span>
           {agent.updatedAt ? (
             <time
               dateTime={agent.updatedAt}
@@ -554,8 +570,8 @@ export function WorkspaceAccount({
   onSignOut,
 }: WorkspaceAccountProps) {
   const [open, setOpen] = useState(false);
-  const name = account.name?.trim() || account.email?.trim() || "Your account";
-  const detail = account.workspaceName || account.organizationName || account.email;
+  const name = account.name?.trim() || "Your account";
+  const detail = account.workspaceName || account.organizationName;
 
   return (
     <div
@@ -624,16 +640,12 @@ export function WorkspaceAccount({
         >
           <div className="px-2.5 py-2">
             <p className="m-0 truncate text-[13px] font-semibold text-ink">{name}</p>
-            {account.email && account.email !== name ? (
-              <p className="mt-0.5 mb-0 truncate text-[11.5px] text-ink-3">{account.email}</p>
-            ) : null}
             {account.workspaceName || account.organizationName ? (
               <p className="mt-1.5 mb-0 truncate text-[11.5px] text-ink-2">
                 {[account.workspaceName, account.organizationName].filter(Boolean).join(" · ")}
               </p>
             ) : null}
           </div>
-          <DropdownMenuSeparator />
           <DropdownMenuItem onSelect={onOpenPlugins}>
             <PluginsIcon className="size-4 shrink-0 fill-none stroke-current stroke-[1.3]" />
             <span>Plugins</span>

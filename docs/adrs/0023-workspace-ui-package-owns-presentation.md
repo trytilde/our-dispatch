@@ -6,7 +6,7 @@
 - Applications own data, routing, composition. `apps/web` passes props. No app-local workspace stylesheet.
 - One stylesheet: `@tryopenbot/ui/openbot-ui.css`, exported from the package. `apps/web/src/styles.css` deleted, not overridden.
 - Storybook is package-owned and imports the real exports. No demo app, no duplicated production components.
-- One continuous conversation per agent. The sidebar selects an agent, not a conversation. No session picker.
+- One continuous bot conversation per agent, plus selectable named threads. No duplicate bot session row.
 - Cost: every visual change is a package change with a changeset and a version bump. Accepted for reuse across web and desktop.
 
 ## Context
@@ -35,13 +35,17 @@ that needs its own styling adds a fork-owned stylesheet imported after the packa
 Storybook is package-owned and imports the real exports, so the catalog cannot drift from what ships.
 There is no separate demo application and no duplicated production component.
 
-The product rule the surface encodes: one continuous conversation per agent. The sidebar selects an
-agent, not a conversation. No session picker, no thread list, no conversation switcher.
+The product rule the surface encodes: one continuous bot conversation per agent, addressed by a
+stable user-and-agent lookup key, plus selectable named threads. Every client presents the bot
+conversation as the agent row and lists the remaining sessions as threads; it never duplicates the
+bot session in the thread list.
 
 ```mermaid
 flowchart LR
   A["apps/web, apps/desktop renderer"] -->|"props only"| U["packages/ui: presentation"]
-  A -->|"Tilde REST and SSE, uploads"| D["data path"]
+  M["apps/mobile native renderer"] -->|"shared session model"| D["client-runtime data path"]
+  A -->|"shared session model"| D
+  D --> T["continuous bot session + named threads"]
   U --> C["openbot-ui.css: single workspace stylesheet"]
   U --> S["Storybook catalog: real exports"]
 ```
@@ -62,3 +66,5 @@ flowchart LR
 
 - 2026-08-19T09:00:00Z: Recorded retroactively while backfilling PR 43's documentation. The boundary
   shipped with that PR; only the record is new.
+- 2026-08-25T17:42:25+01:00: Replaced the no-thread product rule with one stable continuous bot
+  conversation plus selectable named threads, rendered consistently across web, Electron, and mobile.

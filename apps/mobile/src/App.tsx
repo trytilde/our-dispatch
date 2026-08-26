@@ -18,6 +18,7 @@ import * as SecureStore from "expo-secure-store";
 import { fetch as expoFetch } from "expo/fetch";
 import { useStore } from "zustand";
 import {
+  agentConversationSessions,
   completeOnboarding,
   errorMessage,
   loadOnboarding,
@@ -497,8 +498,10 @@ function SidebarScreen({
 
 function AgentCard({ agent, onOpenChat }: { agent: ChatAgent; onOpenChat: () => void }) {
   const runtime = useRuntime();
+  const userId = useStore(runtime.store, (state) => state.auth.session?.user.subject ?? "");
   const muted = useColor("textMuted");
   const accent = useColor("accent");
+  const { threads } = agentConversationSessions(agent, userId);
   const openSession = (session: ChatSession) => {
     void runtime.actions.selectSession(agent.id, session).then(onOpenChat);
   };
@@ -516,21 +519,20 @@ function AgentCard({ agent, onOpenChat }: { agent: ChatAgent; onOpenChat: () => 
           </Text>
         </View>
         <Button
-          label="New chat"
+          label={`Open ${agent.display_name}`}
           size="sm"
           variant="secondary"
           onPress={() => {
-            runtime.actions.startNewConversation(agent.id);
-            onOpenChat();
+            void runtime.actions.selectAgent(agent.id).then(onOpenChat);
           }}
         >
-          New chat
+          Open
         </Button>
       </View>
-      {agent.sessions.items.length ? (
+      {threads.length ? (
         <View style={styles.sessions}>
           <Separator />
-          {agent.sessions.items.slice(0, 5).map((session) => (
+          {threads.slice(0, 5).map((session) => (
             <Pressable
               key={session.id}
               accessibilityRole="button"
@@ -551,7 +553,7 @@ function AgentCard({ agent, onOpenChat }: { agent: ChatAgent; onOpenChat: () => 
         <View style={styles.sessions}>
           <Separator />
           <Text variant="caption" style={[styles.emptySessions, { color: muted }]}>
-            No conversations yet.
+            No named threads yet.
           </Text>
         </View>
       )}
