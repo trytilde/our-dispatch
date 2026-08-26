@@ -24,7 +24,7 @@ Computer-service lazily creates one supervised private Cua worker for each valid
 
 `@tryopenbot/computer-tools` loads the complete catalog before an agent starts, converts each JSON Schema with the AI SDK JSON-Schema adapter, rejects name collisions, and exposes one local tool per identical Cua name. Returned images cross the existing session-scoped Tilde attachment boundary rather than becoming model-visible base64.
 
-Agent Provider always reconciles an OpenBot-owned computer-use overlay and requires the trusted Tilde-managed `trycua/cua` `skills/gui-automation/SKILL.md` package. It discovers the current provider and skill IDs from repository and source-path identity on every reconciliation. A redeployed managed provider replaces an older managed Cua registry member without duplicating it; the overlay and user-owned registry skills remain.
+Agent Provider always reconciles an OpenBot-owned computer-use overlay. Tilde exposes the canonical `trycua/cua` `skills/gui-automation/SKILL.md` package as a managed skill, so OpenBot neither discovers nor attaches it to individual agent registries. Reconciliation removes a legacy explicit canonical Cua registry member when one is returned, while preserving the overlay and user-owned registry skills.
 
 ```mermaid
 flowchart LR
@@ -68,3 +68,4 @@ Work: add mobile Computer preview and demonstration controls with behavior match
 ## Updates
 
 - 2026-08-24T16:54:07+01:00: Required the deployed managed Cua skill, removed the bundled snapshot, and made registry migration replace rotated provider and skill IDs by stable repository and source-path identity.
+- 2026-08-24T22:08:00+01:00: Stopped attaching the canonical Cua package to individual registries after Tilde made it globally managed; retained cleanup of legacy explicit membership.

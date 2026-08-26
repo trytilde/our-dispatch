@@ -51,7 +51,7 @@ describe("TildeSkillReconciler", () => {
     expect("materializeSkillAssets" in provider).toBe(false);
   });
 
-  it("idempotently migrates managed Cua IDs while preserving user skills", async () => {
+  it("idempotently syncs authored skills without attaching Tilde-managed skills", async () => {
     const root = await mkdtemp(join(tmpdir(), "openbot-agent-skills-"));
     const agentPath = join(root, "configuration", "agent");
     await mkdir(join(agentPath, "skills", "hello"), { recursive: true });
@@ -65,38 +65,12 @@ describe("TildeSkillReconciler", () => {
       skills: Array<Record<string, unknown>>;
     } = { ...registry, skills: [] };
     let raceComputerOverlayCreation = true;
-    let managedProviderId = "provider-cua-v1";
-    let managedCuaSkill = {
-      id: "managed-cua-skill-v1",
-      name: "gui-automation",
-      description: "Managed canonical Cua skill.",
-      source_path: "skills/gui-automation/SKILL.md",
-    };
-    const managedSkillHistory: Array<Record<string, unknown>> = [];
-    const currentManagedRegistrySkill = () => ({
-      ...managedCuaSkill,
-      source_kind: "provider",
-      source_provider_id: managedProviderId,
-      source_repository_url: "https://github.com/trycua/cua.git",
-    });
-    managedSkillHistory.push(currentManagedRegistrySkill());
     const mutations: string[] = [];
     vi.stubGlobal(
       "fetch",
       vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
         const request = input instanceof Request ? input : new Request(input, init);
         const path = new URL(request.url).pathname;
-        if (request.method === "GET" && path.endsWith("/skill-providers"))
-          return Response.json({
-            items: [
-              {
-                id: managedProviderId,
-                trust_status: "trusted",
-                repository_url: "https://github.com/trycua/cua.git",
-                skills: [managedCuaSkill],
-              },
-            ],
-          });
         if (request.method === "GET" && path.endsWith("/skill-registry"))
           return Response.json({ items: remoteRegistry.id ? [remoteRegistry] : [] });
         if (request.method === "POST" && path.endsWith("/skill-registry")) {
@@ -113,20 +87,11 @@ describe("TildeSkillReconciler", () => {
         if (request.method === "PATCH" && path.endsWith(`/skill-registry/${registry.id}`)) {
           mutations.push("update-registry");
           const body = (await request.json()) as { skill_ids: string[] };
+          const availableSkills = [...remoteSkills, ...remoteRegistry.skills];
           remoteRegistry = {
             ...remoteRegistry,
             ...body,
-            skills: [...remoteSkills, ...managedSkillHistory].filter((skill) =>
-              body.skill_ids.includes(skill.id as string),
-            ),
-          };
-          return Response.json(remoteRegistry);
-        }
-        if (request.method === "POST" && path.endsWith("/provider-skills")) {
-          mutations.push("add-provider-skill");
-          remoteRegistry = {
-            ...remoteRegistry,
-            skills: [...remoteRegistry.skills, currentManagedRegistrySkill()],
+            skills: body.skill_ids.map((id) => availableSkills.find((skill) => skill.id === id)!),
           };
           return Response.json(remoteRegistry);
         }
@@ -185,7 +150,6 @@ describe("TildeSkillReconciler", () => {
         "create-registry",
         "create-skill",
         "create-skill",
-        "add-provider-skill",
         "update-registry",
       ]);
       expect(context.environment.AGENT_HELLO_WORLD_SKILL_REGISTRY_ID).toBe("registry-one");
@@ -215,11 +179,17 @@ describe("TildeSkillReconciler", () => {
         source_kind: "openbot",
         source_path: "configuration/agent/skills/.openbot/cua-driver/SKILL.md",
       };
+      const legacyManagedCua = {
+        id: "managed-cua-skill-v1",
+        name: "gui-automation",
+        description: "Managed canonical Cua skill.",
+        source_kind: "provider",
+        source_provider_id: "cua",
+        source_repository_url: "https://github.com/trycua/cua.git",
+        source_path: "skills/gui-automation/SKILL.md",
+      };
       remoteSkills.push(userSkill, bundledFallback);
-      remoteRegistry.skills.push(userSkill, bundledFallback);
-      managedProviderId = "provider-cua-v2";
-      managedCuaSkill = { ...managedCuaSkill, id: "managed-cua-skill-v2" };
-      managedSkillHistory.push(currentManagedRegistrySkill());
+      remoteRegistry.skills.push(userSkill, bundledFallback, legacyManagedCua);
       await provider.deploy(context);
       await provider.deploy(context);
 
@@ -227,15 +197,11 @@ describe("TildeSkillReconciler", () => {
         "create-registry",
         "create-skill",
         "create-skill",
-        "add-provider-skill",
         "update-registry",
-        "add-provider-skill",
         "update-registry",
         "delete-skill",
       ]);
-      expect(remoteRegistry.skills.map((skill) => skill.id)).toEqual(
-        expect.arrayContaining(["managed-cua-skill-v2", "user-owned-skill"]),
-      );
+      expect(remoteRegistry.skills.map((skill) => skill.id)).toContain("user-owned-skill");
       expect(remoteRegistry.skills.map((skill) => skill.id)).not.toContain("managed-cua-skill-v1");
       expect(remoteRegistry.skills.map((skill) => skill.id)).not.toContain("bundled-cua-fallback");
       expect(remoteSkills.map((skill) => skill.id)).not.toContain("bundled-cua-fallback");
@@ -253,37 +219,9 @@ describe("TildeSkillReconciler", () => {
         source_kind: "user",
         source_path: "user/openbot-computer-use/SKILL.md",
       });
-      expect(mutations).toHaveLength(8);
+      expect(mutations).toHaveLength(6);
     } finally {
       await rm(root, { recursive: true });
     }
-  });
-
-  it("fails clearly when the managed Cua skill is unavailable", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async (input: string | URL | Request) => {
-        const request = input instanceof Request ? input : new Request(input);
-        const path = new URL(request.url).pathname;
-        if (request.method === "GET" && path.endsWith(`/skill-registry/${registry.id}`))
-          return Response.json(registry);
-        if (request.method === "GET" && path.endsWith("/skill-providers"))
-          return Response.json({ items: [] });
-        throw new Error(`Unexpected request: ${request.method} ${path}`);
-      }),
-    );
-    const deployment: DeploymentContext = {
-      devMode: true,
-      repositoryRoot: "/repo",
-      environment: { AGENT_SCOUT_SKILL_REGISTRY_ID: registry.id },
-      inputs: new DeploymentOutputs(),
-      agentId: "scout",
-      agentPath: "/repo/configuration/agent/subagents/scout",
-      report: () => undefined,
-    };
-
-    await expect(new TildeSkillReconciler(config).deploy(deployment)).rejects.toThrow(
-      "trusted managed Cua skill provider",
-    );
   });
 });

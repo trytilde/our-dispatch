@@ -6,12 +6,14 @@ authored agent code and not as a chat API.
 
 `AgentProvider` exposes only an idempotent `Deployable` lifecycle. The Tilde
 implementation discovers authored agents; creates or repairs ChatKit agents;
-synchronizes authored skills and registry membership; adds the OpenBot computer-use overlay and the trusted managed canonical Cua skill without removing user-owned skills; and reconciles the
-dynamic MCP server, Tilde control-plane tools, and deployment-platform MCP
-connections. Repeated deployments and retries after partial failure converge
-without duplicate resources or unnecessary updates. It exposes no vendor CRUD
-to the CLI. Owner conversation traffic uses Tilde's REST/SSE contract through
-the control service's allowlisted same-origin bridge.
+synchronizes authored skills and registry membership; adds the OpenBot
+computer-use overlay without removing user-owned skills; relies on Tilde to
+expose its managed canonical Cua skill; and reconciles the dynamic MCP server,
+Tilde control-plane tools, and deployment-platform MCP connections. Repeated
+deployments and retries after partial failure converge without duplicate
+resources or unnecessary updates. It exposes no vendor CRUD to the CLI. Owner
+conversation traffic uses Tilde's REST/SSE contract through the control
+service's allowlisted same-origin bridge.
 
 ## Public API
 

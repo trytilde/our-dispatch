@@ -148,6 +148,28 @@ describe("Cua worker routing", () => {
     expect(callTool).toHaveBeenCalledTimes(1);
   });
 
+  it("returns typed driver tool failures as actionable tool results", async () => {
+    const callTool = vi.fn(async () => {
+      throw new DriverError.Tool({
+        tool: "launch_app",
+        message: "Application failed to become ready",
+        errorCode: "app_not_ready",
+      });
+    });
+    const shutdown = vi.fn(async () => undefined);
+    const driver = fakeDriver({ callTool, shutdown });
+    cuaTesting.reset(async () => driver);
+
+    await expect(callCuaTool("agent", "launch_app", "{}")).resolves.toMatchObject({
+      content: [{ content: { case: "text", value: "Application failed to become ready" } }],
+      isError: true,
+      errorCode: "app_not_ready",
+      actionCompletion: CuaActionCompletion.NOT_STARTED,
+    });
+    expect(callTool).toHaveBeenCalledTimes(1);
+    expect(shutdown).not.toHaveBeenCalled();
+  });
+
   it("forwards cancellation and reports an interrupted action without a blind retry", async () => {
     const callTool = vi.fn(
       async (_name: string, _arguments: string, options?: { signal: AbortSignal }) => {

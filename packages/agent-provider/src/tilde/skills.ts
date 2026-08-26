@@ -13,13 +13,11 @@ import {
 } from "@tryopenbot/platform-integrations/tilde/request";
 import {
   createSkillRegistry,
-  addProviderSkillsToSkillRegistry,
   createSkill,
   deleteSkill,
   createTildeApiClient,
   getSkillRegistry,
   listSkillRegistries,
-  listProxiedSkillProviders,
   listSkills,
   updateSkill,
   updateSkillRegistry,
@@ -147,33 +145,16 @@ export class TildeSkillReconciler {
           call,
         ));
     }
-    const managedCua = await this.#managedCuaSkill(call);
     const { skillIds, staleSkillIds, ownedSkillIds } = await this.#reconcileSkills(
       context,
       path,
       id,
     );
-    let current = await this.#getRegistryRecord(registry.id, call);
-    if (!current.skills.some((skill) => skill.id === managedCua.skillId)) {
-      await addProviderSkillsToSkillRegistry({
-        client: this.#api({ requestId: `agent-lifecycle:${id}:skill:cua-managed` }),
-        path: { team_id: this.#config.teamId, id: registry.id },
-        body: { provider_id: managedCua.providerId, skill_ids: [managedCua.skillId] },
-        throwOnError: true,
-      });
-      current = await this.#getRegistryRecord(registry.id, call);
-    }
+    const current = await this.#getRegistryRecord(registry.id, call);
     const preservedSkillIds = current.skills
-      .filter(
-        (skill) =>
-          !ownedSkillIds.has(skill.id) &&
-          skill.id !== managedCua.skillId &&
-          !isCanonicalCuaSkill(skill),
-      )
+      .filter((skill) => !ownedSkillIds.has(skill.id) && !isCanonicalCuaSkill(skill))
       .map((skill) => skill.id);
-    const desiredRegistrySkillIds = [
-      ...new Set([...skillIds, managedCua.skillId, ...preservedSkillIds]),
-    ];
+    const desiredRegistrySkillIds = [...new Set([...skillIds, ...preservedSkillIds])];
     if (
       current.name !== name ||
       current.description !== description ||
@@ -274,35 +255,6 @@ export class TildeSkillReconciler {
       staleSkillIds,
       ownedSkillIds: new Set(owned.map((skill) => skill.id)),
     };
-  }
-
-  async #managedCuaSkill(context: SkillReconciliationContext) {
-    const { data } = await listProxiedSkillProviders({
-      client: this.#api(context),
-      path: { team_id: this.#config.teamId },
-      throwOnError: true,
-    });
-    const provider = data.items.find(
-      (candidate) =>
-        candidate.trust_status === "trusted" &&
-        normalizeRepository(candidate.repository_url) === canonicalCuaRepository,
-    );
-    if (!provider)
-      throw new AgentProviderError(
-        "provider_unavailable",
-        `The trusted managed Cua skill provider ${canonicalCuaRepository} is unavailable`,
-        true,
-      );
-    const skill = provider.skills.find(
-      (candidate) => candidate.source_path === canonicalCuaSkillPath,
-    );
-    if (!skill)
-      throw new AgentProviderError(
-        "provider_unavailable",
-        `The trusted managed Cua provider does not publish ${canonicalCuaSkillPath}`,
-        true,
-      );
-    return { providerId: provider.id, skillId: skill.id };
   }
 
   async #listAllSkills(context: SkillReconciliationContext): Promise<TildeSkill[]> {
