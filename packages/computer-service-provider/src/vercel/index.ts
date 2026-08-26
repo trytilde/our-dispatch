@@ -30,8 +30,19 @@ import { MicrosandboxComputerProvider } from "../microsandbox/index.js";
 export interface VercelSandboxComputerProviderOptions extends ComputerImageDeploymentConfig {
   platform?: VercelPlatform;
   request?: typeof fetch;
+  /** Runtime for consolidated composition; agent is the compatibility-safe split default. */
+  projectRole?: "agent" | "runtime";
   /** Local implementation used whenever the lifecycle runs in development mode. */
   developmentProvider?: ComputerProvider;
+}
+
+export function vercelComputerProject(
+  environment: NodeJS.ProcessEnv,
+  projectRole: "agent" | "runtime" = "agent",
+): string | undefined {
+  return projectRole === "runtime"
+    ? (environment.VERCEL_RUNTIME_PROJECT ?? environment.VERCEL_AGENT_PROJECT)
+    : (environment.VERCEL_AGENT_PROJECT ?? environment.VERCEL_CONTROL_PROJECT);
 }
 
 export class VercelSandboxComputerProvider extends BaseComputerProvider {
@@ -46,11 +57,12 @@ export class VercelSandboxComputerProvider extends BaseComputerProvider {
   readonly #configuredRepository: string | undefined;
   readonly #request: typeof fetch;
   readonly #developmentProvider: ComputerProvider;
+  readonly #projectRole: "agent" | "runtime";
   #registryIdentity: Promise<VercelRegistryIdentity> | undefined;
   #sandboxCredentials: Promise<VercelProjectCredentials> | undefined;
 
   constructor(options: VercelSandboxComputerProviderOptions = {}) {
-    const { platform, request, developmentProvider, ...imageDeployment } = options;
+    const { platform, request, developmentProvider, projectRole, ...imageDeployment } = options;
     super(imageDeployment, {
       publish: true,
       buildxPlatform: "linux/amd64",
@@ -61,6 +73,7 @@ export class VercelSandboxComputerProvider extends BaseComputerProvider {
     this.#configuredRepository = imageDeployment.repository;
     this.#request = request ?? fetch;
     this.#developmentProvider = developmentProvider ?? new MicrosandboxComputerProvider();
+    this.#projectRole = projectRole ?? "agent";
   }
 
   protected override lifecycleDelegate(context: DeploymentContext): ComputerProvider | undefined {
@@ -78,7 +91,7 @@ export class VercelSandboxComputerProvider extends BaseComputerProvider {
     phase: "build" | "plan" | "deploy",
   ): Promise<string> {
     if (this.#configuredRepository) return super.imageRepository(context, phase);
-    if (phase === "plan") return "the agent Vercel project's Container Registry";
+    if (phase === "plan") return `the OpenBot ${this.#projectRole} project's Container Registry`;
     if (phase === "build") return "openbot/vercel-sandbox-computer";
     return (await this.#vercelRegistryIdentity(context)).repository;
   }
@@ -106,7 +119,7 @@ export class VercelSandboxComputerProvider extends BaseComputerProvider {
   #vercelRegistryIdentity(context: DeploymentContext): Promise<VercelRegistryIdentity> {
     return (this.#registryIdentity ??= resolveVercelRegistryIdentity({
       token: context.environment.VERCEL_TOKEN,
-      project: context.environment.VERCEL_AGENT_PROJECT,
+      project: vercelComputerProject(context.environment, this.#projectRole),
       teamId: context.environment.VERCEL_TEAM_ID,
       request: this.#request,
     }).catch((error: unknown) => {
@@ -120,7 +133,7 @@ export class VercelSandboxComputerProvider extends BaseComputerProvider {
     const environment = context?.environment ?? process.env;
     return (this.#sandboxCredentials ??= resolveVercelProjectCredentials({
       token: environment.VERCEL_TOKEN,
-      project: environment.VERCEL_AGENT_PROJECT,
+      project: vercelComputerProject(environment, this.#projectRole),
       teamId: environment.VERCEL_TEAM_ID,
       request: this.#request,
     }).catch((error: unknown) => {

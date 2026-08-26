@@ -29,7 +29,10 @@ describe("Electron renderer server", () => {
     const renderer: RendererServer = await startRendererServer(
       staticRoot,
       `http://127.0.0.1:${address.port}`,
-      { accessToken: async () => "desktop-token" },
+      {
+        accessToken: async () => "desktop-token",
+        tildeBaseUrl: "https://openbot-org.api.trytilde.ai/path-is-ignored",
+      },
     );
     cleanups.push(async () => renderer.close());
     cleanups.push(
@@ -37,8 +40,10 @@ describe("Electron renderer server", () => {
     );
     cleanups.push(async () => rm(staticRoot, { recursive: true, force: true }));
 
-    expect(await (await fetch(`${renderer.origin}/agents/one`)).text()).toContain(
-      "OpenBot renderer",
+    const rendered = await fetch(`${renderer.origin}/agents/one`);
+    expect(await rendered.text()).toContain("OpenBot renderer");
+    expect(rendered.headers.get("content-security-policy")).toContain(
+      "connect-src 'self' wss://openbot-org.api.trytilde.ai",
     );
     const proxied = await fetch(`${renderer.origin}/healthz`, {
       headers: { cookie: "client=value" },

@@ -235,6 +235,79 @@ describe("OpenBot runtime", () => {
     runtime.dispose();
   });
 
+  it("replays an event whose first state application fails", async () => {
+    let emitEvent: Parameters<OpenBotClient["observeMissionControl"]>[1] = () => undefined;
+    let failClock = false;
+    const now = new Date("2026-08-21T08:21:00.000Z");
+    const baseClient = createOpenBotClient({
+      fetch: async () => {
+        throw new Error("Unexpected HTTP request");
+      },
+    });
+    const client: OpenBotClient = {
+      ...baseClient,
+      getSession: async () => ({
+        authenticated: true,
+        user: { subject: "owner-one", name: "Owner One" },
+      }),
+      getSidebar: async () => ({
+        items: [
+          {
+            id: "agent-one",
+            display_name: "Agent One",
+            provider_id: "tilde",
+            status: "ready",
+            sessions: {
+              items: [
+                { id: "session-one", created_at: now.toISOString(), updated_at: now.toISOString() },
+              ],
+            },
+          },
+        ],
+      }),
+      getMessages: async () => ({ items: [], next_page_token: null }),
+      getQueuedTurns: async () => ({ items: [], next_page_token: null }),
+      observeMissionControl: async (signal, onEvent) => {
+        emitEvent = onEvent;
+        await new Promise<void>((resolve) =>
+          signal.addEventListener("abort", () => resolve(), { once: true }),
+        );
+      },
+    };
+    const runtime = createOpenBotRuntime({
+      client,
+      auth: createClientAuthAdapter(client, { signIn: async () => undefined }),
+      now: () => {
+        if (failClock) throw new Error("clock failed");
+        return now;
+      },
+    });
+    await runtime.actions.initialize();
+    await runtime.actions.selectAgent("agent-one");
+    const event = {
+      id: "replayed-event",
+      type: "chatkit.message.streaming",
+      data: {
+        kind: {
+          kind: "message_streaming",
+          message_id: "assistant-one",
+          session_id: "session-one",
+          delta: { type: "text-delta", delta: "Recovered" },
+        },
+      },
+    };
+
+    failClock = true;
+    expect(() => emitEvent(event)).toThrow("clock failed");
+    failClock = false;
+    emitEvent(event);
+
+    expect(runtime.store.getState().conversation.messages).toMatchObject([
+      { id: "assistant-one", role: "assistant" },
+    ]);
+    runtime.dispose();
+  });
+
   it("shows an active-turn send in the queue and coalesces queue refreshes", async () => {
     let emitEvent: Parameters<OpenBotClient["observeMissionControl"]>[1] = () => undefined;
     let resolveSend!: (value: Awaited<ReturnType<OpenBotClient["sendMessage"]>>) => void;

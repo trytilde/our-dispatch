@@ -27,7 +27,7 @@ import {
   MicrosandboxComputerProvider,
   publishedHostPort,
 } from "./microsandbox/index.js";
-import { VercelSandboxComputerProvider } from "./vercel/index.js";
+import { VercelSandboxComputerProvider, vercelComputerProject } from "./vercel/index.js";
 
 const execute = promisify(execFile);
 
@@ -352,6 +352,25 @@ describe("development sandbox source", () => {
 });
 
 describe("computer image lifecycle", () => {
+  it("selects the Vercel project from the explicit composition role", () => {
+    expect(
+      vercelComputerProject(
+        {
+          VERCEL_RUNTIME_PROJECT: "runtime",
+          VERCEL_AGENT_PROJECT: "agents",
+          VERCEL_CONTROL_PROJECT: "control",
+        },
+        "runtime",
+      ),
+    ).toBe("runtime");
+    expect(
+      vercelComputerProject({
+        VERCEL_RUNTIME_PROJECT: "stale-runtime",
+        VERCEL_AGENT_PROJECT: "agents",
+        VERCEL_CONTROL_PROJECT: "control",
+      }),
+    ).toBe("agents");
+  });
   it("delegates Vercel Sandbox development lifecycles to the local provider", async () => {
     const check = vi.fn(async () => undefined);
     const build = vi.fn(async () => ({ outputs: { local: "image" } }));
@@ -406,7 +425,7 @@ describe("computer image lifecycle", () => {
   });
 
   it("does not ask for a Vercel repository and describes its managed publish target", async () => {
-    const vercel = new VercelSandboxComputerProvider({});
+    const vercel = new VercelSandboxComputerProvider({ projectRole: "runtime" });
     expect(vercel.initialization).toBeUndefined();
     expect(vercel.platforms.map(({ id }) => id)).toEqual(["vercel"]);
     await expect(
@@ -418,7 +437,7 @@ describe("computer image lifecycle", () => {
         report: vi.fn(),
       }),
     ).resolves.toMatchObject({
-      summary: expect.stringContaining("agent Vercel project's Container Registry"),
+      summary: expect.stringContaining("OpenBot runtime project's Container Registry"),
     });
     expect(new MicrosandboxComputerProvider().initialization).toBeUndefined();
     const provider = new TestComputerProvider();
@@ -440,7 +459,7 @@ describe("computer image lifecycle", () => {
     const request = vi.fn(
       async () => new Response(JSON.stringify({ id: "team_123", slug: "tryopenbot" })),
     );
-    const provider = new TestVercelSandboxComputerProvider({ request });
+    const provider = new TestVercelSandboxComputerProvider({ request, projectRole: "runtime" });
     const inputs = new DeploymentOutputs();
     inputs.merge({
       outputs: {
@@ -454,7 +473,7 @@ describe("computer image lifecycle", () => {
 
     const environment: NodeJS.ProcessEnv = {
       VERCEL_TEAM_ID: "team_123",
-      VERCEL_AGENT_PROJECT: "openbot-agents",
+      VERCEL_RUNTIME_PROJECT: "openbot-runtime",
       VERCEL_TOKEN: "vercel-secret",
     };
     const context = {
@@ -467,11 +486,11 @@ describe("computer image lifecycle", () => {
     await expect(provider.deployable.deploy(context)).resolves.toMatchObject({
       outputs: {
         VERCEL_SANDBOX_IMAGE_REFERENCE:
-          "vcr.vercel.com/tryopenbot/openbot-agents/openbot-computer:openbot-computer-aaaaaaaaaaaa",
+          "vcr.vercel.com/tryopenbot/openbot-runtime/openbot-computer:openbot-computer-aaaaaaaaaaaa",
       },
     });
     expect(environment.VERCEL_COMPUTER_IMAGE).toBe(
-      "vcr.vercel.com/tryopenbot/openbot-agents/openbot-computer:openbot-computer-aaaaaaaaaaaa",
+      "vcr.vercel.com/tryopenbot/openbot-runtime/openbot-computer:openbot-computer-aaaaaaaaaaaa",
     );
     expect(provider.login).toHaveBeenCalledWith(
       ["login", "vcr.vercel.com", "--username", "team_123", "--password-stdin"],
@@ -482,7 +501,7 @@ describe("computer image lifecycle", () => {
         localReference: "openbot/vercel-sandbox-computer:openbot-computer-aaaaaaaaaaaa",
       }),
       expect.objectContaining({
-        repository: "vcr.vercel.com/tryopenbot/openbot-agents/openbot-computer",
+        repository: "vcr.vercel.com/tryopenbot/openbot-runtime/openbot-computer",
       }),
       expect.any(Object),
     );

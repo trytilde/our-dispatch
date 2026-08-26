@@ -3,37 +3,40 @@
 ## In brief
 
 - One user concept: Routine. Name, instruction, 1–8 triggers.
-- Trigger is schedule (Tilde ChatKit routine, UTC cron) or provider event (Tilde
-  signal rule on a signal provider instance).
-- One card can map to many Tilde resources. Grouping lives in Tilde `metadata`
-  stamps, not in OpenBot storage.
-- Control service projects owner routes `/api/routines/*` and `/api/signals/*`;
+- Trigger is schedule or provider event; Tilde persists one authoritative Automation root and
+  reconciles its ChatKit routine and signal-rule members.
+- Legacy `metadata.openbot` groups are adopted idempotently by Tilde during listing.
+- Control service keeps a thin compatibility facade at `/api/routines/*` and `/api/signals/*`;
   never rides `/api/chat/*` (ADR-0014).
 - Web renders an agent details pane; mobile is deferred.
 - Self-hosted deviation: webhook URL and signing secret are user-visible.
 
 ## Decision
 
-Tilde models scheduled runs (routines) and third-party webhooks (signals: provider
-instances, rules, deliveries) as unrelated resources. OpenBot presents both as one
-Routine with OR'd triggers because owners think "run this instruction when any of
-these happen", not "manage two resource types".
+Tilde persists an Automation root containing the name, instruction, enabled state,
+authorization planes, generation, reconciliation status, and 1–8 OR'd schedule or event
+triggers. ChatKit routines and signal rules are materialized members rather than the public
+source of truth. OpenBot retains the Routine product name and its existing client contract.
 
-### Grouping via Tilde metadata
+### Authoritative Tilde aggregate and legacy adoption
 
-Every Tilde resource OpenBot creates for a routine is stamped
-`metadata.openbot = { group, trigger }` (signal rules additionally carry
-`instruction`, since rules have no prompt field). Unified cards are reconstructed
-statelessly from list calls; unstamped resources are invisible to the unified list.
-This required an upstream `trytilde/api` change adding optional `metadata` to
-`Routine` and `SignalRule`, chosen over an OpenBot-local mapping database (drift,
-migrations) and over title-encoded markers (leak into session titles).
+OpenBot creates or replaces one Automation with one PUT. Tilde validates the complete desired
+state, persists it with a generation, creates or updates desired members before deleting obsolete
+ones, and records partial failure on the root for retry. List/get return authoritative trigger
+membership and schedule/run projections; run uses a durable client run ID.
+
+Resources created by the previous implementation retain
+`metadata.openbot = { group, trigger, instruction? }`. Tilde performs a bounded legacy scan during
+Automation listing and atomically adopts each group as a generation-1 root. Concurrent or repeated
+listing cannot duplicate the root or its materialized members. OpenBot does not retain a metadata
+scan or a mapping database.
 
 ```mermaid
 flowchart LR
-    UI[Routine card] --> CS[control-service /api/routines]
-    CS -->|schedule trigger| R[Tilde chatkit routine]
-    CS -->|event trigger| SR[Tilde signal rule]
+    UI[Routine card] --> CS[thin control-service facade]
+    CS --> A[Tilde Automation API]
+    A -->|schedule trigger| R[Tilde ChatKit routine]
+    A -->|event trigger| SR[Tilde signal rule]
     SR --> SPI[signal provider instance]
     SPI --> WH[/api/v1/webhooks/... ingress/]
     R -->|cron fire| S1[new mission-control session]
@@ -51,32 +54,21 @@ never patch caches.
 
 ### Semantics
 
-- Unified `enabled` is true when any member is enabled; toggling fans out to all
-  members. Rule creation is force-enabled upstream, so a disabled create immediately
-  patches the rule disabled.
-- Routine updates are PATCH upstream; rule updates are full-replace, handled by
-  read-modify-write. A rule's instance or signal type cannot change upstream, so
-  such edits recreate the rule under the same trigger stamp.
-- Tilde has no run-now endpoint: Test run creates a mission-control session titled
-  with the routine name and sends the instruction — identical to the upstream
-  scheduler's behavior.
-- Tilde keeps no cron run log: run history merges signal deliveries (matched by
-  rule ids) with the routine's `last_run_at`/`last_session_id`/`last_error`
-  snapshot.
+- Unified `enabled`, reconciliation status, generation, and error are authoritative root fields.
+  Tilde ensures disabled event members are created disabled rather than briefly firing.
+- Updates are full desired-state PUTs. Tilde preserves member identity where possible and
+  safely replaces members whose immutable upstream identity changes.
+- Test run calls the Automation run endpoint with a durable UUID, making retries idempotent.
+- Root run history projects the latest scheduled run and its paired session/error. Signal delivery
+  history remains available through the existing Signals API.
 - One event trigger maps to exactly one signal rule and one signal type; filters are
   `filter.json_equals` equality on the provider's normalized payload.
 
-### Unpaginated upstream signal lists
+### Pagination
 
-Tilde's signals list endpoints return a `next_page_token` that is always null, so
-paging is impossible and the requested page size is a hard cap. Loading a partial
-set is unsafe here: a routine would compose with a missing member, the replace-all
-update would neither see nor delete it, and the enabled fan-out would skip it,
-leaving an invisible rule firing while its card reads Paused. The control service
-therefore requests 1000 and fails loudly with a 502 when a page fills, rather than
-truncating silently. A team that legitimately exceeds 1000 signal rules will see the
-routines surface error until upstream paginates; that is preferred over silently
-corrupting routines on the next edit.
+The control facade follows Tilde Automation continuation tokens until exhausted and never rebuilds
+the aggregate from independently paginated routine/rule collections. Legacy adoption is bounded and
+fails visibly on overflow rather than silently producing an incomplete root.
 
 ### Provider connections
 
@@ -108,10 +100,13 @@ Work: render the routines list, editor, and provider connect flow natively again
 
 ## Upstream dependencies
 
-- `trytilde/api`: optional `metadata` on `Routine`/`SignalRule`; serialized
-  `webhook_verification` descriptor in the signals provider catalog. Until deployed,
-  the control service falls back to a webhook-auth heuristic for
-  `requires_signing_key`, and metadata stamps require the upstream field to persist.
+- `trytilde/api`: persisted Automations API, bounded legacy metadata adoption, schedule/run
+  projections, authorization/grants, ownership lifecycle participation, and the serialized
+  `webhook_verification` descriptor in the signals provider catalog.
 - `@trytilde/api-client`: generated routines, signals, metadata, and webhook
   verification contracts. Stable hand-authored behavior remains owned by
   `@trytilde/sdk`; OpenBot does not reintroduce the retired Harness package names.
+
+## Updates
+
+- 2026-08-26T16:18:13+01:00: Replaced OpenBot's stateless metadata composition and mutation fan-out with Tilde's persisted Automation aggregate, retaining a thin owner-authenticated compatibility facade and automatic legacy adoption.

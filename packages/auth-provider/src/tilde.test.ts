@@ -163,6 +163,7 @@ describe("TildeAuthProvider", () => {
       expect.arrayContaining([
         "http://127.0.0.1:4173/auth/callback",
         "http://localhost:4173/auth/callback",
+        "http://[::1]:4173/auth/callback",
         "https://our-ob-control.vercel.app/auth/callback",
       ]),
     );

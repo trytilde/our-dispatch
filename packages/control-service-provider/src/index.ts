@@ -21,4 +21,5 @@ export type { LocalControlServiceProviderOptions } from "./local/index.js";
 export type { VercelControlServiceProviderOptions } from "./vercel/index.js";
 export type { CommandRunner, CommandResult } from "./command.js";
 export { processRunner } from "./command.js";
-export { installLocalService, waitForHealth } from "./local-service.js";
+export { installLocalService, retireLocalService, waitForHealth } from "./local-service.js";
+export { buildVercelControlService } from "./vercel/build.js";

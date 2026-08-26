@@ -70,7 +70,9 @@ multi-audience token and never shares an installation cookie across origins.
 Browser clients use Authorization Code with PKCE. The control-service callback exchanges the code
 server-side and sets a short-lived access cookie plus a refresh cookie. Cookies are host-only,
 HttpOnly, Secure outside loopback development, and SameSite. Browser JavaScript never receives either
-token. Cookie-authenticated unsafe requests additionally require a matching Origin; OAuth callbacks
+token. A protected ticket-exchange route may redeem the authenticated access token server-to-server
+for a short-lived, audience- and Origin-bound capability such as one Mission Control WebSocket;
+that capability cannot be refreshed or reused as an owner bearer. Cookie-authenticated unsafe requests additionally require a matching Origin; OAuth callbacks
 require one-time state and PKCE verification.
 
 Electron uses the system browser and a registered native redirect. The Electron main process owns
@@ -163,3 +165,4 @@ flowchart LR
 
 - 2026-08-17T18:00:00+02:00: Added Expo mobile PKCE, SecureStore ownership, and the rule that native tokens stay outside shared client and React state.
 - 2026-08-17T19:55:00+02:00: Made control-service selection precede mobile authentication and added provider-owned public PKCE discovery with installation-scoped credential clearing.
+- 2026-08-26T16:18:13+01:00: Allowed a narrowly scoped server-side exchange of the owner access token for a single-use Mission Control socket ticket while keeping bearer and refresh tokens out of browser JavaScript.

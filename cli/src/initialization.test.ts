@@ -4,6 +4,8 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { CodexInferenceProvider, VercelInferenceProvider } from "@tryopenbot/inference-provider";
+import { VercelRuntimeServiceProvider } from "@tryopenbot/agent-service-provider";
+import { VercelSandboxComputerProvider } from "@tryopenbot/computer-service-provider";
 import { renderFileTemplatePath } from "@tryopenbot/utilities";
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 import { parse as parseYaml, stringify as stringifyYaml } from "yaml";
@@ -11,6 +13,7 @@ import {
   applyFileReplacements,
   generateAgeIdentity,
   builtInRuntimeInitializationProviders,
+  configuredRuntimeChoice,
   inferenceChoicesForRuntime,
   initializeOpenBot,
   isInitializedOpenBotRepository,
@@ -38,6 +41,23 @@ afterEach(async () => {
 });
 
 describe("OpenBot initialization", () => {
+  it("recognizes consolidation only when both service roles share one provider instance", () => {
+    const shared = new VercelRuntimeServiceProvider();
+    const providers = {
+      auth: {},
+      agent: {},
+      computer: new VercelSandboxComputerProvider(),
+      controlService: shared,
+      agentService: shared,
+    };
+    expect(configuredRuntimeChoice({ providers } as never)).toBe("vercel");
+    expect(
+      configuredRuntimeChoice({
+        providers: { ...providers, agentService: new VercelRuntimeServiceProvider() },
+      } as never),
+    ).toBeUndefined();
+  });
+
   it("offers subscription inference for local and Vercel runtimes", () => {
     expect(inferenceChoicesForRuntime("local").map(({ value }) => value)).toEqual([
       "vercel",
@@ -363,7 +383,9 @@ describe("OpenBot initialization", () => {
       expect(loaded.environment[SANDBOX_SOPS_AGE_KEY]).toMatch(/^AGE-SECRET-KEY-1/);
       const configuration = await readFile(join(repositoryRoot, "configuration/index.ts"), "utf8");
       expect(configuration).toContain("providers: {");
-      expect(configuration).toContain("controlService: new LocalControlServiceProvider()");
+      expect(configuration).toContain("const runtime = new LocalRuntimeServiceProvider()");
+      expect(configuration).toContain("controlService: runtime");
+      expect(configuration).toContain("agentService: runtime");
       expect(configuration).toContain("agent: new TildeAgentProvider(tilde)");
       expect(configuration).toContain("inference: new VercelInferenceProvider(vercel)");
       expect(configuration).not.toContain("inferenceModel");
@@ -533,8 +555,7 @@ describe("OpenBot initialization", () => {
       "onepassword-item-title": "OpenBot owner identity",
       "vercel-token": "vercel-secret",
       "vercel-team-id": "",
-      "vercel-control-project": "openbot-control",
-      "vercel-agent-project": "openbot-agents",
+      "vercel-runtime-project": "openbot-runtime",
       "vercel-ai-gateway-api-key-name": "OpenBot agents",
       "tilde-api-key": "tilde-secret",
       "tilde-org-id": "tilde-org",
@@ -584,14 +605,14 @@ describe("OpenBot initialization", () => {
 
     expect(calls.at(-1)).toMatchObject({ command: "vp", args: ["install"] });
 
-    expect(promptInput).toHaveBeenCalledTimes(14);
+    expect(promptInput).toHaveBeenCalledTimes(13);
     const environment = await readFile(join(repositoryRoot, "configuration/.env"), "utf8");
     expect(environment).not.toContain("RUNTIME_PROVIDER");
-    expect(environment).toContain('VERCEL_CONTROL_PROJECT="openbot-control"');
+    expect(environment).toContain('VERCEL_RUNTIME_PROJECT="openbot-runtime"');
     expect(environment).toContain(
-      "# Name of the Vercel project that will host the OpenBot control service",
+      "# Name of the single Vercel project that will host the web app, control API, and isolated agent functions.",
     );
-    expect(environment).toContain('VERCEL_AGENT_PROJECT="openbot-agents"');
+    expect(environment).not.toContain("VERCEL_AGENT_PROJECT");
     expect(environment).toContain('VERCEL_AI_GATEWAY_API_KEY_NAME="OpenBot agents"');
     expect(environment).not.toContain("OPENAI_BASE_URL");
     expect(environment).toContain('TILDE_ORG_ID="tilde-org"');
@@ -603,8 +624,10 @@ describe("OpenBot initialization", () => {
     const configuration = await readFile(join(repositoryRoot, "configuration/index.ts"), "utf8");
     expect(configuration).toContain("providers: {");
     expect(configuration).toContain(
-      "controlService: new VercelControlServiceProvider({ platform: vercel })",
+      "const runtime = new VercelRuntimeServiceProvider({ platform: vercel })",
     );
+    expect(configuration).toContain("controlService: runtime");
+    expect(configuration).toContain("agentService: runtime");
     expect(configuration).toContain("inference: new VercelInferenceProvider(vercel)");
     const sopsConfig = await readFile(join(repositoryRoot, "configuration/.sops.yaml"), "utf8");
     expect(sopsConfig.match(/- age1/g)).toHaveLength(2);

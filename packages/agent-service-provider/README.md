@@ -1,6 +1,6 @@
 # @tryopenbot/agent-service-provider
 
-Build and deployment providers for independently compiled agent entrypoints. It discovers Eve-shaped agent folders, runs instrumentation hooks, builds one fast function per agent for Vercel, or federates all agents in one local Hono service.
+Build and deployment providers for independently compiled agent entrypoints. It discovers Eve-shaped agent folders, runs instrumentation hooks, and can combine the agent functions with the web and control API in one deployable OpenBot runtime.
 
 ## Public API
 
@@ -14,6 +14,10 @@ Build and deployment providers for independently compiled agent entrypoints. It 
 
 - `LocalAgentServiceProvider` implements the build and deploy lifecycle for one local Hono server and accepts `LocalAgentServiceProviderOptions`.
 - `VercelAgentServiceProvider` builds agents concurrently into separate Vercel Functions and accepts `VercelAgentServiceProviderOptions`.
+- `LocalRuntimeServiceProvider` builds and installs one local process containing the control API and all agent routes.
+- `VercelRuntimeServiceProvider` publishes the static web app, one control Function, and independently bundled per-agent Functions as one atomic Vercel deployment.
+
+Compose the same runtime-provider instance as both `controlService` and `agentService`. Lifecycle coordination recognizes that shared identity and checks, builds, configures, and deploys it once. Agent endpoints keep separate Vercel Function directories even though releases and rollbacks are atomic with control and web.
 
 Both service providers leave development startup to OpenBot's watched Hono process. The Vercel
 adapter performs its check but skips artifact creation, project configuration, and remote deployment

@@ -246,7 +246,11 @@ export class TildeAuthProvider implements AuthProvider, InitializableProvider {
     const redirectUris = [
       `http://127.0.0.1:${port}/auth/callback`,
       ...(development
-        ? [`http://127.0.0.1:${webPort}/auth/callback`, `http://localhost:${webPort}/auth/callback`]
+        ? [
+            `http://127.0.0.1:${webPort}/auth/callback`,
+            `http://localhost:${webPort}/auth/callback`,
+            `http://[::1]:${webPort}/auth/callback`,
+          ]
         : []),
       "openbot://auth/callback",
       ...(publicOrigin ? [`${publicOrigin}/auth/callback`] : []),
