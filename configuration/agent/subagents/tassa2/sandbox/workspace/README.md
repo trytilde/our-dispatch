@@ -1,0 +1,9 @@
+# tassa2 workspace
+
+Files in this directory seed `/workspace/tassa2` on the shared computer
+when the agent is first deployed. The directory is a default, not an isolation
+boundary; agents share the rest of the computer filesystem.
+
+The scaffolded `.profile` is loaded before every Bash tool command. It may
+source an optional `.bashrc`. Changes to either file are workspace changes and
+do not update a computer where this agent has already been registered.
