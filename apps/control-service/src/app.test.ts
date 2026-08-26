@@ -54,12 +54,31 @@ describe("bare OpenBot server", () => {
       jobId,
       running: false,
     }));
+    const tildeFetch = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ status: "queued" }), {
+          status: 202,
+          headers: { "content-type": "application/json" },
+        }),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ status: "active" }), {
+          status: 202,
+          headers: { "content-type": "application/json" },
+        }),
+      );
     const agentApp = createApp({
       environment: {
         COMPUTER_SERVICE_API_KEY: "computer-key",
         DEVELOPMENT_SANDBOX_SERVICE_URL: "https://computer.test/rpc",
+        AGENT_SERVICE_ORIGIN: "https://agents.openbot.test",
+        TILDE_API_KEY: "tilde-key",
+        TILDE_ORG_ID: "org-one",
+        TILDE_TEAM_ID: "team-one",
+        TILDE_BASE_URL: "https://tilde.test",
       },
-      agentCreation: { execute, awaitExecution },
+      agentCreation: { execute, awaitExecution, tildeFetch },
     });
 
     const response = await agentApp.request("https://openbot.test/api/agents", {
@@ -84,7 +103,17 @@ describe("bare OpenBot server", () => {
       expect.objectContaining({ authorization: "Bearer computer-key" }),
     );
 
-    const status = await agentApp.request(`https://openbot.test/api/agents/setup/${jobId}`);
+    const provisioning = await agentApp.request(`https://openbot.test/api/agents/setup/${jobId}`, {
+      headers: { authorization: "Bearer owner-token" },
+    });
+    await expect(provisioning.json()).resolves.toEqual({
+      status: "setting_up",
+      job_id: jobId,
+      agent: { id: "test", name: "Test" },
+    });
+    const status = await agentApp.request(`https://openbot.test/api/agents/setup/${jobId}`, {
+      headers: { authorization: "Bearer owner-token" },
+    });
     expect(status.status).toBe(200);
     await expect(status.json()).resolves.toEqual({
       status: "ready",
@@ -93,6 +122,17 @@ describe("bare OpenBot server", () => {
     expect(awaitExecution).toHaveBeenCalledWith(
       { agentId: "factory", jobId, timeoutMilliseconds: 0 },
       expect.objectContaining({ authorization: "Bearer computer-key" }),
+    );
+    expect(tildeFetch).toHaveBeenLastCalledWith(
+      new URL("https://tilde.test/api/v1/team/team-one/chatkit/agents/test/provision"),
+      expect.objectContaining({
+        method: "PUT",
+        headers: expect.objectContaining({
+          authorization: "Bearer owner-token",
+          "x-api-key": "tilde-key",
+        }),
+        body: expect.stringContaining('"display_name":"Test"'),
+      }),
     );
   });
 

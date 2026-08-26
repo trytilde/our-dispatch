@@ -119,6 +119,24 @@ export class TildeSkillReconciler {
     return this.#run(() => this.#deployResources(context));
   }
 
+  /** Build the exact skill selection accepted by Tilde's Agent Resource Bundle API. */
+  async bundleSkills(context: DeploymentContext) {
+    const { id, path } = requireAgent(context);
+    const custom = (await authoredSkills(context.repositoryRoot, path)).map((skill) => ({
+      key: skill.sourcePath,
+      name: teamSkillName(id, skill.name),
+      description: skill.description,
+      content: skill.content,
+    }));
+    const managedCua = await this.#managedCuaSkill({
+      requestId: `agent-lifecycle:${id}:managed-cua`,
+    });
+    return {
+      custom,
+      managed: [{ provider_id: managedCua.providerId, skill_ids: [managedCua.skillId] }],
+    };
+  }
+
   async #deployResources(context: DeploymentContext): Promise<void> {
     const { id, path } = requireAgent(context);
     const prefix = agentPrefix(id);

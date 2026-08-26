@@ -10,16 +10,18 @@ export interface TildeRouteOptions {
   fetch?: typeof globalThis.fetch;
 }
 
-export function tildeOptionsFromEnvironment(): TildeRouteOptions | undefined {
-  const apiKey = process.env.TILDE_API_KEY?.trim();
-  const orgId = process.env.TILDE_ORG_ID?.trim();
-  const teamId = process.env.TILDE_TEAM_ID?.trim();
+export function tildeOptionsFromEnvironment(
+  environment: NodeJS.ProcessEnv = process.env,
+): TildeRouteOptions | undefined {
+  const apiKey = environment.TILDE_API_KEY?.trim();
+  const orgId = environment.TILDE_ORG_ID?.trim();
+  const teamId = environment.TILDE_TEAM_ID?.trim();
   if (!apiKey || !orgId || !teamId) return undefined;
   return {
     apiKey,
     orgId,
     teamId,
-    baseUrl: process.env.TILDE_BASE_URL?.trim() || undefined,
+    baseUrl: environment.TILDE_BASE_URL?.trim() || undefined,
   };
 }
 
@@ -35,7 +37,11 @@ export class TildeUpstreamError extends Error {
 export async function tildeJson(
   options: TildeRouteOptions,
   teamPath: string,
-  init?: { method?: "GET" | "POST" | "PATCH" | "DELETE"; body?: unknown },
+  init?: {
+    method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
+    body?: unknown;
+    authorization?: string;
+  },
 ): Promise<unknown> {
   const method = init?.method ?? (init && "body" in init ? "POST" : "GET");
   const body = init?.body;
@@ -51,6 +57,7 @@ export async function tildeJson(
       "x-api-key": options.apiKey,
       "x-tilde-org-id": options.orgId,
       "x-tilde-team-id": options.teamId,
+      ...(init?.authorization ? { authorization: init.authorization } : {}),
     },
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
   });

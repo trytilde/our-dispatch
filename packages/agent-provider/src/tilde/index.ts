@@ -1,5 +1,5 @@
 import type { DeploymentContext, DeploymentPlan } from "@tryopenbot/runtime-provider";
-import { persistEnvironment, persistSecret } from "@tryopenbot/runtime-provider";
+import { persistEnvironment, persistSecret, unsetEnvironment } from "@tryopenbot/runtime-provider";
 import { TildePlatform, type TildePlatformConfig } from "@tryopenbot/platform-integrations";
 import { createClient } from "@trytilde/sdk";
 import {
@@ -7,17 +7,17 @@ import {
   tildeHttpErrorMessage,
 } from "@tryopenbot/platform-integrations/tilde/errors";
 import {
-  chatkitDeleteAgent,
-  chatkitGetAgent,
+  chatkitClaimAgentResourceBundleOutputs,
+  chatkitGetAgentResourceBundleProvisioning,
   chatkitListChatProviders,
-  chatkitRegisterHttpVercelAiSdkAgent,
+  chatkitProvisionAgentResourceBundle,
   chatkitUpdateChatProvider,
+  chatkitUpdateAgentAvatar,
   chatkitRegisterVercelUiChatProvider,
-  chatkitSetAgentStatus,
-  chatkitUpdateAgent,
+  AgentCredentialStrategy,
+  AgentProvisioningStatus,
   ChatKitAgentConcurrencyPolicy,
   createTildeApiClient,
-  InboxStatus,
   type TildeApiClient,
 } from "@trytilde/sdk/api";
 import type { AgentProvider } from "../core.js";
@@ -25,6 +25,7 @@ import { AgentProviderError } from "../core.js";
 import { TildeSkillReconciler } from "./skills.js";
 import { TildeToolReconciler, tildeAgentProviderInitialization } from "./tools.js";
 import { fetchWithConcurrency } from "./concurrency.js";
+import { renderAgentAvatarPng } from "./avatar.js";
 
 export { tildeAgentProviderInitialization } from "./tools.js";
 
@@ -33,18 +34,6 @@ export interface TildeAgentProviderConfig extends TildePlatformConfig {}
 type JsonRecord = Record<string, unknown>;
 const missionControlChannelId = "openbot-mission-control";
 const maxConcurrentRequests = 10;
-
-interface AgentResource {
-  id: string;
-  providerId: string;
-  displayName?: string;
-  endpointUrl?: string;
-  localRunningEndpoint: boolean;
-  streaming: boolean;
-  timeoutMs?: number;
-  concurrencyPolicy?: string;
-  status?: string;
-}
 
 /** Idempotently reconciles every authored agent with Tilde ChatKit. */
 export class TildeAgentProvider implements AgentProvider {
@@ -100,6 +89,7 @@ export class TildeAgentProvider implements AgentProvider {
         "Create missing ChatKit agents",
         "Create the shared OpenBot Mission Control chat channel when missing",
         "Reconcile Vercel AI SDK endpoint URLs and enabled status",
+        "Upload the agent's canonical machine-user avatar",
         "Synchronize authored skills and exact registry membership",
         "Reconcile dynamic MCP, Tilde control-plane, and deployment-platform tools",
         context.devMode
@@ -125,108 +115,149 @@ export class TildeAgentProvider implements AgentProvider {
     const endpointUrl = new URL(`/api/agents/${slug}`, `${origin}/`);
     const hasCredentials =
       Boolean(context.environment[apiKeyName]) && Boolean(context.environment[webhookKeyName]);
-    let agent = await this.#getAgentOrUndefined(slug);
-    let createdSecrets: { apiKey: string; webhookSigningKey: string } | undefined;
-
-    // Tilde only returns endpoint credentials at creation. Replace an unrecoverable registration
-    // so repeated lifecycle runs converge instead of leaving an unusable endpoint behind.
-    if (agent && (!hasCredentials || !isVercelAiSdkProvider(agent.providerId))) {
-      await this.#removeAgentEndpoint(agent.id);
-      agent = undefined;
-    }
-
-    if (!agent) {
-      const createBody = {
-        id: slug,
-        display_name: displayName,
-        endpoint_url: endpointValue(endpointUrl),
-        local_running_endpoint: localRunningEndpoint,
-        streaming: true,
-        timeout_ms: 300_000,
-        concurrency_policy: ChatKitAgentConcurrencyPolicy.QUEUE,
-      };
-      const response = await this.#generated(`create agent "${slug}"`, (signal) =>
-        chatkitRegisterHttpVercelAiSdkAgent({
+    const enabledSkills = await this.#skills.bundleSkills(context);
+    let operation = await this.#generated(`provision Agent Resource Bundle "${slug}"`, (signal) =>
+      chatkitProvisionAgentResourceBundle({
+        client: this.#api,
+        path: { team_id: this.#teamId, agent_id: slug },
+        body: {
+          agent: {
+            display_name: displayName,
+            endpoint: {
+              url: endpointValue(endpointUrl),
+              local_running_endpoint: localRunningEndpoint,
+              streaming: true,
+              timeout_ms: 300_000,
+              concurrency_policy: ChatKitAgentConcurrencyPolicy.QUEUE,
+            },
+            status: "enabled",
+            credential_strategy: hasCredentials
+              ? AgentCredentialStrategy.PRESERVE
+              : AgentCredentialStrategy.ROTATE,
+          },
+          mcp_server: {
+            enabled: true,
+            id: context.environment[`${prefix}_MCP_SERVER_ID`]?.trim() || `openbot-${slug}`,
+            name: `OpenBot ${slug}`,
+            dynamic_tool_discovery: true,
+            enable_tilde_control_plane: true,
+          },
+          skill_registry: {
+            enabled: true,
+            id: context.environment[`${prefix}_SKILL_REGISTRY_ID`]?.trim(),
+            name: `OpenBot ${slug}`,
+            description: `Skills available to the ${slug} OpenBot agent.`,
+            enabled_skills: enabledSkills,
+          },
+          memory: {
+            bank: {
+              enabled: true,
+              name: `OpenBot ${slug} memory`,
+              description: `Memory owned by the ${slug} OpenBot agent.`,
+            },
+          },
+        },
+        signal,
+      }),
+    );
+    for (let attempt = 0; operation.status !== AgentProvisioningStatus.ACTIVE; attempt += 1) {
+      if (operation.status === AgentProvisioningStatus.ERROR)
+        throw new AgentProviderError(
+          "provider_unavailable",
+          operation.error_message || `Tilde could not provision ${slug}`,
+          true,
+        );
+      if (attempt >= 1_200)
+        throw new AgentProviderError(
+          "deadline_exceeded",
+          `Timed out provisioning Agent Resource Bundle "${slug}"`,
+          true,
+        );
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      operation = await this.#generated(`poll Agent Resource Bundle "${slug}"`, (signal) =>
+        chatkitGetAgentResourceBundleProvisioning({
           client: this.#api,
-          path: { team_id: this.#teamId },
-          body: createBody,
+          path: { team_id: this.#teamId, agent_id: slug },
           signal,
         }),
       );
-      agent = agentResource(response.agent as JsonRecord);
-      createdSecrets = {
-        apiKey: response.api_key,
-        webhookSigningKey: response.webhook_signing_key,
-      };
-    } else if (
-      agent.displayName !== displayName ||
-      agent.endpointUrl !== endpointValue(endpointUrl) ||
-      agent.localRunningEndpoint !== localRunningEndpoint ||
-      !agent.streaming ||
-      agent.timeoutMs !== 300_000 ||
-      agent.concurrencyPolicy !== ChatKitAgentConcurrencyPolicy.QUEUE
-    ) {
-      const updateBody = {
-        display_name: displayName,
-        endpoint_url: endpointValue(endpointUrl),
-        local_running_endpoint: localRunningEndpoint,
-        streaming: true,
-        timeout_ms: 300_000,
-        concurrency_policy: ChatKitAgentConcurrencyPolicy.QUEUE,
-      };
-      agent = agentResource(
-        (await this.#generated(`update agent "${slug}"`, (signal) =>
-          chatkitUpdateAgent({
+    }
+    const mcpServerId = operation.resources.find(
+      ({ kind, key }) => kind === "mcp_server" && key === "default",
+    )?.id;
+    if (!mcpServerId)
+      throw new AgentProviderError(
+        "provider_unavailable",
+        `Tilde returned no MCP server for ${slug}`,
+        true,
+      );
+    let createdSecrets: { apiKey: string; webhookSigningKey: string } | undefined;
+    if (operation.outputs_available) {
+      const claimed = await this.#generated(
+        `claim Agent Resource Bundle outputs "${slug}"`,
+        (signal) =>
+          chatkitClaimAgentResourceBundleOutputs({
             client: this.#api,
             path: { team_id: this.#teamId, agent_id: slug },
-            body: updateBody,
             signal,
           }),
-        )) as JsonRecord,
       );
+      if (claimed.values?.api_key && claimed.values.webhook_signing_key)
+        createdSecrets = {
+          apiKey: claimed.values.api_key,
+          webhookSigningKey: claimed.values.webhook_signing_key,
+        };
     }
-
-    if (agent.status !== InboxStatus.ENABLED) {
-      agent = agentResource(
-        (await this.#generated(`enable agent "${slug}"`, (signal) =>
-          chatkitSetAgentStatus({
-            client: this.#api,
-            path: { team_id: this.#teamId, agent_id: agent!.id },
-            body: { status: InboxStatus.ENABLED },
-            signal,
-          }),
-        )) as JsonRecord,
+    const agentApiKey = createdSecrets?.apiKey ?? context.environment[apiKeyName]?.trim();
+    if (!agentApiKey)
+      throw new AgentProviderError(
+        "invalid_configuration",
+        `The stable machine-user API key is unavailable for ${slug}`,
       );
-    }
+    const platform = this.platform.connection();
+    const agentApi = createTildeApiClient({
+      baseUrl: platform.baseUrl,
+      apiKey: agentApiKey,
+      orgId: platform.orgId,
+      throwOnError: false,
+    });
+    const avatar = renderAgentAvatarPng(slug);
+    await this.#generated(`upload avatar for "${slug}"`, (signal) =>
+      chatkitUpdateAgentAvatar({
+        client: agentApi,
+        path: { team_id: this.#teamId, agent_id: slug },
+        // The generated OpenAPI type uses number[] for binary bodies, while fetch requires a
+        // BodyInit. Preserve the Uint8Array at runtime until the generator models binary input.
+        body: avatar as unknown as number[],
+        headers: { "Content-Type": "image/png" },
+        signal,
+      }),
+    );
+    await persistEnvironment(
+      context,
+      `${prefix}_MCP_SERVER_ID`,
+      mcpServerId,
+      `Tilde MCP server ID for ${slug}.`,
+    );
     await Promise.all([
-      this.#ensureMissionControlChannel(slug, agent.id, context.agentKind ?? "subagent"),
-      this.#persistAgentRegistration(context, slug, prefix, agent, createdSecrets),
-      this.#skills.deploy(context),
-      this.#tools.deploy(context),
+      this.#ensureMissionControlChannel(slug, slug, context.agentKind ?? "subagent"),
+      this.#persistAgentSecrets(context, slug, prefix, createdSecrets),
+      this.#tools.deployExternalResources(context),
+      unsetEnvironment(context, `${prefix}_AGENT_ID`),
+      unsetEnvironment(context, `${prefix}_PROVIDER_ID`),
+      unsetEnvironment(context, `${prefix}_SKILL_REGISTRY_ID`),
+      unsetEnvironment(context, `${prefix}_TILDE_CONTROL_PLANE_TOOL_GROUP_ID`),
     ]);
   }
 
-  async #persistAgentRegistration(
+  async #persistAgentSecrets(
     context: DeploymentContext,
     slug: string,
     prefix: string,
-    agent: AgentResource,
     createdSecrets: { apiKey: string; webhookSigningKey: string } | undefined,
   ): Promise<void> {
     const apiKeyName = `${prefix}_API_KEY`;
     const webhookKeyName = `${prefix}_WEBHOOK_SIGNING_KEY`;
-    await persistEnvironment(
-      context,
-      `${prefix}_AGENT_ID`,
-      agent.id,
-      `Tilde agent ID for ${slug}.`,
-    );
-    await persistEnvironment(
-      context,
-      `${prefix}_PROVIDER_ID`,
-      agent.providerId,
-      `Tilde agent provider ID for ${slug}.`,
-    );
     if (createdSecrets) {
       await persistSecret(
         context,
@@ -300,54 +331,6 @@ export class TildeAgentProvider implements AgentProvider {
     );
   }
 
-  async #getAgentOrUndefined(id: string): Promise<AgentResource | undefined> {
-    try {
-      return agentResource(
-        (await this.#generated(`get agent "${id}"`, (signal) =>
-          chatkitGetAgent({
-            client: this.#api,
-            path: { team_id: this.#teamId, agent_id: id },
-            signal,
-          }),
-        )) as JsonRecord,
-      );
-    } catch (error) {
-      if (error instanceof AgentProviderError && error.code === "not_found") return undefined;
-      throw error;
-    }
-  }
-
-  async #removeAgentEndpoint(id: string): Promise<void> {
-    try {
-      await this.#generated(`clear endpoint for agent "${id}"`, (signal) =>
-        chatkitUpdateAgent({
-          client: this.#api,
-          path: { team_id: this.#teamId, agent_id: id },
-          body: { endpoint_url: null, local_running_endpoint: false },
-          signal,
-        }),
-      );
-      await this.#generated(`disable agent "${id}"`, (signal) =>
-        chatkitSetAgentStatus({
-          client: this.#api,
-          path: { team_id: this.#teamId, agent_id: id },
-          body: { status: InboxStatus.DISABLED },
-          signal,
-        }),
-      );
-      await this.#generated(`delete agent "${id}"`, (signal) =>
-        chatkitDeleteAgent({
-          client: this.#api,
-          path: { team_id: this.#teamId, agent_id: id },
-          signal,
-        }),
-      );
-    } catch (error) {
-      if (error instanceof AgentProviderError && error.code === "not_found") return;
-      throw error;
-    }
-  }
-
   async #generated<T>(
     operationName: string,
     operation: (signal: AbortSignal) => Promise<{ data?: T; error?: unknown; response?: Response }>,
@@ -398,39 +381,10 @@ function endpointValue(endpointUrl: URL): string {
   return endpointUrl.toString();
 }
 
-function agentResource(value: JsonRecord): AgentResource {
-  const configuration = jsonRecord(value.configuration);
-  return {
-    id: requiredString(value.id, "agent identifier"),
-    providerId: optionalString(value.provider_id) ?? "chatkit.http-vercel-ai-sdk",
-    displayName: optionalString(value.display_name),
-    endpointUrl: optionalString(configuration?.endpoint_url),
-    localRunningEndpoint: configuration?.local_running_endpoint === true,
-    streaming: configuration?.streaming === true,
-    timeoutMs: typeof configuration?.timeout_ms === "number" ? configuration.timeout_ms : undefined,
-    concurrencyPolicy: optionalString(configuration?.concurrency_policy),
-    status: optionalString(value.status),
-  };
-}
-
 function jsonRecord(value: unknown): JsonRecord | undefined {
   return value && typeof value === "object" && !Array.isArray(value)
     ? (value as JsonRecord)
     : undefined;
-}
-
-function requiredString(value: unknown, label: string): string {
-  if (typeof value !== "string" || !value)
-    throw new AgentProviderError("provider_unavailable", `Tilde returned an invalid ${label}`);
-  return value;
-}
-
-function optionalString(value: unknown): string | undefined {
-  return typeof value === "string" && value ? value : undefined;
-}
-
-function isVercelAiSdkProvider(providerId: string): boolean {
-  return providerId === "http-vercel-ai-sdk" || providerId.endsWith(".http-vercel-ai-sdk");
 }
 
 function agentErrorCode(status: number | undefined): AgentProviderError["code"] {
