@@ -75,6 +75,8 @@ describe("ExeDevRuntimeServiceProvider", () => {
     expect(calls.flatMap((call) => call.args).join(" ")).not.toContain("repository-only-token");
     expect(calls[3]?.input).toContain('CODE_STORAGE_REPOSITORY_TOKEN="repository-only-token"');
     expect(calls.at(-1)?.input).toContain("pnpm --dir");
+    expect(calls.at(-1)?.input).toContain("node_version=24.20.0");
+    expect(calls.at(-1)?.input).toContain("sha256sum --check --strict");
     expect(calls.at(-1)?.input).toContain("repository-only-token");
   });
 });
