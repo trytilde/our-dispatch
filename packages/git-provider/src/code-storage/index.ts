@@ -14,6 +14,7 @@ import { GitProviderError } from "../core.js";
 const execFileAsync = promisify(execFile);
 
 export const codeStorageOrganizationEnvironmentName = "CODE_STORAGE_ORGANIZATION";
+export const codeStorageOrganizationIdEnvironmentName = "CODE_STORAGE_ORGANIZATION_ID";
 export const codeStorageRepositoryEnvironmentName = "CODE_STORAGE_REPOSITORY";
 export const codeStorageRepositoryTokenSecretName = "CODE_STORAGE_REPOSITORY_TOKEN";
 export const codeStorageSetupPrivateKeyTransientName = "CODE_STORAGE_SETUP_PRIVATE_KEY";
@@ -35,6 +36,14 @@ export const codeStorageGitProviderInitialization: ProviderInitialization = {
       input: "text",
       required: true,
       destination: { kind: "environment", key: codeStorageOrganizationEnvironmentName },
+    },
+    {
+      id: "code-storage-organization-id",
+      prompt: "Code Storage organization identifier",
+      description: "Opaque org_ identifier copied alongside the API key; used as the JWT issuer.",
+      input: "text",
+      required: true,
+      destination: { kind: "environment", key: codeStorageOrganizationIdEnvironmentName },
     },
     {
       id: "code-storage-repository",
@@ -111,7 +120,12 @@ interface CodeStorageClient {
 export interface CodeStorageGitProviderOptions {
   /** Repository-only credential lifetime. Setup rotates it before expiry. */
   repositoryTokenTtlSeconds?: number;
-  clientFactory?: (options: { name: string; key: string }) => CodeStorageClient;
+  clientFactory?: (options: {
+    name: string;
+    key: string;
+    apiBaseUrl: string;
+    storageBaseUrl: string;
+  }) => CodeStorageClient;
   runGit?: (cwd: string, args: readonly string[]) => Promise<string>;
 }
 
@@ -166,7 +180,12 @@ export class CodeStorageGitProvider implements GitProvider {
       [codeStorageRepositoryEnvironmentName]: repository,
     });
     try {
-      const client = this.#clientFactory({ name: configured.organization, key: setupKey });
+      const client = this.#clientFactory({
+        name: configured.organizationId,
+        key: setupKey,
+        apiBaseUrl: `https://api.${configured.organization}.code.storage/api`,
+        storageBaseUrl: `${configured.organization}.code.storage`,
+      });
       let repo = await client.findOne({ id: configured.repository });
       const created = !repo;
       if (!repo)
@@ -190,6 +209,7 @@ export class CodeStorageGitProvider implements GitProvider {
         details: {
           created,
           organization: configured.organization,
+          organizationId: configured.organizationId,
           repository: configured.repository,
           syncMode: syncMode(context.environment),
         },
@@ -308,21 +328,28 @@ function configuration(environment: NodeJS.ProcessEnv): {
 
 function repositoryConfiguration(environment: NodeJS.ProcessEnv): {
   organization: string;
+  organizationId: string;
   repository: string;
 } {
   const organization = environment[codeStorageOrganizationEnvironmentName]?.trim();
+  const organizationId = environment[codeStorageOrganizationIdEnvironmentName]?.trim();
   const repository = environment[codeStorageRepositoryEnvironmentName]?.trim();
   if (!organization || !/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/.test(organization))
     throw new GitProviderError(
       "invalid_configuration",
       `${codeStorageOrganizationEnvironmentName} must be a valid Code Storage organization`,
     );
+  if (!organizationId || !/^org_[A-Za-z0-9]+$/.test(organizationId))
+    throw new GitProviderError(
+      "invalid_configuration",
+      `${codeStorageOrganizationIdEnvironmentName} must be the org_ identifier from Code Storage`,
+    );
   if (!repository || !/^[A-Za-z0-9._-]+(?:\/[A-Za-z0-9._-]+)*$/.test(repository))
     throw new GitProviderError(
       "invalid_configuration",
       `${codeStorageRepositoryEnvironmentName} must be a valid repository path`,
     );
-  return { organization, repository };
+  return { organization, organizationId, repository };
 }
 
 function createRepositoryOptions(

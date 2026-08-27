@@ -20,3 +20,8 @@ organization PKCS8 key transiently, creates or reuses a stable repository with o
 or public sync, and persists only an effectively long-lived, repository-scoped read/write JWT with force-push
 protection. Deployment stores that JWT only in the checkout's untracked `.git/config`; the
 organization key never enters OpenBot configuration or lifecycle events.
+
+Code Storage routing and JWT identity are separate values: `CODE_STORAGE_ORGANIZATION` is the
+tenant hostname slug (for example `tilde`), while `CODE_STORAGE_ORGANIZATION_ID` is the opaque
+`org_...` value used as the JWT issuer. The official SDK receives explicit API and storage origins
+so it does not incorrectly treat the issuer as a DNS label.

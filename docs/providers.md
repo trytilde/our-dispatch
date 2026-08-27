@@ -73,6 +73,10 @@ a repository-only credential with `git:read`, `git:write`, and force-push reject
 persists that JWT through SOPS and discards the organization key. Deployment rotates only the
 untracked Git remote URL and pushes the named current branch.
 
+Code Storage exposes two different identifiers. Store the tenant hostname slug, such as `tilde`,
+as `CODE_STORAGE_ORGANIZATION`; store the opaque `org_...` identifier copied with the API key as
+`CODE_STORAGE_ORGANIZATION_ID`. The former routes API/Git traffic and the latter is the JWT `iss`.
+
 For continuous private GitHub sync, configure the Code Storage GitHub App integration first:
 
 1. Create a GitHub App with Metadata read, Contents read/write, and Workflows read/write when agent
