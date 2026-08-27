@@ -410,6 +410,9 @@ export abstract class BaseComputerProvider implements ComputerProvider {
         "invalid_configuration",
         "The trusted development sandbox requires the sandbox SOPS age identity",
       );
+    // The previous successful deployment leaves this credential read-only. Temporarily restore
+    // owner write access so an idempotent refresh can replace it, then lock it again below.
+    await this.exec(computer.id, { command: "chmod", args: ["0600", ageKeyFile] }, call);
     await this.writeFile(
       computer.id,
       ageKeyFile,

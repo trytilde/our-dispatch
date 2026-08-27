@@ -802,6 +802,14 @@ describe("trusted development sandbox", () => {
       "computer",
       {
         command: "chmod",
+        args: ["0600", "/workspace/.openbot/development/sops-age-key.txt"],
+      },
+      expect.anything(),
+    );
+    expect(provider.exec).toHaveBeenCalledWith(
+      "computer",
+      {
+        command: "chmod",
         args: ["0400", "/workspace/.openbot/development/sops-age-key.txt"],
       },
       expect.anything(),
