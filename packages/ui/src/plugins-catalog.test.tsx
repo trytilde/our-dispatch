@@ -8,6 +8,7 @@ const baseProps: PluginsCatalogProps = {
   toolProviders: [],
   skillProviders: [],
   onAddToolAccount: () => undefined,
+  onDeleteToolAccounts: () => undefined,
   onSetSkill: () => undefined,
   onSetToolAccount: () => undefined,
 };
@@ -21,6 +22,16 @@ describe("PluginsCatalog loading and avatars", () => {
     expect(markup).toContain('aria-label="Loading tools"');
     expect(markup.match(/animate-pulse/g)).toHaveLength(6);
     expect(markup).not.toContain("Loading tools…");
+  });
+
+  it("renders one fixed catalog kind without the in-page kind switcher", () => {
+    const markup = renderToStaticMarkup(
+      createElement(PluginsCatalog, { ...baseProps, kind: "skills" }),
+    );
+
+    expect(markup).toContain('placeholder="Search skills"');
+    expect(markup).not.toContain('aria-label="Plugin type"');
+    expect(markup).not.toContain('role="tab"');
   });
 
   it("fits assigned bot characters to the centered shadcn avatar slot", () => {

@@ -32,7 +32,8 @@ export type SopsOwnerIdentityConfiguration =
   | { kind: "aws-profile"; profile?: string }
   | { kind: "gcp-kms" }
   | { kind: "azure-key-vault" }
-  | { kind: "vault-transit" };
+  | { kind: "vault-transit" }
+  | { kind: "managed-file"; path: string };
 
 /** User-local OpenBot settings. Stored in the gitignored root local-user-config.json. */
 export interface UserConfiguration {

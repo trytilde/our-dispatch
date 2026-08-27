@@ -84,6 +84,7 @@ describe("agent scaffolding", () => {
     const instructionsSource = await readFile(join(directory, "instructions.ts"), "utf8");
     expect(instructionsSource).toContain("process.env.AGENT_RESEARCH_ASSISTANT_NAME!");
     expect(instructionsSource).toContain("Your name is ${agentName}.");
+    expect(instructionsSource).toContain("emit user-visible text only");
     expect(instructionsSource).toContain("Use search_skills");
     expect(instructionsSource).toContain("ordinary direct tools");
     await expect(access(join(directory, "lib/identity.ts"))).rejects.toMatchObject({

@@ -5,6 +5,58 @@ import type { Routine } from "../contracts/routines.js";
 import { createOpenBotRuntime, type OpenBotRuntimeOptions } from "./runtime.js";
 
 describe("OpenBot runtime", () => {
+  it("ignores stale search responses and opens a result through its associated bot", async () => {
+    const baseClient = createOpenBotClient({
+      fetch: async () => {
+        throw new Error("Unexpected HTTP request");
+      },
+    });
+    let resolveFirst: ((value: { items: [] }) => void) | undefined;
+    const first = new Promise<{ items: [] }>((resolve) => {
+      resolveFirst = resolve;
+    });
+    const client: OpenBotClient = {
+      ...baseClient,
+      searchChatKit: async (query) =>
+        query === "first"
+          ? first
+          : {
+              items: [
+                {
+                  kind: "agent" as const,
+                  session: {
+                    id: "session-one",
+                    title: "Planning",
+                    created_at: "2026-08-01T10:00:00Z",
+                    updated_at: "2026-08-02T10:00:00Z",
+                  },
+                  agent: { id: "agent-one", display_name: "Agent One" },
+                },
+              ],
+            },
+      getConversationSnapshot: async () => ({
+        messages: { items: [] },
+        queued_turns: { items: [] },
+        snapshot_revision: 1,
+      }),
+    };
+    const runtime = createOpenBotRuntime({
+      client,
+      auth: createClientAuthAdapter(client, { signIn: async () => undefined }),
+    });
+
+    const stale = runtime.actions.searchChatKit("first");
+    await runtime.actions.searchChatKit("planning");
+    resolveFirst?.({ items: [] });
+    await stale;
+    expect(runtime.store.getState().search.items).toHaveLength(1);
+
+    await runtime.actions.selectSearchHit(runtime.store.getState().search.items[0]!);
+    expect(runtime.store.getState().sidebar.selectedAgentId).toBe("agent-one");
+    expect(runtime.store.getState().conversation.selectedSessionId).toBe("session-one");
+    expect(runtime.store.getState().search.status).toBe("idle");
+  });
+
   it("owns agent setup through readiness and selects the newly surfaced agent", async () => {
     const jobId = "55555555-5555-4555-8555-555555555555";
     let ready = false;
@@ -31,18 +83,20 @@ describe("OpenBot runtime", () => {
           agent: { id: "reviewer", name: "Reviewer" },
         } as const;
       },
-      getSidebar: async () => ({
-        items: ready
-          ? [
-              {
-                id: "reviewer",
-                display_name: "Reviewer",
-                provider_id: "tilde",
-                status: "enabled",
-                sessions: { items: [] },
-              },
-            ]
-          : [],
+      getBootstrap: async () => ({
+        sidebar: {
+          items: ready
+            ? [
+                {
+                  id: "reviewer",
+                  display_name: "Reviewer",
+                  provider_id: "tilde",
+                  status: "enabled",
+                  sessions: { items: [] },
+                },
+              ]
+            : [],
+        },
       }),
     };
     const runtime = createOpenBotRuntime({
@@ -81,17 +135,19 @@ describe("OpenBot runtime", () => {
             authenticated: true,
             user: { subject: "owner-one", name: "Owner One" },
           });
-        if (url.startsWith("/api/chat/mission-control/sidebar"))
+        if (url.startsWith("/api/chat/mission-control/bootstrap"))
           return Response.json({
-            items: [
-              {
-                id: "agent-one",
-                display_name: "Agent One",
-                provider_id: "tilde",
-                status: "ready",
-                sessions: { items: [] },
-              },
-            ],
+            sidebar: {
+              items: [
+                {
+                  id: "agent-one",
+                  display_name: "Agent One",
+                  provider_id: "tilde",
+                  status: "ready",
+                  sessions: { items: [] },
+                },
+              ],
+            },
           });
         throw new Error(`Unexpected request: ${url}`);
       },
@@ -109,7 +165,192 @@ describe("OpenBot runtime", () => {
     runtime.dispose();
   });
 
+  it("selects the authenticated user's stable session instead of the newest thread", async () => {
+    const now = "2026-08-25T10:00:00.000Z";
+    const getConversationSnapshot = vi.fn(async () => ({
+      messages: { items: [], next_page_token: null },
+      queued_turns: { items: [], next_page_token: null },
+      snapshot_revision: 0,
+    }));
+    const getAgentSessions = vi.fn(async () => ({
+      items: [
+        {
+          id: "older-thread",
+          title: "Earlier investigation",
+          created_at: "2026-08-23T10:00:00.000Z",
+          updated_at: "2026-08-23T10:00:00.000Z",
+        },
+      ],
+      next_page_token: null,
+    }));
+    const baseClient = createOpenBotClient({
+      fetch: async () => {
+        throw new Error("Unexpected HTTP request");
+      },
+    });
+    const client: OpenBotClient = {
+      ...baseClient,
+      getSession: async () => ({
+        authenticated: true,
+        user: { subject: "owner-one", name: "Owner One" },
+      }),
+      getBootstrap: async () => ({
+        sidebar: {
+          items: [
+            {
+              id: "agent-one",
+              display_name: "Agent One",
+              provider_id: "tilde",
+              status: "ready",
+              sessions: {
+                next_page_token: "page-two",
+                items: [
+                  {
+                    id: "newest-thread",
+                    title: "Deployment investigation",
+                    created_at: now,
+                    updated_at: now,
+                  },
+                  {
+                    id: "owner-default",
+                    lookup_key: "openbot:user:owner-one:agent:agent-one",
+                    created_at: "2026-08-24T10:00:00.000Z",
+                    updated_at: "2026-08-24T10:00:00.000Z",
+                  },
+                ],
+              },
+            },
+          ],
+        },
+      }),
+      getAgentSessions,
+      getConversationSnapshot,
+      getQueuedTurns: async () => ({ items: [], next_page_token: null }),
+      observeMissionControl: async (signal) => {
+        await new Promise<void>((resolve) =>
+          signal.addEventListener("abort", () => resolve(), { once: true }),
+        );
+      },
+    };
+    const runtime = createOpenBotRuntime({
+      client,
+      auth: createClientAuthAdapter(client, { signIn: async () => undefined }),
+    });
+
+    await runtime.actions.initialize();
+
+    expect(runtime.store.getState().conversation.selectedSessionId).toBe("owner-default");
+    expect(runtime.store.getState().sidebar.agents[0]?.sessions.items).toHaveLength(3);
+    expect(getAgentSessions).toHaveBeenCalledWith("agent-one", "page-two", "updated_at");
+    expect(getConversationSnapshot).toHaveBeenCalledWith("owner-default");
+    runtime.dispose();
+  });
+
+  it("creates the authenticated user's default session with a stable lookup key", async () => {
+    const createdAt = "2026-08-25T10:00:00.000Z";
+    const baseClient = createOpenBotClient({
+      fetch: async () => {
+        throw new Error("Unexpected HTTP request");
+      },
+    });
+    const createSession = vi.fn(async () => ({
+      id: "owner-default",
+      lookup_key: "openbot:user:owner-one:agent:agent-one",
+      created_at: createdAt,
+      updated_at: createdAt,
+    }));
+    const client: OpenBotClient = {
+      ...baseClient,
+      getSession: async () => ({
+        authenticated: true,
+        user: { subject: "owner-one", name: "Owner One" },
+      }),
+      getBootstrap: async () => ({
+        sidebar: {
+          items: [
+            {
+              id: "agent-one",
+              display_name: "Agent One",
+              provider_id: "tilde",
+              status: "ready",
+              sessions: { items: [] },
+            },
+          ],
+        },
+      }),
+      createSession,
+      getMessages: async () => ({ items: [], next_page_token: null }),
+      getQueuedTurns: async () => ({ items: [], next_page_token: null }),
+      observeMissionControl: async (signal) => {
+        await new Promise<void>((resolve) =>
+          signal.addEventListener("abort", () => resolve(), { once: true }),
+        );
+      },
+    };
+    const runtime = createOpenBotRuntime({
+      client,
+      auth: createClientAuthAdapter(client, { signIn: async () => undefined }),
+    });
+
+    await runtime.actions.initialize();
+    await expect(runtime.actions.ensureSession()).resolves.toBe("owner-default");
+
+    expect(createSession).toHaveBeenCalledWith("agent-one", {
+      title: "Agent One",
+      lookupKey: "openbot:user:owner-one:agent:agent-one",
+    });
+    runtime.dispose();
+  });
+
+  it("loads agent navigation without hydrating chat messages or observers", async () => {
+    const now = "2026-08-24T10:00:00.000Z";
+    const baseClient = createOpenBotClient({
+      fetch: async () => {
+        throw new Error("Unexpected HTTP request");
+      },
+    });
+    const getMessages = vi.fn(async () => ({ items: [], next_page_token: null }));
+    const observeMissionControl = vi.fn(async () => undefined);
+    const client: OpenBotClient = {
+      ...baseClient,
+      getSession: async () => ({
+        authenticated: true,
+        user: { subject: "owner-one", name: "Owner One" },
+      }),
+      getBootstrap: async () => ({
+        sidebar: {
+          items: [
+            {
+              id: "agent-one",
+              display_name: "Agent One",
+              provider_id: "tilde",
+              status: "ready",
+              sessions: {
+                items: [{ id: "session-one", created_at: now, updated_at: now }],
+              },
+            },
+          ],
+        },
+      }),
+      getMessages,
+      observeMissionControl,
+    };
+    const runtime = createOpenBotRuntime({
+      client,
+      auth: createClientAuthAdapter(client, { signIn: async () => undefined }),
+    });
+
+    await runtime.actions.initialize({ workspace: false });
+
+    expect(runtime.store.getState().sidebar.agents.map(({ id }) => id)).toEqual(["agent-one"]);
+    expect(runtime.store.getState().conversation.selectedSessionId).toBe("");
+    expect(getMessages).not.toHaveBeenCalled();
+    expect(observeMissionControl).not.toHaveBeenCalled();
+    runtime.dispose();
+  });
+
   it("captures initial sidebar failures without leaking an unhandled rejection", async () => {
+    let sidebarRequests = 0;
     const client = createOpenBotClient({
       fetch: async (input) => {
         const url =
@@ -119,6 +360,7 @@ describe("OpenBot runtime", () => {
             authenticated: true,
             user: { subject: "owner-one", name: "Owner One" },
           });
+        if (url.includes("/mission-control/bootstrap")) sidebarRequests += 1;
         return Response.json({ error: "Chat unavailable" }, { status: 503 });
       },
     });
@@ -130,6 +372,42 @@ describe("OpenBot runtime", () => {
     await expect(runtime.actions.initialize()).resolves.toBeUndefined();
     expect(runtime.store.getState().sidebar.error).toBe("Chat unavailable");
     expect(runtime.store.getState().sidebar.loading).toBe(false);
+    expect(sidebarRequests).toBe(1);
+    runtime.dispose();
+  });
+
+  it("hydrates the aggregate snapshot before accepting Mission Control events", async () => {
+    let bootstrapRequests = 0;
+    const baseClient = createOpenBotClient({
+      fetch: async () => {
+        throw new Error("Unexpected HTTP request");
+      },
+    });
+    const client: OpenBotClient = {
+      ...baseClient,
+      getSession: async () => ({
+        authenticated: true,
+        user: { subject: "owner-one", name: "Owner One" },
+      }),
+      getBootstrap: async () => {
+        bootstrapRequests += 1;
+        return { sidebar: { items: [] } };
+      },
+      observeMissionControl: async (signal, _onEvent, onReady) => {
+        await onReady();
+        await new Promise<void>((resolve) =>
+          signal.addEventListener("abort", () => resolve(), { once: true }),
+        );
+      },
+    };
+    const runtime = createOpenBotRuntime({
+      client,
+      auth: createClientAuthAdapter(client, { signIn: async () => undefined }),
+      schedule: (callback) => setTimeout(callback, 0),
+    });
+
+    await runtime.actions.initialize();
+    await vi.waitFor(() => expect(bootstrapRequests).toBe(2));
     runtime.dispose();
   });
 
@@ -147,27 +425,43 @@ describe("OpenBot runtime", () => {
         authenticated: true,
         user: { subject: "owner-one", name: "Owner One" },
       }),
-      getSidebar: async () => ({
-        items: [
-          {
-            id: "agent-one",
-            display_name: "Agent One",
-            provider_id: "tilde",
-            status: "ready",
-            sessions: {
-              items: [{ id: "session-one", created_at: now, updated_at: now }],
+      getBootstrap: async () => ({
+        sidebar: {
+          items: [
+            {
+              id: "agent-one",
+              display_name: "Agent One",
+              provider_id: "tilde",
+              status: "ready",
+              sessions: {
+                items: [
+                  { id: "session-one", created_at: now, updated_at: now },
+                  { id: "session-one-thread", created_at: now, updated_at: now },
+                ],
+              },
             },
-          },
-          {
-            id: "agent-two",
-            display_name: "Agent Two",
-            provider_id: "tilde",
-            status: "ready",
-            sessions: {
-              items: [{ id: "session-two", created_at: now, updated_at: now }],
+            {
+              id: "agent-two",
+              display_name: "Agent Two",
+              provider_id: "tilde",
+              status: "ready",
+              sessions: {
+                items: [{ id: "session-two", created_at: now, updated_at: now }],
+              },
             },
-          },
-        ],
+          ],
+        },
+        active_session_id: "session-one",
+        active_conversation: {
+          messages: { items: [], next_page_token: null },
+          queued_turns: { items: [], next_page_token: null },
+          snapshot_revision: 0,
+        },
+      }),
+      getConversationSnapshot: async () => ({
+        messages: { items: [], next_page_token: null },
+        queued_turns: { items: [], next_page_token: null },
+        snapshot_revision: 0,
       }),
       getMessages: async () => ({ items: [], next_page_token: null }),
       getQueuedTurns: async () => ({ items: [], next_page_token: null }),
@@ -184,7 +478,7 @@ describe("OpenBot runtime", () => {
     });
 
     await runtime.actions.initialize();
-    emitEvent({
+    await emitEvent({
       id: "typing-one",
       type: "InboxInstance.typing_indicator.typing",
       data: {
@@ -195,8 +489,14 @@ describe("OpenBot runtime", () => {
         },
       },
     });
+    const agentOneThread = runtime.store
+      .getState()
+      .sidebar.agents[0]?.sessions.items.find((session) => session.id === "session-one-thread");
+    if (!agentOneThread) throw new Error("Expected the second session for agent one");
+    await runtime.actions.selectSession("agent-one", agentOneThread);
+    expect(runtime.store.getState().conversation.agentBusy).toBe(false);
     await runtime.actions.selectAgent("agent-two");
-    emitEvent({
+    await emitEvent({
       id: "stream-one",
       type: "chatkit.message.streaming",
       data: {
@@ -213,6 +513,7 @@ describe("OpenBot runtime", () => {
     });
 
     expect(runtime.store.getState().sidebar.busyAgentIds).toContain("agent-one");
+    expect(runtime.store.getState().sidebar.busySessionIds).toContain("session-one");
     expect(runtime.store.getState().conversation.agentBusy).toBe(false);
     const backgroundAgent = runtime.store
       .getState()
@@ -220,7 +521,7 @@ describe("OpenBot runtime", () => {
     expect(backgroundAgent?.last_message_preview).toBe("Background result");
     expect(backgroundAgent?.sessions.items[0]?.unread).toBe(true);
 
-    emitEvent({
+    await emitEvent({
       id: "idle-one",
       type: "InboxInstance.typing_indicator.idle",
       data: {
@@ -232,6 +533,86 @@ describe("OpenBot runtime", () => {
       },
     });
     expect(runtime.store.getState().sidebar.busyAgentIds).not.toContain("agent-one");
+    expect(runtime.store.getState().sidebar.busySessionIds).not.toContain("session-one");
+    runtime.dispose();
+  });
+
+  it("replays an event whose first state application fails", async () => {
+    let emitEvent: Parameters<OpenBotClient["observeMissionControl"]>[1] = () => undefined;
+    let failClock = false;
+    const now = new Date("2026-08-21T08:21:00.000Z");
+    const baseClient = createOpenBotClient({
+      fetch: async () => {
+        throw new Error("Unexpected HTTP request");
+      },
+    });
+    const client: OpenBotClient = {
+      ...baseClient,
+      getSession: async () => ({
+        authenticated: true,
+        user: { subject: "owner-one", name: "Owner One" },
+      }),
+      getBootstrap: async () => ({
+        sidebar: {
+          items: [
+            {
+              id: "agent-one",
+              display_name: "Agent One",
+              provider_id: "tilde",
+              status: "ready",
+              sessions: {
+                items: [
+                  {
+                    id: "session-one",
+                    created_at: now.toISOString(),
+                    updated_at: now.toISOString(),
+                  },
+                ],
+              },
+            },
+          ],
+        },
+      }),
+      getMessages: async () => ({ items: [], next_page_token: null }),
+      getQueuedTurns: async () => ({ items: [], next_page_token: null }),
+      observeMissionControl: async (signal, onEvent) => {
+        emitEvent = onEvent;
+        await new Promise<void>((resolve) =>
+          signal.addEventListener("abort", () => resolve(), { once: true }),
+        );
+      },
+    };
+    const runtime = createOpenBotRuntime({
+      client,
+      auth: createClientAuthAdapter(client, { signIn: async () => undefined }),
+      now: () => {
+        if (failClock) throw new Error("clock failed");
+        return now;
+      },
+    });
+    await runtime.actions.initialize();
+    await runtime.actions.selectAgent("agent-one");
+    const event = {
+      id: "replayed-event",
+      type: "chatkit.message.streaming",
+      data: {
+        kind: {
+          kind: "message_streaming",
+          message_id: "assistant-one",
+          session_id: "session-one",
+          delta: { type: "text-delta", delta: "Recovered" },
+        },
+      },
+    };
+
+    failClock = true;
+    expect(() => emitEvent(event)).toThrow("clock failed");
+    failClock = false;
+    await emitEvent(event);
+
+    expect(runtime.store.getState().conversation.messages).toMatchObject([
+      { id: "assistant-one", role: "assistant" },
+    ]);
     runtime.dispose();
   });
 
@@ -310,7 +691,7 @@ describe("OpenBot runtime", () => {
 
   it("shows an active-turn send in the queue and coalesces queue refreshes", async () => {
     let emitEvent: Parameters<OpenBotClient["observeMissionControl"]>[1] = () => undefined;
-    let resolveSend!: (value: Awaited<ReturnType<OpenBotClient["sendMessage"]>>) => void;
+    let resolveSend!: (value: Awaited<ReturnType<OpenBotClient["submitTurn"]>>) => void;
     let releaseQueueRefresh!: () => void;
     let holdQueueRefresh = false;
     const currentTime = new Date("2026-08-20T12:00:00Z");
@@ -321,7 +702,7 @@ describe("OpenBot runtime", () => {
       if (holdQueueRefresh) await queueRefreshBarrier;
       return { items: [], next_page_token: null };
     });
-    const sendResponse = new Promise<Awaited<ReturnType<OpenBotClient["sendMessage"]>>>(
+    const sendResponse = new Promise<Awaited<ReturnType<OpenBotClient["submitTurn"]>>>(
       (resolve) => {
         resolveSend = resolve;
       },
@@ -337,25 +718,38 @@ describe("OpenBot runtime", () => {
         authenticated: true,
         user: { subject: "owner-one", name: "Owner One" },
       }),
-      getSidebar: async () => ({
-        items: [
-          {
-            id: "agent-one",
-            display_name: "Agent One",
-            provider_id: "tilde",
-            status: "ready",
-            sessions: {
-              items: [
-                {
-                  id: "session-one",
-                  title: "Queue",
-                  created_at: currentTime.toISOString(),
-                  updated_at: currentTime.toISOString(),
-                },
-              ],
+      getBootstrap: async () => ({
+        sidebar: {
+          items: [
+            {
+              id: "agent-one",
+              display_name: "Agent One",
+              provider_id: "tilde",
+              status: "ready",
+              sessions: {
+                items: [
+                  {
+                    id: "session-one",
+                    title: "Queue",
+                    created_at: currentTime.toISOString(),
+                    updated_at: currentTime.toISOString(),
+                  },
+                ],
+              },
             },
-          },
-        ],
+          ],
+        },
+        active_session_id: "session-one",
+        active_conversation: {
+          messages: { items: [], next_page_token: null },
+          queued_turns: { items: [], next_page_token: null },
+          snapshot_revision: 0,
+        },
+      }),
+      getConversationSnapshot: async () => ({
+        messages: { items: [], next_page_token: null },
+        queued_turns: { items: [], next_page_token: null },
+        snapshot_revision: 0,
       }),
       getMessages: async () => ({ items: [], next_page_token: null }),
       getQueuedTurns,
@@ -365,7 +759,7 @@ describe("OpenBot runtime", () => {
           signal.addEventListener("abort", () => resolve(), { once: true }),
         );
       },
-      sendMessage: vi.fn(() => sendResponse),
+      submitTurn: vi.fn(() => sendResponse),
     };
     const runtime = createOpenBotRuntime({
       client,
@@ -386,7 +780,7 @@ describe("OpenBot runtime", () => {
         trigger_message_ids: [],
       },
     ]);
-    emitEvent({
+    await emitEvent({
       type: "chatkit.message.created",
       data: {
         kind: {
@@ -405,7 +799,7 @@ describe("OpenBot runtime", () => {
     expect(runtime.store.getState().conversation.queuedTurns[0]?.trigger_message_ids).toEqual([
       "persisted-second",
     ]);
-    emitEvent({
+    await emitEvent({
       type: "ChatKit.agent_turn.queued",
       data: {
         kind: {
@@ -435,17 +829,32 @@ describe("OpenBot runtime", () => {
     );
 
     resolveSend({
-      items: runtime.store.getState().conversation.messages,
-      next_page_token: null,
+      session: {
+        id: "session-one",
+        title: "Queue",
+        created_at: currentTime.toISOString(),
+        updated_at: currentTime.toISOString(),
+      },
+      conversation: {
+        messages: {
+          items: runtime.store.getState().conversation.messages,
+          next_page_token: null,
+        },
+        queued_turns: {
+          items: runtime.store.getState().conversation.queuedTurns,
+          next_page_token: null,
+        },
+        snapshot_revision: 1,
+      },
     });
     await sending;
     holdQueueRefresh = true;
     const firstRefresh = runtime.actions.refreshQueue();
     const secondRefresh = runtime.actions.refreshQueue();
-    expect(getQueuedTurns).toHaveBeenCalledTimes(3);
+    expect(getQueuedTurns).toHaveBeenCalledTimes(1);
     releaseQueueRefresh();
     await Promise.all([firstRefresh, secondRefresh]);
-    emitEvent({
+    await emitEvent({
       type: "ChatKit.agent_turn.dequeued",
       data: {
         kind: {

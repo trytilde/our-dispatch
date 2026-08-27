@@ -3,9 +3,11 @@ import { createVercelAiGatewayApiKey, type VercelAiGatewayApiKey } from "./ai-ga
 
 export interface VercelPlatformConfig {
   request?: typeof fetch;
+  /** Tilde owns the account credential and injects it only while reconciling a deployment. */
+  managed?: boolean;
 }
 
-const initialization: ProviderInitialization = {
+const userManagedInitialization: ProviderInitialization = {
   id: "vercel",
   label: "Vercel",
   description: "Connect OpenBot's selected services and computer runtime to one Vercel account.",
@@ -29,12 +31,26 @@ const initialization: ProviderInitialization = {
   ],
 };
 
+const tildeManagedInitialization: ProviderInitialization = {
+  id: "vercel",
+  label: "Vercel (managed by Tilde Cloud)",
+  description:
+    "Tilde Cloud owns the hosting account credential and supplies it only during deployment.",
+  questions: [],
+};
+
 /** Vercel account scope shared by Vercel-backed domain providers. */
 export class VercelPlatform implements Platform {
   readonly id = "vercel";
-  readonly initialization = initialization;
+  readonly initialization: ProviderInitialization;
 
-  constructor(private readonly config: VercelPlatformConfig = {}) {}
+  constructor(private readonly config: VercelPlatformConfig = {}) {
+    this.initialization = config.managed ? tildeManagedInitialization : userManagedInitialization;
+  }
+
+  get managed(): boolean {
+    return this.config.managed === true;
+  }
 
   createAiGatewayApiKey(options: {
     token?: string;

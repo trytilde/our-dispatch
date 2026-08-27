@@ -11,6 +11,7 @@ import {
 } from "../development-lifecycle.js";
 import { developmentChildEnvironment, loadLocalEnvironment } from "../environment.js";
 import { repositoryRoot } from "../paths.js";
+import { clearLiveAgentServiceOrigin, writeLiveAgentServiceOrigin } from "../live-agent-service.js";
 import { run, runChecked, supervise } from "../processes.js";
 import { createStreamingProgress } from "../ui.js";
 import { inkPrompts } from "./init.js";
@@ -67,6 +68,7 @@ export async function runDevelopment(): Promise<never> {
 
   const [serverCommand, serverArguments] = developmentServerCommand();
   const server = await startTunneledAgentService(serverCommand, serverArguments, env);
+  await writeLiveAgentServiceOrigin(repositoryRoot, server.agentServiceOrigin);
   try {
     await reconcileAgentResources({
       repositoryRoot,
@@ -80,6 +82,7 @@ export async function runDevelopment(): Promise<never> {
       },
     });
   } catch (error) {
+    await clearLiveAgentServiceOrigin(repositoryRoot);
     server.stop();
     throw error;
   }
@@ -110,6 +113,7 @@ export async function runDevelopment(): Promise<never> {
   return supervise(children, {
     onStop: () => {
       computerWatcher.close();
+      void clearLiveAgentServiceOrigin(repositoryRoot);
       server.stop();
     },
   });

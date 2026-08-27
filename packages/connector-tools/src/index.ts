@@ -68,16 +68,28 @@ async function tildeGet(context: TildeContext, teamPath: string): Promise<unknow
   return await response.json();
 }
 
-function pageItems(page: unknown): Record<string, unknown>[] {
-  if (Array.isArray(page)) return page.filter(isRecord);
-  if (!isRecord(page)) return [];
-  if (Array.isArray(page.items)) return page.items.filter(isRecord);
-  if (Array.isArray(page.data)) return page.data.filter(isRecord);
-  return [];
-}
-
 function asText(value: unknown): string {
   return typeof value === "string" ? value : "";
+}
+
+function setupFieldsSchema(value: unknown): Record<string, unknown> | null {
+  if (!Array.isArray(value) || value.length === 0) return null;
+  const fields = value.filter(isRecord);
+  return {
+    type: "object",
+    properties: Object.fromEntries(
+      fields.map((field) => [
+        asText(field.name),
+        {
+          type: "string",
+          title: asText(field.label) || asText(field.name),
+          ...(asText(field.help_text) ? { description: asText(field.help_text) } : {}),
+          ...(asText(field.field_type) === "password" ? { format: "password" } : {}),
+        },
+      ]),
+    ),
+    required: fields.filter((field) => field.required === true).map((field) => asText(field.name)),
+  };
 }
 
 const cardShownNote = [
@@ -113,35 +125,32 @@ export function createConfigureConnectorTool(options: ConnectorToolOptions): Too
     }),
     execute: async (input) => {
       const context = await tildeContext(options);
-      // Tilde requires both query fields; omitting deployment_alias is a 400.
-      const providers = pageItems(
-        await tildeGet(context, "/mcp/available-tool-groups?page_size=100&deployment_alias=latest"),
-      );
+      const catalog = await tildeGet(context, "/provider-setup/catalog?domain=mcp");
+      const catalogRecord = isRecord(catalog) ? catalog : {};
+      const providers = Array.isArray(catalogRecord.providers)
+        ? catalogRecord.providers.filter(isRecord)
+        : [];
       const provider =
-        providers.find((candidate) => asText(candidate.type_id) === input.provider_type_id) ??
+        providers.find((candidate) => asText(candidate.provider_id) === input.provider_type_id) ??
         providers.find(
           (candidate) =>
-            asText(candidate.name).toLowerCase() === input.provider_type_id.toLowerCase(),
+            asText(candidate.display_name).toLowerCase() === input.provider_type_id.toLowerCase(),
         );
       if (!provider) {
         return {
           status: "unknown_provider",
           instructions:
             "No Tilde tool provider matches that provider_type_id. Search the catalog with tilde_search_available_capabilities and retry with the exact type_id, or tell the user the service has no connector.",
-          known_provider_type_ids: providers.map((candidate) => asText(candidate.type_id)),
+          known_provider_type_ids: providers.map((candidate) => asText(candidate.provider_id)),
         };
       }
-      const providerTypeId = asText(provider.type_id);
-      const providerName = asText(provider.name) || providerTypeId;
-      // Providers publish their branding through catalog metadata; clients
-      // render icon_url directly and fall back to an initials tile without it.
-      const metadata = isRecord(provider.metadata) ? provider.metadata : {};
-      const iconUrl = asText(metadata.icon_url);
-      const accounts = pageItems(await tildeGet(context, "/mcp/tool-group?page_size=200")).filter(
-        (account) => asText(account.tool_group_source_type_id) === providerTypeId,
-      );
-      const credentialSources = Array.isArray(provider.credential_sources)
-        ? provider.credential_sources.filter(isRecord)
+      const providerTypeId = asText(provider.provider_id);
+      const providerName = asText(provider.display_name) || providerTypeId;
+      const accounts = (
+        Array.isArray(catalogRecord.resources) ? catalogRecord.resources.filter(isRecord) : []
+      ).filter((account) => asText(account.tool_group_source_type_id) === providerTypeId);
+      const credentialSources = Array.isArray(provider.auth_methods)
+        ? provider.auth_methods.filter(isRecord)
         : [];
       return {
         status: "selection_required",
@@ -149,7 +158,6 @@ export function createConfigureConnectorTool(options: ConnectorToolOptions): Too
         connector_selection: {
           provider_type_id: providerTypeId,
           provider_name: providerName,
-          ...(iconUrl ? { icon_url: iconUrl } : {}),
           ...(input.prompt ? { prompt: input.prompt } : {}),
           accounts: accounts.map((account) => ({
             id: asText(account.id),
@@ -158,22 +166,16 @@ export function createConfigureConnectorTool(options: ConnectorToolOptions): Too
             credential_source_type_id: asText(account.credential_source_type_id),
           })),
           credential_sources: credentialSources.map((source) => {
-            const configuration = isRecord(source.configuration_schema)
-              ? source.configuration_schema
-              : {};
             return {
-              type_id: asText(source.type_id),
-              name: asText(source.display_name) || asText(source.name) || asText(source.type_id),
+              type_id: asText(source.credential_source_type_id) || asText(source.id),
+              name: asText(source.display_name) || asText(source.id),
               ...(asText(source.documentation)
                 ? { documentation: asText(source.documentation) }
                 : {}),
-              requires_brokering: source.requires_brokering === true,
-              supports_auto_display_name: source.supports_auto_display_name === true,
-              ...(asText(source.display_name_description)
-                ? { display_name_description: asText(source.display_name_description) }
-                : {}),
-              resource_server_schema: configuration.resource_server ?? null,
-              user_credential_schema: configuration.user_credential ?? null,
+              requires_brokering: asText(source.setup_kind).includes("oauth"),
+              supports_auto_display_name: false,
+              resource_server_schema: setupFieldsSchema(source.fields),
+              user_credential_schema: null,
             };
           }),
         },

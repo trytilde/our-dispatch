@@ -4,7 +4,10 @@ import {
   SettingsApp,
   SettingsGeneralApp,
   SettingsPluginsApp,
+  SettingsRoutinesApp,
   SettingsSignalsApp,
+  SettingsSkillsApp,
+  SettingsToolsApp,
 } from "./screens/settings-app.js";
 
 /**
@@ -68,12 +71,33 @@ const settingsSignalsRoute = createRoute({
   component: SettingsSignalsApp,
 });
 
+const settingsToolsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/settings/plugins/tools",
+  component: SettingsToolsApp,
+});
+
+const settingsSkillsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/settings/plugins/skills",
+  component: SettingsSkillsApp,
+});
+
+const settingsRoutinesRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/settings/plugins/routines",
+  component: SettingsRoutinesApp,
+});
+
 const routeTree = rootRoute.addChildren([
   indexRoute,
   settingsRoute,
   settingsGeneralRoute,
   settingsPluginsRoute,
   settingsSignalsRoute,
+  settingsToolsRoute,
+  settingsSkillsRoute,
+  settingsRoutinesRoute,
 ]);
 
 export const router = createRouter({ routeTree });

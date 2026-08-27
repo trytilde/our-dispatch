@@ -19,6 +19,7 @@ describe("control service providers", () => {
     expect(provider.platforms.map(({ id }) => id)).toEqual(["vercel"]);
     expect(provider.initialization.questions.map(({ id }) => id)).toEqual([
       "vercel-control-project",
+      "vercel-public-origin",
     ]);
     expect(
       provider.baseUrl({

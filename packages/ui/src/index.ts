@@ -90,6 +90,7 @@ export {
   BotSelectionDialog,
   type BotSelectionDialogProps,
   PluginsCatalog,
+  resolvePluginIconUrl,
   type PluginsCatalogAgent,
   type PluginsCatalogProps,
   type PluginsCatalogSkill,
@@ -151,6 +152,7 @@ export {
   AgentSearchDialog,
   type AgentSearchDialogProps,
   type SidebarAgent,
+  type WorkspaceSearchResult,
   WorkspaceAccount,
   type WorkspaceAccountProps,
 } from "./sidebar-components.js";

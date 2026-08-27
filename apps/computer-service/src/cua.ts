@@ -157,6 +157,20 @@ export async function callCuaTool(
     }
     return mapToolResult(result);
   } catch (error) {
+    if (DriverError.Tool.instanceOf(error)) {
+      return {
+        content: [{ content: { case: "text", value: error.inner.message } }],
+        structuredJson: "",
+        isError: true,
+        errorCode: error.inner.errorCode,
+        verified: false,
+        degraded: false,
+        rawJson: "",
+        actionCompletion: CuaActionCompletion.NOT_STARTED,
+        actionJson: "",
+        verificationJson: "",
+      };
+    }
     if (DriverError.ActionInterrupted.instanceOf(error)) {
       const completion = error.inner.completion;
       return {

@@ -132,6 +132,8 @@ export interface PublishedComputerImage extends BuiltComputerImage {
 }
 
 export interface ComputerProvider extends DeployableProvider {
+  /** Tilde Cloud owns image publication and initial Sandbox seeding outside repository deploys. */
+  readonly externallyManagedLifecycle?: boolean;
   previewAgentDesktop(agentId: string, context: ComputerCallContext): Promise<ComputerVncEndpoint>;
   deployAgentWorkspaces(
     request: DeployAgentWorkspacesRequest,

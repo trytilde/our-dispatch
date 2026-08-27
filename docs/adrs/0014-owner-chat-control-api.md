@@ -31,6 +31,12 @@ WebSocket audience, and exact registered HTTP Origin. Expo explicitly requests a
 its protected bearer; native issuance requires bearer authentication and redemption requires an
 Origin-free socket. The ticket travels as a WebSocket subprotocol credential and is atomically consumed.
 
+Tilde publishes the Mission Control WebSocket contract as AsyncAPI generated from the same Rust event
+types used at runtime. The team-scoped socket is one system channel rather than one channel per chat:
+every connected owner client needs background activity for all accessible conversations. AsyncAPI
+separates client ping, server control frames, and typed domain events into distinct operations while
+retaining the single physical channel. The direct socket forwards the client's last applied durable
+revision as `after_revision`, so a reconnect replays events produced while the client was offline.
 The framework-neutral client runtime owns heartbeat, revision cursors, capped exponential reconnect
 backoff with jitter, and event parsing. Tilde sends a ready barrier with the current revision; OpenBot
 refreshes authoritative sidebar and selected-session state before advancing that cursor, closing the
@@ -57,6 +63,7 @@ flowchart LR
 - The bridge is intentionally Tilde-specific; a second chat backend requires a new product decision rather than a generic provider contract in advance.
 - The control service no longer holds one upstream WebSocket per browser; its retained role is the
   owner-authorized ticket exchange and the existing REST/SSE compatibility bridge.
+- The client-owned Mission Control dependency is checked against Tilde's generated AsyncAPI contract.
 - Ticket persistence adds a deliberately narrow replay-prevention record in Tilde.
 
 ## Updates
@@ -64,4 +71,5 @@ flowchart LR
 - 2026-08-16T15:08:39+02:00: Replaced the initial ConnectRPC and Chat Provider projection with the allowlisted Tilde REST/SSE bridge, removed `control-service-proto`, and made the browser's existing ChatKit client the sole owner-chat contract.
 - 2026-08-17T18:00:00+02:00: Added mobile as an owner client and moved parsing, transport, and live-state reconciliation into a shared framework-neutral client runtime without introducing a second server contract.
 - 2026-08-21T12:00:00+01:00: Added the server-side Mission Control WebSocket to background SSE adapter for team-wide agent activity, with the undocumented dependency isolated behind one allowlisted control-service boundary.
+- 2026-08-25T12:00:00+02:00: Replaced the undocumented event dependency with Tilde's Rust-derived AsyncAPI contract, retained one team-wide physical channel, and adopted durable event revisions plus aggregate REST snapshots for reconnect convergence.
 - 2026-08-26T16:18:13+01:00: Replaced the background SSE adapter with a direct client-to-Tilde Mission Control WebSocket using single-use browser/Electron Origin-bound or Expo native-bearer tickets, a ready barrier, and revision-safe reconnects.

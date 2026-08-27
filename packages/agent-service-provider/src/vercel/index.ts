@@ -1,6 +1,11 @@
 import { resolve } from "node:path";
 import { materializeFileTemplate } from "@tryopenbot/utilities";
-import { VercelPlatform, vercelPlatform } from "@tryopenbot/platform-integrations";
+import {
+  TildePlatform,
+  VercelPlatform,
+  deployHostedOpenBotRelease,
+  vercelPlatform,
+} from "@tryopenbot/platform-integrations";
 import {
   ensureVercelProject,
   installVercelEnvironment,
@@ -26,6 +31,7 @@ export interface VercelAgentServiceProviderOptions {
   platform?: VercelPlatform;
   runner?: CommandRunner;
   request?: typeof fetch;
+  hostedPlatform?: TildePlatform;
 }
 
 export class VercelAgentServiceProvider implements Buildable, Deployable, InitializableProvider {
@@ -48,11 +54,13 @@ export class VercelAgentServiceProvider implements Buildable, Deployable, Initia
   };
   readonly #runner: CommandRunner;
   readonly #request: typeof fetch;
+  readonly #hostedPlatform: TildePlatform | undefined;
   constructor(options: VercelAgentServiceProviderOptions = {}) {
     this.platform = options.platform ?? vercelPlatform;
     this.platforms = [this.platform];
     this.#runner = options.runner ?? processRunner;
     this.#request = options.request ?? fetch;
+    this.#hostedPlatform = options.hostedPlatform;
   }
   check(context: DeploymentContext) {
     return checkAgentService(context, this.#runner);
@@ -88,7 +96,7 @@ export class VercelAgentServiceProvider implements Buildable, Deployable, Initia
   async configure(context: DeploymentContext): Promise<DeploymentResult> {
     if (isDevelopmentLifecycle(context)) return {};
     const project = requiredVercelProject(context.environment, "VERCEL_AGENT_PROJECT");
-    await ensureVercelProject(this.#runner, context, project);
+    if (!this.platform.managed) await ensureVercelProject(this.#runner, context, project);
     const origin = this.baseUrl(context).toString().replace(/\/$/, "");
     await persistEnvironment(context, "AGENT_SERVICE_ORIGIN", origin, "Agent service origin.");
     return { outputs: { "agent-service.origin": origin } };
@@ -97,6 +105,11 @@ export class VercelAgentServiceProvider implements Buildable, Deployable, Initia
     if (isDevelopmentLifecycle(context)) return {};
     const project = requiredVercelProject(context.environment, "VERCEL_AGENT_PROJECT");
     const root = context.inputs.require("agent-service.artifact");
+    if (this.platform.managed) {
+      if (!this.#hostedPlatform)
+        throw new Error("Tilde Cloud agent deployment requires a hosted platform");
+      return deployHostedOpenBotRelease(this.#hostedPlatform, context, "agents", root);
+    }
     await materializeFileTemplate(vercelProjectTemplate, resolve(root, "vercel.json"));
     await installVercelEnvironment(context, project, this.#request);
     const args = [

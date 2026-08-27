@@ -4,6 +4,7 @@ import {
   AgentListItem,
   AgentSearchDialog,
   type SidebarAgent,
+  type WorkspaceSearchResult,
   useSearchShortcut,
   WorkspaceAccount,
 } from "./sidebar-components.js";
@@ -25,9 +26,12 @@ export interface WorkspaceSidebarProps {
   hasMore?: boolean;
   searchOpen: boolean;
   searchValue: string;
+  searchResults?: readonly WorkspaceSearchResult[];
+  searching?: boolean;
   onSearchChange: (value: string) => void;
   onSearchOpen: () => void;
   onSearchClose: () => void;
+  onSelectSearchResult?: (id: string) => void;
   onSelectAgent: (id: string) => void;
   onLoadMore?: () => void;
   onCreateAgent?: () => void;
@@ -55,9 +59,12 @@ export function WorkspaceSidebar({
   hasMore = false,
   searchOpen,
   searchValue,
+  searchResults,
+  searching,
   onSearchChange,
   onSearchOpen,
   onSearchClose,
+  onSelectSearchResult,
   onSelectAgent,
   onLoadMore,
   onCreateAgent,
@@ -206,10 +213,13 @@ export function WorkspaceSidebar({
       <AgentSearchDialog
         agents={agents}
         loading={loading}
+        results={searchResults}
+        searching={searching}
         open={searchOpen}
         onChange={onSearchChange}
         onClose={onSearchClose}
         onSelect={onSelectAgent}
+        onSelectResult={onSelectSearchResult}
         value={searchValue}
       />
     </>

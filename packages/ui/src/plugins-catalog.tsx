@@ -26,6 +26,7 @@ import {
 } from "./components/ui/tooltip.js";
 import { Spinner } from "./components/ui/spinner.js";
 import { cn } from "./lib/utils.js";
+import { ProviderIcon } from "./provider-icon.js";
 
 export interface PluginsCatalogAgent {
   id: string;
@@ -36,9 +37,12 @@ export interface PluginsCatalogProps {
   agents: readonly PluginsCatalogAgent[];
   toolProviders: readonly PluginsCatalogToolProvider[];
   skillProviders: readonly PluginsCatalogSkillProvider[];
+  /** Fixes the catalog to one routable view and hides the in-page kind switcher. */
+  kind?: CatalogKind;
   loading?: boolean;
   error?: string;
   onAddToolAccount: (providerId: string) => void | Promise<void>;
+  onDeleteToolAccounts: (accountIds: readonly string[]) => void | Promise<void>;
   onSetToolAccount: (accountId: string, agentId: string, enabled: boolean) => void | Promise<void>;
   onSetSkill: (skillId: string, agentId: string, enabled: boolean) => void | Promise<void>;
 }
@@ -98,14 +102,17 @@ export function PluginsCatalog({
   agents,
   toolProviders,
   skillProviders,
+  kind: fixedKind,
   loading = false,
   error,
   onAddToolAccount,
+  onDeleteToolAccounts,
   onSetToolAccount,
   onSetSkill,
 }: PluginsCatalogProps) {
   const catalogHeadingId = useId();
-  const [kind, setKind] = useState<CatalogKind>("tools");
+  const [selectedKind, setSelectedKind] = useState<CatalogKind>("tools");
+  const kind = fixedKind ?? selectedKind;
   const [query, setQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [selectedAgentIds, setSelectedAgentIds] = useState<readonly string[]>([]);
@@ -213,36 +220,41 @@ export function PluginsCatalog({
     <section aria-label="Plugins" className="min-h-full min-w-0 bg-page text-ink">
       <div className="w-full">
         <div
-          className="flex min-h-[58px] items-center justify-between gap-[22px]
-            max-[980px]:flex-col max-[980px]:items-start max-[980px]:gap-2 max-[980px]:py-2.5
-            max-[980px]:pb-3"
+          className={cn(
+            "flex min-h-[58px] items-center gap-[22px]",
+            fixedKind ? "justify-end" : "justify-between",
+            `max-[980px]:flex-col max-[980px]:items-start max-[980px]:gap-2 max-[980px]:py-2.5
+              max-[980px]:pb-3`,
+          )}
         >
-          <div aria-label="Plugin type" className="flex gap-6" role="tablist">
-            {(["tools", "skills"] as const).map((option) => (
-              <button
-                aria-selected={kind === option}
-                className={cn(
-                  "relative h-[38px] cursor-pointer bg-transparent px-px text-[13px] font-medium",
-                  "after:absolute after:inset-x-0 after:-bottom-px after:h-0.5 after:origin-center",
-                  "after:bg-ink after:opacity-0 after:transition-[opacity,transform] after:duration-150",
-                  "after:content-['']",
-                  kind === option
-                    ? "text-ink after:scale-x-100 after:opacity-100"
-                    : "text-ink-3 after:scale-x-40",
-                )}
-                key={option}
-                onClick={() => {
-                  setKind(option);
-                  setQuery("");
-                  setSelectedCategory(null);
-                }}
-                role="tab"
-                type="button"
-              >
-                {sentenceCase(option)}
-              </button>
-            ))}
-          </div>
+          {!fixedKind ? (
+            <div aria-label="Plugin type" className="flex gap-6" role="tablist">
+              {(["tools", "skills"] as const).map((option) => (
+                <button
+                  aria-selected={kind === option}
+                  className={cn(
+                    "relative h-[38px] cursor-pointer bg-transparent px-px text-[13px] font-medium",
+                    "after:absolute after:inset-x-0 after:-bottom-px after:h-0.5 after:origin-center",
+                    "after:bg-ink after:opacity-0 after:transition-[opacity,transform] after:duration-150",
+                    "after:content-['']",
+                    kind === option
+                      ? "text-ink after:scale-x-100 after:opacity-100"
+                      : "text-ink-3 after:scale-x-40",
+                  )}
+                  key={option}
+                  onClick={() => {
+                    setSelectedKind(option);
+                    setQuery("");
+                    setSelectedCategory(null);
+                  }}
+                  role="tab"
+                  type="button"
+                >
+                  {sentenceCase(option)}
+                </button>
+              ))}
+            </div>
+          ) : null}
 
           <div
             className="flex items-center gap-2.5 max-[980px]:w-full max-[720px]:flex-col
@@ -413,6 +425,7 @@ export function PluginsCatalog({
           void onAddToolAccount(providerId);
         }}
         onClose={() => setDetailTarget(null)}
+        onDeleteToolAccounts={onDeleteToolAccounts}
         onRemoveSkill={(skillId, agentId) => onSetSkill(skillId, agentId, false)}
         onRemoveToolAccount={(accountId, agentId) => onSetToolAccount(accountId, agentId, false)}
         open={detailTarget !== null}
@@ -544,15 +557,18 @@ interface CapabilityRowProps {
   agents: readonly PluginsCatalogAgent[];
   assignedAgentIds: readonly string[];
   color: string;
-  description: string;
+  description?: string;
   iconUrl?: string;
   iconKey?: string;
   mark: string;
+  multilineDescription?: boolean;
   name: string;
   pendingAgentIds?: readonly string[];
   platformFallbacks?: readonly string[];
+  showIcon?: boolean;
   onAction?: () => void;
   onAdd?: () => void;
+  onRemoveAccount?: () => void;
   onRemove?: (agentId: string) => void;
 }
 
@@ -631,26 +647,12 @@ function CapabilityIcon({
   useEffect(() => setCandidateIndex(0), [candidateKey]);
   const candidate = candidates[candidateIndex];
   return (
-    <span
-      aria-hidden="true"
-      className={cn(
-        "grid size-[45px] shrink-0 place-items-center rounded-[10px] text-[11px] font-bold",
-        "tracking-[-0.02em] text-white",
-        candidate && "bg-surface",
-      )}
-      style={candidate ? undefined : { backgroundColor: color }}
-    >
-      {candidate ? (
-        <img
-          alt=""
-          className="h-auto max-h-8 w-auto max-w-8 object-contain"
-          onError={() => setCandidateIndex((current) => current + 1)}
-          src={candidate}
-        />
-      ) : (
-        mark
-      )}
-    </span>
+    <ProviderIcon
+      backgroundColor={color}
+      fallback={mark}
+      {...(candidate ? { imageUrl: candidate } : {})}
+      onImageError={() => setCandidateIndex((current) => current + 1)}
+    />
   );
 }
 
@@ -685,12 +687,15 @@ function CapabilityRow({
   iconUrl,
   iconKey,
   mark,
+  multilineDescription = false,
   name,
   onAction,
   onAdd,
+  onRemoveAccount,
   onRemove,
   pendingAgentIds = [],
   platformFallbacks,
+  showIcon = true,
 }: CapabilityRowProps) {
   const visibleAgentIds = unique([...assignedAgentIds, ...pendingAgentIds]);
   const assignedAgents = agents.filter((agent) => visibleAgentIds.includes(agent.id));
@@ -700,16 +705,41 @@ function CapabilityRow({
         hover:bg-[color-mix(in_srgb,var(--ink)_5%,transparent)] max-[720px]:flex-wrap
         max-[720px]:items-start"
     >
-      <CapabilityIcon
-        color={color}
-        {...(iconUrl ? { iconUrl } : {})}
-        {...(iconKey ? { iconKey } : {})}
-        mark={mark}
-        platformFallbacks={platformFallbacks}
-      />
+      {showIcon ? (
+        <CapabilityIcon
+          color={color}
+          {...(iconUrl ? { iconUrl } : {})}
+          {...(iconKey ? { iconKey } : {})}
+          mark={mark}
+          platformFallbacks={platformFallbacks}
+        />
+      ) : null}
       <div className="flex min-w-0 flex-1 flex-col gap-px">
-        <h3 className="m-0 truncate text-[13px] leading-[18px] font-medium text-ink">{name}</h3>
-        <p className="m-0 truncate text-[13px] leading-[18px] text-ink-2">{description}</p>
+        {onRemoveAccount ? (
+          <div className="flex min-w-0 items-center gap-2">
+            <h3 className="m-0 truncate text-[13px] leading-[18px] font-medium text-ink">{name}</h3>
+            <BotAvatarActions
+              agents={assignedAgents}
+              alignWithIcon={showIcon}
+              inlineWithTitle
+              pendingAgentIds={pendingAgentIds}
+              onAdd={onAdd}
+              onRemove={onRemove}
+            />
+          </div>
+        ) : (
+          <h3 className="m-0 truncate text-[13px] leading-[18px] font-medium text-ink">{name}</h3>
+        )}
+        {description ? (
+          <p
+            className={cn(
+              "m-0 text-[13px] leading-[18px] text-ink-2",
+              multilineDescription ? "line-clamp-3" : "truncate",
+            )}
+          >
+            {description}
+          </p>
+        ) : null}
       </div>
       {actionLabel ? (
         <Button
@@ -721,9 +751,22 @@ function CapabilityRow({
         >
           {actionLabel}
         </Button>
+      ) : onRemoveAccount ? (
+        <button
+          aria-label={`Remove ${name} account`}
+          className="inline-flex h-7 shrink-0 cursor-pointer items-center gap-1.5 rounded-md px-2
+            text-xs font-medium text-red hover:bg-red/10 focus-visible:bg-red/10
+            focus-visible:outline-none"
+          onClick={onRemoveAccount}
+          type="button"
+        >
+          <Trash2Icon className="size-3.5" />
+          Remove account
+        </button>
       ) : (
         <BotAvatarActions
           agents={assignedAgents}
+          alignWithIcon={showIcon}
           pendingAgentIds={pendingAgentIds}
           onAdd={onAdd}
           onRemove={onRemove}
@@ -735,11 +778,15 @@ function CapabilityRow({
 
 function BotAvatarActions({
   agents,
+  alignWithIcon,
+  inlineWithTitle = false,
   onAdd,
   onRemove,
   pendingAgentIds,
 }: {
   agents: readonly PluginsCatalogAgent[];
+  alignWithIcon: boolean;
+  inlineWithTitle?: boolean;
   onAdd?: () => void;
   onRemove?: (agentId: string) => void;
   pendingAgentIds: readonly string[];
@@ -747,8 +794,11 @@ function BotAvatarActions({
   return (
     <TooltipProvider delayDuration={180}>
       <AvatarGroup
-        className="-space-x-1.5 justify-self-end pl-2 max-[720px]:ml-[52px]
-          max-[720px]:pl-0"
+        className={cn(
+          "-space-x-1.5 justify-self-end",
+          inlineWithTitle ? "pl-0" : "pl-2 max-[720px]:pl-0",
+          alignWithIcon && "max-[720px]:ml-[52px]",
+        )}
       >
         {agents.map((agent) => {
           const pending = pendingAgentIds.includes(agent.id);
@@ -767,8 +817,11 @@ function BotAvatarActions({
                   type="button"
                 >
                   <Avatar
-                    className="size-[30px] border-2 border-surface bg-surface
-                    shadow-[0_0_0_0.5px_var(--line-strong)]"
+                    className={cn(
+                      "z-0 size-[30px] border-2 border-surface bg-surface shadow-[0_0_0_0.5px_var(--line-strong)]",
+                      !pending &&
+                        "group-hover/avatar-control:invisible group-focus-visible/avatar-control:invisible",
+                    )}
                   >
                     <AgentAvatar className="!size-full" id={agent.id} paused />
                   </Avatar>
@@ -782,7 +835,7 @@ function BotAvatarActions({
                   ) : (
                     <span
                       aria-hidden="true"
-                      className="absolute inset-0 grid place-items-center rounded-full
+                      className="absolute inset-0 z-[2] grid place-items-center rounded-full
                       bg-red text-white opacity-0 transition-opacity duration-100
                       group-hover/avatar-control:opacity-100
                       group-focus-visible/avatar-control:opacity-100"
@@ -832,6 +885,7 @@ function PluginDetailDialog({
   onAddToolAccount,
   onAddToolProvider,
   onClose,
+  onDeleteToolAccounts,
   onRemoveSkill,
   onRemoveToolAccount,
   open,
@@ -844,6 +898,7 @@ function PluginDetailDialog({
   onAddToolAccount: (accountId: string) => void;
   onAddToolProvider: (providerId: string) => void;
   onClose: () => void;
+  onDeleteToolAccounts: (accountIds: readonly string[]) => void | Promise<void>;
   onRemoveSkill: (skillId: string, agentId: string) => void;
   onRemoveToolAccount: (accountId: string, agentId: string) => void;
   open: boolean;
@@ -851,99 +906,188 @@ function PluginDetailDialog({
   provider?: PluginsCatalogToolProvider;
   skillProvider?: PluginsCatalogSkillProvider;
 }) {
+  const [confirmingDelete, setConfirmingDelete] = useState<PluginsCatalogToolAccount | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState("");
   const title = provider?.name ?? skillProvider?.name ?? "Plugin";
   const description = provider?.description ?? skillProvider?.description ?? "";
+  const capability = provider ?? skillProvider;
+  async function confirmDelete(): Promise<void> {
+    if (!confirmingDelete || deleting) return;
+    setDeleting(true);
+    setDeleteError("");
+    try {
+      await onDeleteToolAccounts([confirmingDelete.id]);
+      setConfirmingDelete(null);
+    } catch (reason) {
+      setDeleteError(reason instanceof Error ? reason.message : "Could not delete account");
+    } finally {
+      setDeleting(false);
+    }
+  }
+
   return (
-    <Dialog
-      open={open}
-      onOpenChange={(next) => {
-        if (!next) onClose();
-      }}
-    >
-      <DialogContent className="max-w-[520px] p-[22px]">
-        <DialogClose asChild>
-          <button
-            aria-label="Close"
-            className="absolute top-3 right-3 grid size-7 cursor-pointer place-items-center
+    <>
+      <Dialog
+        open={open}
+        onOpenChange={(next) => {
+          if (!next && confirmingDelete === null) onClose();
+        }}
+      >
+        <DialogContent
+          className={cn(
+            "p-[22px]",
+            skillProvider
+              ? `flex h-[calc(100dvh-32px)] w-[calc(100vw-32px)] max-w-[calc(100vw-32px)]
+              flex-col overflow-hidden`
+              : "max-w-[520px]",
+          )}
+        >
+          <DialogClose asChild>
+            <button
+              aria-label="Close"
+              className="absolute top-3 right-3 grid size-7 cursor-pointer place-items-center
               rounded-md bg-transparent text-ink-3 hover:bg-hover hover:text-ink
               focus-visible:bg-hover focus-visible:text-ink focus-visible:outline-none"
-            type="button"
-          >
-            <XIcon className="size-3.5" />
-          </button>
-        </DialogClose>
-        <DialogTitle className="m-0 text-base font-semibold">{title}</DialogTitle>
-        <DialogDescription className="mt-1.5 mb-[18px] text-[12.5px] text-ink-3">
-          {description || "Manage which bots can use this capability."}
-        </DialogDescription>
+              type="button"
+            >
+              <XIcon className="size-3.5" />
+            </button>
+          </DialogClose>
+          <div className="mb-[18px] flex items-start gap-3 pr-8">
+            {capability ? (
+              <CapabilityIcon
+                color={capabilityColor(capability.id)}
+                {...(capability.iconUrl ? { iconUrl: capability.iconUrl } : {})}
+                {...(capability.iconKey ? { iconKey: capability.iconKey } : {})}
+                mark={capabilityMark(capability.name)}
+                platformFallbacks={[capability.id, capability.name]}
+              />
+            ) : null}
+            <div className="min-w-0 flex-1">
+              <DialogTitle className="m-0 text-base font-semibold">{title}</DialogTitle>
+              <DialogDescription className="mt-1.5 text-[12.5px] leading-[18px] text-ink-3">
+                {description || "Manage which bots can use this capability."}
+              </DialogDescription>
+            </div>
+          </div>
 
-        {provider ? (
-          <div className="grid gap-2">
-            <ul className="m-0 grid list-none gap-0.5 p-0">
-              {provider.accounts.map((account) => (
+          {provider ? (
+            <div className="grid gap-2">
+              <ul className="m-0 grid list-none gap-0.5 p-0">
+                {provider.accounts.map((account) => (
+                  <CapabilityRow
+                    agents={agents}
+                    assignedAgentIds={account.assignedAgentIds}
+                    color={capabilityColor(provider.id)}
+                    {...(provider.iconUrl ? { iconUrl: provider.iconUrl } : {})}
+                    {...(provider.iconKey ? { iconKey: provider.iconKey } : {})}
+                    key={account.id}
+                    mark={capabilityMark(provider.name)}
+                    name={account.accountName}
+                    pendingAgentIds={pendingAssignments
+                      .filter(({ kind, id }) => kind === "tools" && id === account.id)
+                      .map(({ agentId }) => agentId)}
+                    platformFallbacks={[provider.id, provider.name]}
+                    showIcon={false}
+                    onAdd={() => onAddToolAccount(account.id)}
+                    onRemoveAccount={() => {
+                      setDeleteError("");
+                      setConfirmingDelete(account);
+                    }}
+                    onRemove={(agentId) => onRemoveToolAccount(account.id, agentId)}
+                  />
+                ))}
+              </ul>
+              {provider.canAddAccount !== false ? (
+                <button
+                  className="flex h-10 w-full cursor-pointer items-center gap-2 rounded-lg
+                  bg-transparent px-3 text-left text-xs font-medium text-ink-2 hover:bg-hover
+                  focus-visible:bg-hover focus-visible:outline-none"
+                  onClick={() => onAddToolProvider(provider.id)}
+                  type="button"
+                >
+                  <span className="grid size-6 place-items-center rounded-md bg-field text-ink-2">
+                    <PlusIcon className="size-3.5" />
+                  </span>
+                  {provider.accounts.length > 0 ? "Add new account" : "Add account"}
+                </button>
+              ) : null}
+            </div>
+          ) : null}
+
+          {skillProvider ? (
+            <ul
+              className="m-0 grid min-h-0 flex-1 auto-rows-min list-none grid-cols-1 gap-1
+              overflow-y-auto p-0 pr-1 min-[640px]:grid-cols-2 min-[960px]:grid-cols-3
+              min-[1200px]:grid-cols-4"
+            >
+              {skillProvider.skills.map((skill) => (
                 <CapabilityRow
                   agents={agents}
-                  assignedAgentIds={account.assignedAgentIds}
-                  color={capabilityColor(provider.id)}
-                  description="Connected account"
-                  {...(provider.iconUrl ? { iconUrl: provider.iconUrl } : {})}
-                  {...(provider.iconKey ? { iconKey: provider.iconKey } : {})}
-                  key={account.id}
-                  mark={capabilityMark(provider.name)}
-                  name={account.accountName}
+                  assignedAgentIds={skill.assignedAgentIds}
+                  color={capabilityColor(skillProvider.id)}
+                  description={skill.description}
+                  {...(skillProvider.iconUrl ? { iconUrl: skillProvider.iconUrl } : {})}
+                  {...(skillProvider.iconKey ? { iconKey: skillProvider.iconKey } : {})}
+                  key={skill.id}
+                  mark={capabilityMark(skillProvider.name)}
+                  multilineDescription
+                  name={skill.name}
                   pendingAgentIds={pendingAssignments
-                    .filter(({ kind, id }) => kind === "tools" && id === account.id)
+                    .filter(({ kind, id }) => kind === "skills" && id === skill.id)
                     .map(({ agentId }) => agentId)}
-                  platformFallbacks={[provider.id, provider.name]}
-                  onAdd={() => onAddToolAccount(account.id)}
-                  onRemove={(agentId) => onRemoveToolAccount(account.id, agentId)}
+                  platformFallbacks={[skillProvider.id, skillProvider.name]}
+                  showIcon={false}
+                  onAdd={() => onAddSkill(skill.id)}
+                  onRemove={(agentId) =>
+                    onRemoveSkill(skill.assignedSkillIdByAgentId?.[agentId] ?? skill.id, agentId)
+                  }
                 />
               ))}
             </ul>
-            {provider.canAddAccount !== false ? (
-              <button
-                className="flex h-10 w-full cursor-pointer items-center gap-2 rounded-lg
-                  bg-transparent px-3 text-left text-xs font-medium text-ink-2 hover:bg-hover
-                  focus-visible:bg-hover focus-visible:outline-none"
-                onClick={() => onAddToolProvider(provider.id)}
-                type="button"
-              >
-                <span className="grid size-6 place-items-center rounded-md bg-field text-ink-2">
-                  <PlusIcon className="size-3.5" />
-                </span>
-                {provider.accounts.length > 0 ? "Add new account" : "Add account"}
-              </button>
-            ) : null}
+          ) : null}
+        </DialogContent>
+      </Dialog>
+      <Dialog
+        open={confirmingDelete !== null}
+        onOpenChange={(next) => {
+          if (!next && !deleting) setConfirmingDelete(null);
+        }}
+      >
+        <DialogContent className="max-w-[420px] p-[22px]">
+          <DialogTitle className="m-0 text-base font-semibold">
+            Remove {confirmingDelete?.accountName} account?
+          </DialogTitle>
+          <DialogDescription className="mt-2 text-[12.5px] leading-[18px] text-ink-3">
+            This permanently removes this configured account from Tilde and every bot. This
+            can&apos;t be undone.
+          </DialogDescription>
+          {deleteError ? (
+            <p className="mt-3 text-xs leading-5 text-red" role="alert">
+              {deleteError}
+            </p>
+          ) : null}
+          <div className="mt-5 flex justify-end gap-2">
+            <Button
+              disabled={deleting}
+              onClick={() => setConfirmingDelete(null)}
+              variant="secondary"
+            >
+              Cancel
+            </Button>
+            <Button
+              className="bg-red text-white hover:brightness-95"
+              disabled={deleting}
+              onClick={() => void confirmDelete()}
+            >
+              {deleting ? <Spinner className="size-3.5" /> : <Trash2Icon className="size-3.5" />}
+              {deleting ? "Removing…" : "Remove account"}
+            </Button>
           </div>
-        ) : null}
-
-        {skillProvider ? (
-          <ul className="m-0 grid list-none gap-0.5 p-0">
-            {skillProvider.skills.map((skill) => (
-              <CapabilityRow
-                agents={agents}
-                assignedAgentIds={skill.assignedAgentIds}
-                color={capabilityColor(skillProvider.id)}
-                description={skill.description}
-                {...(skillProvider.iconUrl ? { iconUrl: skillProvider.iconUrl } : {})}
-                {...(skillProvider.iconKey ? { iconKey: skillProvider.iconKey } : {})}
-                key={skill.id}
-                mark={capabilityMark(skillProvider.name)}
-                name={skill.name}
-                pendingAgentIds={pendingAssignments
-                  .filter(({ kind, id }) => kind === "skills" && id === skill.id)
-                  .map(({ agentId }) => agentId)}
-                platformFallbacks={[skillProvider.id, skillProvider.name]}
-                onAdd={() => onAddSkill(skill.id)}
-                onRemove={(agentId) =>
-                  onRemoveSkill(skill.assignedSkillIdByAgentId?.[agentId] ?? skill.id, agentId)
-                }
-              />
-            ))}
-          </ul>
-        ) : null}
-      </DialogContent>
-    </Dialog>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
 
@@ -952,6 +1096,7 @@ export interface BotSelectionDialogProps {
   onClose: () => void;
   onSelect: (agentId: string) => void;
   open: boolean;
+  pendingAgentIds?: readonly string[];
   title: string;
 }
 
@@ -960,6 +1105,7 @@ export function BotSelectionDialog({
   onClose,
   onSelect,
   open,
+  pendingAgentIds = [],
   title,
 }: BotSelectionDialogProps) {
   return (
@@ -975,21 +1121,36 @@ export function BotSelectionDialog({
           Choose the bot that should receive this capability.
         </DialogDescription>
         <div className="grid grid-cols-2 gap-[5px]">
-          {agents.map((agent) => (
-            <button
-              className="flex h-[46px] w-full cursor-pointer items-center gap-2.5 rounded-lg
-                bg-transparent px-2.5 text-left text-[12.5px] font-medium text-ink hover:bg-hover
-                focus-visible:bg-hover focus-visible:outline-none"
-              key={agent.id}
-              onClick={() => onSelect(agent.id)}
-              type="button"
-            >
-              <Avatar className="bg-surface">
-                <AgentAvatar className="!size-full" id={agent.id} paused />
-              </Avatar>
-              <span className="truncate">{agent.name}</span>
-            </button>
-          ))}
+          {agents.map((agent) => {
+            const pending = pendingAgentIds.includes(agent.id);
+            return (
+              <button
+                aria-label={pending ? `Adding to ${agent.name}` : undefined}
+                className="flex h-[46px] w-full cursor-pointer items-center gap-2.5 rounded-lg
+                  bg-transparent px-2.5 text-left text-[12.5px] font-medium text-ink hover:bg-hover
+                  focus-visible:bg-hover focus-visible:outline-none disabled:cursor-default"
+                disabled={pendingAgentIds.length > 0}
+                key={agent.id}
+                onClick={() => onSelect(agent.id)}
+                type="button"
+              >
+                <span className="relative shrink-0">
+                  <Avatar className="bg-surface">
+                    <AgentAvatar className="!size-full" id={agent.id} paused />
+                  </Avatar>
+                  {pending ? (
+                    <span
+                      className="absolute inset-0 grid place-items-center rounded-full
+                        bg-[color-mix(in_srgb,var(--surface)_72%,transparent)] text-ink"
+                    >
+                      <Spinner className="size-4" />
+                    </span>
+                  ) : null}
+                </span>
+                <span className="truncate">{agent.name}</span>
+              </button>
+            );
+          })}
           {agents.length === 0 ? (
             <p className="text-xs text-ink-3">No bots are available yet.</p>
           ) : null}
@@ -1122,7 +1283,10 @@ const modalIconUrl =
   "https://cdn.jsdelivr.net/gh/glincker/thesvg@main/public/icons/modal/default.svg";
 const e2bIconUrl =
   "https://raw.githubusercontent.com/e2b-dev/E2B/main/readme-assets/logo-circle.png";
+const apolloIconUrl = "https://www.apollo.io/icon.svg";
 const platformIconOverrides: Readonly<Record<string, string>> = {
+  apollo: apolloIconUrl,
+  "apollo io": apolloIconUrl,
   e2b: e2bIconUrl,
   "e2b sandbox": e2bIconUrl,
   modal: modalIconUrl,
@@ -1140,6 +1304,14 @@ function platformIconCandidates(
       ...[iconKey, ...fallbacks].map(platformIconUrl),
     ].filter((candidate): candidate is string => Boolean(candidate)),
   );
+}
+
+export function resolvePluginIconUrl(
+  iconUrl: string | undefined,
+  iconKey: string | undefined,
+  ...fallbacks: readonly string[]
+): string | undefined {
+  return platformIconCandidates(iconUrl, iconKey, ...fallbacks)[0];
 }
 
 function platformIconUrl(value: string | undefined): string | undefined {

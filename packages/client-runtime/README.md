@@ -9,7 +9,12 @@ Framework-neutral client behavior shared by OpenBot web, Electron, and Expo clie
 - `contracts/sidebar` owns agents, sessions, pagination, and sorting.
 - `contracts/agents` owns the durable background agent-setup start and status payloads.
 - `contracts/messages` owns conversation messages and parts.
-- `contracts/events` owns ChatKit live-event envelopes; `chat/websocket` owns Mission Control ticket use, the awaited `ready` snapshot barrier, success-only reconnect cursors, capped jittered backoff, ping, parsing, and abort.
+- `contracts/events` owns ChatKit SSE event envelopes.
+- `contracts/mission-control` owns aggregate bootstrap, conversation snapshot, turn-submission,
+  and consolidated ChatKit search responses plus the durable event revision used to reconnect the
+  team-wide observer.
+- `chat/websocket` owns Mission Control ticket use, the awaited `ready` snapshot barrier,
+  success-only reconnect cursors, capped jittered backoff, ping, parsing, and abort.
 - `contracts/installation` owns control-service health, public native-auth discovery, and the selected installation.
 - `contracts/attachments` owns attachment metadata and upload handshakes.
 - `contracts/queue` owns queued agent turns.
@@ -29,3 +34,12 @@ The runtime maintains one team-wide Mission Control observer so inactive session
 preview, unread, and streamed-message state current. Platform-supplied `agentSetupPersistence` may
 restore an in-progress setup job; the runtime polls it to readiness, refreshes the authoritative
 sidebar, and selects the created agent only after it appears there.
+The observer retains the last durable revision and resumes from it after a disconnect.
+
+Initial load, conversation selection, and turn submission consume server-authored aggregate
+responses. Web, Electron, and Expo therefore reconcile identical authoritative snapshots without
+issuing per-session fan-out reads after each user action or realtime event.
+
+`searchChatKit` searches session titles, associated bots, and messages across the workspace, or
+messages within one session. Runtime search actions discard stale responses and open results using
+the same sidebar and conversation state as ordinary navigation.

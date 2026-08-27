@@ -31,7 +31,7 @@ export const vercelInferenceProviderInitialization: ProviderInitialization = {
 };
 
 export class VercelInferenceProvider implements InferenceProvider {
-  readonly initialization = vercelInferenceProviderInitialization;
+  readonly initialization: ProviderInitialization;
   readonly agentTemplate = {
     files: [
       {
@@ -44,6 +44,13 @@ export class VercelInferenceProvider implements InferenceProvider {
 
   constructor(private readonly platform = new VercelPlatform()) {
     this.platforms = [platform];
+    this.initialization = platform.managed
+      ? {
+          ...vercelInferenceProviderInitialization,
+          description: "Use project-scoped Vercel OIDC for AI Gateway inference.",
+          questions: [],
+        }
+      : vercelInferenceProviderInitialization;
   }
 
   async initialize(context: ProviderInitializationContext): Promise<void> {
@@ -62,7 +69,16 @@ export class VercelInferenceProvider implements InferenceProvider {
         DEFAULT_VERCEL_MODEL,
         "Default Vercel AI Gateway model used by authored agents.",
       );
-    if (context.environment[AI_GATEWAY_API_KEY]?.trim()) return;
+    if (this.platform.managed) return;
+    const existing = context.environment[AI_GATEWAY_API_KEY]?.trim();
+    if (existing) {
+      await context.setSecret(
+        AI_GATEWAY_API_KEY,
+        existing,
+        "Vercel AI Gateway API key used by authored agents.",
+      );
+      return;
+    }
     const name = context.environment[AI_GATEWAY_KEY_NAME]?.trim();
     if (!name) throw new Error(`${AI_GATEWAY_KEY_NAME} is required`);
     const created = await this.platform.createAiGatewayApiKey({

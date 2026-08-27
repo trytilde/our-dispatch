@@ -5,7 +5,7 @@ import { tildeErrorMessage } from "@tryopenbot/platform-integrations/tilde/error
 import type { ProviderInitialization } from "@tryopenbot/runtime-provider";
 import { persistEnvironment, type DeploymentContext } from "@tryopenbot/runtime-provider";
 import {
-  addMcpServerInstanceFunction,
+  bulkAddMcpServerInstanceFunctions,
   connectProxiedMcpServer,
   createResourceServerCredential,
   createTildeApiClient,
@@ -290,22 +290,22 @@ export class TildeToolReconciler {
         .filter((tool) => tool.tool_group_instance_id === group.id)
         .map((tool) => tool.tool_source_type_id),
     );
-    await mapWithConcurrency(
-      source.tools.filter((tool) => !mapped.has(tool.type_id)),
-      maxConcurrentRequests,
-      (tool) =>
-        addMcpServerInstanceFunction({
-          client: this.#api,
-          path: { team_id: this.#teamId, mcp_server_instance_id: serverId },
-          body: {
-            tool_group_instance_id: group.id,
-            tool_group_source_type_id: "tilde_control_plane",
+    const missingMappings = source.tools.filter((tool) => !mapped.has(tool.type_id));
+    if (missingMappings.length > 0) {
+      await bulkAddMcpServerInstanceFunctions({
+        client: this.#api,
+        path: { team_id: this.#teamId, mcp_server_instance_id: serverId },
+        body: {
+          tool_group_instance_id: group.id,
+          tool_group_source_type_id: "tilde_control_plane",
+          functions: missingMappings.map((tool) => ({
             tool_name: tool.type_id,
             tool_source_type_id: tool.type_id,
-          },
-          throwOnError: true,
-        }),
-    );
+          })),
+        },
+        throwOnError: true,
+      });
+    }
     await persistEnvironment(
       context,
       `${prefix}_TILDE_CONTROL_PLANE_TOOL_GROUP_ID`,

@@ -8,7 +8,8 @@ The package root exports the complete workspace surface:
 
 - Shell and navigation: `WorkspaceShell`, `WorkspaceSidebar`, `WorkspaceSelector`,
   `AgentListItem`, `AgentSearchDialog`, `AgentSetupDialog`, `WorkspaceAccount`,
-  `BrandedLoadingState`, and `useWorkspaceLayout`.
+  `BrandedLoadingState`, and `useWorkspaceLayout`. `AgentSearchDialog` accepts consolidated bot,
+  conversation-title, and message results through `WorkspaceSearchResult`.
 - Chat: `ChatHeader`, `ChatPane`, `ChatComposer`, `ConversationSurface`,
   `ConversationMessage`, `EmptyConversation`, `MessageContent`,
   `ScrollToLatestButton`, `ThinkingIndicator`, `ChatFindBar`, transcript

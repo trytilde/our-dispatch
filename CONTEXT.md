@@ -30,7 +30,10 @@ _Avoid_: treating a decoded token or session cookie alone as authorization
 The Tilde ownership and billing boundary selected during setup.
 
 **Tilde Team**:
-The Tilde runtime isolation boundary that owns OpenBot's agents, chats, tools, skills, and memory.
+The Tilde workspace and runtime isolation boundary selected by an OpenBot installation. Tilde resources may be `team`, personal `user`, or private `user_team`; OpenBot's authored-agent lifecycle continues to reconcile team resources unless it explicitly opts into a personal API.
+
+**Tilde Resource Ownership**:
+A tagged authorization boundary. `team` carries organization and team, `user` carries organization and owner without a team, and `user_team` carries organization, execution team, and owner. Child records inherit their root's ownership.
 _Avoid_: workspace
 
 **Tilde Agent**:
@@ -70,7 +73,7 @@ _Avoid_: frontend state library, shared components, or server SDK
   tokens and host-only cookies.
 - An **OpenBot Installation** presents one **OpenBot Workspace**.
 - An **OpenBot Installation** connects to one **Tilde Organization** and **Tilde Team**.
-- A **Tilde Team** owns one or more **Tilde Agents**, presented to owners as **Bots**, and their **ChatKit Sessions**.
+- A **Tilde Team** owns one or more **Tilde Agents**, presented to owners as **Bots**. Ordinary sessions are team-owned; private ChatKit sessions use `user_team` ownership.
 - An **OpenBot Installation** controls at most one active **OpenBot Computer**.
 - **Control State** belongs to OpenBot; agent and conversation state belongs to the **Tilde Team**.
 - Every OpenBot client reaches an **OpenBot Workspace** through the **Client Runtime**; renderers own

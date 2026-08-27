@@ -1,3 +1,5 @@
+/// <reference types="node" />
+
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
@@ -9,6 +11,8 @@ const requiredOperations = [
   "list-mcp-server-instances",
   "get-mcp-server-instance",
   "add-mcp-server-instance-function",
+  "bulk-add-mcp-server-instance-functions",
+  "bulk-remove-mcp-server-instance-functions",
   "list-tool-deployments-by-alias",
   "list-available-tool-groups",
   "create-tool-group-instance",

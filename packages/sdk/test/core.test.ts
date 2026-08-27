@@ -521,6 +521,120 @@ describe("MCP client", () => {
     });
   });
 
+  it("atomically adds MCP server functions from one tool provider instance", async () => {
+    const fetchMock = vi.fn(async (input: Parameters<typeof fetch>[0], init?: RequestInit) => {
+      expect(String(input)).toBe(
+        "https://api.example.test/api/v1/team/team_123/mcp/mcp-server/server_1/functions",
+      );
+      expect(init?.method).toBe("POST");
+      expect(JSON.parse(String(init?.body))).toEqual({
+        tool_group_source_type_id: "tool_group",
+        tool_group_instance_id: "tool_group_instance",
+        functions: [
+          {
+            tool_source_type_id: "search_source",
+            tool_name: "search",
+            tool_description: "Search records",
+            configured_params: { collection: "issues" },
+            is_async: true,
+          },
+          {
+            tool_source_type_id: "get_source",
+            tool_name: "get",
+          },
+        ],
+      });
+      return Response.json({
+        id: "server_1",
+        name: "Server 1",
+        team_id: "team_123",
+        is_dynamic_tool_discovery: true,
+        tools: [{ tool_name: "search" }, { tool_name: "get" }],
+      });
+    });
+    const client = createClient({
+      baseUrl: "https://api.example.test",
+      teamId: "team_123",
+      fetch: fetchMock as typeof fetch,
+    });
+
+    await expect(
+      client.mcp.addFunctions({
+        serverId: "server_1",
+        toolGroupSourceTypeId: "tool_group",
+        toolGroupInstanceId: "tool_group_instance",
+        functions: [
+          {
+            toolSourceTypeId: "search_source",
+            toolName: "search",
+            toolDescription: "Search records",
+            configuredParams: { collection: "issues" },
+            isAsync: true,
+          },
+          { toolSourceTypeId: "get_source", toolName: "get" },
+        ],
+      }),
+    ).resolves.toMatchObject({ tools: [{ tool_name: "search" }, { tool_name: "get" }] });
+  });
+
+  it("atomically removes MCP server functions from one tool provider instance", async () => {
+    const fetchMock = vi.fn(async (input: Parameters<typeof fetch>[0], init?: RequestInit) => {
+      expect(String(input)).toBe(
+        "https://api.example.test/api/v1/team/team_123/mcp/mcp-server/server_1/functions",
+      );
+      expect(init?.method).toBe("DELETE");
+      expect(JSON.parse(String(init?.body))).toEqual({
+        tool_group_source_type_id: "tool_group",
+        tool_group_instance_id: "tool_group_instance",
+        tool_source_type_ids: ["search_source", "get_source"],
+      });
+      return Response.json({
+        id: "server_1",
+        name: "Server 1",
+        team_id: "team_123",
+        is_dynamic_tool_discovery: true,
+        tools: [],
+      });
+    });
+    const client = createClient({
+      baseUrl: "https://api.example.test",
+      teamId: "team_123",
+      fetch: fetchMock as typeof fetch,
+    });
+
+    await expect(
+      client.mcp.removeFunctions({
+        serverId: "server_1",
+        toolGroupSourceTypeId: "tool_group",
+        toolGroupInstanceId: "tool_group_instance",
+        toolSourceTypeIds: ["search_source", "get_source"],
+      }),
+    ).resolves.toMatchObject({ tools: [] });
+  });
+
+  it("surfaces bulk MCP mapping conflicts as ApiError", async () => {
+    const client = createClient({
+      baseUrl: "https://api.example.test",
+      teamId: "team_123",
+      fetch: (async () =>
+        Response.json({ msg: "mapping conflict" }, { status: 400 })) as typeof fetch,
+    });
+
+    await expect(
+      client.mcp.addFunctions({
+        serverId: "server_1",
+        toolGroupSourceTypeId: "tool_group",
+        toolGroupInstanceId: "tool_group_instance",
+        functions: [{ toolSourceTypeId: "search_source", toolName: "search" }],
+      }),
+    ).rejects.toMatchObject({
+      name: "ApiError",
+      message: "mapping conflict",
+      status: 400,
+      body: { msg: "mapping conflict" },
+    });
+  });
+
   it("updates an MCP server", async () => {
     const fetchMock = vi.fn(async (input: Parameters<typeof fetch>[0], init?: RequestInit) => {
       expect(String(input)).toBe(

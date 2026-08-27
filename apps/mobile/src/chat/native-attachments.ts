@@ -1,7 +1,12 @@
 import * as Crypto from "expo-crypto";
 import * as DocumentPicker from "expo-document-picker";
 import { File, UploadType } from "expo-file-system";
-import type { Attachment, ChatPart, OpenBotClient } from "@tryopenbot/client-runtime";
+import type {
+  Attachment,
+  AttachmentCompletion,
+  ChatPart,
+  OpenBotClient,
+} from "@tryopenbot/client-runtime";
 
 export interface PendingNativeAttachment {
   id: string;
@@ -33,39 +38,60 @@ export async function pickNativeAttachments(): Promise<PendingNativeAttachment[]
   }));
 }
 
-export async function uploadNativeAttachment(
+export interface UploadedNativeAttachment {
+  attachment: Attachment;
+  completion: AttachmentCompletion;
+}
+
+export async function uploadNativeAttachments(
   client: OpenBotClient,
   sessionId: string,
-  pending: PendingNativeAttachment,
-  onProgress: (progress: number) => void,
-): Promise<Attachment> {
-  const file = new File(pending.uri);
-  const bytes = await file.arrayBuffer();
-  const digest = await Crypto.digest(Crypto.CryptoDigestAlgorithm.SHA256, bytes);
-  const sha256 = [...new Uint8Array(digest)]
-    .map((byte) => byte.toString(16).padStart(2, "0"))
-    .join("");
-  const created = await client.createAttachment(sessionId, {
-    filename: pending.name,
-    mediaType: pending.mediaType,
-    sizeBytes: pending.size,
-    sha256,
-  });
-  const response = await file.upload(client.rewriteTildeUploadUrl(created.upload_url), {
-    headers: created.upload_headers,
-    httpMethod: "PUT",
-    mimeType: pending.mediaType,
-    uploadType: UploadType.BINARY_CONTENT,
-    onProgress: ({ bytesSent, totalBytes }) => {
-      if (totalBytes > 0) onProgress(bytesSent / totalBytes);
+  pendingFiles: PendingNativeAttachment[],
+  onProgress: (index: number, progress: number) => void,
+): Promise<UploadedNativeAttachment[]> {
+  const files = pendingFiles.map((pending) => new File(pending.uri));
+  const sha256Values = await Promise.all(
+    files.map(async (file) => {
+      const digest = await Crypto.digest(
+        Crypto.CryptoDigestAlgorithm.SHA256,
+        await file.arrayBuffer(),
+      );
+      return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
+    }),
+  );
+  const created = await client.createAttachments(
+    sessionId,
+    pendingFiles.map((pending, index) => ({
+      filename: pending.name,
+      mediaType: pending.mediaType,
+      sizeBytes: pending.size,
+      sha256: sha256Values[index]!,
+    })),
+  );
+  await Promise.all(
+    created.map(async (upload, index) => {
+      const pending = pendingFiles[index]!;
+      const response = await files[index]!.upload(client.rewriteTildeUploadUrl(upload.upload_url), {
+        headers: upload.upload_headers,
+        httpMethod: "PUT",
+        mimeType: pending.mediaType,
+        uploadType: UploadType.BINARY_CONTENT,
+        onProgress: ({ bytesSent, totalBytes }) => {
+          if (totalBytes > 0) onProgress(index, bytesSent / totalBytes);
+        },
+      });
+      if (response.status < 200 || response.status >= 300)
+        throw new Error(`Attachment upload failed (${response.status})`);
+    }),
+  );
+  return created.map((upload, index) => ({
+    attachment: upload.attachment,
+    completion: {
+      attachmentId: upload.attachment.id,
+      sizeBytes: pendingFiles[index]!.size,
+      sha256: sha256Values[index],
     },
-  });
-  if (response.status < 200 || response.status >= 300)
-    throw new Error(`Attachment upload failed (${response.status})`);
-  return await client.completeAttachment(sessionId, created.attachment.id, {
-    sizeBytes: pending.size,
-    sha256,
-  });
+  }));
 }
 
 export function optimisticNativeParts(

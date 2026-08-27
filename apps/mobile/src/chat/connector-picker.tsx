@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { Pressable, StyleSheet } from "react-native";
 import {
-  connectorAccountSelectionMessage,
   connectorSelectionFromPart,
   type ChatPart,
   type ConnectorSelection,
@@ -39,13 +38,9 @@ export function ConnectorSelectionPicker({
     selection.prompt ??
     `Select which account to enable for this bot for ${selection.provider_name}`;
 
-  const choose = (accountId: string, displayName: string) => {
-    void runtime.actions.sendMessage({
-      text: connectorAccountSelectionMessage(selection, {
-        id: accountId,
-        display_name: displayName,
-      }),
-    });
+  const choose = (accountId: string) => {
+    const agentId = runtime.store.getState().sidebar.selectedAgentId;
+    void runtime.client.bindConnector(agentId, accountId);
   };
 
   if (setupOpen) {
@@ -55,9 +50,9 @@ export function ConnectorSelectionPicker({
         controlOrigin={runtime.controlOrigin}
         selection={selection}
         onClose={() => setSetupOpen(false)}
-        onComplete={(text) => {
+        onComplete={(accountId) => {
           setSetupOpen(false);
-          void runtime.actions.sendMessage({ text });
+          choose(accountId);
         }}
       />
     );
@@ -73,7 +68,7 @@ export function ConnectorSelectionPicker({
           <Pressable
             accessibilityRole="button"
             key={account.id}
-            onPress={() => choose(account.id, account.display_name)}
+            onPress={() => choose(account.id)}
             style={({ pressed }) => [
               styles.card,
               { borderColor: border, backgroundColor: background },

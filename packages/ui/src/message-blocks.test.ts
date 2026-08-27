@@ -2,6 +2,35 @@ import { describe, expect, it } from "vite-plus/test";
 import { splitMessageSegments } from "./message-blocks.js";
 
 describe("message block segmentation", () => {
+  it("keeps progress narration inside the agent run when a tool follows", () => {
+    expect(
+      splitMessageSegments([
+        { type: "text", text: "I’ll inspect the live registry first." },
+        {
+          type: "tool",
+          tool_name: "SEARCH_TOOLS",
+          state: "output-available",
+          output: { isError: false },
+        },
+        { type: "text", text: "The registry contains the requested connector." },
+      ]),
+    ).toEqual([
+      {
+        kind: "run",
+        parts: [
+          { type: "reasoning", text: "I’ll inspect the live registry first." },
+          {
+            type: "tool",
+            tool_name: "SEARCH_TOOLS",
+            state: "output-available",
+            output: { isError: false },
+          },
+        ],
+      },
+      { kind: "text", text: "The registry contains the requested connector." },
+    ]);
+  });
+
   it("renders attachment-shaped tool output as media without its JSON tool result", () => {
     const segments = splitMessageSegments([
       {

@@ -2,7 +2,8 @@ import { useMemo, useState, type FormEvent } from "react";
 import { connectorSetupFields, type ConnectorSetupField } from "@tryopenbot/client-runtime";
 import { ExternalLinkIcon, KeyRoundIcon, ShieldCheckIcon, UserRoundIcon } from "lucide-react";
 import { Button } from "./beautiful-ui/atoms/button.js";
-import { Dialog, DialogContent, DialogDescription, DialogTitle } from "./components/ui/dialog.js";
+import { Dialog, DialogContent, DialogTitle } from "./components/ui/dialog.js";
+import { ProviderIcon } from "./provider-icon.js";
 import type { MessagePart } from "./rich-message-components.js";
 
 export { connectorSetupFields, type ConnectorSetupField };
@@ -193,7 +194,30 @@ export function ConnectorAccountGrid({
   );
 }
 
-function ConnectorGlyph({ iconUrl, name }: { iconUrl?: string | undefined; name: string }) {
+function ConnectorGlyph({
+  iconUrl,
+  name,
+  providerSize = false,
+}: {
+  iconUrl?: string | undefined;
+  name: string;
+  providerSize?: boolean;
+}) {
+  const initials = name
+    .split(/\s+/)
+    .map((word) => word.charAt(0))
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
+  if (providerSize) {
+    return (
+      <ProviderIcon
+        backgroundColor="#777"
+        fallback={initials || "?"}
+        {...(iconUrl ? { imageUrl: iconUrl } : {})}
+      />
+    );
+  }
   if (iconUrl) {
     return (
       <span aria-hidden className="connector-glyph">
@@ -201,12 +225,6 @@ function ConnectorGlyph({ iconUrl, name }: { iconUrl?: string | undefined; name:
       </span>
     );
   }
-  const initials = name
-    .split(/\s+/)
-    .map((word) => word.charAt(0))
-    .join("")
-    .slice(0, 2)
-    .toUpperCase();
   return (
     <span aria-hidden className="connector-glyph">
       {initials || "?"}
@@ -293,17 +311,17 @@ export function ConnectorSetupDialog({
         if (!open && !submitting) onClose();
       }}
     >
-      <DialogContent className="max-h-[80vh] max-w-[460px] overflow-y-auto p-[22px]">
+      <DialogContent
+        aria-describedby={undefined}
+        className="max-h-[80vh] max-w-[460px] overflow-y-auto p-[22px]"
+      >
         <form className="grid gap-4" onSubmit={handleSubmit}>
           <header className="flex items-start gap-3">
-            <ConnectorGlyph iconUrl={providerIconUrl} name={providerName} />
+            <ConnectorGlyph iconUrl={providerIconUrl} name={providerName} providerSize />
             <div className="min-w-0 flex-1">
               <DialogTitle className="m-0 text-base font-semibold text-ink">
-                Add a {providerName} account
+                Add {indefiniteArticle(providerName)} {providerName} account
               </DialogTitle>
-              <DialogDescription className="mt-1 text-[12.5px] leading-[18px] text-ink-3">
-                Name this account and provide the information required to connect it.
-              </DialogDescription>
             </div>
           </header>
 
@@ -348,26 +366,11 @@ export function ConnectorSetupDialog({
                     ))}
                   </select>
                 </label>
-              ) : source ? (
-                <div className="flex gap-3 rounded-xl bg-inset p-3">
-                  <ShieldCheckIcon
-                    aria-hidden="true"
-                    className="mt-0.5 size-4 shrink-0 text-ink-2"
-                  />
-                  <div className="min-w-0">
-                    <p className="m-0 text-xs font-medium text-ink">{source.name}</p>
-                    <p className="mt-0.5 mb-0 text-[11.5px] leading-4 text-ink-3">
-                      {source.requiresBrokering
-                        ? "Secure provider authorization managed by Tilde."
-                        : "Enter the credentials required by this provider."}
-                    </p>
-                  </div>
-                </div>
-              ) : (
+              ) : !source ? (
                 <p className="m-0 rounded-xl bg-red-tint p-3 text-xs text-red">
                   No connection methods are available for this provider.
                 </p>
-              )}
+              ) : null}
 
               <label className="grid gap-1.5">
                 <span className="flex items-center gap-1.5 text-xs font-medium text-ink-2">
@@ -377,12 +380,8 @@ export function ConnectorSetupDialog({
                 <input
                   autoFocus
                   className="h-9 rounded-lg border-[0.5px] border-line-strong bg-field px-3
-                    text-[12.5px] text-ink shadow-inset-field outline-none placeholder:text-ink-3
-                    focus:border-accent"
+                    text-[12.5px] text-ink shadow-inset-field outline-none focus:border-accent"
                   onChange={(event) => setDisplayName(event.target.value)}
-                  placeholder={
-                    source?.displayNameDescription || "Label this account — e.g. work, personal"
-                  }
                   required
                   value={displayName}
                 />
@@ -404,11 +403,10 @@ export function ConnectorSetupDialog({
                     <textarea
                       className="min-h-24 resize-y rounded-lg border-[0.5px] border-line-strong
                         bg-field px-3 py-2 text-[12.5px] text-ink shadow-inset-field outline-none
-                        placeholder:text-ink-3 focus:border-accent"
+                        focus:border-accent"
                       onChange={(event) =>
                         setValues((current) => ({ ...current, [field.key]: event.target.value }))
                       }
-                      placeholder={field.description ?? field.key}
                       required={field.required}
                       rows={5}
                       spellCheck={false}
@@ -417,18 +415,19 @@ export function ConnectorSetupDialog({
                   ) : (
                     <input
                       className="h-9 rounded-lg border-[0.5px] border-line-strong bg-field px-3
-                        text-[12.5px] text-ink shadow-inset-field outline-none placeholder:text-ink-3
-                        focus:border-accent"
+                        text-[12.5px] text-ink shadow-inset-field outline-none focus:border-accent"
                       onChange={(event) =>
                         setValues((current) => ({ ...current, [field.key]: event.target.value }))
                       }
-                      placeholder={field.description ?? field.key}
                       required={field.required}
                       spellCheck={false}
                       type={field.secret ? "password" : "text"}
                       value={values[field.key] ?? ""}
                     />
                   )}
+                  {field.description ? (
+                    <span className="text-[11px] leading-4 text-ink-3">{field.description}</span>
+                  ) : null}
                 </label>
               ))}
 
@@ -471,4 +470,8 @@ export function ConnectorSetupDialog({
       </DialogContent>
     </Dialog>
   );
+}
+
+function indefiniteArticle(value: string): "a" | "an" {
+  return /^[aeiou]/i.test(value.trim()) ? "an" : "a";
 }

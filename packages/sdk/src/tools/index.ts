@@ -22,13 +22,16 @@ export {
   wrapMcpClientWithLocalTools,
 } from "./local";
 export {
+  type AddMcpServerFunctionsInput,
   type AddMcpServerFunctionInput,
   type AvailableToolGroup,
   type CreateMcpServerInput,
   type CreateToolGroupInput,
   McpClient,
   type McpServer,
+  type McpServerFunctionInput,
   type McpToolDefinition,
+  type RemoveMcpServerFunctionsInput,
   type ToolDeployment,
   type ToolGroupInstance,
   type UpdateMcpServerInput,

@@ -63,6 +63,14 @@ describe("connectorSelectionViewFromPart", () => {
 });
 
 describe("splitMessageSegments with connector parts", () => {
+  it("keeps the explanation before a connector picker user-visible", () => {
+    const segments = splitMessageSegments([
+      { type: "text", text: "Choose the account this agent should use." },
+      connectorPart,
+    ]);
+    expect(segments.map((segment) => segment.kind)).toEqual(["text", "other"]);
+  });
+
   it("keeps the connector card out of the collapsed tool-chip run", () => {
     const segments = splitMessageSegments([
       { type: "reasoning", text: "Checking connectors" },

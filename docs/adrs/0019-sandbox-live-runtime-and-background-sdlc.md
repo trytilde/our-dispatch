@@ -5,6 +5,7 @@
 - Background orchestrator owns the lifecycle. Agents never build, test, or deploy themselves.
 - First edit flips every agent to the tunnel. Whole-repo, never per-agent.
 - Settle 30 s, then verify, publish to `openbot/sandbox-edits`, redeploy, flip back.
+- Local `openbot dev` creates agents in its live checkout. Deployed creation stays in sandbox.
 - Workspace UI has no build/test/deploy modes. One continuous chat.
 - Cost: every agent's tools run inside the trusted development sandbox. Accepted.
 
@@ -36,13 +37,17 @@ should not be the ones driving it.
 - Agents are lifecycle-unaware. Factory skills no longer test or deploy; every scaffolded subagent
   receives a `self-edit` skill and computer tools that run in the development sandbox, so any agent
   can edit its own instructions, skills, and tools — the orchestrator makes the edits live.
-- The workspace UI has no build/test/deploy modes. Creating an agent scaffolds and registers it
-  via the repository CLI inside the development sandbox (`POST /api/agents`) and opens a chat with
-  the agent itself.
+- The workspace UI has no build/test/deploy modes. `POST /api/agents` uses the repository CLI in
+  the checkout that owns the live agent runtime: local `openbot dev` runs `openbot new-agent`
+  directly in its local checkout, while a deployed control service delegates the same command to
+  the trusted development sandbox. Both paths open a chat with the created agent; production never
+  gains direct access to an operator's local checkout.
 
 ```mermaid
 stateDiagram-v2
   [*] --> deployed
+  [*] --> local_dev
+  local_dev --> local_dev: create agent in live checkout
   deployed --> live: first edit detected
   live --> live: further edits, settle timer resets
   live --> publishing: 30 s without file changes
@@ -64,6 +69,8 @@ the computer image carries the pinned `cloudflared` binary the local-runtime tun
   agents must weigh this before adopting.
 - `openbot/sandbox-edits` accumulates automated commits; merging them into the default branch is
   an explicit owner (or agent, on request) action via pull request.
+- Local development agent creation mutates only the explicitly running checkout and inherits its
+  operator environment. Deployed creation retains the sandbox API key and trust boundary.
 
 <FOLLOW UP>
 Automate the rest of the SDLC around the sandbox-edits branch: the orchestrator (or an agent
@@ -80,3 +87,6 @@ git work.
   replaced the nonstandard `Status` section with the accepted-date note carried here, and added the
   orchestrator state diagram. Named the UX source as the reference build rather than the
   third-party product, per repository convention. Accepted 2026-08-18.
+- 2026-08-26T15:31:31+01:00: Split agent creation by runtime ownership: local `openbot dev`
+  scaffolds in its live checkout, while deployed control services continue through the trusted
+  development sandbox.

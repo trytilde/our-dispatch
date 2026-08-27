@@ -6,6 +6,7 @@ import { formatAgentLifecycleProgress, reconcileAgentResources } from "../agent-
 import { loadLocalEnvironment } from "../environment.js";
 import { setEnvironmentValue } from "../initialization.js";
 import { repositoryRoot } from "../paths.js";
+import { clearLiveAgentServiceOrigin, writeLiveAgentServiceOrigin } from "../live-agent-service.js";
 import { runChecked } from "../processes.js";
 import {
   developmentServerCommand,
@@ -42,6 +43,7 @@ export async function runOrchestrator(): Promise<never> {
   const configuration = await loadDevelopmentConfiguration(env);
   const [serverCommand, serverArguments] = developmentServerCommand();
   const server = await startTunneledAgentService(serverCommand, serverArguments, env);
+  await writeLiveAgentServiceOrigin(repositoryRoot, server.agentServiceOrigin);
   console.log(`Agent HMR server: ${server.agentServiceOrigin}`);
   await setEnvironmentValue(
     repositoryRoot,
@@ -138,6 +140,7 @@ export async function runOrchestrator(): Promise<never> {
   process.once("exit", () => {
     for (const watcher of watchers) watcher.close();
     if (settleTimer) clearTimeout(settleTimer);
+    void clearLiveAgentServiceOrigin(repositoryRoot);
     server.stop();
   });
 

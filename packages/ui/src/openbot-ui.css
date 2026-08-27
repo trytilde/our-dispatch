@@ -8137,7 +8137,7 @@ button.system-event-chip {
   }
 }
 
-/* Electron keeps the Computer close to the composer without taking a chat column. */
+/* Keep the Computer close to the composer without taking a permanent chat column. */
 .rich-chat.workspace-shell.computer-floating {
   --floating-computer-width: clamp(240px, 23vw, 320px);
   position: relative;
@@ -8210,8 +8210,46 @@ button.system-event-chip {
     margin 180ms var(--ob-ease-layout);
 }
 
+.rich-chat.workspace-shell.computer-floating.workspace-open .chat-pane > .queue-panel {
+  width: min(656px, calc(100% - var(--floating-computer-width) - 64px));
+  margin-right: calc(var(--floating-computer-width) + 32px);
+  margin-left: 16px;
+  transition:
+    width 180ms var(--ob-ease-layout),
+    margin 180ms var(--ob-ease-layout);
+}
+
 @media (max-width: 720px) {
   .rich-chat.workspace-shell.computer-floating {
     --floating-computer-width: min(240px, calc(100vw - 32px));
+  }
+
+  .rich-chat.workspace-shell.computer-floating
+    .agent-workspace-pane.floating.open:not(.fullscreen) {
+    position: fixed;
+    z-index: 100;
+    inset: 0 0 0 auto;
+    width: min(100vw, 420px);
+    height: 100dvh;
+    padding: 46px 12px 12px;
+    display: grid;
+    overflow: hidden;
+    border: 0;
+    border-left: 0.5px solid var(--ob-border-default);
+    border-radius: 0;
+    background: var(--rail-surface);
+    box-shadow: -16px 0 48px var(--ob-shadow-modal-ambient);
+  }
+
+  .rich-chat.workspace-shell.computer-floating.workspace-open .chat-pane > .composer-shell {
+    width: calc(100% - 24px);
+    max-width: calc(100% - 24px);
+    margin: 0 12px 12px;
+  }
+
+  .rich-chat.workspace-shell.computer-floating.workspace-open .chat-pane > .queue-panel {
+    width: calc(100% - 24px);
+    max-width: calc(100% - 24px);
+    margin: 0 12px -12px;
   }
 }
