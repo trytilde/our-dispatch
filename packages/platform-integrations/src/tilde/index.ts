@@ -4,6 +4,8 @@ import { tildeFetch } from "./fetch.js";
 
 export interface TildePlatformConfig {
   apiKey: string;
+  /** Optional human OAuth token used with the API key for deployment-time delegation. */
+  delegatedBearerToken?: string;
   orgId: string;
   teamId: string;
   baseUrl?: string;
@@ -80,15 +82,36 @@ export class TildePlatform implements Platform {
 
   client(signal?: AbortSignal): Client {
     const config = this.connection();
-    if (signal)
-      return createClient({
-        ...config,
-        orgSubdomain: false,
-        headers: { "x-api-key": config.apiKey },
-        fetch: tildeFetch(signal),
-      });
-    return (this.#client ??= createClient({ ...config, orgSubdomain: false }));
+    const clientConfig = tildeClientConfig(config, signal);
+    if (signal) return createClient(clientConfig);
+    return (this.#client ??= createClient(clientConfig));
   }
+}
+
+/** Headers for ordinary machine requests or deployment-time human delegation. */
+export function tildeAuthenticationHeaders(config: TildePlatformConfig): Headers {
+  const headers = new Headers({ "x-api-key": config.apiKey });
+  if (config.delegatedBearerToken)
+    headers.set("Authorization", `Bearer ${config.delegatedBearerToken}`);
+  return headers;
+}
+
+function tildeClientConfig(
+  config: TildePlatformConfig & { baseUrl: string },
+  signal?: AbortSignal,
+) {
+  const connection = {
+    apiKey: config.apiKey,
+    baseUrl: config.baseUrl,
+    orgId: config.orgId,
+    teamId: config.teamId,
+  };
+  return {
+    ...connection,
+    orgSubdomain: false,
+    headers: tildeAuthenticationHeaders(config),
+    ...(signal ? { fetch: tildeFetch(signal) } : {}),
+  };
 }
 
 export const tildePlatform = new TildePlatform();

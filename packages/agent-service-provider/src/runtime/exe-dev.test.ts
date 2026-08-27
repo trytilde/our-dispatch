@@ -14,6 +14,7 @@ function context(devMode = false): DeploymentContext {
       CODE_STORAGE_REPOSITORY: "trytilde/openbot",
       CODE_STORAGE_REPOSITORY_TOKEN: "repository-only-token",
       TILDE_API_KEY: "tilde-secret",
+      TILDE_BEARER_TOKEN: "human-deployment-token",
     },
     inputs: new DeploymentOutputs(),
     report: vi.fn(),
@@ -74,6 +75,7 @@ describe("ExeDevRuntimeServiceProvider", () => {
     expect(calls[2]?.args).toEqual(["exe.dev", "share", "set-public", "openbot"]);
     expect(calls.flatMap((call) => call.args).join(" ")).not.toContain("repository-only-token");
     expect(calls[3]?.input).toContain('CODE_STORAGE_REPOSITORY_TOKEN="repository-only-token"');
+    expect(calls[3]?.input).not.toContain("human-deployment-token");
     expect(calls.at(-1)?.input).toContain("pnpm --dir");
     expect(calls.at(-1)?.input).toContain("node_version=24.20.0");
     expect(calls.at(-1)?.input).toContain("sha256sum --check --strict");

@@ -291,6 +291,7 @@ function renderRemoteEnvironment(
     .filter((entry): entry is [string, string] => entry[1] !== undefined)
     .filter(([name]) => /^[A-Z][A-Z0-9_]*$/.test(name))
     .filter(([name]) => name !== "CODE_STORAGE_SETUP_PRIVATE_KEY")
+    .filter(([name]) => name !== "TILDE_BEARER_TOKEN")
     .sort(([left], [right]) => left.localeCompare(right))
     .map(([name, value]) => `${name}=${JSON.stringify(value)}`)
     .join("\n")}\n`;

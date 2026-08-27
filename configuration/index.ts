@@ -9,6 +9,7 @@ import { ExeDevPlatform, TildePlatform, VercelPlatform } from "@tryopenbot/platf
 
 const tilde = new TildePlatform({
   apiKey: process.env.TILDE_API_KEY!,
+  delegatedBearerToken: process.env.TILDE_BEARER_TOKEN,
   baseUrl: process.env.TILDE_BASE_URL ?? "https://api.trytilde.ai",
   orgId: process.env.TILDE_ORG_ID!,
   teamId: process.env.TILDE_TEAM_ID!,

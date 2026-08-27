@@ -1,7 +1,11 @@
 import { readdir, readFile } from "node:fs/promises";
 import { dirname, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
-import { TildePlatform, type TildePlatformConfig } from "@tryopenbot/platform-integrations";
+import {
+  TildePlatform,
+  tildeAuthenticationHeaders,
+  type TildePlatformConfig,
+} from "@tryopenbot/platform-integrations";
 import {
   tildeErrorMessage,
   tildeErrorStatus,
@@ -305,7 +309,7 @@ export class TildeSkillReconciler {
       apiKey: this.#config.apiKey,
       orgId: this.#config.orgId,
       baseUrl: this.#config.baseUrl ?? "https://api.trytilde.ai",
-      headers: { "x-api-key": this.#config.apiKey },
+      headers: tildeAuthenticationHeaders(this.#config),
       fetch: tildeFetch(reconciliationSignal(context), this.#fetch),
       throwOnError: true,
     });

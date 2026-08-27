@@ -1,6 +1,10 @@
 import type { DeploymentContext, DeploymentPlan } from "@tryopenbot/runtime-provider";
 import { persistEnvironment, persistSecret, unsetEnvironment } from "@tryopenbot/runtime-provider";
-import { TildePlatform, type TildePlatformConfig } from "@tryopenbot/platform-integrations";
+import {
+  TildePlatform,
+  tildeAuthenticationHeaders,
+  type TildePlatformConfig,
+} from "@tryopenbot/platform-integrations";
 import { createClient } from "@trytilde/sdk";
 import {
   tildeErrorStatus,
@@ -70,6 +74,7 @@ export class TildeAgentProvider implements AgentProvider {
       baseUrl: config.baseUrl,
       apiKey: config.apiKey,
       orgId: config.orgId,
+      headers: tildeAuthenticationHeaders(config),
       fetch: limitedFetch,
       // Keep generated failures as { error, response } so provider errors retain HTTP context.
       throwOnError: false,
@@ -77,7 +82,12 @@ export class TildeAgentProvider implements AgentProvider {
     this.#teamId = config.teamId;
     this.#skills = new TildeSkillReconciler({ ...config, fetch: limitedFetch });
     this.#tools = new TildeToolReconciler({
-      client: createClient({ ...config, orgSubdomain: false, fetch: limitedFetch }),
+      client: createClient({
+        ...config,
+        orgSubdomain: false,
+        headers: tildeAuthenticationHeaders(config),
+        fetch: limitedFetch,
+      }),
     });
   }
 
