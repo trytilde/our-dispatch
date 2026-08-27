@@ -40,6 +40,27 @@ if [[ "$node_major" != 24 ]]; then
   done
 fi
 
+sops_version=3.9.1
+if ! command -v sops >/dev/null; then
+  case "$(uname -m)" in
+    x86_64) sops_arch=amd64 ;;
+    aarch64|arm64) sops_arch=arm64 ;;
+    *) echo "Unsupported exe.dev architecture for SOPS: $(uname -m)" >&2; exit 1 ;;
+  esac
+  sops_binary="sops-v${sops_version}.linux.${sops_arch}"
+  sops_temporary="$(mktemp -d)"
+  trap 'rm -rf "${node_temporary:-}" "${sops_temporary:-}"' EXIT
+  curl -fsSL "https://github.com/getsops/sops/releases/download/v${sops_version}/${sops_binary}" \
+    -o "$sops_temporary/$sops_binary"
+  curl -fsSL "https://github.com/getsops/sops/releases/download/v${sops_version}/sops-v${sops_version}.checksums.txt" \
+    -o "$sops_temporary/checksums.txt"
+  (
+    cd "$sops_temporary"
+    grep "  ${sops_binary}$" checksums.txt | sha256sum --check --strict -
+  )
+  sudo install -m 0755 "$sops_temporary/$sops_binary" /usr/local/bin/sops
+fi
+
 sudo loginctl enable-linger "$(id -un)"
 export XDG_RUNTIME_DIR="/run/user/$(id -u)"
 export DBUS_SESSION_BUS_ADDRESS="unix:path=${XDG_RUNTIME_DIR}/bus"
