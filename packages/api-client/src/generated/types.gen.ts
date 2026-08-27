@@ -443,11 +443,45 @@ export type ChatChannelSubscriptionOption = {
 };
 
 /**
+ * ChatKit activity projection with an optional active conversation.
+ */
+export type ChatKitActivityResponse = {
+    active_conversation: null | ChatKitConversationActivity;
+    active_session_id: null | WrappedUuidV4;
+    activity: ChatKitAgentActivityPage;
+};
+
+/**
  * Public agent view used by list/get routes.
  */
 export type ChatKitAgent = Inbox & {
     api_key_id?: string | null;
     principal_user_id?: string | null;
+};
+
+/**
+ * Paginated ChatKit agent activity payload.
+ */
+export type ChatKitAgentActivityPage = {
+    items: Array<ChatKitAgentActivitySummary>;
+    next_page_token?: string | null;
+};
+
+/**
+ * Agent summary returned by the ChatKit activity projection.
+ */
+export type ChatKitAgentActivitySummary = {
+    created_at: WrappedChronoDateTime;
+    display_name: string;
+    endpoint_url?: string | null;
+    has_vercel_ui_endpoint: boolean;
+    id: string;
+    last_message_preview?: string | null;
+    last_user_message_at?: null | WrappedChronoDateTime;
+    provider_id: string;
+    sessions: ChatKitAgentSessionsActivityResponse;
+    status: string;
+    updated_at: WrappedChronoDateTime;
 };
 
 /**
@@ -480,6 +514,14 @@ export type ChatKitAgentInvocationActor = {
 export type ChatKitAgentPaginatedResponse = {
     items: Array<ChatKitAgent>;
     next_page_token?: string;
+};
+
+/**
+ * Paginated sessions payload for "show more".
+ */
+export type ChatKitAgentSessionsActivityResponse = {
+    items: Array<ChatKitSessionActivitySummary>;
+    next_page_token?: string | null;
 };
 
 /**
@@ -524,6 +566,15 @@ export enum ChatKitAgentTurnQueueStatus {
 }
 
 /**
+ * Attachment upload details finalized atomically with a submitted turn.
+ */
+export type ChatKitAttachmentCompletion = {
+    attachment_id: WrappedUuidV4;
+    sha256?: string | null;
+    size_bytes?: number | null;
+};
+
+/**
  * Provider-specific configuration field for a ChatKit chat provider.
  */
 export type ChatKitChatProviderConfigField = {
@@ -532,6 +583,15 @@ export type ChatKitChatProviderConfigField = {
     name: string;
     placeholder: string;
     required?: boolean;
+};
+
+/**
+ * Initial messages and pending queue state for one ChatKit session.
+ */
+export type ChatKitConversationActivity = {
+    messages: MessagePaginatedResponse;
+    queued_turns: ChatKitQueuedTurns;
+    snapshot_revision: number;
 };
 
 /**
@@ -562,6 +622,14 @@ export enum ChatKitParticipantType {
     HUMAN = 'human',
     AGENT = 'agent'
 }
+
+/**
+ * Concrete pending-turn page used by ChatKit activity responses.
+ */
+export type ChatKitQueuedTurns = {
+    items: Array<ChatKitAgentTurnQueueItem>;
+    next_page_token?: string | null;
+};
 
 /**
  * Agent context included when an agent identity or display name matched.
@@ -602,6 +670,18 @@ export type ChatKitSearchSession = {
     created_at: WrappedChronoDateTime;
     id: WrappedUuidV4;
     title?: string | null;
+    updated_at: WrappedChronoDateTime;
+};
+
+/**
+ * Session summary returned under one ChatKit agent activity item.
+ */
+export type ChatKitSessionActivitySummary = {
+    created_at: WrappedChronoDateTime;
+    id: WrappedUuidV4;
+    last_user_message_at?: null | WrappedChronoDateTime;
+    title?: string | null;
+    unread?: boolean;
     updated_at: WrappedChronoDateTime;
 };
 
@@ -909,6 +989,11 @@ export type CreateAttachmentUploadsResponse = {
  * Request body for creating a ChatKit session.
  */
 export type CreateChatKitSessionRequestInner = {
+    /**
+     * Agent to wire into the session with its registered Vercel UI channel.
+     * This is mutually exclusive with explicit `participants`.
+     */
+    agent_id?: string | null;
     authorization?: ResourceAuthorizationModes;
     external_conversation_id?: string | null;
     id?: null | WrappedUuidV4;
@@ -1023,13 +1108,6 @@ export type CreateMessageRequest = (CreateTextMessageRequest & {
 }) | (CreateSignalMessageRequest & {
     type: 'signal';
 });
-
-/**
- * Request body for creating a Mission Control session for an agent.
- */
-export type CreateMissionControlSessionRequestInner = {
-    title?: string | null;
-};
 
 export type CreateOrgOidcProviderRequest = {
     authorization_endpoint: string;
@@ -2192,13 +2270,13 @@ export type InvokeToolInstanceParamsInner = {
     params: WrappedJsonValue;
 };
 
-export type IssueMissionControlSocketTicketRequest = {
+export type IssueOpenBotRealtimeTicketRequest = {
     /**
      * Required for browser tickets and forbidden for native tickets. Browser
      * origins must match this OpenBot registration.
      */
     origin?: string | null;
-    transport: MissionControlTicketTransport;
+    transport: OpenBotRealtimeTicketTransport;
 };
 
 export type JsonEqualsPredicate = {
@@ -2782,103 +2860,6 @@ export type MigrateWikiPageBody = {
     page_type_version_id: WrappedUuidV4;
 };
 
-/**
- * Paginated sessions payload for "show more".
- */
-export type MissionControlAgentSessionsResponse = {
-    items: Array<MissionControlSessionSummary>;
-    next_page_token?: string | null;
-};
-
-/**
- * Agent summary rendered in the Mission Control sidebar.
- */
-export type MissionControlAgentSummary = {
-    created_at: WrappedChronoDateTime;
-    display_name: string;
-    endpoint_url?: string | null;
-    has_vercel_ui_endpoint: boolean;
-    id: string;
-    last_message_preview?: string | null;
-    last_user_message_at?: null | WrappedChronoDateTime;
-    provider_id: string;
-    sessions: MissionControlAgentSessionsResponse;
-    status: string;
-    updated_at: WrappedChronoDateTime;
-};
-
-/**
- * Attachment upload details finalized atomically with a submitted turn.
- */
-export type MissionControlAttachmentCompletion = {
-    attachment_id: WrappedUuidV4;
-    sha256?: string | null;
-    size_bytes?: number | null;
-};
-
-/**
- * Mission Control bootstrap projection for the sidebar and optional active conversation.
- */
-export type MissionControlBootstrapResponse = {
-    active_conversation?: null | MissionControlConversationSnapshot;
-    active_session_id?: null | WrappedUuidV4;
-    sidebar: MissionControlSidebarResponse;
-};
-
-/**
- * Initial messages and pending queue state for one Mission Control session.
- */
-export type MissionControlConversationSnapshot = {
-    messages: MessagePaginatedResponse;
-    queued_turns: MissionControlQueuedTurns;
-    snapshot_revision: number;
-};
-
-/**
- * Concrete pending-turn page used by Mission Control aggregate responses.
- */
-export type MissionControlQueuedTurns = {
-    items: Array<ChatKitAgentTurnQueueItem>;
-    next_page_token?: string | null;
-};
-
-/**
- * Session summary rendered under one Mission Control agent.
- */
-export type MissionControlSessionSummary = {
-    created_at: WrappedChronoDateTime;
-    id: WrappedUuidV4;
-    last_user_message_at?: null | WrappedChronoDateTime;
-    title?: string | null;
-    unread?: boolean;
-    updated_at: WrappedChronoDateTime;
-};
-
-/**
- * Initial sidebar payload.
- */
-export type MissionControlSidebarResponse = {
-    items: Array<MissionControlAgentSummary>;
-    next_page_token?: string | null;
-};
-
-export type MissionControlSocketTicket = {
-    expires_at: WrappedChronoDateTime;
-    /**
-     * Stable subprotocol prefix. Append `.` and the returned ticket.
-     */
-    protocol: string;
-    /**
-     * Short-lived credential presented through the WebSocket subprotocol header.
-     */
-    ticket: string;
-};
-
-export enum MissionControlTicketTransport {
-    BROWSER = 'browser',
-    NATIVE = 'native'
-}
-
 export type MoveWikiPageBody = {
     expected_revision: number;
     path: string;
@@ -2942,6 +2923,23 @@ export type OpenBotPluginsCatalogResponse = {
     tool_accounts: Array<WrappedJsonValue>;
     tool_providers: Array<WrappedJsonValue>;
 };
+
+export type OpenBotRealtimeTicket = {
+    expires_at: WrappedChronoDateTime;
+    /**
+     * Stable subprotocol prefix. Append `.` and the returned ticket.
+     */
+    protocol: string;
+    /**
+     * Short-lived credential presented through the WebSocket subprotocol header.
+     */
+    ticket: string;
+};
+
+export enum OpenBotRealtimeTicketTransport {
+    BROWSER = 'browser',
+    NATIVE = 'native'
+}
 
 export type OrgOidcProvider = {
     authorization_endpoint: string;
@@ -3855,13 +3853,6 @@ export type RemoveSessionUserMemberResponse = {
     success: boolean;
 };
 
-/**
- * Request body for renaming a Mission Control thread.
- */
-export type RenameMissionControlThreadRequestInner = {
-    title: string;
-};
-
 export type ReorderChatKitAgentTurnQueueItemRequestInner = {
     queue_position: number;
 };
@@ -4196,9 +4187,9 @@ export type SelectDebugAuthProfileRequest = {
 };
 
 /**
- * Request body for sending a Mission Control message to an agent.
+ * Request body for sending a message to a ChatKit agent.
  */
-export type SendMissionControlMessageRequestInner = {
+export type SendChatKitAgentMessageRequestInner = {
     attachment_ids?: Array<WrappedUuidV4>;
     text: string;
 };
@@ -4830,8 +4821,8 @@ export type StoredEventPaginatedResponse = {
 /**
  * Body for creating a session when needed and submitting one owner turn.
  */
-export type SubmitMissionControlTurnRequestInner = {
-    attachments?: Array<MissionControlAttachmentCompletion>;
+export type SubmitChatKitAgentTurnRequestInner = {
+    attachments?: Array<ChatKitAttachmentCompletion>;
     session_id?: null | WrappedUuidV4;
     text: string;
     title?: string | null;
@@ -4840,8 +4831,8 @@ export type SubmitMissionControlTurnRequestInner = {
 /**
  * Result of submitting one owner turn with canonical conversation state.
  */
-export type SubmitMissionControlTurnResponse = {
-    conversation: MissionControlConversationSnapshot;
+export type SubmitChatKitAgentTurnResponse = {
+    conversation: ChatKitConversationActivity;
     session: Session;
 };
 
@@ -5212,6 +5203,13 @@ export type UpdateChatKitChatProviderRequestInner = {
     default_agent_inbox_id?: string | null;
     display_name?: string | null;
     provider_configuration?: null | WrappedJsonValue;
+};
+
+/**
+ * Request body for updating a ChatKit session title.
+ */
+export type UpdateChatKitSessionTitleRequestInner = {
+    title: string;
 };
 
 export type UpdateCredentialBody = {
@@ -8424,6 +8422,37 @@ export type AutomationsRemoveGrantResponses = {
     200: unknown;
 };
 
+export type ChatkitGetActivityData = {
+    body?: never;
+    path: {
+        /**
+         * Team ID
+         */
+        team_id: string;
+    };
+    query?: {
+        agent_page_size?: number;
+        agent_next_page_token?: string | null;
+        session_page_size?: number;
+        message_page_size?: number;
+        queue_page_size?: number;
+        active_session_id?: null | WrappedUuidV4;
+        agent_sort?: string | null;
+        session_sort?: string | null;
+        q?: string | null;
+    };
+    url: '/api/v1/team/{team_id}/chatkit/activity';
+};
+
+export type ChatkitGetActivityResponses = {
+    /**
+     * ChatKit activity projection
+     */
+    200: ChatKitActivityResponse;
+};
+
+export type ChatkitGetActivityResponse = ChatkitGetActivityResponses[keyof ChatkitGetActivityResponses];
+
 export type ListInboxAgentsData = {
     body?: never;
     path: {
@@ -8907,6 +8936,65 @@ export type ChatkitClaimAgentResourceBundleOutputsResponses = {
 
 export type ChatkitClaimAgentResourceBundleOutputsResponse = ChatkitClaimAgentResourceBundleOutputsResponses[keyof ChatkitClaimAgentResourceBundleOutputsResponses];
 
+export type ChatkitListAgentSessionsData = {
+    body?: never;
+    path: {
+        /**
+         * Team ID
+         */
+        team_id: string;
+        /**
+         * Agent inbox ID
+         */
+        agent_id: string;
+    };
+    query?: {
+        page_size?: number;
+        next_page_token?: string | null;
+        session_sort?: string | null;
+        q?: string | null;
+    };
+    url: '/api/v1/team/{team_id}/chatkit/agents/{agent_id}/sessions';
+};
+
+export type ChatkitListAgentSessionsResponses = {
+    /**
+     * ChatKit agent sessions
+     */
+    200: ChatKitAgentSessionsActivityResponse;
+};
+
+export type ChatkitListAgentSessionsResponse = ChatkitListAgentSessionsResponses[keyof ChatkitListAgentSessionsResponses];
+
+export type ChatkitSendAgentMessageData = {
+    body: SendChatKitAgentMessageRequestInner;
+    path: {
+        /**
+         * Team ID
+         */
+        team_id: string;
+        /**
+         * Agent inbox ID
+         */
+        agent_id: string;
+        /**
+         * Session ID
+         */
+        session_id: string;
+    };
+    query?: never;
+    url: '/api/v1/team/{team_id}/chatkit/agents/{agent_id}/sessions/{session_id}/messages';
+};
+
+export type ChatkitSendAgentMessageResponses = {
+    /**
+     * ChatKit messages after sending
+     */
+    200: MessagePaginatedResponse;
+};
+
+export type ChatkitSendAgentMessageResponse = ChatkitSendAgentMessageResponses[keyof ChatkitSendAgentMessageResponses];
+
 export type ChatkitSetAgentStatusData = {
     body: SetChatKitResourceStatusRequest;
     path: {
@@ -8939,6 +9027,31 @@ export type ChatkitSetAgentStatusResponses = {
 };
 
 export type ChatkitSetAgentStatusResponse = ChatkitSetAgentStatusResponses[keyof ChatkitSetAgentStatusResponses];
+
+export type ChatkitSubmitAgentTurnData = {
+    body: SubmitChatKitAgentTurnRequestInner;
+    path: {
+        /**
+         * Team ID
+         */
+        team_id: string;
+        /**
+         * Agent inbox ID
+         */
+        agent_id: string;
+    };
+    query?: never;
+    url: '/api/v1/team/{team_id}/chatkit/agents/{agent_id}/turns';
+};
+
+export type ChatkitSubmitAgentTurnResponses = {
+    /**
+     * Submitted ChatKit agent turn
+     */
+    200: SubmitChatKitAgentTurnResponse;
+};
+
+export type ChatkitSubmitAgentTurnResponse = ChatkitSubmitAgentTurnResponses[keyof ChatkitSubmitAgentTurnResponses];
 
 export type ChatkitUpdateAgentVisibilityData = {
     body: SetResourceAccessModeRequest;
@@ -9562,343 +9675,6 @@ export type ChatkitHydrateConvertedMessagesResponses = {
 
 export type ChatkitHydrateConvertedMessagesResponse = ChatkitHydrateConvertedMessagesResponses[keyof ChatkitHydrateConvertedMessagesResponses];
 
-export type ChatkitMissionControlAgentSessionsData = {
-    body?: never;
-    path: {
-        /**
-         * Team ID
-         */
-        team_id: string;
-        /**
-         * Agent inbox ID
-         */
-        agent_id: string;
-    };
-    query?: {
-        page_size?: number;
-        next_page_token?: string | null;
-        session_sort?: string | null;
-        q?: string | null;
-    };
-    url: '/api/v1/team/{team_id}/chatkit/mission-control/agents/{agent_id}/sessions';
-};
-
-export type ChatkitMissionControlAgentSessionsResponses = {
-    /**
-     * Mission Control agent sessions
-     */
-    200: MissionControlAgentSessionsResponse;
-};
-
-export type ChatkitMissionControlAgentSessionsResponse = ChatkitMissionControlAgentSessionsResponses[keyof ChatkitMissionControlAgentSessionsResponses];
-
-export type ChatkitMissionControlCreateSessionData = {
-    body: CreateMissionControlSessionRequestInner;
-    path: {
-        /**
-         * Team ID
-         */
-        team_id: string;
-        /**
-         * Agent inbox ID
-         */
-        agent_id: string;
-    };
-    query?: never;
-    url: '/api/v1/team/{team_id}/chatkit/mission-control/agents/{agent_id}/sessions';
-};
-
-export type ChatkitMissionControlCreateSessionResponses = {
-    /**
-     * Created Mission Control session
-     */
-    200: ChatKitSessionWithParticipants;
-};
-
-export type ChatkitMissionControlCreateSessionResponse = ChatkitMissionControlCreateSessionResponses[keyof ChatkitMissionControlCreateSessionResponses];
-
-export type ChatkitMissionControlSendMessageData = {
-    body: SendMissionControlMessageRequestInner;
-    path: {
-        /**
-         * Team ID
-         */
-        team_id: string;
-        /**
-         * Agent inbox ID
-         */
-        agent_id: string;
-        /**
-         * Session ID
-         */
-        session_id: string;
-    };
-    query?: never;
-    url: '/api/v1/team/{team_id}/chatkit/mission-control/agents/{agent_id}/sessions/{session_id}/messages';
-};
-
-export type ChatkitMissionControlSendMessageResponses = {
-    /**
-     * Mission Control messages after sending
-     */
-    200: MessagePaginatedResponse;
-};
-
-export type ChatkitMissionControlSendMessageResponse = ChatkitMissionControlSendMessageResponses[keyof ChatkitMissionControlSendMessageResponses];
-
-export type ChatkitMissionControlSubmitTurnData = {
-    body: SubmitMissionControlTurnRequestInner;
-    path: {
-        /**
-         * Team ID
-         */
-        team_id: string;
-        /**
-         * Agent inbox ID
-         */
-        agent_id: string;
-    };
-    query?: never;
-    url: '/api/v1/team/{team_id}/chatkit/mission-control/agents/{agent_id}/turns';
-};
-
-export type ChatkitMissionControlSubmitTurnResponses = {
-    /**
-     * Submitted Mission Control turn
-     */
-    200: SubmitMissionControlTurnResponse;
-};
-
-export type ChatkitMissionControlSubmitTurnResponse = ChatkitMissionControlSubmitTurnResponses[keyof ChatkitMissionControlSubmitTurnResponses];
-
-export type ChatkitMissionControlBootstrapData = {
-    body?: never;
-    path: {
-        /**
-         * Team ID
-         */
-        team_id: string;
-    };
-    query?: {
-        agent_page_size?: number;
-        session_page_size?: number;
-        message_page_size?: number;
-        queue_page_size?: number;
-        active_session_id?: null | WrappedUuidV4;
-        agent_sort?: string | null;
-        session_sort?: string | null;
-        q?: string | null;
-    };
-    url: '/api/v1/team/{team_id}/chatkit/mission-control/bootstrap';
-};
-
-export type ChatkitMissionControlBootstrapResponses = {
-    /**
-     * Mission Control bootstrap projection
-     */
-    200: MissionControlBootstrapResponse;
-};
-
-export type ChatkitMissionControlBootstrapResponse = ChatkitMissionControlBootstrapResponses[keyof ChatkitMissionControlBootstrapResponses];
-
-export type ChatkitSearchData = {
-    body?: never;
-    path: {
-        /**
-         * Team ID
-         */
-        team_id: string;
-    };
-    query: {
-        q: string;
-        session_id?: null | WrappedUuidV4;
-        page_size?: number;
-        next_page_token?: string | null;
-    };
-    url: '/api/v1/team/{team_id}/chatkit/mission-control/search';
-};
-
-export type ChatkitSearchErrors = {
-    /**
-     * Invalid query or pagination cursor
-     */
-    400: Error;
-    /**
-     * Scoped session not found
-     */
-    404: Error;
-};
-
-export type ChatkitSearchError = ChatkitSearchErrors[keyof ChatkitSearchErrors];
-
-export type ChatkitSearchResponses = {
-    /**
-     * Consolidated ChatKit search results
-     */
-    200: ChatKitSearchHitPaginatedResponse;
-};
-
-export type ChatkitSearchResponse = ChatkitSearchResponses[keyof ChatkitSearchResponses];
-
-export type ChatkitMissionControlInterruptSessionData = {
-    body?: never;
-    path: {
-        /**
-         * Team ID
-         */
-        team_id: string;
-        /**
-         * Session ID
-         */
-        session_id: WrappedUuidV4;
-    };
-    query?: never;
-    url: '/api/v1/team/{team_id}/chatkit/mission-control/sessions/{session_id}/interrupt';
-};
-
-export type ChatkitMissionControlInterruptSessionResponses = {
-    /**
-     * Mission Control session interruption requested
-     */
-    200: InterruptChatKitSessionResponse;
-};
-
-export type ChatkitMissionControlInterruptSessionResponse = ChatkitMissionControlInterruptSessionResponses[keyof ChatkitMissionControlInterruptSessionResponses];
-
-export type ChatkitMissionControlMarkThreadUnreadData = {
-    body?: never;
-    path: {
-        /**
-         * Team ID
-         */
-        team_id: string;
-        /**
-         * Session ID
-         */
-        session_id: WrappedUuidV4;
-    };
-    query?: never;
-    url: '/api/v1/team/{team_id}/chatkit/mission-control/sessions/{session_id}/mark-unread';
-};
-
-export type ChatkitMissionControlMarkThreadUnreadResponses = {
-    /**
-     * Mission Control thread marked unread
-     */
-    200: Session;
-};
-
-export type ChatkitMissionControlMarkThreadUnreadResponse = ChatkitMissionControlMarkThreadUnreadResponses[keyof ChatkitMissionControlMarkThreadUnreadResponses];
-
-export type ChatkitMissionControlMessagesData = {
-    body?: never;
-    path: {
-        /**
-         * Team ID
-         */
-        team_id: string;
-        /**
-         * Session ID
-         */
-        session_id: string;
-    };
-    query?: {
-        page_size?: number;
-        next_page_token?: string | null;
-    };
-    url: '/api/v1/team/{team_id}/chatkit/mission-control/sessions/{session_id}/messages';
-};
-
-export type ChatkitMissionControlMessagesResponses = {
-    /**
-     * Mission Control messages
-     */
-    200: MessagePaginatedResponse;
-};
-
-export type ChatkitMissionControlMessagesResponse = ChatkitMissionControlMessagesResponses[keyof ChatkitMissionControlMessagesResponses];
-
-export type ChatkitMissionControlRenameThreadData = {
-    body: RenameMissionControlThreadRequestInner;
-    path: {
-        /**
-         * Team ID
-         */
-        team_id: string;
-        /**
-         * Session ID
-         */
-        session_id: WrappedUuidV4;
-    };
-    query?: never;
-    url: '/api/v1/team/{team_id}/chatkit/mission-control/sessions/{session_id}/rename';
-};
-
-export type ChatkitMissionControlRenameThreadResponses = {
-    /**
-     * Renamed Mission Control thread
-     */
-    200: Session;
-};
-
-export type ChatkitMissionControlRenameThreadResponse = ChatkitMissionControlRenameThreadResponses[keyof ChatkitMissionControlRenameThreadResponses];
-
-export type ChatkitMissionControlConversationSnapshotData = {
-    body?: never;
-    path: {
-        /**
-         * Team ID
-         */
-        team_id: string;
-        /**
-         * Session ID
-         */
-        session_id: WrappedUuidV4;
-    };
-    query?: {
-        message_page_size?: number;
-        queue_page_size?: number;
-    };
-    url: '/api/v1/team/{team_id}/chatkit/mission-control/sessions/{session_id}/snapshot';
-};
-
-export type ChatkitMissionControlConversationSnapshotResponses = {
-    /**
-     * Mission Control conversation snapshot
-     */
-    200: MissionControlConversationSnapshot;
-};
-
-export type ChatkitMissionControlConversationSnapshotResponse = ChatkitMissionControlConversationSnapshotResponses[keyof ChatkitMissionControlConversationSnapshotResponses];
-
-export type ChatkitMissionControlSidebarData = {
-    body?: never;
-    path: {
-        /**
-         * Team ID
-         */
-        team_id: string;
-    };
-    query?: {
-        agent_page_size?: number;
-        agent_next_page_token?: string | null;
-        session_page_size?: number;
-        agent_sort?: string | null;
-        session_sort?: string | null;
-        q?: string | null;
-    };
-    url: '/api/v1/team/{team_id}/chatkit/mission-control/sidebar';
-};
-
-export type ChatkitMissionControlSidebarResponses = {
-    /**
-     * Mission Control sidebar
-     */
-    200: MissionControlSidebarResponse;
-};
-
-export type ChatkitMissionControlSidebarResponse = ChatkitMissionControlSidebarResponses[keyof ChatkitMissionControlSidebarResponses];
-
 export type ChatkitListRoutinesData = {
     body?: never;
     path: {
@@ -10129,6 +9905,45 @@ export type RemoveChatkitRoutineGrantData = {
 export type RemoveChatkitRoutineGrantResponses = {
     200: unknown;
 };
+
+export type ChatkitSearchData = {
+    body?: never;
+    path: {
+        /**
+         * Team ID
+         */
+        team_id: string;
+    };
+    query: {
+        q: string;
+        session_id?: null | WrappedUuidV4;
+        page_size?: number;
+        next_page_token?: string | null;
+    };
+    url: '/api/v1/team/{team_id}/chatkit/search';
+};
+
+export type ChatkitSearchErrors = {
+    /**
+     * Invalid query or pagination cursor
+     */
+    400: Error;
+    /**
+     * Scoped session not found
+     */
+    404: Error;
+};
+
+export type ChatkitSearchError = ChatkitSearchErrors[keyof ChatkitSearchErrors];
+
+export type ChatkitSearchResponses = {
+    /**
+     * Consolidated ChatKit search results
+     */
+    200: ChatKitSearchHitPaginatedResponse;
+};
+
+export type ChatkitSearchResponse = ChatkitSearchResponses[keyof ChatkitSearchResponses];
 
 export type ListSessionsData = {
     body?: never;
@@ -11148,6 +10963,84 @@ export type ChatkitCreateSessionResponses = {
 
 export type ChatkitCreateSessionResponse = ChatkitCreateSessionResponses[keyof ChatkitCreateSessionResponses];
 
+export type ChatkitUpdateSessionTitleData = {
+    body: UpdateChatKitSessionTitleRequestInner;
+    path: {
+        /**
+         * Team ID
+         */
+        team_id: string;
+        /**
+         * Session ID
+         */
+        session_id: WrappedUuidV4;
+    };
+    query?: never;
+    url: '/api/v1/team/{team_id}/chatkit/sessions/{session_id}';
+};
+
+export type ChatkitUpdateSessionTitleResponses = {
+    /**
+     * Updated ChatKit session
+     */
+    200: Session;
+};
+
+export type ChatkitUpdateSessionTitleResponse = ChatkitUpdateSessionTitleResponses[keyof ChatkitUpdateSessionTitleResponses];
+
+export type ChatkitGetConversationActivityData = {
+    body?: never;
+    path: {
+        /**
+         * Team ID
+         */
+        team_id: string;
+        /**
+         * Session ID
+         */
+        session_id: WrappedUuidV4;
+    };
+    query?: {
+        message_page_size?: number;
+        queue_page_size?: number;
+    };
+    url: '/api/v1/team/{team_id}/chatkit/sessions/{session_id}/activity';
+};
+
+export type ChatkitGetConversationActivityResponses = {
+    /**
+     * ChatKit conversation activity snapshot
+     */
+    200: ChatKitConversationActivity;
+};
+
+export type ChatkitGetConversationActivityResponse = ChatkitGetConversationActivityResponses[keyof ChatkitGetConversationActivityResponses];
+
+export type ChatkitInterruptSessionData = {
+    body?: never;
+    path: {
+        /**
+         * Team ID
+         */
+        team_id: string;
+        /**
+         * Session ID
+         */
+        session_id: WrappedUuidV4;
+    };
+    query?: never;
+    url: '/api/v1/team/{team_id}/chatkit/sessions/{session_id}/interrupt';
+};
+
+export type ChatkitInterruptSessionResponses = {
+    /**
+     * ChatKit session interruption requested
+     */
+    200: InterruptChatKitSessionResponse;
+};
+
+export type ChatkitInterruptSessionResponse = ChatkitInterruptSessionResponses[keyof ChatkitInterruptSessionResponses];
+
 export type ChatkitJoinSessionData = {
     body: AddChatKitParticipantRequestInner;
     path: {
@@ -11360,6 +11253,31 @@ export type ChatkitRemoveSessionParticipantResponses = {
 };
 
 export type ChatkitRemoveSessionParticipantResponse = ChatkitRemoveSessionParticipantResponses[keyof ChatkitRemoveSessionParticipantResponses];
+
+export type ChatkitMarkSessionUnreadData = {
+    body?: never;
+    path: {
+        /**
+         * Team ID
+         */
+        team_id: string;
+        /**
+         * Session ID
+         */
+        session_id: WrappedUuidV4;
+    };
+    query?: never;
+    url: '/api/v1/team/{team_id}/chatkit/sessions/{session_id}/unread';
+};
+
+export type ChatkitMarkSessionUnreadResponses = {
+    /**
+     * ChatKit session marked unread
+     */
+    200: Session;
+};
+
+export type ChatkitMarkSessionUnreadResponse = ChatkitMarkSessionUnreadResponses[keyof ChatkitMarkSessionUnreadResponses];
 
 export type ResumeUserCredentialBrokeringData = {
     body: ResumeUserCredentialBrokeringParams;
@@ -12670,8 +12588,8 @@ export type FinalizeHostedOpenbotReleaseResponses = {
 
 export type FinalizeHostedOpenbotReleaseResponse = FinalizeHostedOpenbotReleaseResponses[keyof FinalizeHostedOpenbotReleaseResponses];
 
-export type IssueOpenbotMissionControlTicketData = {
-    body: IssueMissionControlSocketTicketRequest;
+export type IssueOpenbotRealtimeTicketData = {
+    body: IssueOpenBotRealtimeTicketRequest;
     path: {
         /**
          * Team ID
@@ -12679,10 +12597,10 @@ export type IssueOpenbotMissionControlTicketData = {
         team_id: string;
     };
     query?: never;
-    url: '/api/v1/team/{team_id}/identity/openbot/mission-control-ticket';
+    url: '/api/v1/team/{team_id}/identity/openbot/realtime-ticket';
 };
 
-export type IssueOpenbotMissionControlTicketErrors = {
+export type IssueOpenbotRealtimeTicketErrors = {
     /**
      * Invalid OpenBot access token
      */
@@ -12693,16 +12611,16 @@ export type IssueOpenbotMissionControlTicketErrors = {
     403: Error;
 };
 
-export type IssueOpenbotMissionControlTicketError = IssueOpenbotMissionControlTicketErrors[keyof IssueOpenbotMissionControlTicketErrors];
+export type IssueOpenbotRealtimeTicketError = IssueOpenbotRealtimeTicketErrors[keyof IssueOpenbotRealtimeTicketErrors];
 
-export type IssueOpenbotMissionControlTicketResponses = {
+export type IssueOpenbotRealtimeTicketResponses = {
     /**
-     * Short-lived Mission Control socket ticket
+     * Short-lived OpenBot realtime ticket
      */
-    200: MissionControlSocketTicket;
+    200: OpenBotRealtimeTicket;
 };
 
-export type IssueOpenbotMissionControlTicketResponse = IssueOpenbotMissionControlTicketResponses[keyof IssueOpenbotMissionControlTicketResponses];
+export type IssueOpenbotRealtimeTicketResponse = IssueOpenbotRealtimeTicketResponses[keyof IssueOpenbotRealtimeTicketResponses];
 
 export type ListManagedUserCredentialsData = {
     body?: never;

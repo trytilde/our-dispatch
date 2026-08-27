@@ -10,7 +10,7 @@ Framework-neutral client behavior shared by OpenBot web, Electron, and Expo clie
 - `contracts/agents` owns the durable background agent-setup start and status payloads.
 - `contracts/messages` owns conversation messages and parts.
 - `contracts/events` owns ChatKit SSE event envelopes.
-- `contracts/mission-control` owns aggregate bootstrap, conversation snapshot, turn-submission,
+- `contracts/mission-control` owns the aggregate ChatKit activity envelope, conversation snapshot, turn-submission,
   and consolidated ChatKit search responses plus the durable event revision used to reconnect the
   team-wide observer.
 - `chat/websocket` owns Mission Control ticket use, the awaited `ready` snapshot barrier,
@@ -36,9 +36,10 @@ restore an in-progress setup job; the runtime polls it to readiness, refreshes t
 sidebar, and selects the created agent only after it appears there.
 The observer retains the last durable revision and resumes from it after a disconnect.
 
-Initial load, conversation selection, and turn submission consume server-authored aggregate
-responses. Web, Electron, and Expo therefore reconcile identical authoritative snapshots without
-issuing per-session fan-out reads after each user action or realtime event.
+Initial load consumes `GET /chatkit/activity`, while conversation selection and turn submission
+consume server-authored aggregate responses. Web, Electron, and Expo therefore reconcile identical
+authoritative snapshots without issuing per-session fan-out reads after each user action or realtime
+event.
 
 `searchChatKit` searches session titles, associated bots, and messages across the workspace, or
 messages within one session. Runtime search actions discard stale responses and open results using

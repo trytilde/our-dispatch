@@ -64,19 +64,23 @@ describe("OpenBot client", () => {
   it("scopes chat requests to the installation and validates sidebar resources", async () => {
     const fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       expect(requestUrl(input)).toBe(
-        "https://openbot.test/api/chat/mission-control/sidebar?agent_page_size=50&session_page_size=50&agent_sort=updated_at&session_sort=updated_at",
+        "https://openbot.test/api/chat/activity?agent_page_size=50&session_page_size=50&agent_sort=updated_at&session_sort=updated_at",
       );
       expect(new Headers(init?.headers).get("authorization")).toBe("Bearer owner-token");
       return Response.json({
-        items: [
-          {
-            id: "agent-one",
-            display_name: "Agent One",
-            provider_id: "tilde",
-            status: "ready",
-            sessions: { items: [] },
-          },
-        ],
+        activity: {
+          items: [
+            {
+              id: "agent-one",
+              display_name: "Agent One",
+              provider_id: "tilde",
+              status: "ready",
+              sessions: { items: [] },
+            },
+          ],
+        },
+        active_session_id: null,
+        active_conversation: null,
       });
     });
     const client = createOpenBotClient({
@@ -100,10 +104,11 @@ describe("OpenBot client", () => {
 
   it("creates a stable per-user Mission Control session", async () => {
     const fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-      expect(requestUrl(input)).toBe("/api/chat/mission-control/agents/agent-one/sessions");
+      expect(requestUrl(input)).toBe("/api/chat/sessions");
       expect(init?.method).toBe("POST");
       if (typeof init?.body !== "string") throw new Error("Expected a JSON request body");
       expect(JSON.parse(init.body)).toEqual({
+        agent_id: "agent-one",
         title: "Agent One",
         lookup_key: "openbot:user:owner-one:agent:agent-one",
       });
@@ -137,7 +142,7 @@ describe("OpenBot client", () => {
   it("searches ChatKit with encoded query, session, and cursor parameters", async () => {
     const fetch = vi.fn(async (input: RequestInfo | URL) => {
       expect(requestUrl(input)).toBe(
-        "/api/chat/mission-control/search?q=quarterly+review&page_size=25&session_id=session-one&next_page_token=cursor%2Ftwo",
+        "/api/chat/search?q=quarterly+review&page_size=25&session_id=session-one&next_page_token=cursor%2Ftwo",
       );
       return Response.json({
         items: [

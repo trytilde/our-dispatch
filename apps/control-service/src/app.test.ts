@@ -482,7 +482,7 @@ describe("bare OpenBot server", () => {
         "wss://openbot-org.api.trytilde.ai/api/v1/team/openbot-team/chatkit/mission-control/ws?org_id=openbot-org",
     });
     expect(upstreamUrl).toBe(
-      "https://openbot-org.api.trytilde.ai/api/v1/team/openbot-team/identity/openbot/mission-control-ticket",
+      "https://openbot-org.api.trytilde.ai/api/v1/team/openbot-team/identity/openbot/realtime-ticket",
     );
     expect(upstreamHeaders.get("authorization")).toBe("Bearer browser-token");
     expect(upstreamHeaders.get("x-tilde-org-id")).toBe("openbot-org");

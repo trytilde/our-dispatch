@@ -332,19 +332,19 @@ export function createOpenBotRuntime(options: OpenBotRuntimeOptions): OpenBotRun
   async function hydrateSidebar(silent: boolean, workspace: boolean): Promise<void> {
     if (!silent) updateSidebar({ loading: true, error: "" });
     try {
-      const response = await options.client.getBootstrap(
+      const response = await options.client.getActivity(
         store.getState().conversation.selectedSessionId || undefined,
       );
       const agents = workspace
-        ? await Promise.all(response.sidebar.items.map(loadRemainingAgentSessions))
-        : response.sidebar.items;
+        ? await Promise.all(response.activity.items.map(loadRemainingAgentSessions))
+        : response.activity.items;
       const currentAgentId = store.getState().sidebar.selectedAgentId;
       const selectedAgentId = agents.some((agent) => agent.id === currentAgentId)
         ? currentAgentId
         : (agents[0]?.id ?? "");
       updateSidebar({
         agents,
-        nextAgentToken: response.sidebar.next_page_token,
+        nextAgentToken: response.activity.next_page_token,
         selectedAgentId,
         ...(!silent ? { loading: false } : {}),
       });
@@ -624,7 +624,7 @@ export function createOpenBotRuntime(options: OpenBotRuntimeOptions): OpenBotRun
               rememberMissionControlEvent(event.id, seenEventIds);
             },
             async () => {
-              // Keep the socket-ready barrier bounded to one aggregate bootstrap request.
+              // Keep the socket-ready barrier bounded to one aggregate activity request.
               // Loading every inactive agent's remaining session pages would stall later events.
               await hydrateSidebar(true, false);
             },

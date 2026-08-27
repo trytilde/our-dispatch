@@ -1,8 +1,8 @@
 import { expect, test, type Page } from "@playwright/test";
 import { seedCompletedOnboarding } from "./onboarding-state.js";
 
-function missionControlBootstrap(items: unknown[]) {
-  return { sidebar: { items } };
+function chatKitActivity(items: unknown[]) {
+  return { activity: { items }, active_session_id: null, active_conversation: null };
 }
 
 // Every test but the first-run one wants the workspace, so skip onboarding by seeding
@@ -106,9 +106,9 @@ test("lists the user's continuous chat and the agent's named threads", async ({ 
   const defaultUpdatedAt = "2026-08-25T08:00:00.000Z";
   await page.route("**/api/chat/**", async (route) => {
     const path = new URL(route.request().url()).pathname;
-    if (path.endsWith("/mission-control/bootstrap")) {
+    if (path === "/api/chat/activity") {
       await route.fulfill({
-        json: missionControlBootstrap([
+        json: chatKitActivity([
           {
             id: "hello-world",
             display_name: "Hello World",
@@ -146,7 +146,7 @@ test("lists the user's continuous chat and the agent's named threads", async ({ 
       await route.fulfill({ json: { items: [] } });
       return;
     }
-    if (path.endsWith("/snapshot")) {
+    if (path.endsWith("/activity")) {
       const sessionId = path.split("/").at(-2) ?? "";
       messageRequests.push(sessionId);
       await route.fulfill({
@@ -440,9 +440,9 @@ test("streams rich messages and uploads a file through Tilde ChatKit", async ({ 
   await page.route("**/api/chat/**", async (route) => {
     const request = route.request();
     const path = new URL(request.url()).pathname;
-    if (path.endsWith("/mission-control/bootstrap")) {
+    if (path === "/api/chat/activity") {
       await route.fulfill({
-        json: missionControlBootstrap([
+        json: chatKitActivity([
           {
             id: "hello-world",
             display_name: "Hello World",
@@ -504,7 +504,7 @@ test("streams rich messages and uploads a file through Tilde ChatKit", async ({ 
       await route.fulfill({ status: 204 });
       return;
     }
-    if (path.endsWith("/snapshot")) {
+    if (path.endsWith("/activity")) {
       if (path.includes("/research-session/")) {
         researchMessageRequests += 1;
         await researchMessagesReady;
@@ -999,9 +999,9 @@ test("creates a bot and sends its first message", async ({ page }) => {
   await page.route("**/api/chat/**", async (route) => {
     const request = route.request();
     const path = new URL(route.request().url()).pathname;
-    if (path.endsWith("/mission-control/bootstrap")) {
+    if (path === "/api/chat/activity") {
       await route.fulfill({
-        json: missionControlBootstrap([
+        json: chatKitActivity([
           {
             id: "hello-world",
             display_name: "Hello World",
@@ -1057,7 +1057,7 @@ test("creates a bot and sends its first message", async ({ page }) => {
       await route.fulfill({ json: { items: [] } });
       return;
     }
-    if (request.method() === "POST" && path.endsWith("/mission-control/agents/reviewer/sessions")) {
+    if (request.method() === "POST" && path === "/api/chat/sessions") {
       await route.fulfill({
         json: {
           session: {
@@ -1141,9 +1141,9 @@ test("queues another turn while the agent is busy", async ({ page }) => {
     const request = route.request();
     const url = new URL(request.url());
     const path = url.pathname;
-    if (path.endsWith("/mission-control/bootstrap")) {
+    if (path === "/api/chat/activity") {
       await route.fulfill({
-        json: missionControlBootstrap([
+        json: chatKitActivity([
           {
             id: "busy-agent",
             display_name: "Busy Agent",
@@ -1159,7 +1159,7 @@ test("queues another turn while the agent is busy", async ({ page }) => {
       });
       return;
     }
-    if (path.endsWith("/mission-control/search")) {
+    if (path.endsWith("/search")) {
       await route.fulfill({
         json: {
           items: [
@@ -1346,9 +1346,9 @@ test("configures a connector through the in-chat account picker", async ({ page 
   await page.route("**/api/chat/**", async (route) => {
     const request = route.request();
     const path = new URL(request.url()).pathname;
-    if (path.endsWith("/mission-control/bootstrap")) {
+    if (path === "/api/chat/activity") {
       await route.fulfill({
-        json: missionControlBootstrap([
+        json: chatKitActivity([
           {
             id: "hello-world",
             display_name: "Hello World",
@@ -1370,7 +1370,7 @@ test("configures a connector through the in-chat account picker", async ({ page 
       await route.fulfill({ json: { items: [] } });
       return;
     }
-    if (path.endsWith("/snapshot")) {
+    if (path.endsWith("/activity")) {
       await route.fulfill({
         json: {
           messages: { items: transcript },
@@ -1463,9 +1463,9 @@ async function routeDefaultWorkspace(page: Page): Promise<void> {
   const now = new Date().toISOString();
   await page.route("**/api/chat/**", async (route) => {
     const path = new URL(route.request().url()).pathname;
-    if (path.endsWith("/mission-control/bootstrap")) {
+    if (path === "/api/chat/activity") {
       await route.fulfill({
-        json: missionControlBootstrap([
+        json: chatKitActivity([
           {
             id: "hello-world",
             display_name: "Hello World",

@@ -33,11 +33,11 @@ import { ChatMessagePageSchema, type ChatMessagePage } from "../contracts/messag
 import {
   ConversationSnapshotSchema,
   ChatKitSearchPageSchema,
-  MissionControlBootstrapSchema,
+  ChatKitActivitySchema,
   SubmitTurnResponseSchema,
   type ConversationSnapshot,
   type ChatKitSearchPage,
-  type MissionControlBootstrap,
+  type ChatKitActivity,
   type SubmitTurnInput,
   type SubmitTurnResponse,
 } from "../contracts/mission-control.js";
@@ -68,7 +68,6 @@ import { QueuedTurnPageSchema, type QueuedTurnPage } from "../contracts/queue.js
 import {
   ChatSessionPageSchema,
   ChatSessionSchema,
-  SidebarResponseSchema,
   type AgentSortOrder,
   type ChatSession,
   type ChatSessionPage,
@@ -106,7 +105,7 @@ export interface OpenBotClient {
     sessionSort?: SessionSortOrder,
     nextAgentToken?: string | null,
   ): Promise<SidebarResponse>;
-  getBootstrap(activeSessionId?: string): Promise<MissionControlBootstrap>;
+  getActivity(activeSessionId?: string): Promise<ChatKitActivity>;
   getConversationSnapshot(sessionId: string): Promise<ConversationSnapshot>;
   searchChatKit(
     query: string,
@@ -298,9 +297,10 @@ export function createOpenBotClient(options: OpenBotClientOptions = {}): OpenBot
       });
       if (query.trim()) parameters.set("q", query.trim());
       if (nextAgentToken) parameters.set("agent_next_page_token", nextAgentToken);
-      return await json(chatPath(`mission-control/sidebar?${parameters}`), SidebarResponseSchema);
+      const response = await json(chatPath(`activity?${parameters}`), ChatKitActivitySchema);
+      return response.activity;
     },
-    async getBootstrap(activeSessionId) {
+    async getActivity(activeSessionId) {
       const parameters = new URLSearchParams({
         agent_page_size: "50",
         session_page_size: "12",
@@ -310,15 +310,12 @@ export function createOpenBotClient(options: OpenBotClientOptions = {}): OpenBot
         session_sort: "updated_at",
       });
       if (activeSessionId) parameters.set("active_session_id", activeSessionId);
-      return await json(
-        chatPath(`mission-control/bootstrap?${parameters}`),
-        MissionControlBootstrapSchema,
-      );
+      return await json(chatPath(`activity?${parameters}`), ChatKitActivitySchema);
     },
     getConversationSnapshot: (sessionId) =>
       json(
         chatPath(
-          `mission-control/sessions/${encodeURIComponent(sessionId)}/snapshot?message_page_size=100&queue_page_size=25`,
+          `sessions/${encodeURIComponent(sessionId)}/activity?message_page_size=100&queue_page_size=25`,
         ),
         ConversationSnapshotSchema,
       ),
@@ -326,85 +323,70 @@ export function createOpenBotClient(options: OpenBotClientOptions = {}): OpenBot
       const parameters = new URLSearchParams({ q: query.trim(), page_size: "25" });
       if (sessionId) parameters.set("session_id", sessionId);
       if (nextPageToken) parameters.set("next_page_token", nextPageToken);
-      return await json(chatPath(`mission-control/search?${parameters}`), ChatKitSearchPageSchema);
+      return await json(chatPath(`search?${parameters}`), ChatKitSearchPageSchema);
     },
     async getAgentSessions(agentId, nextPageToken, sessionSort = "updated_at") {
       const parameters = new URLSearchParams({ page_size: "25", session_sort: sessionSort });
       if (nextPageToken) parameters.set("next_page_token", nextPageToken);
       return await json(
-        chatPath(`mission-control/agents/${encodeURIComponent(agentId)}/sessions?${parameters}`),
+        chatPath(`agents/${encodeURIComponent(agentId)}/sessions?${parameters}`),
         ChatSessionPageSchema,
       );
     },
     async createSession(agentId, input) {
-      const response = await json(
-        chatPath(`mission-control/agents/${encodeURIComponent(agentId)}/sessions`),
-        SessionEnvelopeSchema,
-        {
-          method: "POST",
-          body: JSON.stringify({
-            title: input?.title || null,
-            lookup_key: input?.lookupKey || null,
-          }),
-        },
-      );
+      const response = await json(chatPath("sessions"), SessionEnvelopeSchema, {
+        method: "POST",
+        body: JSON.stringify({
+          agent_id: agentId,
+          title: input?.title || null,
+          lookup_key: input?.lookupKey || null,
+        }),
+      });
       return response.session;
     },
     renameSession: (sessionId, title) =>
-      json(
-        chatPath(`mission-control/sessions/${encodeURIComponent(sessionId)}/rename`),
-        ChatSessionSchema,
-        {
-          method: "PATCH",
-          body: JSON.stringify({ title }),
-        },
-      ),
+      json(chatPath(`sessions/${encodeURIComponent(sessionId)}`), ChatSessionSchema, {
+        method: "PATCH",
+        body: JSON.stringify({ title }),
+      }),
     markSessionUnread: (sessionId) =>
-      json(
-        chatPath(`mission-control/sessions/${encodeURIComponent(sessionId)}/mark-unread`),
-        ChatSessionSchema,
-        { method: "POST" },
-      ),
+      json(chatPath(`sessions/${encodeURIComponent(sessionId)}/unread`), ChatSessionSchema, {
+        method: "POST",
+      }),
     interruptSession: (sessionId) =>
-      empty(chatPath(`mission-control/sessions/${encodeURIComponent(sessionId)}/interrupt`), {
+      empty(chatPath(`sessions/${encodeURIComponent(sessionId)}/interrupt`), {
         method: "POST",
       }),
     async getMessages(sessionId, nextPageToken) {
       const parameters = new URLSearchParams({ page_size: "100" });
       if (nextPageToken) parameters.set("next_page_token", nextPageToken);
       return await json(
-        chatPath(
-          `mission-control/sessions/${encodeURIComponent(sessionId)}/messages?${parameters}`,
-        ),
+        chatPath(`sessions/${encodeURIComponent(sessionId)}/messages?${parameters}`),
         ChatMessagePageSchema,
       );
     },
     sendMessage: (agentId, sessionId, text, attachmentIds = []) =>
       json(
         chatPath(
-          `mission-control/agents/${encodeURIComponent(agentId)}/sessions/${encodeURIComponent(sessionId)}/messages`,
+          `agents/${encodeURIComponent(agentId)}/sessions/${encodeURIComponent(sessionId)}/messages`,
         ),
         ChatMessagePageSchema,
         { method: "POST", body: JSON.stringify({ text, attachment_ids: attachmentIds }) },
       ),
     submitTurn: (agentId, input) =>
-      json(
-        chatPath(`mission-control/agents/${encodeURIComponent(agentId)}/turns`),
-        SubmitTurnResponseSchema,
-        {
-          method: "POST",
-          body: JSON.stringify({
-            session_id: input.sessionId ?? null,
-            title: input.title ?? null,
-            text: input.text,
-            attachments: (input.attachments ?? []).map((attachment) => ({
-              attachment_id: attachment.attachmentId,
-              size_bytes: attachment.sizeBytes ?? null,
-              sha256: attachment.sha256 ?? null,
-            })),
-          }),
-        },
-      ),
+      json(chatPath(`agents/${encodeURIComponent(agentId)}/turns`), SubmitTurnResponseSchema, {
+        method: "POST",
+        body: JSON.stringify({
+          session_id: input.sessionId ?? null,
+          title: input.title ?? null,
+          text: input.text,
+          attachments: (input.attachments ?? []).map((attachment) => ({
+            attachment_id: attachment.attachmentId,
+            size_bytes: attachment.sizeBytes ?? null,
+            sha256: attachment.sha256 ?? null,
+          })),
+        }),
+      }),
     async observeMissionControl(signal, onEvent, onReady) {
       const createWebSocket =
         options.createWebSocket ??
