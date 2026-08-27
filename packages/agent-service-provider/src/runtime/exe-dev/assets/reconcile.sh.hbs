@@ -41,6 +41,8 @@ if [[ "$node_major" != 24 ]]; then
 fi
 
 sudo loginctl enable-linger "$(id -un)"
+export XDG_RUNTIME_DIR="/run/user/$(id -u)"
+export DBUS_SESSION_BUS_ADDRESS="unix:path=${XDG_RUNTIME_DIR}/bus"
 sudo corepack enable
 sudo corepack prepare pnpm@10.33.1 --activate
 

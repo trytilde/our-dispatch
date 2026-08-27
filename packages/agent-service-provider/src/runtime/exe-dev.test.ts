@@ -77,6 +77,7 @@ describe("ExeDevRuntimeServiceProvider", () => {
     expect(calls[3]?.input).toContain('CODE_STORAGE_REPOSITORY_TOKEN="repository-only-token"');
     expect(calls[3]?.input).not.toContain("human-deployment-token");
     expect(calls.at(-1)?.input).toContain('cd "$remote_directory"');
+    expect(calls.at(-1)?.input).toContain('XDG_RUNTIME_DIR="/run/user/$(id -u)"');
     expect(calls.at(-1)?.input).toContain("node_version=24.20.0");
     expect(calls.at(-1)?.input).toContain("sha256sum --check --strict");
     expect(calls.at(-1)?.input).toContain("repository-only-token");
