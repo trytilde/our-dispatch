@@ -1,11 +1,11 @@
 import { TildeAgentProvider } from "@tryopenbot/agent-provider";
-import { VercelRuntimeServiceProvider } from "@tryopenbot/agent-service-provider";
+import { ExeDevRuntimeServiceProvider } from "@tryopenbot/agent-service-provider";
 import { TildeAuthProvider } from "@tryopenbot/auth-provider";
 import { Configuration } from "@tryopenbot/configuration";
-import { VercelSandboxComputerProvider } from "@tryopenbot/computer-service-provider";
-import { GitHubGitProvider } from "@tryopenbot/git-provider";
+import { ExeDevComputerProvider } from "@tryopenbot/computer-service-provider";
+import { CodeStorageGitProvider } from "@tryopenbot/git-provider";
 import { VercelInferenceProvider } from "@tryopenbot/inference-provider";
-import { TildePlatform, VercelPlatform } from "@tryopenbot/platform-integrations";
+import { ExeDevPlatform, TildePlatform, VercelPlatform } from "@tryopenbot/platform-integrations";
 
 const tilde = new TildePlatform({
   apiKey: process.env.TILDE_API_KEY!,
@@ -14,7 +14,8 @@ const tilde = new TildePlatform({
   teamId: process.env.TILDE_TEAM_ID!,
 });
 const vercel = new VercelPlatform();
-const runtime = new VercelRuntimeServiceProvider({ platform: vercel });
+const exe = new ExeDevPlatform();
+const runtime = new ExeDevRuntimeServiceProvider({ platform: exe });
 
 export default Configuration({
   providers: {
@@ -22,8 +23,8 @@ export default Configuration({
     controlService: runtime,
     agentService: runtime,
     agent: new TildeAgentProvider(tilde),
-    computer: new VercelSandboxComputerProvider({ platform: vercel, projectRole: "runtime" }),
+    computer: new ExeDevComputerProvider({ platform: exe }),
     inference: new VercelInferenceProvider(vercel),
-    git: new GitHubGitProvider(tilde),
+    git: new CodeStorageGitProvider(),
   },
 });
