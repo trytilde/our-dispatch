@@ -27,6 +27,10 @@ The CLI operates on the OpenBot repository in the current working directory. For
 `openbot dev --local-tilde-api [ORIGIN]` initializes `third-party/tilde-api` when needed, uses the platform default (`https://api.tilde.test:8443` on macOS and `https://api.tilde.test` elsewhere), and starts `make dev` in that private checkout when the selected socket is not already listening. An explicit HTTP origin such as `http://127.0.0.1:8443` is normalized to the HTTPS listener served by the API. The override and child process remain scoped to this development run.
 <!-- #END DO NOT UPSTREAM -->
 - `openbot deploy` builds selected providers, optionally stops with `--skip-deploy`, or plans and deploys providers with the runtime last.
+- The exe.dev runtime option reconciles one named 2-vCPU/8-GB VM, exposes Vite on its HTTPS origin,
+  clones the Code Storage fork, and keeps `pnpm dev` running through systemd user linger. The host
+  itself is the Computer and receives the trusted development configuration. This is an
+  explicit trusted single-VM mode, not a sandbox boundary for untrusted agents.
 - `openbot secrets set NAME --description TEXT` and `openbot secrets unset NAME` maintain described `configuration/secrets.enc.yaml` entries without putting plaintext values in command arguments. SOPS encrypts only each entry's `value`; its `description` stays readable. Agents pipe values with `--stdin`; descriptions are mandatory.
 - `openbot env set NAME VALUE --description TEXT` and `openbot env unset NAME` maintain `configuration/.env`. Descriptions are mandatory and appear as plaintext comments above quoted values.
 - `openbot auth <login|logout|set-team|whoami>` owns Tilde authentication and team selection. `openbot state <import|export>` performs explicit team-state migrations, while normal OpenBot lifecycles continue to reconcile resources through providers.

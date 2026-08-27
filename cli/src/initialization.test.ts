@@ -4,8 +4,14 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { CodexInferenceProvider, VercelInferenceProvider } from "@tryopenbot/inference-provider";
-import { VercelRuntimeServiceProvider } from "@tryopenbot/agent-service-provider";
-import { VercelSandboxComputerProvider } from "@tryopenbot/computer-service-provider";
+import {
+  ExeDevRuntimeServiceProvider,
+  VercelRuntimeServiceProvider,
+} from "@tryopenbot/agent-service-provider";
+import {
+  ExeDevComputerProvider,
+  VercelSandboxComputerProvider,
+} from "@tryopenbot/computer-service-provider";
 import { renderFileTemplatePath } from "@tryopenbot/utilities";
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 import { parse as parseYaml, stringify as stringifyYaml } from "yaml";
@@ -56,6 +62,25 @@ describe("OpenBot initialization", () => {
         providers: { ...providers, agentService: new VercelRuntimeServiceProvider() },
       } as never),
     ).toBeUndefined();
+  });
+
+  it("recognizes the consolidated exe.dev runtime and Computer composition", () => {
+    const runtime = new ExeDevRuntimeServiceProvider();
+    expect(
+      configuredRuntimeChoice({
+        providers: {
+          auth: {},
+          agent: {},
+          computer: new ExeDevComputerProvider(),
+          controlService: runtime,
+          agentService: runtime,
+        },
+      } as never),
+    ).toBe("exe-dev");
+    expect(inferenceChoicesForRuntime("exe-dev").map(({ value }) => value)).toEqual([
+      "vercel",
+      "codex",
+    ]);
   });
 
   it("offers subscription inference for local and Vercel runtimes", () => {
@@ -162,7 +187,7 @@ describe("OpenBot initialization", () => {
     });
 
     expect(selections.get("runtime")).toEqual({
-      values: ["local", "vercel", "tilde-cloud"],
+      values: ["exe-dev", "local", "vercel", "tilde-cloud"],
       initialValue: "vercel",
     });
     expect(selections.get("inference")).toEqual({

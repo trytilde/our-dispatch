@@ -18,7 +18,7 @@ Anything else belongs in the code that actually uses it.
 | `computer-service-provider` | Build and deploy the Computer service image, provision Computers, install agent workspaces, and prepare the trusted development Computer. |
 | `control-service-provider` | Check, build, configure, and deploy the control-service artifact. |
 | `agent-service-provider` | Discover authored agents and check, build, configure, and deploy their service artifacts. |
-| `git-provider` | Reconcile hosted git access: broker the GitHub App credential through Tilde and maintain the GitHub REST and git-over-HTTPS reverse-proxy profiles consumed by the trusted development sandbox and the factory agent's tools. |
+| `git-provider` | Reconcile hosted git access through a Tilde-brokered GitHub App, a managed local bare repository, or Code Storage with a transient organization key and persisted repository-only JWT. |
 | `runtime-provider` | Shared initialization, build, and phased deployment contracts and coordination. |
 | `platform-integrations` | Shared Tilde, Vercel, and other vendor plumbing used by multiple provider packages. It is not a domain provider. |
 
@@ -64,3 +64,25 @@ The default `VercelInferenceProvider` shares the installation's `VercelPlatform`
 6. Add focused contract and lifecycle tests.
 
 Custom fork-owned providers may live under `configuration/providers/`, but they follow the same limits. If a function is useful only to one authored agent, put it in that agent instead.
+
+## Code Storage setup and GitHub sync
+
+`CodeStorageGitProvider` uses the organization PKCS8 API key only during interactive initialization.
+It creates or finds the configured repository, optionally links it to GitHub at creation, and mints
+a repository-only credential with `git:read`, `git:write`, and force-push rejection. Initialization
+persists that JWT through SOPS and discards the organization key. Deployment rotates only the
+untracked Git remote URL and pushes the named current branch.
+
+For continuous private GitHub sync, configure the Code Storage GitHub App integration first:
+
+1. Create a GitHub App with Metadata read, Contents read/write, and Workflows read/write when agent
+   changes may touch `.github/workflows/`.
+2. Subscribe it to Push and Create events and set its webhook URL to
+   `https://<code-storage-org>.code.storage/webhooks/github`.
+3. Install the App on the selected repository and save its App ID, private key, and webhook secret
+   in the Code Storage Integrations dashboard.
+4. Run `openbot init`, select exe.dev and GitHub App sync, then enter the organization key only in
+   the setup-only prompt. Rotate or revoke that organization key after setup.
+
+Public sync is a one-time import and does not forward later pushes. GitHub App sync is continuous
+and treats GitHub as the upstream source of truth.

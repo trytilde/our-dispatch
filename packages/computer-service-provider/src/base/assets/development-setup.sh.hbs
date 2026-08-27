@@ -59,11 +59,35 @@ if [ -n "${GIT_GITHUB_GIT_PROXY_PROFILE_ID:-}" ] && [ -n "${GIT_GITHUB_REPOSITOR
   git -C "$source_directory" fetch --quiet origin || true
 fi
 
+# Code Storage uses a repository-scoped JWT persisted by its Git Provider. The organization API
+# key is setup-only and never reaches this Computer. Reconstruct real history after the seed copy so
+# the background SDLC can create and push ordinary fast-forward branches.
+if [ -n "${CODE_STORAGE_ORGANIZATION:-}" ] \
+  && [ -n "${CODE_STORAGE_REPOSITORY:-}" ] \
+  && [ -n "${CODE_STORAGE_REPOSITORY_TOKEN:-}" ]; then
+  code_storage_url="https://t:${CODE_STORAGE_REPOSITORY_TOKEN}@${CODE_STORAGE_ORGANIZATION}.code.storage/${CODE_STORAGE_REPOSITORY}.git"
+  source_branch="${OPENBOT_SOURCE_BRANCH:-main}"
+  if [ ! -d "$source_directory/.git" ]; then
+    git -C "$source_directory" init --initial-branch="$source_branch" --quiet
+    git -C "$source_directory" config user.name "OpenBot Factory"
+    git -C "$source_directory" config user.email "factory@users.noreply.github.com"
+  fi
+  git -C "$source_directory" remote get-url origin >/dev/null 2>&1 \
+    && git -C "$source_directory" remote set-url origin "$code_storage_url" \
+    || git -C "$source_directory" remote add origin "$code_storage_url"
+  git -C "$source_directory" fetch --quiet origin "$source_branch"
+  git -C "$source_directory" reset --hard --quiet FETCH_HEAD
+  git -C "$source_directory" branch --set-upstream-to="origin/$source_branch" "$source_branch" \
+    2>/dev/null || true
+  chmod 0600 "$source_directory/.git/config"
+fi
+
 # Keep the SDLC orchestrator running inside the trusted sandbox: it serves agents over the
 # local-runtime tunnel with hot reload while the checkout is edited, then verifies, publishes,
 # and redeploys on settle (ADR-0017).
-orchestrator_supervisor="$state_directory/orchestrator-supervisor.sh"
-cat > "$orchestrator_supervisor" <<SUPERVISOR
+if [ "${OPENBOT_HOST_COMPUTER:-0}" != "1" ]; then
+  orchestrator_supervisor="$state_directory/orchestrator-supervisor.sh"
+  cat > "$orchestrator_supervisor" <<SUPERVISOR
 #!/usr/bin/env bash
 export SOPS_AGE_KEY_FILE="$age_key_file"
 cd "$source_directory"
@@ -72,10 +96,11 @@ while true; do
   sleep 5
 done
 SUPERVISOR
-chmod 0700 "$orchestrator_supervisor"
-chown "$sandbox_user:$sandbox_user" "$orchestrator_supervisor"
-if ! pgrep -f "orchestrator-supervisor.sh" >/dev/null 2>&1; then
-  nohup "$orchestrator_supervisor" >/dev/null 2>&1 &
+  chmod 0700 "$orchestrator_supervisor"
+  chown "$sandbox_user:$sandbox_user" "$orchestrator_supervisor"
+  if ! pgrep -f "orchestrator-supervisor.sh" >/dev/null 2>&1; then
+    nohup "$orchestrator_supervisor" >/dev/null 2>&1 &
+  fi
 fi
 
 touch "$state_directory/ready"

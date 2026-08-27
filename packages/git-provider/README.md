@@ -14,3 +14,9 @@ profile environment unset until the credential connects.
 `.openbot/git/openbot.git`, points the checkout's `origin` at that repository, and pushes the current
 branch on every reconciliation. It never provisions a forge account or exports a source-control
 credential from the Computer.
+
+`CodeStorageGitProvider` is the machine-oriented hosted alternative. Interactive setup accepts the
+organization PKCS8 key transiently, creates or reuses a stable repository with optional GitHub App
+or public sync, and persists only an effectively long-lived, repository-scoped read/write JWT with force-push
+protection. Deployment stores that JWT only in the checkout's untracked `.git/config`; the
+organization key never enters OpenBot configuration or lifecycle events.

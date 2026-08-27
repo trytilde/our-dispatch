@@ -1,0 +1,50 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+remote_directory={{{REMOTE_DIRECTORY_SHELL}}}
+environment_file={{{ENVIRONMENT_FILE_SHELL}}}
+unit_file={{{UNIT_FILE_SHELL}}}
+source_url={{{SOURCE_URL_SHELL}}}
+source_branch={{{SOURCE_BRANCH_SHELL}}}
+
+for command in git node corepack systemctl; do
+  command -v "$command" >/dev/null || {
+    echo "exe.dev VM is missing required command: $command" >&2
+    exit 1
+  }
+done
+
+node_major="$(node -p 'process.versions.node.split(".")[0]')"
+if [[ "$node_major" -lt 24 ]]; then
+  echo "exe.dev VM requires Node.js 24; found $(node --version)" >&2
+  exit 1
+fi
+
+sudo loginctl enable-linger "$(id -un)"
+corepack enable
+corepack prepare pnpm@10.33.1 --activate
+
+mkdir -p "$(dirname "$remote_directory")" "$(dirname "$environment_file")" "$(dirname "$unit_file")"
+chmod 0700 "$(dirname "$environment_file")"
+
+if [[ ! -d "$remote_directory/.git" ]]; then
+  git clone --branch "$source_branch" --single-branch "$source_url" "$remote_directory"
+elif [[ -n "$(git -C "$remote_directory" status --porcelain)" ]]; then
+  echo "Preserving remote OpenBot edits; skipping source fast-forward"
+else
+  git -C "$remote_directory" remote set-url origin "$source_url"
+  git -C "$remote_directory" fetch origin "$source_branch"
+  git -C "$remote_directory" merge --ff-only "origin/$source_branch"
+fi
+
+pnpm --dir "$remote_directory" install --frozen-lockfile
+mkdir -p "$remote_directory/configuration"
+configuration_env_base64="$(sed -n 's/^EXE_DEV_CONFIGURATION_ENV_BASE64="\(.*\)"$/\1/p' "$environment_file")"
+printf '%s' "$configuration_env_base64" \
+  | base64 --decode > "$remote_directory/configuration/.env"
+chmod 0600 "$remote_directory/configuration/.env"
+chmod 0600 "$environment_file"
+chmod 0644 "$unit_file"
+systemctl --user daemon-reload
+systemctl --user enable --now openbot-dev.service
+systemctl --user restart openbot-dev.service

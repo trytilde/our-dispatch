@@ -50,7 +50,7 @@ export interface Buildable {
   watchPaths?(context: DeploymentContext): Promise<readonly string[]>;
 }
 
-export type InitializationValueDestination = "environment" | "secret";
+export type InitializationValueDestination = "environment" | "secret" | "transient";
 
 export interface ProviderInitializationQuestion {
   id: string;
@@ -62,6 +62,7 @@ export interface ProviderInitializationQuestion {
   required?: boolean;
   choices?: readonly { value: string; label: string; description?: string }[];
   destination: {
+    /** Transient values are available only to initialize(); they are never persisted. */
     kind: InitializationValueDestination;
     key: string;
   };

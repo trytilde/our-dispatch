@@ -31,6 +31,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@pierre/storage": "1.16.2",
     "@tryopenbot/platform-integrations": "workspace:*",
     "@tryopenbot/runtime-provider": "workspace:*",
     "@trytilde/api-client": "workspace:*",

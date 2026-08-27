@@ -77,7 +77,7 @@ export async function runDevelopment(options: DevelopmentOptions = {}): Promise<
     repositoryRoot,
     environment: env,
     providers: configuration.providers,
-    onRebuildStarted: () => console.log("Computer image changed; rebuilding Microsandbox"),
+    onRebuildStarted: () => console.log("Computer runtime changed; rebuilding"),
     onRebuildComplete: () => console.log("Computer restarted with the updated image"),
     onRebuildError: (error) =>
       console.error(
@@ -112,7 +112,12 @@ export async function runDevelopment(options: DevelopmentOptions = {}): Promise<
   }
   const web = run(
     "pnpm",
-    developmentPackageCommand("@tryopenbot/web", "dev", ["--port", webPort]),
+    developmentPackageCommand("@tryopenbot/web", "dev", [
+      "--port",
+      webPort,
+      "--host",
+      env.WEB_HOST ?? "127.0.0.1",
+    ]),
     developmentChildEnvironment(shellEnvironment, { OPENBOT_CONTROL_PORT: serverPort }),
   );
   const children = [server.child, web];

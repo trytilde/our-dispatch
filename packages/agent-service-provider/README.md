@@ -16,6 +16,9 @@ Build and deployment providers for independently compiled agent entrypoints. It 
 - `VercelAgentServiceProvider` builds agents concurrently into separate Vercel Functions and accepts `VercelAgentServiceProviderOptions`.
 - `LocalRuntimeServiceProvider` builds and installs one local process containing the control API and all agent routes.
 - `VercelRuntimeServiceProvider` publishes the static web app, one control Function, and independently bundled per-agent Functions as one atomic Vercel deployment.
+- `ExeDevRuntimeServiceProvider` reconciles one persistent exe.dev VM, publishes Vite through its
+  HTTPS proxy, installs all fork configuration in a private environment file, and supervises the
+  complete watched `pnpm dev` stack with systemd user linger.
 
 `VercelRuntimeServiceProviderOptions.hostedPlatform` forwards the shared Tilde platform to both internal service builders so managed Tilde Cloud installations can reconcile one runtime project without exposing a second deployment boundary.
 

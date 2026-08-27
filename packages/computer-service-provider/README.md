@@ -1,6 +1,6 @@
 # @tryopenbot/computer-service-provider
 
-Computer provisioning and lifecycle adapters for Microsandbox and Vercel Sandbox. The public `ComputerProvider` contract contains only deployment operations used by OpenBot:
+Computer provisioning and lifecycle adapters for the local Linux host, Microsandbox, exe.dev, and Vercel Sandbox. The public `ComputerProvider` contract contains only deployment operations used by OpenBot:
 
 - deploy seed-once agent workspaces to the shared Computer;
 - deploy the trusted development Computer;
@@ -29,7 +29,10 @@ All agents share one Computer filesystem and process identity. Populated workspa
 ## Public API
 
 - `ComputerProvider`: deploys agent workspaces and the trusted development Computer through the shared lifecycle.
-- `BaseComputerProvider`, `MicrosandboxComputerProvider`, and `VercelSandboxComputerProvider`: concrete lifecycle implementations and their image configuration types.
+- `BaseComputerProvider`, `HostComputerProvider`, `MicrosandboxComputerProvider`,
+  `ExeDevComputerProvider`, and `VercelSandboxComputerProvider`: concrete lifecycle implementations
+  and their image configuration types. The exe.dev composition makes the Linux host itself the
+  Computer with no inner isolation and publishes noVNC through the owner origin.
 - `ComputerProviderError`, call context, Computer specifications, handles, image records, deployment request types, and `ComputerSeedEntry`: contracts used by lifecycle implementations. Seed entries preserve regular files and trusted-development symlinks.
 - `computerServiceApiKey()` and `scopedCapability()`: validate and scope access to the Computer service.
 - `computerImageAssets`, `computerImageWatchPaths()`, and `materializeComputerImageContext()`: expose provider-owned image inputs and render a build context.

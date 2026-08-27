@@ -2,7 +2,7 @@
 
 ## In brief
 
-- Hosted-git access is a provider domain. `git-provider` owns it. GitHub first; another forge only when a real difference is known.
+- Hosted-git access is a provider domain. `git-provider` owns it. GitHub and Code Storage have distinct credential models.
 - Credential is a Tilde-brokered GitHub App via `server_token_exchange`. No raw PAT. No token in the repository, in `configuration/`, or inside any Computer.
 - Sandboxes reach GitHub only through the `openbot-github-rest` and `openbot-github-git` reverse proxies. Repository-local git config, team API-key headers.
 - The trusted development sandbox is the sole checkout holder. Ordinary Computers never get the fork or control-plane credentials.
@@ -73,3 +73,7 @@ flowchart LR
 
 - 2026-08-18T16:30:00Z: Recorded retroactively while backfilling PR 57's documentation. The decision
   shipped with that PR; only the record is new.
+- 2026-08-27T15:15:00+02:00: Added Code Storage as the machine-oriented hosted adapter. Its
+  organization key is setup-only and transient; OpenBot persists only a repository-scoped,
+  read/write, no-force-push JWT. Repository creation may opt into GitHub App continuous sync or a
+  one-time public import.
