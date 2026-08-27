@@ -826,6 +826,9 @@ describe("trusted development sandbox", () => {
     expect(profile).toContain('source "$openbot_source_root/configuration/.env"');
     expect(profile).toContain("SOPS_AGE_KEY_FILE");
     expect(profile).toContain("sops decrypt --output-type json");
+    const desktopSession = await readFile(computerImageAssets.desktopSession, "utf8");
+    expect(desktopSession).toContain("$XDG_RUNTIME_DIR/xfce4-panel.log");
+    expect(desktopSession).not.toContain("/var/log/openbot-xfce4-panel.log");
   });
 });
 
