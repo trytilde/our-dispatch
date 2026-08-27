@@ -1,6 +1,8 @@
-import { describe, expect, it, vi } from "vite-plus/test";
+import type { ControlServiceProvider } from "@tryopenbot/control-service-provider";
+import { describe, expect, expectTypeOf, it, vi } from "vite-plus/test";
 import { ExeDevPlatform } from "@tryopenbot/platform-integrations";
 import { DeploymentOutputs, type DeploymentContext } from "@tryopenbot/runtime-provider";
+import type { AgentServiceProvider } from "../index.js";
 import { ExeDevRuntimeServiceProvider, type ExeDevCommandRunner } from "./exe-dev.js";
 
 function context(devMode = false): DeploymentContext {
@@ -19,6 +21,12 @@ function context(devMode = false): DeploymentContext {
 }
 
 describe("ExeDevRuntimeServiceProvider", () => {
+  it("implements both consolidated service provider contracts", () => {
+    const provider = new ExeDevRuntimeServiceProvider();
+    expectTypeOf(provider).toMatchTypeOf<AgentServiceProvider>();
+    expectTypeOf(provider).toMatchTypeOf<ControlServiceProvider>();
+  });
+
   it("does no recursive remote work inside the watched VM", async () => {
     const run = vi.fn();
     const runner = { run } as unknown as ExeDevCommandRunner;

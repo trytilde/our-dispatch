@@ -67,6 +67,26 @@ export class ExeDevRuntimeServiceProvider {
     this.#currentBranch = options.currentBranch ?? currentBranch;
   }
 
+  check(context: DeploymentContext): Promise<void> {
+    return this.#check(context);
+  }
+
+  build(_context: DeploymentContext): Promise<void> {
+    return Promise.resolve();
+  }
+
+  plan(context: DeploymentContext): Promise<DeploymentPlan> {
+    return this.#plan(context);
+  }
+
+  configure(context: DeploymentContext): Promise<DeploymentResult> {
+    return this.#configure(context);
+  }
+
+  deploy(context: DeploymentContext): Promise<DeploymentResult> {
+    return this.#deploy(context);
+  }
+
   baseUrl(context: Pick<DeploymentContext, "environment">): URL {
     return new URL(this.platform.connection(context.environment).publicOrigin);
   }
