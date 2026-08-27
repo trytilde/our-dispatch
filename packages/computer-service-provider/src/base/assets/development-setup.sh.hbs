@@ -7,6 +7,10 @@ state_directory="$(dirname "$age_key_file")"
 sandbox_user="$(id -un)"
 sandbox_home="$(getent passwd "$sandbox_user" | cut -d: -f6)"
 profile_loader="$state_directory/profile.sh"
+host_computer="${OPENBOT_HOST_COMPUTER:-0}"
+if [ -L "$source_directory" ]; then
+  host_computer=1
+fi
 
 test -n "$sandbox_home"
 test -f "$source_directory/configuration/.env"
@@ -85,7 +89,7 @@ fi
 # Keep the SDLC orchestrator running inside the trusted sandbox: it serves agents over the
 # local-runtime tunnel with hot reload while the checkout is edited, then verifies, publishes,
 # and redeploys on settle (ADR-0017).
-if [ "${OPENBOT_HOST_COMPUTER:-0}" != "1" ]; then
+if [ "$host_computer" != "1" ]; then
   orchestrator_supervisor="$state_directory/orchestrator-supervisor.sh"
   cat > "$orchestrator_supervisor" <<SUPERVISOR
 #!/usr/bin/env bash

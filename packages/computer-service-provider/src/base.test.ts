@@ -830,6 +830,7 @@ describe("trusted development sandbox", () => {
     expect(desktopSession).toContain("$XDG_RUNTIME_DIR/xfce4-panel.log");
     expect(desktopSession).not.toContain("/var/log/openbot-xfce4-panel.log");
     const developmentSetup = await readFile(computerImageAssets.developmentSetup, "utf8");
+    expect(developmentSetup).toContain('if [ -L "$source_directory" ]');
     expect(developmentSetup).toContain('pkill -f "$state_directory/orchestrator-supervisor.sh"');
   });
 });
