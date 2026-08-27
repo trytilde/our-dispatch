@@ -16,14 +16,23 @@ const execute = promisify(execFile);
 export async function developmentSandboxSourceFiles(
   repositoryRoot: string,
 ): Promise<readonly ComputerSeedEntry[]> {
-  const { stdout } = await execute(
-    "git",
-    ["ls-files", "--cached", "--others", "--exclude-standard", "-z"],
-    {
+  const [{ stdout }, { stdout: staged }] = await Promise.all([
+    execute("git", ["ls-files", "--cached", "--others", "--exclude-standard", "-z"], {
       cwd: repositoryRoot,
       encoding: "utf8",
       maxBuffer: 64 * 1024 * 1024,
-    },
+    }),
+    execute("git", ["ls-files", "--stage", "-z"], {
+      cwd: repositoryRoot,
+      encoding: "utf8",
+      maxBuffer: 64 * 1024 * 1024,
+    }),
+  ]);
+  const gitlinks = new Set(
+    staged
+      .split("\0")
+      .filter((entry) => entry.startsWith("160000 "))
+      .map((entry) => entry.slice(entry.indexOf("\t") + 1)),
   );
   const paths = stdout.split("\0").filter(Boolean).filter(isSafeDevelopmentSourcePath).sort();
   const files = await Promise.all(
@@ -34,6 +43,7 @@ export async function developmentSandboxSourceFiles(
         throw error;
       });
       if (!metadata) return undefined;
+      if (metadata.isDirectory() && gitlinks.has(path)) return undefined;
       if (metadata.isSymbolicLink())
         return { path: `openbot/${path}`, target: await containedLinkTarget(repositoryRoot, path) };
       if (!metadata.isFile())

@@ -320,6 +320,41 @@ describe("development sandbox source", () => {
     }
   });
 
+  it("skips tracked gitlinks instead of treating them as source files", async () => {
+    const repositoryRoot = await mkdtemp(join(tmpdir(), "openbot-computer-gitlink-"));
+    const dependencyRoot = await mkdtemp(join(tmpdir(), "openbot-computer-dependency-"));
+    try {
+      await execute("git", ["init"], { cwd: repositoryRoot });
+      await execute("git", ["init"], { cwd: dependencyRoot });
+      await writeFile(join(dependencyRoot, "README.md"), "dependency");
+      await execute("git", ["add", "README.md"], { cwd: dependencyRoot });
+      await execute(
+        "git",
+        ["-c", "user.name=OpenBot", "-c", "user.email=openbot@example.com", "commit", "-m", "seed"],
+        { cwd: dependencyRoot },
+      );
+      await execute(
+        "git",
+        [
+          "-c",
+          "protocol.file.allow=always",
+          "submodule",
+          "add",
+          dependencyRoot,
+          "third-party/dependency",
+        ],
+        { cwd: repositoryRoot },
+      );
+      await execute("git", ["add", "-A"], { cwd: repositoryRoot });
+
+      const files = await developmentSandboxSourceFiles(repositoryRoot);
+      expect(files.map(({ path }) => path)).toEqual(["openbot/.gitmodules"]);
+    } finally {
+      await rm(repositoryRoot, { recursive: true, force: true });
+      await rm(dependencyRoot, { recursive: true, force: true });
+    }
+  });
+
   it("refuses symlinks that would resolve outside the seeded repository", async () => {
     const repositoryRoot = await mkdtemp(join(tmpdir(), "openbot-computer-escape-"));
     try {
