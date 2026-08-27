@@ -57,7 +57,10 @@ else
   git -C "$remote_directory" merge --ff-only "origin/$source_branch"
 fi
 
-pnpm --dir "$remote_directory" install --frozen-lockfile
+(
+  cd "$remote_directory"
+  pnpm install --frozen-lockfile
+)
 mkdir -p "$remote_directory/configuration"
 configuration_env_base64="$(sed -n 's/^EXE_DEV_CONFIGURATION_ENV_BASE64="\(.*\)"$/\1/p' "$environment_file")"
 printf '%s' "$configuration_env_base64" \
