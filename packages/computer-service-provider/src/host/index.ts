@@ -87,7 +87,7 @@ export class HostComputerProvider extends BaseComputerProvider {
   }
 
   async #build(context: DeploymentContext): Promise<DeploymentResult> {
-    await this.#runner.run("pnpm", ["--filter", "@tryopenbot/computer-service", "build"], {
+    await this.#runner.run("pnpm", ["--filter", "@tryopenbot/computer-service...", "build"], {
       cwd: context.repositoryRoot,
       environment: context.environment,
       timeoutMs: 10 * 60 * 1000,
