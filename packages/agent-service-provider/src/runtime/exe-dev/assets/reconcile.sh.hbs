@@ -7,6 +7,9 @@ unit_file={{{UNIT_FILE_SHELL}}}
 source_url={{{SOURCE_URL_SHELL}}}
 source_branch={{{SOURCE_BRANCH_SHELL}}}
 
+# exe.dev's non-login SSH path puts Debian's /usr/bin ahead of the pinned toolchain.
+export PATH="/usr/local/bin:${PATH}"
+
 for command in git sudo systemctl curl tar sha256sum; do
   command -v "$command" >/dev/null || {
     echo "exe.dev VM is missing required command: $command" >&2
