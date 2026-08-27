@@ -101,6 +101,11 @@ SUPERVISOR
   if ! pgrep -f "orchestrator-supervisor.sh" >/dev/null 2>&1; then
     nohup "$orchestrator_supervisor" >/dev/null 2>&1 &
   fi
+else
+  # A host Computer is already supervised by the outer `openbot dev` process. Clean up a nested
+  # orchestrator left by an interrupted earlier bootstrap before that outer process binds ports.
+  pkill -f "$state_directory/orchestrator-supervisor.sh" 2>/dev/null || true
+  pkill -f "src/index.tsx -- orchestrate" 2>/dev/null || true
 fi
 
 touch "$state_directory/ready"
