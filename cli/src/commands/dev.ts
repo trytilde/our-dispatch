@@ -93,23 +93,26 @@ export async function runDevelopment(options: DevelopmentOptions = {}): Promise<
   const [serverCommand, serverArguments] = developmentServerCommand();
   const server = await startTunneledAgentService(serverCommand, serverArguments, env);
   await writeLiveAgentServiceOrigin(repositoryRoot, server.agentServiceOrigin);
-  try {
-    await reconcileAgentResources({
-      repositoryRoot,
-      environment: env,
-      providers: configuration.providers,
-      devMode: true,
-      agentServiceOrigin: server.agentServiceOrigin,
-      report: (event) => {
-        const line = formatAgentLifecycleProgress(event);
-        if (line) console.log(line);
-      },
-    });
-  } catch (error) {
-    await clearLiveAgentServiceOrigin(repositoryRoot);
-    server.stop();
-    throw error;
-  }
+  if (env.OPENBOT_SKIP_AGENT_RECONCILE === "1") {
+    console.log("Agent resource reconciliation skipped by operator configuration");
+  } else
+    try {
+      await reconcileAgentResources({
+        repositoryRoot,
+        environment: env,
+        providers: configuration.providers,
+        devMode: true,
+        agentServiceOrigin: server.agentServiceOrigin,
+        report: (event) => {
+          const line = formatAgentLifecycleProgress(event);
+          if (line) console.log(line);
+        },
+      });
+    } catch (error) {
+      await clearLiveAgentServiceOrigin(repositoryRoot);
+      server.stop();
+      throw error;
+    }
   const web = run(
     "pnpm",
     developmentPackageCommand("@tryopenbot/web", "dev", [
