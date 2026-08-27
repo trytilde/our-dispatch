@@ -81,6 +81,7 @@ describe("ExeDevRuntimeServiceProvider", () => {
     expect(calls.at(-1)?.input).toContain("node_version=24.20.0");
     expect(calls.at(-1)?.input).toContain('PATH="/usr/local/bin:${PATH}"');
     expect(calls.at(-1)?.input).toContain("sops_version=3.9.1");
+    expect(calls.at(-1)?.input).toContain('fuser -k -TERM "${port}/tcp"');
     expect(calls.at(-1)?.input).toContain("sha256sum --check --strict");
     expect(calls.at(-1)?.input).toContain("repository-only-token");
   });
