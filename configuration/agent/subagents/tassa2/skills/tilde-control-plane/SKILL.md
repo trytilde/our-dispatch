@@ -17,7 +17,7 @@ Every OpenBot agent's MCP server carries the team-scoped Tilde control-plane too
 
 - Identity: `tilde_whoami`, `tilde_generate_api_key`.
 - Discovery: `tilde_search_available_capabilities` (installable), `tilde_search_enabled_capabilities` (configured); both accept `kinds` filters and `include_schemas`.
-- Tool providers: `tilde_enable_toolkit_provider`, `tilde_auto_provision_toolkit_provider`, `tilde_set_toolkit_tool_enabled` — see the tilde-tools and tilde-connectors skills.
+- Tool providers: `tilde_enable_toolkit_provider`, `tilde_auto_provision_toolkit_provider`, `tilde_enable_and_bind_provider_tools`, `tilde_set_toolkit_tool_enabled` — see the tilde-tools and tilde-connectors skills.
 - MCP servers: `tilde_create_mcp_server`, `tilde_set_mcp_server_tool_enabled`, `tilde_remove_mcp_server_tool`; proxied servers via `tilde_connect_proxied_mcp_server` / `tilde_refresh_proxied_mcp_server`; custom backends via `tilde_register_custom_tool_backend` / `tilde_refresh_custom_tool_backend`.
 - Reverse proxies: `tilde_list_reverse_proxies`, `tilde_set_reverse_proxy_enabled`.
 - ChatKit and signals: see the tilde-chatkit skill.

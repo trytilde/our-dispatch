@@ -1,5 +1,5 @@
 import { stepCountIs } from "ai";
-import type { ToolSet } from "@ai-sdk/provider-utils";
+import type { ToolSet } from "ai";
 
 export async function prepareInference(tools: ToolSet, _abortSignal?: AbortSignal) {
   return {

@@ -16,9 +16,9 @@ Your `tilde_*` tools are team-scoped: never pass `org_id` or `team_id` arguments
    - Existing Streamable HTTP MCP server: `tilde_connect_proxied_mcp_server` with its declared `auth_mode`; never put secrets in names, URLs, or descriptions. Call `tilde_refresh_proxied_mcp_server` after the upstream catalog changes.
    - Harness SDK `toolEndpoint` backend: `tilde_register_custom_tool_backend`, then `tilde_refresh_custom_tool_backend` after its manifest changes.
 3. If a response contains `approval_url`, send it to the user, then immediately invoke the returned `next_tool_name` with `next_tool_arguments` and wait until it returns `approved`.
-4. Enable only the required provider functions with `tilde_set_toolkit_tool_enabled`.
-5. `tilde_search_enabled_capabilities` for exact `tool_group_instance_id`, `tool_group_source_type_id`, and `tool_source_type_id` values.
-6. Map each function with `tilde_set_mcp_server_tool_enabled`; remove with `tilde_remove_mcp_server_tool`.
+4. `tilde_search_enabled_capabilities` for the exact `tool_group_instance_id` and `tool_source_type_id` values.
+5. Call `tilde_enable_and_bind_provider_tools` once with the required tool ids and every target `mcp_server_instance_id`. Use `all_tools: true` only when the task genuinely requires the provider's entire tool catalog.
+6. Use `tilde_set_toolkit_tool_enabled` or `tilde_set_mcp_server_tool_enabled` only for a single-tool enable/disable or mapping adjustment; remove mappings with `tilde_remove_mcp_server_tool`.
 7. Verify with `tilde_search_enabled_capabilities` filtered by `mcp_server_instance_id`.
 
 ## Reverse proxies

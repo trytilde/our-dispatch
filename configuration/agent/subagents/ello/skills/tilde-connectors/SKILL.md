@@ -19,11 +19,7 @@ A connector is a Tilde tool provider. Your `tilde_*` control-plane tools are tea
 
 The user's selection message already carries `tool_group_source_type_id` and `tool_group_instance_id` — use them directly; do not re-derive them with more capability searches. One `tilde_search_enabled_capabilities` call (filtered by `tool_group_instance_id`) is enough to confirm the account is `active` and read the exact `tool_source_type_id` values; if the response carries `approval_url` / `next_tool_name`, follow that instruction and wait for `approved`.
 
-Then batch the whole mutation into a SINGLE `MULTI_EXECUTE_TOOL` call whose `invocations` array carries, in order:
-
-1. `tilde_set_toolkit_tool_enabled` for each required function (`tool_group_instance_id`, `tool_source_type_id`, `enabled: true`).
-2. `tilde_set_mcp_server_tool_enabled` for each of those functions (`mcp_server_instance_id`, `tool_source_type_id`, `tool_group_source_type_id`, `tool_group_instance_id`, `enabled: true`).
-3. One verification `tilde_search_enabled_capabilities` filtered by `mcp_server_instance_id`.
+Call `tilde_enable_and_bind_provider_tools` once with the selected `tool_group_instance_id`, the required `tool_source_type_ids`, and this bot's `mcp_server_instance_id`. Use `all_tools: true` only when the task genuinely needs every provider function. Then verify with `tilde_search_enabled_capabilities` filtered by `mcp_server_instance_id`.
 
 Enable only the functions the task needs, confirm the verification result, then continue the original task.
 
