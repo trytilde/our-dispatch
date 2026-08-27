@@ -7,7 +7,6 @@ import {
   codeStorageGitHubRepositoryEnvironmentName,
   codeStorageGitHubSyncModeEnvironmentName,
   codeStorageOrganizationEnvironmentName,
-  codeStorageOrganizationIdEnvironmentName,
   codeStorageRepositoryEnvironmentName,
   codeStorageRepositoryTokenSecretName,
   codeStorageSetupPrivateKeyTransientName,
@@ -29,20 +28,15 @@ describe("CodeStorageGitProvider", () => {
       .fn()
       .mockResolvedValue("https://t:repository-jwt@tilde.code.storage/trytilde/openbot.git");
     const createRepo = vi.fn().mockResolvedValue({ getRemoteURL });
-    const clientFactory = vi.fn(() => ({
-      findOne: vi.fn().mockResolvedValue(null),
-      createRepo,
-    }));
     const setSecret = vi.fn();
     const provider = new CodeStorageGitProvider({
-      clientFactory,
+      clientFactory: () => ({ findOne: vi.fn().mockResolvedValue(null), createRepo }),
     });
 
     await provider.initialize({
       repositoryRoot: "/repo",
       environment: {
         [codeStorageOrganizationEnvironmentName]: "tilde",
-        [codeStorageOrganizationIdEnvironmentName]: "org_01M11MFGCA0WMWDPRT83P2H7S5",
         [codeStorageRepositoryEnvironmentName]: "trytilde/openbot",
         [codeStorageSetupPrivateKeyTransientName]: "organization-private-key",
         [codeStorageGitHubSyncModeEnvironmentName]: "github-app",
@@ -59,12 +53,6 @@ describe("CodeStorageGitProvider", () => {
       id: "trytilde/openbot",
       defaultBranch: "main",
       baseRepo: { owner: "trytilde", name: "openbot", defaultBranch: "main" },
-    });
-    expect(clientFactory).toHaveBeenCalledWith({
-      name: "org_01M11MFGCA0WMWDPRT83P2H7S5",
-      key: "organization-private-key",
-      apiBaseUrl: "https://api.tilde.code.storage/api",
-      storageBaseUrl: "tilde.code.storage",
     });
     expect(getRemoteURL).toHaveBeenCalledWith({
       permissions: ["git:read", "git:write"],
@@ -91,7 +79,6 @@ describe("CodeStorageGitProvider", () => {
       repositoryRoot: "/repo",
       environment: {
         [codeStorageOrganizationEnvironmentName]: "tilde",
-        [codeStorageOrganizationIdEnvironmentName]: "org_01M11MFGCA0WMWDPRT83P2H7S5",
         [codeStorageRepositoryEnvironmentName]: "openbot",
         [codeStorageRepositoryTokenSecretName]: "repository-jwt",
       },
@@ -116,7 +103,6 @@ describe("CodeStorageGitProvider", () => {
     });
     const deployment = context({
       [codeStorageOrganizationEnvironmentName]: "tilde",
-      [codeStorageOrganizationIdEnvironmentName]: "org_01M11MFGCA0WMWDPRT83P2H7S5",
       [codeStorageRepositoryEnvironmentName]: "trytilde/openbot",
       [codeStorageRepositoryTokenSecretName]: "repository-jwt",
     });
@@ -163,7 +149,6 @@ describe("CodeStorageGitProvider", () => {
       provider.deployable.deploy(
         context({
           [codeStorageOrganizationEnvironmentName]: "tilde",
-          [codeStorageOrganizationIdEnvironmentName]: "org_01M11MFGCA0WMWDPRT83P2H7S5",
           [codeStorageRepositoryEnvironmentName]: "openbot",
           [codeStorageRepositoryTokenSecretName]: "repository-jwt",
         }),
