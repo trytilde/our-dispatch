@@ -31,6 +31,17 @@ import {
 } from "../contracts/agents.js";
 import { ChatMessagePageSchema, type ChatMessagePage } from "../contracts/messages.js";
 import {
+  ConversationSnapshotSchema,
+  ChatKitSearchPageSchema,
+  ChatKitActivitySchema,
+  SubmitTurnResponseSchema,
+  type ConversationSnapshot,
+  type ChatKitSearchPage,
+  type ChatKitActivity,
+  type SubmitTurnInput,
+  type SubmitTurnResponse,
+} from "../contracts/mission-control.js";
+import {
   RoutineListSchema,
   RunRoutineResponseSchema,
   type CreateRoutineInput,
@@ -57,7 +68,6 @@ import { QueuedTurnPageSchema, type QueuedTurnPage } from "../contracts/queue.js
 import {
   ChatSessionPageSchema,
   ChatSessionSchema,
-  SidebarResponseSchema,
   type AgentSortOrder,
   type ChatSession,
   type ChatSessionPage,
@@ -95,12 +105,22 @@ export interface OpenBotClient {
     sessionSort?: SessionSortOrder,
     nextAgentToken?: string | null,
   ): Promise<SidebarResponse>;
+  getActivity(activeSessionId?: string): Promise<ChatKitActivity>;
+  getConversationSnapshot(sessionId: string): Promise<ConversationSnapshot>;
+  searchChatKit(
+    query: string,
+    sessionId?: string,
+    nextPageToken?: string | null,
+  ): Promise<ChatKitSearchPage>;
   getAgentSessions(
     agentId: string,
     nextPageToken?: string | null,
     sessionSort?: SessionSortOrder,
   ): Promise<ChatSessionPage>;
-  createSession(agentId: string, title?: string): Promise<ChatSession>;
+  createSession(
+    agentId: string,
+    input?: { title?: string; lookupKey?: string },
+  ): Promise<ChatSession>;
   renameSession(sessionId: string, title: string): Promise<ChatSession>;
   markSessionUnread(sessionId: string): Promise<ChatSession>;
   interruptSession(sessionId: string): Promise<void>;
@@ -111,6 +131,7 @@ export interface OpenBotClient {
     text: string,
     attachmentIds?: string[],
   ): Promise<ChatMessagePage>;
+  submitTurn(agentId: string, input: SubmitTurnInput): Promise<SubmitTurnResponse>;
   observeMissionControl(
     signal: AbortSignal,
     onEvent: (event: ChatEvent) => void | Promise<void>,
@@ -142,11 +163,18 @@ export interface OpenBotClient {
   listSignalDeliveries(instanceId: string): Promise<SignalDelivery[]>;
   listConnectorProviders(): Promise<ConnectorProvider[]>;
   listConnectorAccounts(providerTypeId?: string): Promise<ConnectorAccount[]>;
+  waitForConnectorAccount(accountId: string): Promise<ConnectorAccount>;
   createConnectorAccount(input: CreateConnectorAccountInput): Promise<CreateConnectorAccountResult>;
+  bindConnector(agentId: string, accountId: string): Promise<void>;
+  deleteConnectorAccounts(accountIds: readonly string[]): Promise<void>;
   getPluginsCatalog(agentIds: readonly string[]): Promise<PluginsCatalog>;
   setToolAccountForAgent(accountId: string, agentId: string, enabled: boolean): Promise<void>;
   setSkillForAgent(skillId: string, agentId: string, enabled: boolean): Promise<void>;
   createAttachment(sessionId: string, input: CreateAttachmentInput): Promise<AttachmentUpload>;
+  createAttachments(
+    sessionId: string,
+    inputs: CreateAttachmentInput[],
+  ): Promise<AttachmentUpload[]>;
   completeAttachment(
     sessionId: string,
     attachmentId: string,
@@ -263,67 +291,102 @@ export function createOpenBotClient(options: OpenBotClientOptions = {}): OpenBot
     ) {
       const parameters = new URLSearchParams({
         agent_page_size: "50",
-        session_page_size: "12",
+        session_page_size: "50",
         agent_sort: agentSort,
         session_sort: sessionSort,
       });
       if (query.trim()) parameters.set("q", query.trim());
       if (nextAgentToken) parameters.set("agent_next_page_token", nextAgentToken);
-      return await json(chatPath(`mission-control/sidebar?${parameters}`), SidebarResponseSchema);
+      const response = await json(chatPath(`activity?${parameters}`), ChatKitActivitySchema);
+      return response.activity;
+    },
+    async getActivity(activeSessionId) {
+      const parameters = new URLSearchParams({
+        agent_page_size: "50",
+        session_page_size: "12",
+        message_page_size: "100",
+        queue_page_size: "25",
+        agent_sort: "updated_at",
+        session_sort: "updated_at",
+      });
+      if (activeSessionId) parameters.set("active_session_id", activeSessionId);
+      return await json(chatPath(`activity?${parameters}`), ChatKitActivitySchema);
+    },
+    getConversationSnapshot: (sessionId) =>
+      json(
+        chatPath(
+          `sessions/${encodeURIComponent(sessionId)}/activity?message_page_size=100&queue_page_size=25`,
+        ),
+        ConversationSnapshotSchema,
+      ),
+    async searchChatKit(query, sessionId, nextPageToken) {
+      const parameters = new URLSearchParams({ q: query.trim(), page_size: "25" });
+      if (sessionId) parameters.set("session_id", sessionId);
+      if (nextPageToken) parameters.set("next_page_token", nextPageToken);
+      return await json(chatPath(`search?${parameters}`), ChatKitSearchPageSchema);
     },
     async getAgentSessions(agentId, nextPageToken, sessionSort = "updated_at") {
       const parameters = new URLSearchParams({ page_size: "25", session_sort: sessionSort });
       if (nextPageToken) parameters.set("next_page_token", nextPageToken);
       return await json(
-        chatPath(`mission-control/agents/${encodeURIComponent(agentId)}/sessions?${parameters}`),
+        chatPath(`agents/${encodeURIComponent(agentId)}/sessions?${parameters}`),
         ChatSessionPageSchema,
       );
     },
-    async createSession(agentId, title) {
-      const response = await json(
-        chatPath(`mission-control/agents/${encodeURIComponent(agentId)}/sessions`),
-        SessionEnvelopeSchema,
-        { method: "POST", body: JSON.stringify({ title: title || null }) },
-      );
+    async createSession(agentId, input) {
+      const response = await json(chatPath("sessions"), SessionEnvelopeSchema, {
+        method: "POST",
+        body: JSON.stringify({
+          agent_id: agentId,
+          title: input?.title || null,
+          lookup_key: input?.lookupKey || null,
+        }),
+      });
       return response.session;
     },
     renameSession: (sessionId, title) =>
-      json(
-        chatPath(`mission-control/sessions/${encodeURIComponent(sessionId)}/rename`),
-        ChatSessionSchema,
-        {
-          method: "PATCH",
-          body: JSON.stringify({ title }),
-        },
-      ),
+      json(chatPath(`sessions/${encodeURIComponent(sessionId)}`), ChatSessionSchema, {
+        method: "PATCH",
+        body: JSON.stringify({ title }),
+      }),
     markSessionUnread: (sessionId) =>
-      json(
-        chatPath(`mission-control/sessions/${encodeURIComponent(sessionId)}/mark-unread`),
-        ChatSessionSchema,
-        { method: "POST" },
-      ),
+      json(chatPath(`sessions/${encodeURIComponent(sessionId)}/unread`), ChatSessionSchema, {
+        method: "POST",
+      }),
     interruptSession: (sessionId) =>
-      empty(chatPath(`mission-control/sessions/${encodeURIComponent(sessionId)}/interrupt`), {
+      empty(chatPath(`sessions/${encodeURIComponent(sessionId)}/interrupt`), {
         method: "POST",
       }),
     async getMessages(sessionId, nextPageToken) {
       const parameters = new URLSearchParams({ page_size: "100" });
       if (nextPageToken) parameters.set("next_page_token", nextPageToken);
       return await json(
-        chatPath(
-          `mission-control/sessions/${encodeURIComponent(sessionId)}/messages?${parameters}`,
-        ),
+        chatPath(`sessions/${encodeURIComponent(sessionId)}/messages?${parameters}`),
         ChatMessagePageSchema,
       );
     },
     sendMessage: (agentId, sessionId, text, attachmentIds = []) =>
       json(
         chatPath(
-          `mission-control/agents/${encodeURIComponent(agentId)}/sessions/${encodeURIComponent(sessionId)}/messages`,
+          `agents/${encodeURIComponent(agentId)}/sessions/${encodeURIComponent(sessionId)}/messages`,
         ),
         ChatMessagePageSchema,
         { method: "POST", body: JSON.stringify({ text, attachment_ids: attachmentIds }) },
       ),
+    submitTurn: (agentId, input) =>
+      json(chatPath(`agents/${encodeURIComponent(agentId)}/turns`), SubmitTurnResponseSchema, {
+        method: "POST",
+        body: JSON.stringify({
+          session_id: input.sessionId ?? null,
+          title: input.title ?? null,
+          text: input.text,
+          attachments: (input.attachments ?? []).map((attachment) => ({
+            attachment_id: attachment.attachmentId,
+            size_bytes: attachment.sizeBytes ?? null,
+            sha256: attachment.sha256 ?? null,
+          })),
+        }),
+      }),
     async observeMissionControl(signal, onEvent, onReady) {
       const createWebSocket =
         options.createWebSocket ??
@@ -519,6 +582,17 @@ export function createOpenBotClient(options: OpenBotClientOptions = {}): OpenBot
       const response = await json(`/api/connectors/accounts${query}`, ConnectorAccountPageSchema);
       return response.items;
     },
+    waitForConnectorAccount: (accountId) =>
+      json(
+        `/api/connectors/accounts/${encodeURIComponent(accountId)}/wait`,
+        z.object({
+          id: z.string(),
+          display_name: z.string(),
+          status: z.string(),
+          provider_type_id: z.string().optional(),
+          credential_source_type_id: z.string().optional(),
+        }),
+      ),
     createConnectorAccount: (input) =>
       json("/api/connectors/accounts", CreateConnectorAccountResultSchema, {
         method: "POST",
@@ -531,6 +605,18 @@ export function createOpenBotClient(options: OpenBotClientOptions = {}): OpenBot
           return_url: input.returnUrl ?? null,
         }),
       }),
+    bindConnector: (agentId, accountId) =>
+      empty("/api/connectors/bind", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ agent_id: agentId, account_id: accountId }),
+      }),
+    async deleteConnectorAccounts(accountIds) {
+      await json("/api/connectors/accounts", PluginMutationResultSchema, {
+        method: "DELETE",
+        body: JSON.stringify({ account_ids: accountIds }),
+      });
+    },
     getPluginsCatalog(agentIds) {
       const parameters = new URLSearchParams();
       for (const agentId of agentIds) parameters.append("agent_id", agentId);
@@ -565,6 +651,24 @@ export function createOpenBotClient(options: OpenBotClientOptions = {}): OpenBot
           }),
         },
       ),
+    async createAttachments(sessionId, inputs) {
+      const response = await json(
+        chatPath(`session/${encodeURIComponent(sessionId)}/attachments/upload`),
+        z.object({ items: z.array(AttachmentUploadSchema) }),
+        {
+          method: "POST",
+          body: JSON.stringify({
+            items: inputs.map((input) => ({
+              filename: input.filename,
+              media_type: input.mediaType,
+              size_bytes: input.sizeBytes,
+              sha256: input.sha256,
+            })),
+          }),
+        },
+      );
+      return response.items;
+    },
     completeAttachment: (sessionId, attachmentId, input) =>
       json(
         chatPath(

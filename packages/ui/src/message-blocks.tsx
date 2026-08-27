@@ -20,12 +20,21 @@ export type MessageSegment =
 
 export function splitMessageSegments(parts: readonly MessagePart[]): MessageSegment[] {
   const segments: MessageSegment[] = [];
-  for (const part of parts) {
+  for (const [index, part] of parts.entries()) {
     const previous = segments.at(-1);
     if (part.type === "step-start") continue;
     if (part.type === "text") {
       const text = part.text ?? "";
       if (!text.trim()) continue;
+      const followedByTool = parts
+        .slice(index + 1)
+        .some((candidate) => isToolPart(candidate) && !isConnectorSelectionPart(candidate));
+      if (followedByTool) {
+        const activityPart = { ...part, type: "reasoning" };
+        if (previous?.kind === "run") previous.parts.push(activityPart);
+        else segments.push({ kind: "run", parts: [activityPart] });
+        continue;
+      }
       if (previous?.kind === "text") previous.text += `\n\n${text}`;
       else segments.push({ kind: "text", text });
       continue;

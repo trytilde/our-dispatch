@@ -101,6 +101,28 @@ describe("non-interactive initialization prompts", () => {
     ).toThrow("Missing required non-interactive answer: vercel-token");
   });
 
+  it("accepts managed Tilde Cloud answers without GitHub or a persisted Vercel token", () => {
+    expect(() =>
+      validateNonInteractiveCoreAnswers(
+        {
+          "owner-identity": "managed-file",
+          "managed-owner-identity-path": "/workspace/.openbot/owner-age-key",
+          runtime: "tilde-cloud",
+          inference: "vercel",
+          "vercel-runtime-project": "openbot-research",
+          "openbot-hosted-instance-id": "hosted-openbot-research",
+          "openbot-hosted-computer-id": "openbot-research",
+          "openbot-hosted-computer-service-url": "https://computer.test/rpc",
+          "tilde-api-key": "instance-key",
+          "tilde-org-id": "org-one",
+          "tilde-team-id": "openbot-research",
+          "openbot-deployment-name": "Research",
+        },
+        { existingRepository: true },
+      ),
+    ).not.toThrow();
+  });
+
   it("publishes a described JSON schema with provider-defined questions", () => {
     const schema = initializationJsonSchema() as {
       properties: Record<string, Record<string, unknown>>;
@@ -121,7 +143,11 @@ describe("non-interactive initialization prompts", () => {
     );
     expect(schema.properties["vercel-agent-project"]).toBeUndefined();
     expect(schema.properties["tilde-api-key"]?.["x-openbot-provider"]).toBe("Tilde");
-    expect(schema.properties["tilde-api-key"]?.["x-openbot-runtimes"]).toEqual(["local", "vercel"]);
+    expect(schema.properties["tilde-api-key"]?.["x-openbot-runtimes"]).toEqual([
+      "local",
+      "vercel",
+      "tilde-cloud",
+    ]);
     for (const [field, definition] of Object.entries(schema.properties))
       expect(definition.description, `${field} must have a description`).toEqual(
         expect.any(String),

@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { PanelRightIcon } from "lucide-react";
+import { WaypointsIcon } from "lucide-react";
 import { AgentAvatar } from "./agent-avatar.js";
 import { LoaderGrid, useElapsed } from "./beautiful-ui/blocks/loader-grid.js";
 import { ComputerIcon, MoreIcon, ReplyIcon } from "./workspace-icons.js";
@@ -40,12 +40,12 @@ export function ChatHeader({
         {onToggleDetails ? (
           <button
             aria-expanded={detailsOpen}
-            aria-label="Toggle details"
+            aria-label="Toggle routines"
             className={detailsOpen ? "active" : ""}
             onClick={onToggleDetails}
-            title="Toggle details (Ctrl+Alt+D)"
+            title="Toggle routines (Ctrl+Alt+D)"
           >
-            <PanelRightIcon aria-hidden />
+            <WaypointsIcon aria-hidden />
           </button>
         ) : null}
         <button

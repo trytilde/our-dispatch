@@ -1,6 +1,10 @@
 import { expect, test, type Page } from "@playwright/test";
 import { seedCompletedOnboarding } from "./onboarding-state.js";
 
+function chatKitActivity(items: unknown[]) {
+  return { activity: { items }, active_session_id: null, active_conversation: null };
+}
+
 // Every test but the first-run one wants the workspace, so skip onboarding by seeding
 // the persisted state the client runtime reads.
 test.beforeEach(async ({ page }) => {
@@ -32,9 +36,10 @@ test("loads the bare workspace without setup", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByRole("heading", { name: "What should OpenBot do?" })).toHaveCount(0);
   await expect(page.locator(".rail")).toHaveCSS("width", "400px");
-  await expect(page.locator(".agent-workspace-pane")).toHaveCSS("width", "0px");
+  await expect(page.locator(".agent-workspace-pane")).toBeHidden();
   await page.getByRole("button", { name: "Toggle Computer pane" }).click();
-  await expect(page.locator(".agent-workspace-pane")).toHaveCSS("width", "320px");
+  await expect(page.locator(".agent-workspace-pane")).toHaveCSS("position", "absolute");
+  await expect(page.getByRole("separator", { name: "Resize Computer pane" })).toHaveCount(0);
   await expect(page.locator(".chat-pane > header")).toHaveCSS("height", "38px");
   await page.keyboard.press("Control+b");
   await expect(page.locator(".rail")).toHaveCSS("width", "88px");
@@ -53,42 +58,158 @@ test("loads the bare workspace without setup", async ({ page }) => {
   await page.mouse.up();
   await expect(page.locator(".rail")).toHaveCSS("width", "460px");
 
-  const workspaceHandle = await page
-    .getByRole("separator", { name: "Resize Computer pane" })
-    .boundingBox();
-  if (!workspaceHandle) throw new Error("Computer resize handle is not visible");
-  const workspaceHandleX = workspaceHandle.x + workspaceHandle.width / 2;
-  await page.mouse.move(workspaceHandleX, workspaceHandle.y + 120);
-  await page.mouse.down();
-  await page.mouse.move(workspaceHandleX - 40, workspaceHandle.y + 120);
-  await page.mouse.up();
-  await expect(page.locator(".agent-workspace-pane")).toHaveCSS("width", "360px");
+  const chatBounds = await page.locator(".chat-pane").boundingBox();
+  const previewBounds = await page.locator(".agent-workspace-pane").boundingBox();
+  if (!chatBounds || !previewBounds) throw new Error("Floating Computer layout is not visible");
+  expect(previewBounds.width).toBeGreaterThanOrEqual(240);
+  expect(previewBounds.width).toBeLessThanOrEqual(320);
+  expect(previewBounds.x + previewBounds.width).toBeCloseTo(
+    chatBounds.x + chatBounds.width - 16,
+    0,
+  );
+  expect(previewBounds.y + previewBounds.height).toBeCloseTo(704, 0);
 
   await page.reload();
   await expect(page.locator(".rail")).toHaveCSS("width", "460px");
-  await expect(page.locator(".agent-workspace-pane")).toHaveCSS("width", "360px");
+  await expect(page.locator(".agent-workspace-pane")).toBeVisible();
   await page.keyboard.press("Control+b");
   await expect(page.locator(".rail")).toHaveCSS("width", "88px");
   await page.keyboard.press("Control+b");
   await expect(page.locator(".rail")).toHaveCSS("width", "460px");
   await page.keyboard.press("Control+Alt+b");
-  await expect(page.locator(".agent-workspace-pane")).toHaveCSS("width", "0px");
+  await expect(page.locator(".agent-workspace-pane")).toBeHidden();
   await page.keyboard.press("Control+Alt+b");
-  await expect(page.locator(".agent-workspace-pane")).toHaveCSS("width", "360px");
+  await expect(page.locator(".agent-workspace-pane")).toBeVisible();
   await expect(page.getByLabel("Setup code")).toHaveCount(0);
 
   await page.setViewportSize({ width: 960, height: 720 });
-  await expect(page.locator(".rail")).toHaveCSS("width", "88px");
-  await expect(page.locator(".agent-workspace-pane")).toHaveCSS("display", "grid");
-  await expect(page.locator(".agent-workspace-pane")).toHaveCSS("width", "360px");
+  await expect(page.locator(".rail")).toHaveCSS("width", "460px");
+  await expect(page.locator(".agent-workspace-pane")).toHaveCSS("position", "absolute");
+  await expect(page.locator(".agent-workspace-pane")).toHaveCSS("width", "240px");
   await expect(page.locator("body")).toHaveJSProperty("scrollWidth", 960);
 
   await page.setViewportSize({ width: 820, height: 720 });
-  await expect(page.locator(".agent-workspace-pane")).toHaveCSS("position", "fixed");
+  await expect(page.locator(".agent-workspace-pane")).toHaveCSS("position", "absolute");
   await expect(page.locator("body")).toHaveJSProperty("scrollWidth", 820);
+
+  await page.setViewportSize({ width: 700, height: 720 });
+  await expect(page.locator(".agent-workspace-pane")).toHaveCSS("position", "fixed");
+  await expect(page.locator(".agent-workspace-pane")).toHaveCSS("width", "420px");
+  await expect(page.locator("body")).toHaveJSProperty("scrollWidth", 700);
 
   await page.goto("/api/setup/unlock");
   await expect(page.getByRole("heading", { name: "What should OpenBot do?" })).toHaveCount(0);
+});
+
+test("lists the user's continuous chat and the agent's named threads", async ({ page }) => {
+  const messageRequests: string[] = [];
+  const defaultUpdatedAt = "2026-08-25T08:00:00.000Z";
+  await page.route("**/api/chat/**", async (route) => {
+    const path = new URL(route.request().url()).pathname;
+    if (path === "/api/chat/activity") {
+      await route.fulfill({
+        json: chatKitActivity([
+          {
+            id: "hello-world",
+            display_name: "Hello World",
+            provider_id: "chatkit.http-vercel-ai-sdk",
+            status: "enabled",
+            sessions: {
+              items: [
+                {
+                  id: "older-thread",
+                  title: "Older investigation",
+                  created_at: "2026-08-23T08:00:00.000Z",
+                  updated_at: "2026-08-23T08:00:00.000Z",
+                },
+                {
+                  id: "user-session",
+                  lookup_key: "openbot:user:e2e-owner:agent:hello-world",
+                  title: "Legacy title is not shown",
+                  created_at: defaultUpdatedAt,
+                  updated_at: defaultUpdatedAt,
+                },
+                {
+                  id: "newer-thread",
+                  title: "Release planning",
+                  created_at: "2026-08-24T08:00:00.000Z",
+                  updated_at: "2026-08-24T08:00:00.000Z",
+                },
+              ],
+            },
+          },
+        ]),
+      });
+      return;
+    }
+    if (path.endsWith("/agent-turn-queue")) {
+      await route.fulfill({ json: { items: [] } });
+      return;
+    }
+    if (path.endsWith("/activity")) {
+      const sessionId = path.split("/").at(-2) ?? "";
+      messageRequests.push(sessionId);
+      await route.fulfill({
+        json: {
+          messages: {
+            items: [
+              {
+                id: `message-${sessionId}`,
+                type: "ui",
+                role: "assistant",
+                session_id: sessionId,
+                created_at: defaultUpdatedAt,
+                parts: [{ type: "text", text: `Opened ${sessionId}` }],
+              },
+            ],
+          },
+          queued_turns: { items: [] },
+          snapshot_revision: 0,
+        },
+      });
+      return;
+    }
+    if (path.endsWith("/messages")) {
+      const sessionId = path.split("/").at(-2) ?? "";
+      messageRequests.push(sessionId);
+      await route.fulfill({
+        json: {
+          items: [
+            {
+              id: `message-${sessionId}`,
+              type: "ui",
+              role: "assistant",
+              session_id: sessionId,
+              created_at: defaultUpdatedAt,
+              parts: [{ type: "text", text: `Opened ${sessionId}` }],
+            },
+          ],
+        },
+      });
+      return;
+    }
+    await route.fulfill({ status: 404, json: { error: `Unhandled route ${path}` } });
+  });
+  await routeMissionControlSocket(page, []);
+
+  await page.goto("/");
+
+  const rows = page.locator("[data-menu-row]");
+  await expect(rows).toHaveCount(3);
+  await expect(rows.nth(0)).toContainText("bot");
+  await expect(rows.nth(0)).toContainText("Hello World");
+  await expect(rows.nth(0)).not.toContainText("Legacy title is not shown");
+  await expect(rows.nth(1)).toContainText("thread");
+  await expect(rows.nth(1)).toContainText("Release planning");
+  await expect(rows.nth(2)).toContainText("Older investigation");
+  await expect.poll(() => messageRequests).toEqual(["user-session"]);
+
+  await rows.nth(1).click();
+  await expect.poll(() => messageRequests).toContain("newer-thread");
+  await expect(
+    page.locator(".message-list").getByText("Opened newer-thread", { exact: true }),
+  ).toBeVisible();
+  await expect(rows.nth(1)).toHaveAttribute("aria-current", "page");
 });
 
 test("opens a routine and persists its active state", async ({ page }) => {
@@ -127,8 +248,16 @@ test("opens a routine and persists its active state", async ({ page }) => {
   });
 
   await page.goto("/");
-  await page.getByRole("button", { name: "Toggle details" }).click();
-  await expect(page.getByRole("complementary", { name: "Details" })).toBeVisible();
+  await page.getByRole("button", { name: "Toggle routines" }).click();
+  const routinesPanel = page.getByRole("complementary", { name: "Routines" });
+  await expect(routinesPanel).toBeVisible();
+  const addRoutine = routinesPanel.getByRole("button", { name: "Add" });
+  await expect(addRoutine).toBeVisible();
+  await expect(routinesPanel.getByRole("button", { name: "Close routines" })).toBeVisible();
+  await addRoutine.click();
+  await expect(page.getByRole("complementary", { name: "Routine" })).toBeVisible();
+  await expect(page.getByPlaceholder("Name this routine")).toBeVisible();
+  await page.getByRole("button", { name: "Back to Routines" }).click();
   await page.getByRole("button", { name: /Daily briefing/ }).click();
   const active = page.getByRole("switch", { name: "Active" });
   await expect(active).toBeChecked();
@@ -155,8 +284,9 @@ test("shows authenticated account details and account navigation on hover", asyn
   await accountButton.hover();
   const accountMenu = page.getByRole("menu", { name: "Account" });
   await expect(accountMenu).toBeVisible();
-  await expect(accountMenu.getByText("owner@example.com", { exact: true })).toBeVisible();
+  await expect(accountMenu.getByText("owner@example.com", { exact: true })).toHaveCount(0);
   await expect(accountMenu.getByText("OpenBot · Tilde", { exact: true })).toBeVisible();
+  await expect(accountMenu.getByRole("separator")).toHaveCount(1);
   await expect(accountMenu.getByRole("menuitem")).toHaveText([
     "Plugins",
     "Settings",
@@ -282,6 +412,7 @@ test("streams rich messages and uploads a file through Tilde ChatKit", async ({ 
       parts: [{ type: "text", text: "Ready when you are." }],
     },
   ];
+  let sessionSnapshotRequests = 0;
 
   await page.route("**/api/computer/**", async (route) => {
     computerPreviewRequests += 1;
@@ -309,45 +440,44 @@ test("streams rich messages and uploads a file through Tilde ChatKit", async ({ 
   await page.route("**/api/chat/**", async (route) => {
     const request = route.request();
     const path = new URL(request.url()).pathname;
-    if (path.endsWith("/mission-control/sidebar")) {
+    if (path === "/api/chat/activity") {
       await route.fulfill({
-        json: {
-          items: [
-            {
-              id: "hello-world",
-              display_name: "Hello World",
-              provider_id: "chatkit.http-vercel-ai-sdk",
-              status: "enabled",
-              sessions: {
-                items: [
-                  {
-                    id: "session-one",
-                    title: "Working session",
-                    created_at: now,
-                    updated_at: now,
-                    unread: true,
-                  },
-                ],
-              },
+        json: chatKitActivity([
+          {
+            id: "hello-world",
+            display_name: "Hello World",
+            provider_id: "chatkit.http-vercel-ai-sdk",
+            status: "enabled",
+            sessions: {
+              items: [
+                {
+                  id: "session-one",
+                  title: "Working session",
+                  created_at: now,
+                  updated_at: now,
+                  unread: true,
+                },
+              ],
             },
-            {
-              id: "researcher",
-              display_name: "Researcher",
-              provider_id: "chatkit.http-vercel-ai-sdk",
-              status: "enabled",
-              sessions: {
-                items: [
-                  {
-                    id: "research-session",
-                    title: "Research session",
-                    created_at: now,
-                    updated_at: now,
-                  },
-                ],
-              },
+          },
+          {
+            id: "researcher",
+            display_name: "Researcher",
+            provider_id: "chatkit.http-vercel-ai-sdk",
+            status: "enabled",
+            last_message_preview: "Research cached preview",
+            sessions: {
+              items: [
+                {
+                  id: "research-session",
+                  title: "Research session",
+                  created_at: now,
+                  updated_at: now,
+                },
+              ],
             },
-          ],
-        },
+          },
+        ]),
       });
       return;
     }
@@ -374,6 +504,70 @@ test("streams rich messages and uploads a file through Tilde ChatKit", async ({ 
       await route.fulfill({ status: 204 });
       return;
     }
+    if (path.endsWith("/activity")) {
+      if (path.includes("/research-session/")) {
+        researchMessageRequests += 1;
+        await researchMessagesReady;
+        await route.fulfill({
+          json: {
+            messages: {
+              items: [
+                {
+                  id: "research-message",
+                  type: "ui",
+                  role: "assistant",
+                  session_id: "research-session",
+                  user_display_name: "Researcher",
+                  created_at: now,
+                  parts: [{ type: "text", text: "Research cached preview" }],
+                },
+              ],
+            },
+            queued_turns: { items: [] },
+            snapshot_revision: 0,
+          },
+        });
+        return;
+      }
+      sessionSnapshotRequests += 1;
+      if (sessionSnapshotRequests > 1 && !messages.some((message) => message.id === "stream-one")) {
+        messages = [
+          ...messages,
+          {
+            id: "stream-one",
+            type: "ui",
+            role: "assistant",
+            session_id: "session-one",
+            user_display_name: "Hello World",
+            created_at: now,
+            parts: [{ type: "text", text: "Streaming preview" }],
+          },
+        ];
+      }
+      await route.fulfill({
+        json: {
+          messages: { items: messages },
+          queued_turns: {
+            items: [
+              {
+                id: "queue-one",
+                session_id: "session-one",
+                queue_position: 1,
+                status: "pending",
+                chat_request: {
+                  messages: [
+                    { role: "user", content: [{ type: "text", text: "Queued follow-up" }] },
+                  ],
+                },
+                created_at: now,
+              },
+            ],
+          },
+          snapshot_revision: 0,
+        },
+      });
+      return;
+    }
     if (path.endsWith("/messages") && request.method() === "GET") {
       if (path.includes("/research-session/")) {
         researchMessageRequests += 1;
@@ -398,13 +592,17 @@ test("streams rich messages and uploads a file through Tilde ChatKit", async ({ 
       await route.fulfill({ json: { items: messages } });
       return;
     }
-    if (path.endsWith("/attachment/upload")) {
+    if (path.endsWith("/attachments/upload")) {
       await route.fulfill({
         json: {
-          attachment: { id: "attachment-one", media_type: "text/plain", status: "pending" },
-          upload_url:
-            "https://api.trytilde.ai/api/v1/team/e2e-team/chatkit/session/session-one/attachment/attachment-one/content",
-          upload_headers: { "content-type": "text/plain" },
+          items: [
+            {
+              attachment: { id: "attachment-one", media_type: "text/plain", status: "pending" },
+              upload_url:
+                "https://api.trytilde.ai/api/v1/team/e2e-team/chatkit/session/session-one/attachment/attachment-one/content",
+              upload_headers: { "content-type": "text/plain" },
+            },
+          ],
         },
       });
       return;
@@ -419,7 +617,7 @@ test("streams rich messages and uploads a file through Tilde ChatKit", async ({ 
       });
       return;
     }
-    if (path.endsWith("/messages") && request.method() === "POST") {
+    if (path.endsWith("/turns") && request.method() === "POST") {
       messages = [
         ...messages,
         {
@@ -447,6 +645,7 @@ test("streams rich messages and uploads a file through Tilde ChatKit", async ({ 
           user_display_name: "Hello World",
           created_at: now,
           parts: [
+            { type: "text", text: "I’ll inspect the attachment before answering." },
             { type: "reasoning", text: "Inspecting the attachment", state: "done" },
             {
               type: "tool",
@@ -479,7 +678,21 @@ test("streams rich messages and uploads a file through Tilde ChatKit", async ({ 
           ],
         },
       ];
-      await route.fulfill({ json: { items: messages } });
+      await route.fulfill({
+        json: {
+          session: {
+            id: "session-one",
+            title: "Working session",
+            created_at: now,
+            updated_at: now,
+          },
+          conversation: {
+            messages: { items: messages },
+            queued_turns: { items: [] },
+            snapshot_revision: 0,
+          },
+        },
+      });
       return;
     }
     await route.fulfill({ status: 404, json: { error: `Unhandled ${request.method()} ${path}` } });
@@ -580,7 +793,7 @@ test("streams rich messages and uploads a file through Tilde ChatKit", async ({ 
   await accountButton.hover();
   const accountMenu = page.getByRole("menu", { name: "Account" });
   await expect(accountMenu).toBeVisible();
-  await expect(accountMenu.getByText("owner@example.com", { exact: true })).toBeVisible();
+  await expect(accountMenu.getByText("owner@example.com", { exact: true })).toHaveCount(0);
   await expect(accountMenu.getByText("OpenBot · Tilde", { exact: true })).toBeVisible();
   await expect(accountMenu.getByRole("menuitem")).toHaveText([
     "Plugins",
@@ -623,7 +836,10 @@ test("streams rich messages and uploads a file through Tilde ChatKit", async ({ 
   await expect(page.locator(".rail")).toHaveCSS("width", "400px");
   await expect(page.locator("[data-menu-row] strong").first()).toBeVisible();
   await expect(page.getByText("Working session")).toHaveCount(0);
-  await expect(page.getByText("Ready when you are.")).toBeVisible();
+  await expect(page.locator(".message-list").getByText("Ready when you are.")).toBeVisible();
+  await expect(
+    page.locator(".message-list").getByText("Streaming preview", { exact: true }),
+  ).toBeVisible();
   await expect(page.locator(".message-list")).toHaveCSS("width", /\d+px/);
   const conversationWidth = await page.locator(".conversation").evaluate((element) => {
     const style = getComputedStyle(element);
@@ -652,7 +868,7 @@ test("streams rich messages and uploads a file through Tilde ChatKit", async ({ 
   await expect.poll(() => computerPreviewRequests).toBe(1);
   await expect(page.locator(".agent-workspace-pane")).toHaveCSS(
     "transition-duration",
-    "0.09s, 0.2s, 0s",
+    "0.12s, 0.18s, 0s",
   );
   // ComputerStagePlaceholder is exported but rendered nowhere in apps/web, so the boot
   // message and its progress bar never appear. Held in the pending test below.
@@ -685,6 +901,14 @@ test("streams rich messages and uploads a file through Tilde ChatKit", async ({ 
   ).toHaveCount(1);
   await expect(page.getByText("Queued follow-up")).toBeVisible();
   await expect(page.getByRole("button", { name: "Steer queued message" })).toBeVisible();
+  const [queueBounds, floatingPreviewBounds] = await Promise.all([
+    page.getByRole("region", { name: "Queued messages" }).boundingBox(),
+    page.getByRole("complementary", { name: "Computer preview" }).boundingBox(),
+  ]);
+  if (!queueBounds || !floatingPreviewBounds) {
+    throw new Error("Queued messages and floating Computer preview are not visible");
+  }
+  expect(queueBounds.x + queueBounds.width).toBeLessThanOrEqual(floatingPreviewBounds.x - 16);
   await page.getByRole("button", { name: "Edit queued message" }).click();
   await expect(page.getByRole("textbox", { name: "Message", exact: true })).toHaveValue(
     "Queued follow-up",
@@ -701,6 +925,14 @@ test("streams rich messages and uploads a file through Tilde ChatKit", async ({ 
   await expect(
     page.locator(".message-list").getByText("The file is clear and complete.", { exact: true }),
   ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: /Thinking I’ll inspect the attachment before answering/ }),
+  ).toBeVisible();
+  await expect(
+    page
+      .getByLabel("Agent message")
+      .filter({ hasText: "I’ll inspect the attachment before answering." }),
+  ).toHaveCount(0);
   await expect(page.getByText("Read this file", { exact: true })).toBeVisible();
   await expect(page.getByText("Read file")).toBeVisible();
   await page.getByRole("button", { name: /screenshot.png/ }).click();
@@ -767,55 +999,53 @@ test("creates a bot and sends its first message", async ({ page }) => {
   await page.route("**/api/chat/**", async (route) => {
     const request = route.request();
     const path = new URL(route.request().url()).pathname;
-    if (path.endsWith("/mission-control/sidebar")) {
+    if (path === "/api/chat/activity") {
       await route.fulfill({
-        json: {
-          items: [
-            {
-              id: "hello-world",
-              display_name: "Hello World",
-              provider_id: "chatkit.http-vercel-ai-sdk",
-              status: "enabled",
-              sessions: {
-                items: [
-                  {
-                    id: "hello-session",
-                    title: "Hello session",
-                    created_at: now,
-                    updated_at: now,
-                  },
-                ],
-              },
+        json: chatKitActivity([
+          {
+            id: "hello-world",
+            display_name: "Hello World",
+            provider_id: "chatkit.http-vercel-ai-sdk",
+            status: "enabled",
+            sessions: {
+              items: [
+                {
+                  id: "hello-session",
+                  title: "Hello session",
+                  created_at: now,
+                  updated_at: now,
+                },
+              ],
             },
-            {
-              id: "researcher",
-              display_name: "Researcher",
-              provider_id: "chatkit.http-vercel-ai-sdk",
-              status: "enabled",
-              sessions: {
-                items: [
-                  {
-                    id: "research-session",
-                    title: "Research session",
-                    created_at: now,
-                    updated_at: now,
-                  },
-                ],
-              },
+          },
+          {
+            id: "researcher",
+            display_name: "Researcher",
+            provider_id: "chatkit.http-vercel-ai-sdk",
+            status: "enabled",
+            sessions: {
+              items: [
+                {
+                  id: "research-session",
+                  title: "Research session",
+                  created_at: now,
+                  updated_at: now,
+                },
+              ],
             },
-            ...(created
-              ? [
-                  {
-                    id: "reviewer",
-                    display_name: "Reviewer",
-                    provider_id: "chatkit.http-vercel-ai-sdk",
-                    status: "enabled",
-                    sessions: { items: [] },
-                  },
-                ]
-              : []),
-          ],
-        },
+          },
+          ...(created
+            ? [
+                {
+                  id: "reviewer",
+                  display_name: "Reviewer",
+                  provider_id: "chatkit.http-vercel-ai-sdk",
+                  status: "enabled",
+                  sessions: { items: [] },
+                },
+              ]
+            : []),
+        ]),
       });
       return;
     }
@@ -827,7 +1057,7 @@ test("creates a bot and sends its first message", async ({ page }) => {
       await route.fulfill({ json: { items: [] } });
       return;
     }
-    if (request.method() === "POST" && path.endsWith("/mission-control/agents/reviewer/sessions")) {
+    if (request.method() === "POST" && path === "/api/chat/sessions") {
       await route.fulfill({
         json: {
           session: {
@@ -840,25 +1070,35 @@ test("creates a bot and sends its first message", async ({ page }) => {
       });
       return;
     }
-    if (path.endsWith("/messages")) {
-      if (request.method() === "POST") {
-        const body = request.postDataJSON() as { text?: string };
-        firstMessage = body.text ?? "";
-        await route.fulfill({
-          json: {
-            items: [
-              {
-                id: "reviewer-message",
-                type: "message",
-                role: "user",
-                session_id: "reviewer-session",
-                text: firstMessage,
-                created_at: now,
-              },
-            ],
+    if (path.endsWith("/turns") && request.method() === "POST") {
+      const body = request.postDataJSON() as { text?: string };
+      firstMessage = body.text ?? "";
+      await route.fulfill({
+        json: {
+          session: {
+            id: "reviewer-session",
+            title: "Hello from the test",
+            created_at: now,
+            updated_at: now,
           },
-        });
-      } else await route.fulfill({ json: { items: [] } });
+          conversation: {
+            messages: {
+              items: [
+                {
+                  id: "reviewer-message",
+                  type: "message",
+                  role: "user",
+                  session_id: "reviewer-session",
+                  text: firstMessage,
+                  created_at: now,
+                },
+              ],
+            },
+            queued_turns: { items: [] },
+            snapshot_revision: 0,
+          },
+        },
+      });
       return;
     }
     await route.fulfill({ json: {} });
@@ -901,20 +1141,37 @@ test("queues another turn while the agent is busy", async ({ page }) => {
     const request = route.request();
     const url = new URL(request.url());
     const path = url.pathname;
-    if (path.endsWith("/mission-control/sidebar")) {
+    if (path === "/api/chat/activity") {
+      await route.fulfill({
+        json: chatKitActivity([
+          {
+            id: "busy-agent",
+            display_name: "Busy Agent",
+            provider_id: "chatkit.http-vercel-ai-sdk",
+            status: "enabled",
+            sessions: {
+              items: [
+                { id: "busy-session", title: "Busy session", created_at: now, updated_at: now },
+              ],
+            },
+          },
+        ]),
+      });
+      return;
+    }
+    if (path.endsWith("/search")) {
       await route.fulfill({
         json: {
           items: [
             {
-              id: "busy-agent",
-              display_name: "Busy Agent",
-              provider_id: "chatkit.http-vercel-ai-sdk",
-              status: "enabled",
-              sessions: {
-                items: [
-                  { id: "busy-session", title: "Busy session", created_at: now, updated_at: now },
-                ],
+              kind: "agent",
+              session: {
+                id: "busy-session",
+                title: "Busy session",
+                created_at: now,
+                updated_at: now,
               },
+              agent: { id: "busy-agent", display_name: "Busy Agent" },
             },
           ],
         },
@@ -980,7 +1237,7 @@ test("queues another turn while the agent is busy", async ({ page }) => {
 test("configures a connector through the in-chat account picker", async ({ page }) => {
   await page.addInitScript(() => localStorage.setItem("openbot.onboarding-seen", "true"));
   const now = new Date().toISOString();
-  const sentMessages: string[] = [];
+  const connectorBindRequests: Array<Record<string, unknown>> = [];
   const transcript: Array<Record<string, unknown>> = [
     {
       id: "message-picker",
@@ -1032,7 +1289,13 @@ test("configures a connector through the in-chat account picker", async ({ page 
 
   await page.route("**/api/connectors/**", async (route) => {
     const request = route.request();
-    if (request.method() === "POST") {
+    const path = new URL(request.url()).pathname;
+    if (path.endsWith("/api/connectors/bind") && request.method() === "POST") {
+      connectorBindRequests.push(request.postDataJSON() as Record<string, unknown>);
+      await route.fulfill({ json: { bound: true } });
+      return;
+    }
+    if (path.endsWith("/api/connectors/accounts") && request.method() === "POST") {
       connectorAccountRequests.push(request.postDataJSON() as Record<string, unknown>);
       await route.fulfill({
         status: 201,
@@ -1049,7 +1312,7 @@ test("configures a connector through the in-chat account picker", async ({ page 
       });
       return;
     }
-    if (new URL(request.url()).pathname.endsWith("/api/connectors/providers")) {
+    if (path.endsWith("/api/connectors/providers")) {
       await route.fulfill({
         json: {
           items: [
@@ -1083,23 +1346,19 @@ test("configures a connector through the in-chat account picker", async ({ page 
   await page.route("**/api/chat/**", async (route) => {
     const request = route.request();
     const path = new URL(request.url()).pathname;
-    if (path.endsWith("/mission-control/sidebar")) {
+    if (path === "/api/chat/activity") {
       await route.fulfill({
-        json: {
-          items: [
-            {
-              id: "hello-world",
-              display_name: "Hello World",
-              provider_id: "chatkit.http-vercel-ai-sdk",
-              status: "enabled",
-              sessions: {
-                items: [
-                  { id: "session-one", title: "Connectors", created_at: now, updated_at: now },
-                ],
-              },
+        json: chatKitActivity([
+          {
+            id: "hello-world",
+            display_name: "Hello World",
+            provider_id: "chatkit.http-vercel-ai-sdk",
+            status: "enabled",
+            sessions: {
+              items: [{ id: "session-one", title: "Connectors", created_at: now, updated_at: now }],
             },
-          ],
-        },
+          },
+        ]),
       });
       return;
     }
@@ -1111,21 +1370,17 @@ test("configures a connector through the in-chat account picker", async ({ page 
       await route.fulfill({ json: { items: [] } });
       return;
     }
-    if (path.endsWith("/messages") && request.method() === "GET") {
-      await route.fulfill({ json: { items: transcript } });
+    if (path.endsWith("/activity")) {
+      await route.fulfill({
+        json: {
+          messages: { items: transcript },
+          queued_turns: { items: [] },
+          snapshot_revision: 0,
+        },
+      });
       return;
     }
-    if (path.endsWith("/messages") && request.method() === "POST") {
-      const body = request.postDataJSON() as { text?: string };
-      sentMessages.push(body.text ?? "");
-      transcript.push({
-        id: `message-user-${sentMessages.length}`,
-        type: "ui",
-        role: "user",
-        session_id: "session-one",
-        created_at: now,
-        parts: [{ type: "text", text: body.text ?? "" }],
-      });
+    if (path.endsWith("/messages") && request.method() === "GET") {
       await route.fulfill({ json: { items: transcript } });
       return;
     }
@@ -1148,12 +1403,10 @@ test("configures a connector through the in-chat account picker", async ({ page 
   await expect(cards.nth(0)).toHaveCSS("cursor", "pointer");
   await expect(page.getByText("Configure connector", { exact: true })).toHaveCount(0);
 
-  // Selecting an account hands the structured choice back to the agent.
+  // Selecting an account binds it directly to the agent.
   await cards.nth(0).click();
-  await expect.poll(() => sentMessages.length).toBe(1);
-  expect(sentMessages[0]).toContain('"Work account"');
-  expect(sentMessages[0]).toContain("tool_group_instance_id=tgi-work");
-  expect(sentMessages[0]).toContain("tool_group_source_type_id=tavily");
+  await expect.poll(() => connectorBindRequests.length).toBe(1);
+  expect(connectorBindRequests[0]).toEqual({ agent_id: "hello-world", account_id: "tgi-work" });
 
   // The add-account card opens the schema-driven credential form through a
   // routable URL so redirects and the back button can target the modal.
@@ -1162,14 +1415,14 @@ test("configures a connector through the in-chat account picker", async ({ page 
   const dialog = page.getByRole("dialog", { name: "Add a Tavily account" });
   await expect(dialog).toBeVisible();
   await expect(dialog.getByRole("heading", { name: "Add a Tavily account" })).toBeVisible();
-  const secret = dialog.getByPlaceholder("api_key");
+  const secret = dialog.getByRole("textbox", { name: "Api key" });
   await expect(secret).toHaveAttribute("type", "password");
   await expect(dialog.getByRole("button", { name: "Connect" })).toBeDisabled();
-  await dialog.getByPlaceholder("Label this account — e.g. work, personal").fill("Research key");
+  await dialog.getByRole("textbox", { name: /Account name/ }).fill("Research key");
   await secret.fill("tvly-secret");
   await dialog.getByRole("button", { name: "Connect" }).click();
 
-  // Credentials go to the control service; the agent gets only the new instance id.
+  // Credentials go to the control service; only the new account id is bound to the agent.
   await expect.poll(() => connectorAccountRequests.length).toBe(1);
   expect(connectorAccountRequests[0]).toMatchObject({
     provider_type_id: "tavily",
@@ -1177,9 +1430,9 @@ test("configures a connector through the in-chat account picker", async ({ page 
     display_name: "Research key",
     user_credential_values: { api_key: "tvly-secret" },
   });
-  await expect.poll(() => sentMessages.length).toBe(2);
-  expect(sentMessages[1]).toContain("tool_group_instance_id=tgi-new");
-  expect(sentMessages[1]).not.toContain("tvly-secret");
+  await expect.poll(() => connectorBindRequests.length).toBe(2);
+  expect(connectorBindRequests[1]).toEqual({ agent_id: "hello-world", account_id: "tgi-new" });
+  expect(JSON.stringify(connectorBindRequests[1])).not.toContain("tvly-secret");
   await expect(dialog).toHaveCount(0);
   await expect(page).not.toHaveURL(/connector=/);
 
@@ -1187,7 +1440,7 @@ test("configures a connector through the in-chat account picker", async ({ page 
   // provider catalog, exactly what an OAuth return or shared link needs.
   await page.goto("/?connector=tavily");
   await expect(page.getByRole("dialog", { name: "Add a Tavily account" })).toBeVisible();
-  await expect(page.getByRole("dialog").getByPlaceholder("api_key")).toBeVisible();
+  await expect(page.getByRole("dialog").getByRole("textbox", { name: "Api key" })).toBeVisible();
 });
 
 test("keeps the server healthy", async ({ request }) => {
@@ -1210,28 +1463,26 @@ async function routeDefaultWorkspace(page: Page): Promise<void> {
   const now = new Date().toISOString();
   await page.route("**/api/chat/**", async (route) => {
     const path = new URL(route.request().url()).pathname;
-    if (path.endsWith("/mission-control/sidebar")) {
+    if (path === "/api/chat/activity") {
       await route.fulfill({
-        json: {
-          items: [
-            {
-              id: "hello-world",
-              display_name: "Hello World",
-              provider_id: "chatkit.http-vercel-ai-sdk",
-              status: "enabled",
-              sessions: {
-                items: [
-                  {
-                    id: "session-one",
-                    title: "Working session",
-                    created_at: now,
-                    updated_at: now,
-                  },
-                ],
-              },
+        json: chatKitActivity([
+          {
+            id: "hello-world",
+            display_name: "Hello World",
+            provider_id: "chatkit.http-vercel-ai-sdk",
+            status: "enabled",
+            sessions: {
+              items: [
+                {
+                  id: "session-one",
+                  title: "Working session",
+                  created_at: now,
+                  updated_at: now,
+                },
+              ],
             },
-          ],
-        },
+          },
+        ]),
       });
       return;
     }

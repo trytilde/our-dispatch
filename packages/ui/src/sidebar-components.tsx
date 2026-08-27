@@ -25,6 +25,8 @@ import {
 export interface SidebarAgent {
   id: string;
   name: string;
+  avatarId?: string;
+  badge?: "bot" | "thread";
   lastMessage?: string;
   updatedAt?: string;
   unread?: boolean;
@@ -66,17 +68,31 @@ export function AgentListItem({ agent, selected, onSelect }: AgentListItemProps)
         className="relative flex shrink-0"
         style={{ animation: "pop-in 250ms cubic-bezier(0.23,1,0.32,1) both" }}
       >
-        <AgentAvatar emphasis={hovered} id={agent.id} state={sidebarAvatarState(agent, selected)} />
+        <AgentAvatar
+          emphasis={hovered}
+          id={agent.avatarId ?? agent.id}
+          state={sidebarAvatarState(agent, selected)}
+        />
       </span>
       <span className="sidebar-agent-meta min-w-0 flex-1">
         <span className="flex items-baseline justify-between gap-2">
-          <strong
-            className={`truncate text-[13px] leading-tight ${
-              agent.unread ? "font-semibold text-ink" : "font-medium text-ink"
-            }`}
-          >
-            {agent.name}
-          </strong>
+          <span className="flex min-w-0 flex-1 items-center gap-1.5">
+            {agent.badge ? (
+              <span
+                className="shrink-0 rounded-[5px] border border-line-strong bg-inset px-1.5 py-0.5
+                  text-[9px] font-medium leading-none tracking-[0.02em] text-ink-3"
+              >
+                {agent.badge}
+              </span>
+            ) : null}
+            <strong
+              className={`truncate text-[13px] leading-tight ${
+                agent.unread ? "font-semibold text-ink" : "font-medium text-ink"
+              }`}
+            >
+              {agent.name}
+            </strong>
+          </span>
           {agent.updatedAt ? (
             <time
               dateTime={agent.updatedAt}
@@ -114,12 +130,22 @@ export function AgentListItem({ agent, selected, onSelect }: AgentListItemProps)
 
 export interface AgentSearchDialogProps {
   agents: readonly SidebarAgent[];
+  results?: readonly WorkspaceSearchResult[];
+  searching?: boolean;
   loading: boolean;
   open: boolean;
   value: string;
   onChange: (value: string) => void;
   onClose: () => void;
   onSelect: (id: string) => void;
+  onSelectResult?: (id: string) => void;
+}
+
+export interface WorkspaceSearchResult {
+  id: string;
+  kind: "agent" | "session_title" | "message";
+  title: string;
+  subtitle?: string;
 }
 
 const themeActions: readonly {
@@ -134,12 +160,15 @@ const themeActions: readonly {
 
 export function AgentSearchDialog({
   agents,
+  results = [],
+  searching = false,
   loading,
   open,
   value,
   onChange,
   onClose,
   onSelect,
+  onSelectResult,
 }: AgentSearchDialogProps) {
   const [modHeld, setModHeld] = useState(false);
   const [themePreference, setLocalTheme] = useState<ThemePreference>(() => getThemePreference());
@@ -156,12 +185,15 @@ export function AgentSearchDialog({
   );
 
   // Row order for Cmd/Ctrl+1..9 quick activation: agents first, then actions.
+  const visibleResults = query ? results : [];
   const quickRows = useMemo(
     () => [
-      ...agents.map((agent) => ({ kind: "agent" as const, id: agent.id })),
+      ...(query
+        ? visibleResults.map((result) => ({ kind: "result" as const, id: result.id }))
+        : agents.map((agent) => ({ kind: "agent" as const, id: agent.id }))),
       ...matchingActions.map((action) => ({ kind: "theme" as const, id: action.preference })),
     ],
-    [agents, matchingActions],
+    [agents, matchingActions, query, visibleResults],
   );
 
   const pickTheme = (preference: ThemePreference) => {
@@ -180,6 +212,7 @@ export function AgentSearchDialog({
         event.preventDefault();
         onClose();
         if (row.kind === "agent") onSelect(row.id);
+        else if (row.kind === "result") onSelectResult?.(row.id);
         else pickTheme(row.id);
       }
     };
@@ -217,30 +250,58 @@ export function AgentSearchDialog({
     >
       <CommandInput autoFocus placeholder="Search" value={value} onValueChange={onChange} />
       <CommandList>
-        {!loading ? <CommandEmpty>{query ? "No results" : "No bots yet"}</CommandEmpty> : null}
-        {agents.map((agent, index) => (
+        {!loading && !searching ? (
+          <CommandEmpty>{query ? "No matching chats or messages" : "No bots yet"}</CommandEmpty>
+        ) : null}
+        {query && searching ? (
+          <CommandItem disabled value="searching">
+            <span className="text-[13px] text-ink-3">Searching…</span>
+          </CommandItem>
+        ) : null}
+        {visibleResults.map((result, index) => (
           <CommandItem
-            key={agent.id}
-            value={`${agent.name} ${agent.id}`}
-            onSelect={() => {
-              onClose();
-              onSelect(agent.id);
-            }}
+            key={result.id}
+            value={`${result.title} ${result.subtitle ?? ""}`}
+            onSelect={() => onSelectResult?.(result.id)}
           >
-            <AgentAvatar id={agent.id} />
             <span className="min-w-0 flex-1">
               <strong className="block truncate text-[13px] font-medium leading-tight text-ink">
-                {agent.name}
+                {result.title}
               </strong>
-              {agent.lastMessage ? (
+              {result.subtitle ? (
                 <small className="block truncate text-[12px] leading-snug text-ink-3">
-                  {agent.lastMessage}
+                  {result.subtitle}
                 </small>
               ) : null}
             </span>
             {shortcutHint(index)}
           </CommandItem>
         ))}
+        {!query
+          ? agents.map((agent, index) => (
+              <CommandItem
+                key={agent.id}
+                value={`${agent.name} ${agent.id}`}
+                onSelect={() => {
+                  onClose();
+                  onSelect(agent.id);
+                }}
+              >
+                <AgentAvatar id={agent.id} />
+                <span className="min-w-0 flex-1">
+                  <strong className="block truncate text-[13px] font-medium leading-tight text-ink">
+                    {agent.name}
+                  </strong>
+                  {agent.lastMessage ? (
+                    <small className="block truncate text-[12px] leading-snug text-ink-3">
+                      {agent.lastMessage}
+                    </small>
+                  ) : null}
+                </span>
+                {shortcutHint(index)}
+              </CommandItem>
+            ))
+          : null}
         {matchingActions.length > 0 ? (
           <CommandGroup heading="Actions">
             {matchingActions.map((action, index) => (
@@ -256,7 +317,7 @@ export function AgentSearchDialog({
                     ✓
                   </span>
                 ) : null}
-                {shortcutHint(agents.length + index)}
+                {shortcutHint((query ? visibleResults.length : agents.length) + index)}
               </CommandItem>
             ))}
           </CommandGroup>
@@ -554,8 +615,8 @@ export function WorkspaceAccount({
   onSignOut,
 }: WorkspaceAccountProps) {
   const [open, setOpen] = useState(false);
-  const name = account.name?.trim() || account.email?.trim() || "Your account";
-  const detail = account.workspaceName || account.organizationName || account.email;
+  const name = account.name?.trim() || "Your account";
+  const detail = account.workspaceName || account.organizationName;
 
   return (
     <div
@@ -624,16 +685,12 @@ export function WorkspaceAccount({
         >
           <div className="px-2.5 py-2">
             <p className="m-0 truncate text-[13px] font-semibold text-ink">{name}</p>
-            {account.email && account.email !== name ? (
-              <p className="mt-0.5 mb-0 truncate text-[11.5px] text-ink-3">{account.email}</p>
-            ) : null}
             {account.workspaceName || account.organizationName ? (
               <p className="mt-1.5 mb-0 truncate text-[11.5px] text-ink-2">
                 {[account.workspaceName, account.organizationName].filter(Boolean).join(" · ")}
               </p>
             ) : null}
           </div>
-          <DropdownMenuSeparator />
           <DropdownMenuItem onSelect={onOpenPlugins}>
             <PluginsIcon className="size-4 shrink-0 fill-none stroke-current stroke-[1.3]" />
             <span>Plugins</span>

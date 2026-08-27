@@ -35,6 +35,7 @@ export {
   SkillsClient,
 } from "./skills";
 export {
+  type AddMcpServerFunctionsInput,
   type AddMcpServerFunctionInput,
   type AvailableToolGroup,
   type CreateMcpServerInput,
@@ -51,12 +52,14 @@ export {
   type McpClientLike,
   type McpRequest,
   type McpServer,
+  type McpServerFunctionInput,
   type McpToolDefinition,
   MULTI_EXECUTE_TOOL_NAME,
   type MultiExecuteToolRequest,
   type MultiExecuteToolResult,
   REGISTER_LOCAL_TOOLS_METHOD,
   type RegisterLocalMcpToolsRequest,
+  type RemoveMcpServerFunctionsInput,
   SEARCH_TOOLS_NAME,
   type ToolDeployment,
   type ToolGroupInstance,

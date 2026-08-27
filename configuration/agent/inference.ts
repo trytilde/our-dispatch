@@ -5,8 +5,8 @@ export async function prepareInference(tools: ToolSet, _abortSignal?: AbortSigna
   return {
     model: process.env.AI_MODEL ?? "openai/gpt-5.6-sol",
     reasoning: "medium" as const,
-    // Connector configuration chains discovery and control-plane mutations.
-    stopWhen: stepCountIs(24),
+    // Leave room for substantial tool work while bounding faulty or cyclic runs.
+    stopWhen: stepCountIs(50),
     tools,
   };
 }

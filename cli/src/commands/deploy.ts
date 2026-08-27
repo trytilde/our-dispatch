@@ -149,6 +149,7 @@ export async function runProductionDeploy(argv: readonly string[]): Promise<void
   const consolidatedRuntime = agentService === controlService;
   const auth = configuration.providers.auth;
   const computer = configuration.providers.computer;
+  const deployComputerLifecycle = computer && !computer.externallyManagedLifecycle;
   const inference = configuration.providers.inference;
   const { deployAgents, deployControl, deployComputer } = deploymentScope(
     options.service,
@@ -169,8 +170,8 @@ export async function runProductionDeploy(argv: readonly string[]): Promise<void
           },
         ]
       : []),
-    ...(deployComputer && computer ? [{ id: "computer", provider: computer }] : []),
-    ...(deployAgents && computer
+    ...(deployComputer && deployComputerLifecycle ? [{ id: "computer", provider: computer }] : []),
+    ...(deployAgents && deployComputerLifecycle
       ? [
           {
             id: "agent-workspaces",
@@ -202,7 +203,7 @@ export async function runProductionDeploy(argv: readonly string[]): Promise<void
       deployAgents,
       consolidatedRuntime,
     }),
-    ...(deployComputer && computer
+    ...(deployComputer && deployComputerLifecycle
       ? [
           {
             id: "development-sandbox",
@@ -279,12 +280,12 @@ export async function runProductionDeploy(argv: readonly string[]): Promise<void
     agentOrigins = agentEndpointCutoverOrigins({
       consolidatedRuntime,
       environment: deploymentConfiguration.environment,
-      targetOrigin: (
-        await agentService.baseUrl({
+      targetOrigin: agentService
+        .baseUrl({
           devMode: false,
           environment: deploymentConfiguration.environment,
         })
-      ).toString(),
+        .toString(),
     });
     await reconcileAgentResources({
       repositoryRoot,

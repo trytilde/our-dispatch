@@ -40,11 +40,27 @@ const accountsPage = {
   ],
 };
 
+const setupCatalog = {
+  domain: "mcp",
+  providers: providersPage.items.map((provider) => ({
+    provider_id: provider.type_id,
+    display_name: provider.name,
+    auth_methods: provider.credential_sources.map((source) => ({
+      id: source.type_id,
+      credential_source_type_id: source.type_id,
+      display_name: source.display_name,
+      description: "",
+      setup_kind: source.requires_brokering ? "managed_oauth" : "api_key",
+      fields: [],
+    })),
+  })),
+  resources: accountsPage.items,
+};
+
 function stubFetch() {
   return vi.fn(async (input: URL | string) => {
     const url = input instanceof URL ? input : new URL(input);
-    if (url.pathname.endsWith("/mcp/available-tool-groups")) return Response.json(providersPage);
-    if (url.pathname.endsWith("/mcp/tool-group")) return Response.json(accountsPage);
+    if (url.pathname.endsWith("/provider-setup/catalog")) return Response.json(setupCatalog);
     return new Response("not found", { status: 404 });
   });
 }
@@ -76,7 +92,6 @@ describe("createConfigureConnectorTool", () => {
     expect(selection.provider_type_id).toBe("google_mail");
     expect(selection.provider_name).toBe("Google Mail");
     expect(selection.prompt).toBe("Send the weekly report");
-    expect(selection.icon_url).toBe("https://icons.tilde.test/google-mail.svg");
     expect(selection.accounts).toEqual([
       {
         id: "tgi-work",
@@ -90,7 +105,7 @@ describe("createConfigureConnectorTool", () => {
       type_id: "google_mail_managed_oauth",
       name: "Sign in with your browser",
       requires_brokering: true,
-      supports_auto_display_name: true,
+      supports_auto_display_name: false,
     });
     const teamPaths = fetch.mock.calls.map((call) => (call[0] as URL).pathname);
     expect(teamPaths.every((path) => path.startsWith("/api/v1/team/team-1/"))).toBe(true);

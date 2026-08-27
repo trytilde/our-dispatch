@@ -50,7 +50,7 @@ export function registerTildeChatProxy(app: Hono, configuredOptions?: TildeChatP
     if (transport === "browser" && !validHttpOrigin(origin))
       return context.json({ error: "Browser socket tickets require an HTTP Origin" }, 403);
     const ticketUrl = new URL(
-      `/api/v1/team/${encodeURIComponent(options.teamId)}/identity/openbot/mission-control-ticket`,
+      `/api/v1/team/${encodeURIComponent(options.teamId)}/identity/openbot/realtime-ticket`,
       baseUrl,
     );
     const upstream = await (options.fetch ?? globalThis.fetch)(ticketUrl, {

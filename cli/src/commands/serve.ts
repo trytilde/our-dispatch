@@ -35,6 +35,7 @@ export async function runDevelopmentServer(): Promise<void> {
       computerProvider: configuration.providers.computer,
       devMode: true,
       environment,
+      agentCreation: { repositoryRoot },
     }),
   );
   await new Promise<void>((resolvePromise, reject) => {

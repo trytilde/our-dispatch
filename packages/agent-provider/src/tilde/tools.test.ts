@@ -36,8 +36,8 @@ describe("TildeToolReconciler", () => {
       baseUrl: "https://tilde.test",
     });
     let toolkitCreated = false;
-    let toolkitEnabled = false;
-    let toolkitMapped = false;
+    const enabledToolkitTools = new Set<string>();
+    const mappedToolkitTools = new Set<string>();
     const mutations: string[] = [];
     vi.stubGlobal(
       "fetch",
@@ -51,20 +51,29 @@ describe("TildeToolReconciler", () => {
             name: "OpenBot scout",
             team_id: "team-one",
             is_dynamic_tool_discovery: true,
-            tools: toolkitMapped
-              ? [
-                  {
-                    tool_group_instance_id: "openbot-scout-tilde-control-plane",
-                    tool_group_source_type_id: "tilde_control_plane",
-                    tool_source_type_id: "tilde_whoami",
-                    tool_name: "tilde_whoami",
-                  },
-                ]
-              : [],
+            tools: [...mappedToolkitTools].map((toolId) => ({
+              tool_group_instance_id: "openbot-scout-tilde-control-plane",
+              tool_group_source_type_id: "tilde_control_plane",
+              tool_source_type_id: toolId,
+              tool_name: toolId,
+            })),
           });
-        if (request.method === "POST" && path.endsWith("/mcp-server/openbot-scout/function")) {
-          toolkitMapped = true;
-          mutations.push("map-toolkit-function");
+        if (request.method === "POST" && path.endsWith("/mcp-server/openbot-scout/functions")) {
+          const body = (await request.json()) as {
+            functions: Array<{ tool_source_type_id: string }>;
+            tool_group_instance_id: string;
+            tool_group_source_type_id: string;
+          };
+          expect(body).toEqual({
+            tool_group_instance_id: "openbot-scout-tilde-control-plane",
+            tool_group_source_type_id: "tilde_control_plane",
+            functions: [
+              { tool_name: "tilde_whoami", tool_source_type_id: "tilde_whoami" },
+              { tool_name: "tilde_search", tool_source_type_id: "tilde_search" },
+            ],
+          });
+          for (const tool of body.functions) mappedToolkitTools.add(tool.tool_source_type_id);
+          mutations.push("map-toolkit-functions");
           return Response.json({});
         }
         if (request.method === "GET" && path.endsWith("/mcp/tool-group"))
@@ -95,7 +104,7 @@ describe("TildeToolReconciler", () => {
                   items: [
                     {
                       type_id: "tilde_control_plane",
-                      tools: [{ type_id: "tilde_whoami" }],
+                      tools: [{ type_id: "tilde_whoami" }, { type_id: "tilde_search" }],
                       credential_sources: [{ type_id: "no_auth" }],
                     },
                   ],
@@ -104,18 +113,16 @@ describe("TildeToolReconciler", () => {
           );
         if (request.method === "GET" && path.endsWith("/mcp/tools"))
           return Response.json({
-            items: toolkitEnabled
-              ? [
-                  {
-                    tool_group_instance_id: "openbot-scout-tilde-control-plane",
-                    tool_source_type_id: "tilde_whoami",
-                  },
-                ]
-              : [],
+            items: [...enabledToolkitTools].map((toolId) => ({
+              tool_group_instance_id: "openbot-scout-tilde-control-plane",
+              tool_source_type_id: toolId,
+            })),
           });
-        if (request.method === "POST" && path.endsWith("/tool/tilde_whoami/enable")) {
-          toolkitEnabled = true;
-          mutations.push("enable-toolkit-tool");
+        if (request.method === "POST" && path.endsWith("/enable")) {
+          const toolId = path.split("/").at(-2);
+          if (!toolId) throw new Error(`Unable to read tool ID from ${path}`);
+          enabledToolkitTools.add(toolId);
+          mutations.push(`enable-toolkit-tool:${toolId}`);
           return Response.json({});
         }
         throw new Error(`Unexpected request: ${request.method} ${path}`);
@@ -134,7 +141,12 @@ describe("TildeToolReconciler", () => {
     const provider = new TildeToolReconciler({ client });
     await provider.deploy(context);
     await provider.deploy(context);
-    expect(mutations).toEqual(["create-toolkit", "enable-toolkit-tool", "map-toolkit-function"]);
+    expect(mutations).toEqual([
+      "create-toolkit",
+      "enable-toolkit-tool:tilde_whoami",
+      "enable-toolkit-tool:tilde_search",
+      "map-toolkit-functions",
+    ]);
     expect(context.environment).toMatchObject({
       AGENT_SCOUT_MCP_SERVER_ID: "openbot-scout",
       AGENT_SCOUT_TILDE_CONTROL_PLANE_TOOL_GROUP_ID: "openbot-scout-tilde-control-plane",

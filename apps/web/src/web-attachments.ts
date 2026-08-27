@@ -1,4 +1,9 @@
-import type { Attachment, ChatPart, OpenBotClient } from "@tryopenbot/client-runtime";
+import type {
+  Attachment,
+  AttachmentCompletion,
+  ChatPart,
+  OpenBotClient,
+} from "@tryopenbot/client-runtime";
 
 export interface PendingFile {
   id: string;
@@ -11,29 +16,45 @@ export interface PendingFile {
   previewUrl?: string;
 }
 
-export async function uploadAttachment(
+export interface UploadedAttachment {
+  attachment: Attachment;
+  completion: AttachmentCompletion;
+}
+
+export async function uploadAttachments(
   client: OpenBotClient,
   sessionId: string,
-  file: File,
-  onProgress: (progress: number) => void,
-): Promise<Attachment> {
-  const sha256 = await fileSha256(file);
-  const created = await client.createAttachment(sessionId, {
-    filename: file.name,
-    mediaType: file.type || "application/octet-stream",
-    sizeBytes: file.size,
-    sha256,
-  });
-  await uploadFile(
-    client.rewriteTildeUploadUrl(created.upload_url),
-    created.upload_headers,
-    file,
-    onProgress,
+  files: File[],
+  onProgress: (index: number, progress: number) => void,
+): Promise<UploadedAttachment[]> {
+  const sha256Values = await Promise.all(files.map(fileSha256));
+  const created = await client.createAttachments(
+    sessionId,
+    files.map((file, index) => ({
+      filename: file.name,
+      mediaType: file.type || "application/octet-stream",
+      sizeBytes: file.size,
+      sha256: sha256Values[index]!,
+    })),
   );
-  return await client.completeAttachment(sessionId, created.attachment.id, {
-    sizeBytes: file.size,
-    sha256,
-  });
+  await Promise.all(
+    created.map((upload, index) =>
+      uploadFile(
+        client.rewriteTildeUploadUrl(upload.upload_url),
+        upload.upload_headers,
+        files[index]!,
+        (progress) => onProgress(index, progress),
+      ),
+    ),
+  );
+  return created.map((upload, index) => ({
+    attachment: upload.attachment,
+    completion: {
+      attachmentId: upload.attachment.id,
+      sizeBytes: files[index]!.size,
+      sha256: sha256Values[index],
+    },
+  }));
 }
 
 export function optimisticParts(text: string, files: PendingFile[]): ChatPart[] {

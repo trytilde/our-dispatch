@@ -13,6 +13,7 @@
 - Scaffold explicit typed Computer tools whose shared implementations live in the non-provider `computer-tools` package.
 - Agent runtime code imports SDKs directly and never imports provider packages.
 - Fork-owned `configuration/templates/agent/` defines future agent scaffolds.
+- Default agent tool loop stops at 50 steps. No unbounded model/tool cycle.
 
 ## Context
 
@@ -63,6 +64,10 @@ Every agent explicitly contains `await_shell.ts`, `bash.ts`, `copy_from_computer
 
 Authored agents do not import any provider package or the fork's provider composition. They instantiate model, MCP, skill, Composio, and other vendor clients directly. The fork-owned template carries direct-integration defaults to future agents without turning providers into an agent plugin API.
 
+The provider-owned default inference template bounds each model/tool run at 50 steps. Forks may
+replace that policy in authored code, but the upstream default never permits an unbounded loop;
+request cancellation remains available for earlier termination.
+
 Bash tools invoke `bash -lc` with `HOME=/workspace/<id>`, making the agent's
 directory the login-shell home. Init scaffolds `sandbox/workspace/.profile` so
 every Bash command has one deterministic startup file; that profile may source
@@ -103,6 +108,8 @@ flowchart LR
 ## Updates
 
 - 2026-08-21T13:50:00+01:00: The selected inference provider may seed provider-owned files into the default agent template during initialization; the copied files immediately become fork-owned and existing agents still change only through explicit edits.
+- 2026-08-26T14:02:03+01:00: Set the provider-owned default and this fork's authored agents to a
+  50-step model/tool safety cap instead of allowing unbounded tool cycles.
 - 2026-08-13T12:53:05+02:00: Strengthened agent filesystem isolation from path translation alone to a private bind-mounted `/workspace` plus Linux-user execution.
 - 2026-08-13T14:29:49+02:00: Kept `sandbox/workspace` solely for Eve layout compatibility, required one typed computer tool file per supported operation, and moved agent-to-user execution enforcement into computer-service.
 - 2026-08-13T14:49:44+02:00: Standardized required scaffolding on Eve's `bash`, `read_file`, `write_file`, `glob`, and `grep`; each tool fixes its agent ID outside model input and routes through computer-service.

@@ -29,7 +29,7 @@ import {
   type ProviderInitialization,
   type ProviderInitializationQuestion,
 } from "@tryopenbot/runtime-provider";
-import { GitHubGitProvider } from "@tryopenbot/git-provider";
+import { GitHubGitProvider, LocalGitProvider } from "@tryopenbot/git-provider";
 import {
   CODEX_INFERENCE_PROVIDER,
   CodexInferenceProvider,
@@ -38,7 +38,7 @@ import {
   VERCEL_INFERENCE_PROVIDER,
   VercelInferenceProvider,
 } from "@tryopenbot/inference-provider";
-import { tildePlatform } from "@tryopenbot/platform-integrations";
+import { tildePlatform, VercelPlatform } from "@tryopenbot/platform-integrations";
 import { materializeFileTemplate, renderFileTemplatePath } from "@tryopenbot/utilities";
 import {
   agentTemplateDirectory,
@@ -57,6 +57,7 @@ const configurationAssets = {
     new URL("./assets/agents/instrumentation.ts.hbs", import.meta.url),
   ),
   local: fileURLToPath(new URL("./assets/configuration/local.ts.hbs", import.meta.url)),
+  tildeCloud: fileURLToPath(new URL("./assets/configuration/tilde-cloud.ts.hbs", import.meta.url)),
   tsconfig: fileURLToPath(new URL("./assets/configuration/tsconfig.json.hbs", import.meta.url)),
   vercel: fileURLToPath(new URL("./assets/configuration/vercel.ts.hbs", import.meta.url)),
 } as const;
@@ -181,6 +182,12 @@ export const ownerIdentityChoices: readonly SelectChoice[] = [
     label: "Native keychain",
     description: "Generate an owner age identity and keep it in this computer's keychain.",
   },
+  {
+    value: "managed-file",
+    label: "Managed Computer file",
+    description:
+      "Generate an owner age identity in a private file on a managed persistent Computer.",
+  },
 ];
 
 export const runtimeChoices: readonly SelectChoice[] = [
@@ -193,6 +200,12 @@ export const runtimeChoices: readonly SelectChoice[] = [
     value: "vercel",
     label: "Vercel",
     description: "Deploy the web app, control API, and isolated agent functions as one runtime.",
+  },
+  {
+    value: "tilde-cloud",
+    label: "Tilde Cloud",
+    description:
+      "Run Vercel services and Sandbox under Tilde's managed hosting and DNS control plane.",
   },
 ];
 
@@ -209,7 +222,7 @@ export const inferenceChoices: readonly SelectChoice[] = [
   },
 ];
 
-type RuntimeChoice = "local" | "vercel";
+type RuntimeChoice = "local" | "vercel" | "tilde-cloud";
 type InferenceChoice = "vercel" | "codex";
 
 interface InitializationProviderSelection {
@@ -235,8 +248,12 @@ interface InitializationStageState {
   initializedProviders: Set<string>;
 }
 
-export function inferenceChoicesForRuntime(_runtime: "local" | "vercel"): readonly SelectChoice[] {
-  return inferenceChoices;
+export function inferenceChoicesForRuntime(
+  runtime: "local" | "vercel" | "tilde-cloud",
+): readonly SelectChoice[] {
+  return runtime === "tilde-cloud"
+    ? inferenceChoices.filter((choice) => choice.value === "vercel")
+    : inferenceChoices;
 }
 
 export async function initializeOpenBot(options: InitializationOptions): Promise<void> {
@@ -504,8 +521,8 @@ async function reconfigureOpenBot(
         };
         inferenceMigration = await prepareInferenceTemplateMigration(
           options.repositoryRoot,
-          inferenceProvider(stage.previousInference).agentTemplate.files,
-          inferenceProvider(stage.inference).agentTemplate.files,
+          inferenceProvider(stage.previousInference, undefined).agentTemplate.files,
+          inferenceProvider(stage.inference, undefined).agentTemplate.files,
           state.providerEnvironment,
         );
       }
@@ -891,6 +908,21 @@ async function configureOwnerIdentity(
         metadata: { kind: "native-keychain", platform },
       };
     }
+    case "managed-file": {
+      const path = resolve(
+        await options.prompts.input("Managed owner age identity path", {
+          id: "managed-owner-identity-path",
+          required: true,
+        }),
+      );
+      const identity = generateAgeIdentity();
+      await mkdir(dirname(path), { recursive: true, mode: 0o700 });
+      await writeFile(path, `${identity.identity}\n`, { mode: 0o400, flag: "wx" });
+      return {
+        creationRule: { age: [identity.recipient] },
+        metadata: { kind: "managed-file", path },
+      };
+    }
     default:
       throw new Error(`Unsupported SOPS owner identity: ${kind}`);
   }
@@ -1096,6 +1128,8 @@ function isSopsOwnerIdentityConfiguration(value: unknown): value is SopsOwnerIde
     case "azure-key-vault":
     case "vault-transit":
       return true;
+    case "managed-file":
+      return typeof identity.path === "string" && identity.path.startsWith("/");
     default:
       return false;
   }
@@ -1128,6 +1162,7 @@ async function loadStoredOwnerIdentity(
   platform: NodeJS.Platform,
   metadata: SopsOwnerIdentityConfiguration,
 ): Promise<string | undefined> {
+  if (metadata.kind === "managed-file") return (await readFile(metadata.path, "utf8")).trim();
   if (metadata.kind === "onepassword") {
     return (
       await runner.run("op", ["read", "--no-newline", metadata.reference], {
@@ -1273,6 +1308,8 @@ async function sopsEncryptionEnvironment(
   cwd: string,
   environment: NodeJS.ProcessEnv,
 ): Promise<NodeJS.ProcessEnv> {
+  if (metadata.kind === "managed-file")
+    return { ...environment, SOPS_AGE_KEY: (await readFile(metadata.path, "utf8")).trim() };
   if (metadata.kind !== "aws-profile" || !metadata.profile) return environment;
   return awsProfileEnvironment(runner, metadata.profile, cwd, environment);
 }
@@ -1464,7 +1501,7 @@ export async function selectInitializationProviders(
     const inferenceProviders =
       inference === "current" || inference === currentInference
         ? currentGroups.inference
-        : [inferenceProvider(inference)];
+        : [inferenceProvider(inference, runtime === "current" ? currentRuntime : runtime)];
     await onSelected?.({
       domain: "inference",
       providers: inferenceProviders,
@@ -1484,7 +1521,11 @@ export async function selectInitializationProviders(
         "OpenBot cannot automatically rewrite a custom provider composition. Keep the current selections or edit configuration/index.ts explicitly.",
       );
     return {
-      providers: [...runtimeProviders, ...inferenceProviders, ...builtInSharedProviderGroup()],
+      providers: [
+        ...runtimeProviders,
+        ...inferenceProviders,
+        ...builtInSharedProviderGroup(runtime),
+      ],
       runtime,
       inference,
       previousInference: currentInference,
@@ -1495,7 +1536,7 @@ export async function selectInitializationProviders(
     id: "runtime",
     initialValue: "vercel",
   });
-  if (runtime !== "local" && runtime !== "vercel")
+  if (runtime !== "local" && runtime !== "vercel" && runtime !== "tilde-cloud")
     throw new Error(`Unsupported runtime provider: ${runtime}`);
   const runtimeProviders = builtInRuntimeProviderGroup(runtime);
   await onSelected?.({ domain: "runtime", providers: runtimeProviders });
@@ -1509,10 +1550,10 @@ export async function selectInitializationProviders(
   );
   if (inference !== "vercel" && inference !== "codex")
     throw new Error(`Unsupported inference provider: ${inference}`);
-  const inferenceProviders = [inferenceProvider(inference)];
+  const inferenceProviders = [inferenceProvider(inference, runtime)];
   await onSelected?.({ domain: "inference", providers: inferenceProviders, inference });
   return {
-    providers: [...runtimeProviders, ...inferenceProviders, ...builtInSharedProviderGroup()],
+    providers: [...runtimeProviders, ...inferenceProviders, ...builtInSharedProviderGroup(runtime)],
     runtime,
     inference,
     configurationSource: await renderBuiltInConfiguration(runtime, inference),
@@ -1565,23 +1606,29 @@ async function renderBuiltInConfiguration(
   runtime: RuntimeChoice,
   inference: InferenceChoice,
 ): Promise<string> {
-  return renderFileTemplatePath(
-    runtime === "local" ? configurationAssets.local : configurationAssets.vercel,
-    { CODEX_INFERENCE: inference === "codex" },
-  );
+  const asset =
+    runtime === "local"
+      ? configurationAssets.local
+      : runtime === "tilde-cloud"
+        ? configurationAssets.tildeCloud
+        : configurationAssets.vercel;
+  return renderFileTemplatePath(asset, { CODEX_INFERENCE: inference === "codex" });
 }
 
 function initializationDiscoveryEnvironment(environment: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
   const result = { ...environment };
-  const providers = [
-    ...builtInRuntimeInitializationProviders("local", "vercel"),
-    ...builtInRuntimeInitializationProviders("local", "codex"),
-    ...builtInRuntimeInitializationProviders("vercel", "vercel"),
-    ...builtInRuntimeInitializationProviders("vercel", "codex"),
+  const selections = [
+    builtInRuntimeInitializationProviders("local", "vercel"),
+    builtInRuntimeInitializationProviders("local", "codex"),
+    builtInRuntimeInitializationProviders("vercel", "vercel"),
+    builtInRuntimeInitializationProviders("vercel", "codex"),
+    builtInRuntimeInitializationProviders("tilde-cloud", "vercel"),
   ];
-  for (const initialization of collectProviderInitializations(providers)) {
-    for (const question of initialization.questions) {
-      result[question.destination.key] ??= `openbot-initialization-${question.id}`;
+  for (const providers of selections) {
+    for (const initialization of collectProviderInitializations(providers)) {
+      for (const question of initialization.questions) {
+        result[question.destination.key] ??= `openbot-initialization-${question.id}`;
+      }
     }
   }
   return result;
@@ -1595,38 +1642,45 @@ async function importConfiguredOpenBot(
 }
 
 export function builtInRuntimeInitializationProviders(
-  runtime: "local" | "vercel",
+  runtime: RuntimeChoice,
   inference: "vercel" | "codex" = "vercel",
 ): readonly InitializableProvider[] {
   return [
     ...builtInRuntimeProviderGroup(runtime),
-    inferenceProvider(inference),
-    ...builtInSharedProviderGroup(),
+    inferenceProvider(inference, runtime),
+    ...builtInSharedProviderGroup(runtime),
   ];
 }
 
 function builtInRuntimeProviderGroup(runtime: RuntimeChoice): InitializableProvider[] {
+  const vercel = new VercelPlatform({ managed: runtime === "tilde-cloud" });
   return runtime === "local"
     ? [new LocalRuntimeServiceProvider(), new MicrosandboxComputerProvider()]
     : [
-        new VercelRuntimeServiceProvider(),
-        new VercelSandboxComputerProvider({ projectRole: "runtime" }),
+        new VercelRuntimeServiceProvider({ platform: vercel }),
+        new VercelSandboxComputerProvider({ platform: vercel, projectRole: "runtime" }),
       ];
 }
 
-function builtInSharedProviderGroup(): InitializableProvider[] {
+function builtInSharedProviderGroup(runtime: RuntimeChoice | "current"): InitializableProvider[] {
   return [
     new TildeAuthProvider(tildePlatform),
     {
       platforms: [tildePlatform],
       initialization: tildeAgentProviderInitialization,
     },
-    new GitHubGitProvider(tildePlatform),
+    runtime === "tilde-cloud" ? new LocalGitProvider() : new GitHubGitProvider(tildePlatform),
   ];
 }
 
-function inferenceProvider(inference: InferenceChoice): InferenceProvider {
-  return inference === "codex" ? new CodexInferenceProvider() : new VercelInferenceProvider();
+function inferenceProvider(
+  inference: InferenceChoice,
+  runtime: RuntimeChoice | undefined,
+): InferenceProvider {
+  if (inference === "codex") return new CodexInferenceProvider();
+  return new VercelInferenceProvider(
+    runtime === "tilde-cloud" ? new VercelPlatform({ managed: true }) : undefined,
+  );
 }
 
 function inferenceTemplateFiles(providers: readonly InitializableProvider[]) {
@@ -1933,7 +1987,9 @@ export function configuredRuntimeChoice(
     constructors[1] === "VercelRuntimeServiceProvider" &&
     constructors[2] === "VercelSandboxComputerProvider"
   )
-    return "vercel";
+    return constructorName(configuration.providers.git) === "LocalGitProvider"
+      ? "tilde-cloud"
+      : "vercel";
   return undefined;
 }
 

@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Linking, Modal, Pressable, StyleSheet } from "react-native";
 import {
-  connectorAccountCreatedMessage,
   connectorAuthorizedReturnUrl,
   connectorSetupFields,
   waitForConnectorAccountActive,
@@ -23,8 +22,8 @@ export interface ConnectorSetupSheetProps {
   client: OpenBotClient;
   /** Control-service origin used to build the brokered-OAuth return URL. */
   controlOrigin?: string;
-  /** Sends the structured hand-back message to the agent and closes the sheet. */
-  onComplete: (text: string) => void;
+  /** Returns the configured account identifier so the client can bind it directly. */
+  onComplete: (accountId: string) => void;
   onClose: () => void;
 }
 
@@ -71,13 +70,7 @@ export function ConnectorSetupSheet({
       signal: watcher.signal,
     }).then((account) => {
       if (!account || watcher.signal.aborted) return;
-      onComplete(
-        connectorAccountCreatedMessage(selection, {
-          ...pending.result,
-          status: "created",
-          account,
-        }),
-      );
+      onComplete(account.id);
     });
     return () => watcher.abort();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed by the pending account only
@@ -126,7 +119,7 @@ export function ConnectorSetupSheet({
         void Linking.openURL(result.authorization_url);
         return;
       }
-      onComplete(connectorAccountCreatedMessage(selection, result));
+      onComplete(result.account.id);
     } catch (reason) {
       setSubmitting(false);
       setError(reason instanceof Error ? reason.message : "Connector setup failed");
@@ -153,12 +146,7 @@ export function ConnectorSetupSheet({
                   >
                     Reopen authorization
                   </Button>
-                  <Button
-                    label="Done"
-                    onPress={() =>
-                      onComplete(connectorAccountCreatedMessage(selection, pending.result))
-                    }
-                  >
+                  <Button label="Done" onPress={() => onComplete(pending.result.account.id)}>
                     Done
                   </Button>
                 </View>

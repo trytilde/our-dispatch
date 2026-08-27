@@ -17,6 +17,11 @@ import type {
 } from "../contracts/auth.js";
 import type { ActivityEvent } from "../contracts/events.js";
 import type { ChatMessage, ChatPart } from "../contracts/messages.js";
+import type {
+  AttachmentCompletion,
+  ChatKitSearchHit,
+  ConversationSnapshot,
+} from "../contracts/mission-control.js";
 import { QueuedTurnSchema, type QueuedTurn } from "../contracts/queue.js";
 import type { CreateRoutineInput, Routine, UpdateRoutineInput } from "../contracts/routines.js";
 import type {
@@ -34,6 +39,7 @@ import type {
   ChatSession,
   SessionSortOrder,
 } from "../contracts/sidebar.js";
+import { userSessionForAgent, userSessionLookupKey } from "../contracts/sidebar.js";
 import { errorMessage } from "../errors.js";
 
 export interface AuthState {
@@ -47,6 +53,7 @@ export interface SidebarState {
   nextAgentToken?: string | null;
   selectedAgentId: string;
   busyAgentIds: string[];
+  busySessionIds: string[];
   loading: boolean;
   error: string;
 }
@@ -92,6 +99,14 @@ export interface SignalsState {
   error: string;
 }
 
+export interface SearchState {
+  query: string;
+  sessionId?: string;
+  items: ChatKitSearchHit[];
+  status: "idle" | "loading" | "ready" | "error";
+  error: string;
+}
+
 export interface OpenBotState {
   auth: AuthState;
   sidebar: SidebarState;
@@ -99,25 +114,30 @@ export interface OpenBotState {
   agentSetup: AgentSetupState;
   routines: RoutinesState;
   signals: SignalsState;
+  search: SearchState;
 }
 
 export interface SendMessageInput {
   text: string;
   attachmentIds?: string[];
+  attachmentCompletions?: AttachmentCompletion[];
   optimisticParts?: ChatPart[];
   title?: string;
 }
 
 export interface OpenBotActions {
-  initialize(): Promise<void>;
+  initialize(options?: { workspace?: boolean }): Promise<void>;
   checkAuthentication(): Promise<void>;
-  signIn(): Promise<void>;
+  signIn(options?: { workspace?: boolean }): Promise<void>;
   signOut(): Promise<void>;
   refreshSidebar(): Promise<void>;
   loadMoreAgents(): Promise<void>;
   selectAgent(agentId: string): Promise<void>;
   startNewConversation(agentId: string): void;
   selectSession(agentId: string, session: ChatSession): Promise<void>;
+  searchChatKit(query: string, sessionId?: string): Promise<void>;
+  clearSearch(): void;
+  selectSearchHit(hit: ChatKitSearchHit): Promise<void>;
   ensureSession(title?: string): Promise<string>;
   refreshMessages(sessionId?: string, preserveLiveMessages?: boolean): Promise<void>;
   loadOlderMessages(): Promise<void>;
@@ -183,7 +203,14 @@ const idleAgentSetup: AgentSetupState = {
 
 const initialState: OpenBotState = {
   auth: { status: "checking", session: null, error: "" },
-  sidebar: { agents: [], selectedAgentId: "", busyAgentIds: [], loading: true, error: "" },
+  sidebar: {
+    agents: [],
+    selectedAgentId: "",
+    busyAgentIds: [],
+    busySessionIds: [],
+    loading: true,
+    error: "",
+  },
   conversation: {
     selectedSessionId: "",
     messages: [],
@@ -205,6 +232,7 @@ const initialState: OpenBotState = {
     status: "idle",
     error: "",
   },
+  search: { query: "", items: [], status: "idle", error: "" },
 };
 
 export function createOpenBotRuntime(options: OpenBotRuntimeOptions): OpenBotRuntime {
@@ -223,10 +251,11 @@ export function createOpenBotRuntime(options: OpenBotRuntimeOptions): OpenBotRun
   const liveMessagesBySession = new Map<string, ChatMessage[]>();
   let missionControlObserver: AbortController | undefined;
   let agentSetupObserver: AbortController | undefined;
-  let refreshTimer: ReturnType<typeof setTimeout> | undefined;
   let sidebarRefreshTimer: ReturnType<typeof setTimeout> | undefined;
   const queueRefreshes = new Map<string, Promise<void>>();
   let initializePromise: Promise<void> | undefined;
+  let searchGeneration = 0;
+  let initializeMode: "navigation" | "workspace" | undefined;
 
   const updateAuth = (patch: Partial<AuthState>) =>
     store.setState((state) => ({ auth: { ...state.auth, ...patch } }));
@@ -239,8 +268,10 @@ export function createOpenBotRuntime(options: OpenBotRuntimeOptions): OpenBotRun
     const busyAgentIds = state.sidebar.agents
       .filter((agent) => agent.sessions.items.some((session) => busySessionIds.has(session.id)))
       .map((agent) => agent.id);
-    updateSidebar({ busyAgentIds });
-    updateConversation({ agentBusy: busyAgentIds.includes(state.sidebar.selectedAgentId) });
+    updateSidebar({ busyAgentIds, busySessionIds: [...busySessionIds] });
+    updateConversation({
+      agentBusy: busySessionIds.has(state.conversation.selectedSessionId),
+    });
   };
   const setSessionBusy = (sessionId: string, busy: boolean): void => {
     if (!sessionId) return;
@@ -256,6 +287,8 @@ export function createOpenBotRuntime(options: OpenBotRuntimeOptions): OpenBotRun
     store.setState((state) => ({ routines: { ...state.routines, ...patch } }));
   const updateSignals = (patch: Partial<SignalsState>) =>
     store.setState((state) => ({ signals: { ...state.signals, ...patch } }));
+  const updateSearch = (patch: Partial<SearchState>) =>
+    store.setState((state) => ({ search: { ...state.search, ...patch } }));
   const replaceAgentRoutines = (agentId: string, items: Routine[]) =>
     updateRoutines({
       byAgentId: { ...store.getState().routines.byAgentId, [agentId]: items },
@@ -280,6 +313,7 @@ export function createOpenBotRuntime(options: OpenBotRuntimeOptions): OpenBotRun
   };
   let routinePollTimer: ReturnType<typeof setTimeout> | undefined;
   let routinePollGeneration = 0;
+  let workspaceInitialized = false;
 
   async function checkAuthentication(): Promise<void> {
     updateAuth({ status: "checking", error: "" });
@@ -295,44 +329,33 @@ export function createOpenBotRuntime(options: OpenBotRuntimeOptions): OpenBotRun
     }
   }
 
-  async function refreshSidebar(silent = false, hydrateMessagePreviews = true): Promise<void> {
+  async function hydrateSidebar(silent: boolean, workspace: boolean): Promise<void> {
     if (!silent) updateSidebar({ loading: true, error: "" });
     try {
-      const response = await options.client.getSidebar("", agentSort, sessionSort);
-      const agents = hydrateMessagePreviews
-        ? await Promise.all(
-            response.items.map(async (agent) => {
-              const latestSession = agent.sessions.items[0];
-              if (!latestSession) return agent;
-              try {
-                const page = await options.client.getMessages(latestSession.id);
-                return { ...agent, last_message_preview: latestMessagePreview(page.items) };
-              } catch {
-                return agent;
-              }
-            }),
-          )
-        : response.items.map((agent) => {
-            const existing = store
-              .getState()
-              .sidebar.agents.find((candidate) => candidate.id === agent.id);
-            return agent.last_message_preview || !existing?.last_message_preview
-              ? agent
-              : { ...agent, last_message_preview: existing.last_message_preview };
-          });
+      const response = await options.client.getActivity(
+        store.getState().conversation.selectedSessionId || undefined,
+      );
+      const agents = workspace
+        ? await Promise.all(response.activity.items.map(loadRemainingAgentSessions))
+        : response.activity.items;
       const currentAgentId = store.getState().sidebar.selectedAgentId;
       const selectedAgentId = agents.some((agent) => agent.id === currentAgentId)
         ? currentAgentId
         : (agents[0]?.id ?? "");
       updateSidebar({
         agents,
-        nextAgentToken: response.next_page_token,
+        nextAgentToken: response.activity.next_page_token,
         selectedAgentId,
         ...(!silent ? { loading: false } : {}),
       });
       syncBusyAgents();
-      if (selectedAgentId && !store.getState().conversation.selectedSessionId) {
-        const session = agents.find((agent) => agent.id === selectedAgentId)?.sessions.items[0];
+      if (response.active_session_id && response.active_conversation) {
+        applyConversationSnapshot(response.active_session_id, response.active_conversation);
+        updateConversation({ loading: false });
+      } else if (workspace && selectedAgentId && !store.getState().conversation.selectedSessionId) {
+        const agent = agents.find((candidate) => candidate.id === selectedAgentId);
+        const userId = store.getState().auth.session?.user.subject ?? "";
+        const session = agent && userId ? userSessionForAgent(agent, userId) : undefined;
         if (session) await selectSession(selectedAgentId, session);
       }
     } catch (error) {
@@ -341,22 +364,87 @@ export function createOpenBotRuntime(options: OpenBotRuntimeOptions): OpenBotRun
     }
   }
 
-  async function initialize(): Promise<void> {
-    initializePromise ??= (async () => {
-      await checkAuthentication();
-      if (store.getState().auth.status === "authenticated")
-        await refreshSidebar().catch(() => undefined);
-      else updateSidebar({ loading: false });
-      if (store.getState().auth.status === "authenticated") beginMissionControlObservation();
-      if (
-        store.getState().auth.status === "authenticated" &&
-        store.getState().agentSetup.status === "setting_up"
-      )
-        monitorAgentSetup(store.getState().agentSetup);
-    })().finally(() => {
-      initializePromise = undefined;
+  function applyConversationSnapshot(sessionId: string, snapshot: ConversationSnapshot): void {
+    const messages = uniqueMessages(snapshot.messages.items);
+    liveMessagesBySession.set(sessionId, messages);
+    updateConversation({
+      selectedSessionId: sessionId,
+      messages,
+      nextMessageToken: snapshot.messages.next_page_token,
+      queuedTurns: snapshot.queued_turns.items,
     });
-    return await initializePromise;
+  }
+
+  async function loadRemainingAgentSessions(agent: ChatAgent): Promise<ChatAgent> {
+    const sessions = [...agent.sessions.items];
+    const seenTokens = new Set<string>();
+    let nextPageToken = agent.sessions.next_page_token;
+    while (nextPageToken && !seenTokens.has(nextPageToken)) {
+      seenTokens.add(nextPageToken);
+      const page = await options.client.getAgentSessions(agent.id, nextPageToken, sessionSort);
+      sessions.push(...page.items);
+      nextPageToken = page.next_page_token;
+    }
+    return {
+      ...agent,
+      sessions: {
+        items: [...new Map(sessions.map((session) => [session.id, session])).values()],
+        next_page_token: nextPageToken,
+      },
+    };
+  }
+
+  async function refreshSidebar(silent = false): Promise<void> {
+    await hydrateSidebar(silent, true);
+  }
+
+  async function initialize({ workspace = true }: { workspace?: boolean } = {}): Promise<void> {
+    const joiningNavigationInitialization = Boolean(
+      workspace && initializePromise && initializeMode === "navigation",
+    );
+    if (!initializePromise) {
+      initializeMode = workspace ? "workspace" : "navigation";
+      initializePromise = (async () => {
+        await checkAuthentication();
+        if (store.getState().auth.status === "authenticated") {
+          if (workspace) {
+            if (!workspaceInitialized) {
+              try {
+                await refreshSidebar();
+                workspaceInitialized = true;
+              } catch {
+                // Authentication still succeeded; the sidebar exposes its own retryable error.
+              }
+            }
+            beginMissionControlObservation();
+          } else {
+            await hydrateSidebar(false, false).catch(() => undefined);
+          }
+        } else updateSidebar({ loading: false });
+        if (
+          store.getState().auth.status === "authenticated" &&
+          store.getState().agentSetup.status === "setting_up"
+        )
+          monitorAgentSetup(store.getState().agentSetup);
+      })().finally(() => {
+        initializePromise = undefined;
+        initializeMode = undefined;
+      });
+    }
+    await initializePromise;
+    if (
+      joiningNavigationInitialization &&
+      !workspaceInitialized &&
+      store.getState().auth.status === "authenticated"
+    ) {
+      try {
+        await refreshSidebar();
+        workspaceInitialized = true;
+      } catch {
+        // Authentication still succeeded; the sidebar exposes its own retryable error.
+      }
+      beginMissionControlObservation();
+    }
   }
 
   async function refreshMessages(
@@ -407,7 +495,6 @@ export function createOpenBotRuntime(options: OpenBotRuntimeOptions): OpenBotRun
     updateConversation({ queuedTurns: previous.filter((turn) => turn.id !== id) });
     try {
       await options.client.deleteQueuedTurn(id);
-      await refreshQueue(sessionId);
     } catch (error) {
       updateConversation({ queuedTurns: previous, error: errorMessage(error) });
       throw error;
@@ -427,7 +514,6 @@ export function createOpenBotRuntime(options: OpenBotRuntimeOptions): OpenBotRun
     });
     try {
       await options.client.reorderQueuedTurn(id, queuePosition);
-      await refreshQueue(sessionId);
     } catch (error) {
       updateConversation({ queuedTurns: previous, error: errorMessage(error) });
       throw error;
@@ -445,7 +531,6 @@ export function createOpenBotRuntime(options: OpenBotRuntimeOptions): OpenBotRun
     setSessionBusy(sessionId, true);
     try {
       await options.client.steerQueuedTurn(id);
-      await refreshQueue(sessionId);
     } catch (error) {
       updateConversation({ queuedTurns: previous, error: errorMessage(error) });
       throw error;
@@ -534,33 +619,14 @@ export function createOpenBotRuntime(options: OpenBotRuntimeOptions): OpenBotRun
                   turnStatus: eventStatus(event) || state.conversation.turnStatus,
                   ...(busy === undefined ? {} : { agentBusy: busy }),
                 });
-                if (name.includes("queue") && !queueItem)
-                  void refreshQueue(sessionId).catch(() => undefined);
-                if (refreshTimer) cancelScheduled(refreshTimer);
-                if (!reduction.streaming) {
-                  refreshTimer = schedule(() => {
-                    void refreshMessages(sessionId, true).catch((error) =>
-                      updateConversation({ error: errorMessage(error) }),
-                    );
-                  }, 80);
-                }
               }
-              if (
-                name.includes("session") ||
-                name.includes("message.created") ||
-                name.includes("message.updated") ||
-                name.includes("queue")
-              )
-                scheduleSidebarRefresh();
+              if (name.includes("session")) scheduleSidebarRefresh();
               rememberMissionControlEvent(event.id, seenEventIds);
             },
             async () => {
-              // The socket-ready barrier must not wait for every inactive bot's message preview.
-              // One slow history request would otherwise hold every subsequent live event.
-              await refreshSidebar(true, false);
-              const sessionId = store.getState().conversation.selectedSessionId;
-              if (sessionId)
-                await Promise.all([refreshMessages(sessionId), refreshQueue(sessionId)]);
+              // Keep the socket-ready barrier bounded to one aggregate activity request.
+              // Loading every inactive agent's remaining session pages would stall later events.
+              await hydrateSidebar(true, false);
             },
           );
         } catch (error) {
@@ -572,6 +638,52 @@ export function createOpenBotRuntime(options: OpenBotRuntimeOptions): OpenBotRun
     })();
   }
 
+  async function searchChatKit(query: string, sessionId?: string): Promise<void> {
+    const normalizedQuery = query.trim();
+    const generation = ++searchGeneration;
+    if (!normalizedQuery) {
+      updateSearch({ query: "", sessionId: undefined, items: [], status: "idle", error: "" });
+      return;
+    }
+    updateSearch({
+      query: normalizedQuery,
+      sessionId,
+      items: [],
+      status: "loading",
+      error: "",
+    });
+    try {
+      const response = await options.client.searchChatKit(normalizedQuery, sessionId);
+      if (generation !== searchGeneration) return;
+      updateSearch({ items: response.items, status: "ready" });
+    } catch (error) {
+      if (generation !== searchGeneration) return;
+      updateSearch({ items: [], status: "error", error: errorMessage(error) });
+    }
+  }
+
+  function clearSearch(): void {
+    searchGeneration += 1;
+    updateSearch({ query: "", sessionId: undefined, items: [], status: "idle", error: "" });
+  }
+
+  async function selectSearchHit(hit: ChatKitSearchHit): Promise<void> {
+    const state = store.getState();
+    const sessionAgent = state.sidebar.agents.find((agent) =>
+      agent.sessions.items.some((session) => session.id === hit.session.id),
+    );
+    const rawMessage = record(hit.message);
+    const messageAgent = state.sidebar.agents.find(
+      (agent) =>
+        rawMessage.from_inbox_type_id === agent.id || rawMessage.to_inbox_type_id === agent.id,
+    );
+    const agentId = hit.agent?.id ?? sessionAgent?.id ?? messageAgent?.id;
+    if (!agentId)
+      throw new Error("The bot for this search result is not available in the sidebar.");
+    await selectSession(agentId, hit.session);
+    clearSearch();
+  }
+
   async function selectSession(agentId: string, session: ChatSession): Promise<void> {
     updateSidebar({ selectedAgentId: agentId });
     updateConversation({
@@ -581,13 +693,15 @@ export function createOpenBotRuntime(options: OpenBotRuntimeOptions): OpenBotRun
       queuedTurns: [],
       activity: [],
       loading: true,
-      agentBusy: store.getState().sidebar.busyAgentIds.includes(agentId),
+      agentBusy: busySessionIds.has(session.id),
       streamStatus: missionControlObserver?.signal.aborted === false ? "Live" : "Connecting",
       turnStatus: "",
       error: "",
     });
     try {
-      await Promise.all([refreshMessages(session.id, true), refreshQueue(session.id)]);
+      const snapshot = await options.client.getConversationSnapshot(session.id);
+      if (store.getState().conversation.selectedSessionId === session.id)
+        applyConversationSnapshot(session.id, snapshot);
     } catch (error) {
       updateConversation({ error: errorMessage(error) });
     } finally {
@@ -599,15 +713,16 @@ export function createOpenBotRuntime(options: OpenBotRuntimeOptions): OpenBotRun
   async function selectAgent(agentId: string): Promise<void> {
     const agent = store.getState().sidebar.agents.find((candidate) => candidate.id === agentId);
     if (!agent) return;
-    const latestSession = agent.sessions.items[0];
-    if (latestSession) return await selectSession(agentId, latestSession);
+    const userId = store.getState().auth.session?.user.subject ?? "";
+    const userSession = userId ? userSessionForAgent(agent, userId) : undefined;
+    if (userSession) return await selectSession(agentId, userSession);
     updateSidebar({ selectedAgentId: agentId });
     updateConversation({
       selectedSessionId: "",
       messages: [],
       queuedTurns: [],
       activity: [],
-      agentBusy: store.getState().sidebar.busyAgentIds.includes(agentId),
+      agentBusy: false,
       streamStatus: missionControlObserver?.signal.aborted === false ? "Live" : "Connecting",
       turnStatus: "",
       error: "",
@@ -624,7 +739,7 @@ export function createOpenBotRuntime(options: OpenBotRuntimeOptions): OpenBotRun
       queuedTurns: [],
       activity: [],
       loading: false,
-      agentBusy: store.getState().sidebar.busyAgentIds.includes(agentId),
+      agentBusy: false,
       streamStatus: missionControlObserver?.signal.aborted === false ? "Live" : "Connecting",
       turnStatus: "",
       error: "",
@@ -665,7 +780,12 @@ export function createOpenBotRuntime(options: OpenBotRuntimeOptions): OpenBotRun
     if (state.conversation.selectedSessionId) return state.conversation.selectedSessionId;
     const agentId = state.sidebar.selectedAgentId;
     if (!agentId) throw new Error("Select an agent before starting a conversation");
-    const created = await options.client.createSession(agentId, title || "New chat");
+    const agent = state.sidebar.agents.find((candidate) => candidate.id === agentId);
+    const userId = state.auth.session?.user.subject;
+    const created = await options.client.createSession(agentId, {
+      title: agent?.display_name || title || "New chat",
+      ...(userId ? { lookupKey: userSessionLookupKey(userId, agentId) } : {}),
+    });
     updateSidebar({ agents: addSession(store.getState().sidebar.agents, agentId, created) });
     updateConversation({ selectedSessionId: created.id });
     return created.id;
@@ -707,8 +827,7 @@ export function createOpenBotRuntime(options: OpenBotRuntimeOptions): OpenBotRun
     });
     let sessionId = state.conversation.selectedSessionId;
     try {
-      if (!sessionId) sessionId = await ensureSession(input.title || titleFrom(text));
-      if (!activeAtDispatch) {
+      if (!activeAtDispatch && sessionId) {
         const optimistic: ChatMessage = {
           id: `optimistic-${createId()}`,
           type: "ui",
@@ -723,32 +842,26 @@ export function createOpenBotRuntime(options: OpenBotRuntimeOptions): OpenBotRun
         });
         setSessionBusy(sessionId, true);
       }
-      const responsePromise = options.client.sendMessage(
-        agentId,
-        sessionId,
+      const responsePromise = options.client.submitTurn(agentId, {
+        ...(sessionId ? { sessionId } : {}),
+        title: input.title || titleFrom(text),
         text,
-        input.attachmentIds,
-      );
+        attachments:
+          input.attachmentCompletions ??
+          (input.attachmentIds ?? []).map((attachmentId) => ({ attachmentId })),
+      });
       // Mission Control's send endpoint is the sole durable queue producer. Keep the local queued
       // turn visible while that request is pending; queue SSE events own durable reconciliation.
       updateConversation({ submitting: false });
       const response = await responsePromise;
-      const persistedMessages = store
-        .getState()
-        .conversation.messages.filter((message) => !message.id.startsWith("optimistic-"));
-      const nextMessages = uniqueMessages([...persistedMessages, ...response.items]);
-      liveMessagesBySession.set(sessionId, nextMessages);
+      sessionId = response.session.id;
+      updateSidebar({
+        agents: addSession(store.getState().sidebar.agents, agentId, response.session),
+      });
+      applyConversationSnapshot(sessionId, response.conversation);
       updateConversation({
-        messages: nextMessages,
-        queuedTurns: attachPersistedQueuedMessageIds(
-          store.getState().conversation.queuedTurns,
-          persistedMessages,
-          nextMessages,
-        ),
-        nextMessageToken: response.next_page_token,
         turnStatus: activeAtDispatch ? "Queued" : "Completed",
       });
-      await Promise.all([refreshSidebar(true), refreshQueue(sessionId)]);
     } catch (error) {
       updateConversation({
         error: errorMessage(error),
@@ -1005,14 +1118,19 @@ export function createOpenBotRuntime(options: OpenBotRuntimeOptions): OpenBotRun
   const actions: OpenBotActions = {
     initialize,
     checkAuthentication,
-    async signIn() {
+    async signIn({ workspace = true }: { workspace?: boolean } = {}) {
       updateAuth({ error: "" });
       try {
         await options.auth.signIn();
         await checkAuthentication();
         if (store.getState().auth.status === "authenticated") {
-          await refreshSidebar();
-          beginMissionControlObservation();
+          if (workspace) {
+            await refreshSidebar();
+            workspaceInitialized = true;
+            beginMissionControlObservation();
+          } else {
+            await hydrateSidebar(false, false);
+          }
         }
       } catch (error) {
         updateAuth({ status: "unauthenticated", error: errorMessage(error) });
@@ -1021,6 +1139,7 @@ export function createOpenBotRuntime(options: OpenBotRuntimeOptions): OpenBotRun
     },
     async signOut() {
       await options.auth.signOut();
+      workspaceInitialized = false;
       missionControlObserver?.abort();
       agentSetupObserver?.abort();
       stopRoutinePolling();
@@ -1039,6 +1158,9 @@ export function createOpenBotRuntime(options: OpenBotRuntimeOptions): OpenBotRun
     selectAgent,
     startNewConversation,
     selectSession,
+    searchChatKit,
+    clearSearch,
+    selectSearchHit,
     ensureSession,
     refreshMessages,
     loadOlderMessages,
@@ -1080,7 +1202,6 @@ export function createOpenBotRuntime(options: OpenBotRuntimeOptions): OpenBotRun
       missionControlObserver?.abort();
       agentSetupObserver?.abort();
       stopRoutinePolling();
-      if (refreshTimer) cancelScheduled(refreshTimer);
       if (sidebarRefreshTimer) cancelScheduled(sidebarRefreshTimer);
       queueRefreshes.clear();
     },

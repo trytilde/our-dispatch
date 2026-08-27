@@ -10,12 +10,13 @@ import {
   VercelControlServiceProvider,
   type CommandRunner,
 } from "@tryopenbot/control-service-provider";
-import { VercelPlatform } from "@tryopenbot/platform-integrations";
+import { TildePlatform, VercelPlatform } from "@tryopenbot/platform-integrations";
 import { VercelAgentServiceProvider } from "../vercel/index.js";
 import { buildVercelRuntimeService } from "./vercel-build.js";
 
 export interface VercelRuntimeServiceProviderOptions {
   platform?: VercelPlatform;
+  hostedPlatform?: TildePlatform;
   runner?: CommandRunner;
   request?: typeof fetch;
 }

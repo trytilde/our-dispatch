@@ -17,6 +17,8 @@ Build and deployment providers for independently compiled agent entrypoints. It 
 - `LocalRuntimeServiceProvider` builds and installs one local process containing the control API and all agent routes.
 - `VercelRuntimeServiceProvider` publishes the static web app, one control Function, and independently bundled per-agent Functions as one atomic Vercel deployment.
 
+`VercelRuntimeServiceProviderOptions.hostedPlatform` forwards the shared Tilde platform to both internal service builders so managed Tilde Cloud installations can reconcile one runtime project without exposing a second deployment boundary.
+
 Compose the same runtime-provider instance as both `controlService` and `agentService`. Lifecycle coordination recognizes that shared identity and checks, builds, configures, and deploys it once. Agent endpoints keep separate Vercel Function directories even though releases and rollbacks are atomic with control and web.
 
 Both service providers leave development startup to OpenBot's watched Hono process. The Vercel

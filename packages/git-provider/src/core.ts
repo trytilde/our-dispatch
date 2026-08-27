@@ -23,12 +23,12 @@ export class GitProviderError extends Error {
 
 /** Names of environment values a reconciled git provider persists for other lifecycles. */
 export interface GitProviderEnvironment {
-  /** Repository slug (owner/name) holding this OpenBot fork. */
+  /** Provider-specific repository locator holding this OpenBot fork. */
   readonly repository: string;
-  /** Reverse-proxy profile ID fronting the hosting provider's REST API. */
-  readonly restProxyProfileId: string;
-  /** Reverse-proxy profile ID fronting authenticated git-over-HTTPS transport. */
-  readonly gitProxyProfileId: string;
+  /** Reverse-proxy profile ID fronting the hosting provider's REST API, when applicable. */
+  readonly restProxyProfileId?: string;
+  /** Reverse-proxy profile ID fronting authenticated git transport, when applicable. */
+  readonly gitProxyProfileId?: string;
 }
 
 /**

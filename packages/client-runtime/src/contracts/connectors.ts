@@ -201,9 +201,18 @@ export interface WaitForConnectorAccountOptions {
 export async function waitForConnectorAccountActive(
   client: {
     listConnectorAccounts(providerTypeId?: string): Promise<ConnectorAccount[]>;
+    waitForConnectorAccount?(accountId: string): Promise<ConnectorAccount>;
   },
   options: WaitForConnectorAccountOptions,
 ): Promise<ConnectorAccount | undefined> {
+  if (client.waitForConnectorAccount) {
+    try {
+      const account = await client.waitForConnectorAccount(options.accountId);
+      return account.status === "active" ? account : undefined;
+    } catch {
+      return undefined;
+    }
+  }
   const intervalMs = options.intervalMs ?? 2_000;
   const timeoutMs = options.timeoutMs ?? 5 * 60_000;
   const sleep = options.sleep ?? defaultSleep;

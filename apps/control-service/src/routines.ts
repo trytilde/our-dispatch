@@ -191,7 +191,7 @@ async function listRoutines(options: RoutineRouteOptions, agentId: string) {
   for (let page = 0; page < 100; page += 1) {
     const query = new URLSearchParams({ agent_id: agentId, page_size: "100" });
     if (token) query.set("next_page_token", token);
-    const response = valueRecord(await tildeJson(options, `/automations?${query}`));
+    const response = valueRecord(await tildeJson(options, `/automations?${query.toString()}`));
     if (!response) throw new Error("Tilde returned an invalid automation page");
     items.push(...(pageItems(response) as UpstreamAutomation[]));
     const next = text(response.next_page_token);

@@ -221,7 +221,8 @@ describe("routine automation facade", () => {
     );
     expect(response.status).toBe(200);
     const put = calls.find((call) => call.method === "PUT");
-    expect(put?.body).toMatchObject({
+    if (!put) throw new Error("Expected an automation PUT request");
+    expect(put.body).toMatchObject({
       agent_id: "inbox-1",
       name: "Renamed",
       instruction: "Check deploy health",
@@ -232,7 +233,7 @@ describe("routine automation facade", () => {
         { id: eventId, kind: "event" },
       ],
     });
-    expect((put?.body as { triggers: unknown[] }).triggers[1]).toMatchObject({
+    expect((put.body as { triggers: unknown[] }).triggers[1]).toMatchObject({
       session_policy: automation.triggers[1]?.session_policy,
     });
   });

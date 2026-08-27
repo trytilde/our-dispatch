@@ -75,6 +75,28 @@ export type AddMcpServerFunctionInput = {
   toolDescription?: string | null;
 };
 
+export type McpServerFunctionInput = {
+  toolSourceTypeId: string;
+  toolName: string;
+  toolDescription?: string | null;
+  configuredParams?: JsonObject;
+  isAsync?: boolean;
+};
+
+export type AddMcpServerFunctionsInput = {
+  serverId: string;
+  toolGroupSourceTypeId: string;
+  toolGroupInstanceId: string;
+  functions: McpServerFunctionInput[];
+};
+
+export type RemoveMcpServerFunctionsInput = {
+  serverId: string;
+  toolGroupSourceTypeId: string;
+  toolGroupInstanceId: string;
+  toolSourceTypeIds: string[];
+};
+
 export type UpdateMcpServerInput = {
   id: string;
   name: string;
@@ -196,6 +218,42 @@ export class McpClient {
         tool_group_instance_id: input.toolGroupInstanceId,
         tool_name: input.toolName,
         tool_description: input.toolDescription,
+      },
+    });
+    return this.#toMcpServer(raw);
+  }
+
+  async addFunctions(input: AddMcpServerFunctionsInput): Promise<McpServer> {
+    const raw = await requestJson<RawMcpServer>(this.#config, {
+      method: "POST",
+      path: pathWithParams(teamPath(this.#config, `${MCP_SERVER_INSTANCE_PATH}/functions`), {
+        mcp_server_instance_id: input.serverId,
+      }),
+      body: {
+        tool_group_source_type_id: input.toolGroupSourceTypeId,
+        tool_group_instance_id: input.toolGroupInstanceId,
+        functions: input.functions.map((fn) => ({
+          tool_source_type_id: fn.toolSourceTypeId,
+          tool_name: fn.toolName,
+          tool_description: fn.toolDescription,
+          configured_params: fn.configuredParams,
+          is_async: fn.isAsync,
+        })),
+      },
+    });
+    return this.#toMcpServer(raw);
+  }
+
+  async removeFunctions(input: RemoveMcpServerFunctionsInput): Promise<McpServer> {
+    const raw = await requestJson<RawMcpServer>(this.#config, {
+      method: "DELETE",
+      path: pathWithParams(teamPath(this.#config, `${MCP_SERVER_INSTANCE_PATH}/functions`), {
+        mcp_server_instance_id: input.serverId,
+      }),
+      body: {
+        tool_group_source_type_id: input.toolGroupSourceTypeId,
+        tool_group_instance_id: input.toolGroupInstanceId,
+        tool_source_type_ids: input.toolSourceTypeIds,
       },
     });
     return this.#toMcpServer(raw);

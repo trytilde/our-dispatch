@@ -1,6 +1,8 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vite-plus/test";
 import type { Routine, SignalInstance, SignalProvider } from "@tryopenbot/client-runtime";
+import { AgentDetailsPane } from "./agent-details-pane.js";
+import { ChatHeader } from "./chat-components.js";
 import { RoutineEditor } from "./routine-editor.js";
 import { RoutinesSection } from "./routines-section.js";
 import { SignalsSettings } from "./signals-settings.js";
@@ -107,12 +109,34 @@ function editor(routine: Routine | null) {
 }
 
 describe("routines surfaces render", () => {
+  it("uses the routines affordance and panel header actions", () => {
+    const header = renderToStaticMarkup(
+      <ChatHeader
+        agentName="OpenBot"
+        computerOpen={false}
+        onToggleComputer={noop}
+        onToggleDetails={noop}
+      />,
+    );
+    expect(header).toContain("Toggle routines");
+    expect(header).toContain("lucide-waypoints");
+
+    const panel = renderToStaticMarkup(
+      <AgentDetailsPane onAdd={noop} onClose={noop} open title="Routines">
+        <div />
+      </AgentDetailsPane>,
+    );
+    expect(panel).toContain("Routines");
+    expect(panel).toContain("Add");
+    expect(panel.indexOf("Add")).toBeLessThan(panel.indexOf("Close routines"));
+  });
+
   it("renders the settled empty state with its call to action", () => {
     const html = renderToStaticMarkup(
       <RoutinesSection onCreate={noop} onOpen={noop} providers={providers} routines={[]} settled />,
     );
     expect(html).toContain("Routines are recurring tasks this agent runs");
-    expect(html).toContain("Create Routine");
+    expect(html).toContain("Create your first routine");
   });
 
   it("holds the empty state back until the first load settles", () => {

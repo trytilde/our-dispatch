@@ -62,13 +62,14 @@ export async function runInitialization(
       "openbot init requires an interactive terminal or --non-interactive with JSON answers on stdin",
     );
   const initialized = await isInitializedOpenBotRepository(repositoryRoot);
+  const existingRepository = await isOpenBotRepository(repositoryRoot);
   const answers = nonInteractive ? await readJsonAnswersFromStdin() : undefined;
   const prompts = answers
     ? createNonInteractivePrompts(
-        initialized ? answers : validateNonInteractiveCoreAnswers(answers),
+        initialized ? answers : validateNonInteractiveCoreAnswers(answers, { existingRepository }),
       )
     : inkPrompts;
-  if (!initialized && !(await isOpenBotRepository(repositoryRoot)))
+  if (!initialized && !existingRepository)
     await bootstrapOpenBotRepository({
       destination: repositoryRoot,
       prompts,
@@ -198,6 +199,13 @@ export function initializationJsonSchema(): InitializationJsonSchema {
       "owner-identity",
       "vault-transit",
     ),
+    "managed-owner-identity-path": conditionedSchema(
+      requiredStringSchema(
+        "Absolute private path where the managed Computer stores the owner age identity.",
+      ),
+      "owner-identity",
+      "managed-file",
+    ),
     "onepassword-vault": conditionedSchema(
       requiredStringSchema(
         "1Password vault where OpenBot should store the generated owner age identity.",
@@ -221,7 +229,7 @@ export function initializationJsonSchema(): InitializationJsonSchema {
     requiredWhen("owner-identity", "onepassword", ["onepassword-vault", "onepassword-item-title"]),
   ];
 
-  for (const runtime of ["local", "vercel"] as const) {
+  for (const runtime of ["local", "vercel", "tilde-cloud"] as const) {
     const initializations = collectProviderInitializations(
       builtInRuntimeInitializationProviders(runtime, "vercel"),
     );
@@ -332,14 +340,10 @@ function requiredWhen(field: string, value: string, required: readonly string[])
 
 export function validateNonInteractiveCoreAnswers(
   answers: Readonly<Record<string, string>>,
+  options: { existingRepository?: boolean } = {},
 ): Readonly<Record<string, string>> {
-  const required = [
-    "repository-name",
-    "repository-visibility",
-    "owner-identity",
-    "runtime",
-    "inference",
-  ];
+  const required = ["owner-identity", "runtime", "inference"];
+  if (!options.existingRepository) required.push("repository-name", "repository-visibility");
   const ownerRequired: Record<string, readonly string[]> = {
     "aws-kms": ["aws-kms-key-arn"],
     "gcp-kms": ["gcp-kms-resource-id"],
@@ -347,20 +351,24 @@ export function validateNonInteractiveCoreAnswers(
     "vault-transit": ["vault-transit-key-uri"],
     onepassword: ["onepassword-vault", "onepassword-item-title"],
     "native-age": [],
+    "managed-file": ["managed-owner-identity-path"],
   };
   const owner = answers["owner-identity"];
   const runtime = answers.runtime;
   const inference = answers.inference;
   if (owner && !ownerRequired[owner])
     throw new Error(`Invalid non-interactive answer for owner-identity: ${owner}`);
-  if (runtime && runtime !== "local" && runtime !== "vercel")
+  if (runtime && runtime !== "local" && runtime !== "vercel" && runtime !== "tilde-cloud")
     throw new Error(`Invalid non-interactive answer for runtime: ${runtime}`);
   if (inference && inference !== "vercel" && inference !== "codex")
     throw new Error(`Invalid non-interactive answer for inference: ${inference}`);
   if (inference === "codex")
     throw new Error("Codex inference setup requires interactive device-code authentication");
   required.push(...(owner ? (ownerRequired[owner] ?? []) : []));
-  if ((runtime === "local" || runtime === "vercel") && inference === "vercel")
+  if (
+    (runtime === "local" || runtime === "vercel" || runtime === "tilde-cloud") &&
+    inference === "vercel"
+  )
     required.push(
       ...collectProviderInitializations(
         builtInRuntimeInitializationProviders(runtime, inference),

@@ -227,10 +227,10 @@ export function AgentDetailsContainer({
       <AgentDetailsPane
         {...(routineLevel
           ? { backLabel: "Back to Routines", onBack: () => onOpenRoutine(undefined) }
-          : {})}
+          : { onAdd: () => onOpenRoutine("new") })}
         onClose={onClose}
         open={open}
-        title={routineLevel ? "Routine" : "Details"}
+        title={routineLevel ? "Routine" : "Routines"}
       >
         {routineLevel ? (
           <RoutineEditor
