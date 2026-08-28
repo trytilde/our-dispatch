@@ -2,9 +2,9 @@ import { z } from "zod";
 
 /**
  * Signal provider management contracts shared by every client surface. The
- * control-service `/api/signals` routes project the Tilde signals catalog,
- * provider instances, and delivery history; signing secrets are write-only and
- * never echoed back.
+ * The client runtime projects Tilde's signals catalog, provider instances, and
+ * delivery history through the installation's allowlisted credential bridge;
+ * signing secrets are write-only and never echoed back.
  */
 
 export const SignalTypeSchema = z

@@ -6,8 +6,8 @@
 - Trigger is schedule or provider event; Tilde persists one authoritative Automation root and
   reconciles its ChatKit routine and signal-rule members.
 - Legacy `metadata.openbot` groups are adopted idempotently by Tilde during listing.
-- Control service keeps a thin compatibility facade at `/api/routines/*` and `/api/signals/*`;
-  never rides `/api/chat/*` (ADR-0014).
+- Client Runtime projects native Tilde Automation and Signals responses through the installation's
+  operation-allowlisted `/api/tilde/*` credential bridge; there is no domain facade.
 - Web renders an agent details pane; mobile is deferred.
 - Self-hosted deviation: webhook URL and signing secret are user-visible.
 
@@ -33,8 +33,9 @@ scan or a mapping database.
 
 ```mermaid
 flowchart LR
-    UI[Routine card] --> CS[thin control-service facade]
-    CS --> A[Tilde Automation API]
+    UI[Routine card] --> CR[Client Runtime projection]
+    CR --> B[allowlisted credential bridge]
+    B --> A[Tilde Automation API]
     A -->|schedule trigger| R[Tilde ChatKit routine]
     A -->|event trigger| SR[Tilde signal rule]
     SR --> SPI[signal provider instance]
@@ -66,7 +67,7 @@ never patch caches.
 
 ### Pagination
 
-The control facade follows Tilde Automation continuation tokens until exhausted and never rebuilds
+Client Runtime follows Tilde Automation continuation tokens until exhausted and never rebuilds
 the aggregate from independently paginated routine/rule collections. Legacy adoption is bounded and
 fails visibly on overflow rather than silently producing an incomplete root.
 
@@ -74,7 +75,7 @@ fails visibly on overflow rather than silently producing an incomplete root.
 
 Signal provider instances are managed inline from the trigger card and inventoried
 at `/settings/signals`. OpenBot is self-hosted, so provisioning is user-visible: the
-control service pre-assigns `spi_` ids to render the deterministic webhook URL, and
+client runtime pre-assigns `spi_` ids to render the deterministic webhook URL, and
 the signing secret is supplied by the owner, write-only, placed in
 `configuration.provider_webhook_signing_key`. Providers are catalog-driven, not
 hardcoded; providers upstream cannot auto-provision (Slack today) surface the
@@ -110,3 +111,4 @@ Work: render the routines list, editor, and provider connect flow natively again
 ## Updates
 
 - 2026-08-26T16:18:13+01:00: Replaced OpenBot's stateless metadata composition and mutation fan-out with Tilde's persisted Automation aggregate, retaining a thin owner-authenticated compatibility facade and automatic legacy adoption.
+- 2026-08-29T00:34:00+02:00: Removed the Routines and Signals domain facades. Client Runtime now validates and projects the native Tilde resources through one operation-allowlisted credential bridge, retaining the HttpOnly installation session without duplicating Tilde APIs.

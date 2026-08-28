@@ -4,8 +4,9 @@ import type { SignalProvider } from "./signals.js";
 /**
  * Unified routine contracts shared by every client surface. A routine groups
  * 1..MAX_ROUTINE_TRIGGERS OR'd triggers — schedule triggers backed by Tilde
- * ChatKit routines and event triggers backed by Tilde signal rules — behind
- * the control-service `/api/routines` routes.
+ * ChatKit routines and event triggers backed by Tilde signal rules. The client
+ * runtime projects Tilde's authoritative Automation API directly through the
+ * installation's allowlisted credential bridge.
  */
 
 export const MAX_ROUTINE_TRIGGERS = 8;

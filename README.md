@@ -134,7 +134,7 @@ The production build stages the web app in the control provider's `.vercel/outpu
 - `apps/web` owns the workspace, agent selection, conversation composer, and frontend routes.
 - `apps/mobile` owns the Expo and React Native owner surface for authentication, sidebar navigation, and regular chat, built on BNA UI components copied into `apps/mobile/src/components/ui`.
 - `packages/client-runtime` owns grouped UI contracts, Tilde REST/SSE parsing, live-event reducers, and shared Zustand vanilla state without platform APIs. Every major UX surface and state interaction goes through it; renderers keep only presentation-only state.
-- `apps/control-service` owns the portable Hono application, built web UI fallback, `/healthz`, the allowlisted Tilde ChatKit REST/SSE bridge under `/api/chat/*`, and the local control-service entrypoint.
+- `apps/control-service` owns the portable Hono application, built web UI fallback, `/healthz`, raw operation-allowlisted Tilde bridges under `/api/chat/*` and `/api/tilde/*`, and the local control-service entrypoint. Plugin, connector, routine, and signal projections belong to Client Runtime rather than control-service domain facades.
 - `packages/computer-service-proto` owns the API-key-protected internal computer API.
 - `packages/git-provider` owns brokered GitHub access: the Tilde-managed GitHub App credential and the REST and git-over-HTTPS reverse-proxy profiles used by the trusted development sandbox and the factory agent.
 - No control database is retained while the reset application has no persisted control state.
