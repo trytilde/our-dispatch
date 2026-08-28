@@ -98,10 +98,15 @@ describe("owner authentication", () => {
     const provider = stubProvider();
     const app = createApp({ authProvider: provider, webRoot: "/missing" });
     expect((await app.request("/api/computer/missing/preview")).status).toBe(401);
+    expect((await app.request("/api/tilde/openbot/plugins/catalog")).status).toBe(401);
     const authorized = await app.request("/api/computer/missing/preview", {
       headers: { authorization: "Bearer valid-token" },
     });
     expect(authorized.status).toBe(503);
+    const authorizedTilde = await app.request("/api/tilde/openbot/plugins/catalog", {
+      headers: { authorization: "Bearer valid-token" },
+    });
+    expect(authorizedTilde.status).toBe(503);
     expect(provider.verify).toHaveBeenCalledWith("valid-token");
   });
 
@@ -128,7 +133,11 @@ describe("owner authentication", () => {
       organization: { id: "org-one", name: "Tilde", role: "owner" },
       workspace: { id: "team-one", name: "OpenBot", role: "owner" },
     }));
-    const app = createApp({ authProvider: provider, webRoot: "/missing" });
+    const app = createApp({
+      authProvider: provider,
+      webRoot: "/missing",
+      environment: { TILDE_TEAM_ID: "team-one", TILDE_BASE_URL: "https://tilde.test" },
+    });
     const response = await app.request("/auth/session", {
       headers: { authorization: "Bearer valid-token" },
     });
@@ -137,6 +146,7 @@ describe("owner authentication", () => {
     expect(response.headers.get("cache-control")).toBe("no-store");
     await expect(response.json()).resolves.toEqual({
       authenticated: true,
+      tilde: { team_id: "team-one", api_base_url: "https://tilde.test" },
       user: {
         subject: "human-one",
         name: "Daniel Blignaut",

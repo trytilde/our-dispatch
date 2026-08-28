@@ -246,6 +246,45 @@ test("opens a routine and persists its active state", async ({ page }) => {
   await page.route("**/api/signals/**", async (route) => {
     await route.fulfill({ json: { items: [] } });
   });
+  await page.route("**/api/tilde/**", async (route) => {
+    const request = route.request();
+    const path = new URL(request.url()).pathname;
+    const upstreamRoutine = () => ({
+      id: "routine-group-one",
+      agent_id: "hello-world",
+      name: "Daily briefing",
+      instruction: "Summarize the latest project activity.",
+      enabled,
+      triggers: [
+        {
+          id: "schedule-trigger-one",
+          kind: "schedule",
+          schedule: "0 9 * * *",
+          schedule_description: "Every day at 09:00 UTC",
+          materialized_resource_id: "tilde-routine-one",
+        },
+      ],
+      created_at: now,
+      updated_at: now,
+    });
+    if (path.endsWith("/api/tilde/automations") && request.method() === "GET") {
+      await route.fulfill({ json: { items: [upstreamRoutine()], next_page_token: null } });
+      return;
+    }
+    if (path.endsWith("/api/tilde/automations/routine-group-one")) {
+      if (request.method() === "PUT") {
+        updateBody = request.postDataJSON();
+        enabled = (updateBody as { enabled?: boolean }).enabled ?? enabled;
+      }
+      await route.fulfill({ json: upstreamRoutine() });
+      return;
+    }
+    if (path.includes("/api/tilde/signals/")) {
+      await route.fulfill({ json: { items: [] } });
+      return;
+    }
+    await route.fulfill({ status: 404, json: { error: `Unhandled ${request.method()} ${path}` } });
+  });
 
   await page.goto("/");
   await page.getByRole("button", { name: "Toggle routines" }).click();
@@ -262,7 +301,7 @@ test("opens a routine and persists its active state", async ({ page }) => {
   const active = page.getByRole("switch", { name: "Active" });
   await expect(active).toBeChecked();
   await active.click();
-  await expect.poll(() => updateBody).toEqual({ enabled: false });
+  await expect.poll(() => updateBody).toMatchObject({ enabled: false });
   await expect(active).not.toBeChecked();
   await page.getByRole("button", { name: "Back to Routines" }).click();
   await expect(page.getByText("Paused", { exact: true })).toBeVisible();
@@ -1281,6 +1320,7 @@ test("configures a connector through the in-chat account picker", async ({ page 
     },
   ];
   const connectorAccountRequests: Array<Record<string, unknown>> = [];
+  let connectorCreated = false;
 
   await page.route("**/api/connectors/**", async (route) => {
     const request = route.request();
@@ -1336,6 +1376,89 @@ test("configures a connector through the in-chat account picker", async ({ page 
       return;
     }
     await route.fulfill({ json: { items: [] } });
+  });
+  await page.route("**/api/tilde/**", async (route) => {
+    const request = route.request();
+    const path = new URL(request.url()).pathname;
+    const method = request.method();
+    const tavilyAccount = (id: string, displayName: string) => ({
+      id,
+      display_name: displayName,
+      status: "active",
+      tool_group_source_type_id: "tavily",
+      credential_source_type_id: "tavily_api_key",
+    });
+    if (path.endsWith("/api/tilde/openbot/plugins/catalog") && method === "GET") {
+      await route.fulfill({
+        json: {
+          tool_providers: [
+            {
+              type_id: "tavily",
+              name: "Tavily",
+              categories: [],
+              credential_sources: [
+                {
+                  type_id: "tavily_api_key",
+                  display_name: "Use an API key",
+                  requires_brokering: false,
+                  configuration_schema: {
+                    resource_server: null,
+                    user_credential: {
+                      type: "object",
+                      required: ["api_key"],
+                      properties: { api_key: { type: "string", format: "password" } },
+                    },
+                  },
+                },
+              ],
+            },
+          ],
+          tool_accounts: [
+            tavilyAccount("tgi-work", "Work account"),
+            tavilyAccount("tgi-personal", "Personal"),
+            ...(connectorCreated ? [tavilyAccount("tgi-new", "Research key")] : []),
+          ],
+          mcp_servers: [
+            {
+              id: "openbot-hello-world",
+              agent_id: "hello-world",
+              tools: connectorBindRequests.map(({ account_id }) => ({
+                tool_group_instance_id: account_id,
+              })),
+            },
+          ],
+          proxied_mcp_servers: [],
+          skills: [],
+          skill_providers: [],
+          skill_registries: [],
+        },
+      });
+      return;
+    }
+    if (path.endsWith("/api/tilde/mcp/provider-catalog") && method === "GET") {
+      await route.fulfill({ json: { items: [] } });
+      return;
+    }
+    if (path.endsWith("/api/tilde/provider-setup/start") && method === "POST") {
+      const body = request.postDataJSON() as Record<string, unknown>;
+      connectorAccountRequests.push(body);
+      connectorCreated = true;
+      await route.fulfill({
+        json: {
+          resource: tavilyAccount("tgi-new", "Research key"),
+          next_action: { type: "complete" },
+        },
+      });
+      return;
+    }
+    const enabled = /\/api\/tilde\/mcp\/tool-group\/([^/]+)\/tools\/enable-and-bind$/.exec(path);
+    if (enabled && method === "POST") {
+      const accountId = decodeURIComponent(enabled[1] ?? "");
+      connectorBindRequests.push({ agent_id: "hello-world", account_id: accountId });
+      await route.fulfill({ json: { complete: true } });
+      return;
+    }
+    await route.fulfill({ status: 404, json: { error: `Unhandled ${method} ${path}` } });
   });
 
   await page.route("**/api/chat/**", async (route) => {
@@ -1420,10 +1543,9 @@ test("configures a connector through the in-chat account picker", async ({ page 
   // Credentials go to the control service; only the new account id is bound to the agent.
   await expect.poll(() => connectorAccountRequests.length).toBe(1);
   expect(connectorAccountRequests[0]).toMatchObject({
-    provider_type_id: "tavily",
-    credential_source_type_id: "tavily_api_key",
-    display_name: "Research key",
-    user_credential_values: { api_key: "tvly-secret" },
+    provider_id: "tavily",
+    auth_method_id: "tavily_api_key",
+    form_values: { displayName: "Research key", api_key: "tvly-secret" },
   });
   await expect.poll(() => connectorBindRequests.length).toBe(2);
   expect(connectorBindRequests[1]).toEqual({ agent_id: "hello-world", account_id: "tgi-new" });

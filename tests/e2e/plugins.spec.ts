@@ -47,6 +47,7 @@ test.beforeEach(async ({ page }) => {
     "research-brief-secondary": ["researcher"],
   };
   const deletedToolAccountIds = new Set<string>();
+  let googleAccountCreated = false;
   await page.route("**/api/connectors/**", async (route) => {
     const request = route.request();
     const path = new URL(request.url()).pathname;
@@ -402,6 +403,307 @@ test.beforeEach(async ({ page }) => {
       },
     });
   });
+  await page.route("**/api/tilde/**", async (route) => {
+    const request = route.request();
+    const url = new URL(request.url());
+    const path = url.pathname;
+    const method = request.method();
+    const agentIds = ["hello-world", "researcher"];
+    const provider = (
+      typeId: string,
+      name: string,
+      categories: string[],
+      extra: Record<string, unknown> = {},
+    ) => ({
+      type_id: typeId,
+      name,
+      categories,
+      credential_sources: [],
+      ...extra,
+    });
+    const account = (
+      id: string,
+      displayName: string,
+      providerTypeId: string,
+      credentialSourceTypeId?: string,
+    ) => ({
+      id,
+      display_name: displayName,
+      status: "active",
+      tool_group_source_type_id: providerTypeId,
+      ...(credentialSourceTypeId ? { credential_source_type_id: credentialSourceTypeId } : {}),
+    });
+    const registrySkills = (agentId: string) =>
+      Object.entries(skillAssignments)
+        .filter(([, assigned]) => assigned.includes(agentId))
+        .map(([id]) => ({ id }));
+
+    if (path.endsWith("/api/tilde/openbot/plugins/catalog") && method === "GET") {
+      const githubIcon =
+        "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 32'%3E%3Crect width='64' height='32' rx='8' fill='%23181717'/%3E%3C/svg%3E";
+      const googleIcon =
+        "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23fff'/%3E%3Cpath d='M5 9l11 8 11-8v14H5z' fill='%234285f4'/%3E%3C/svg%3E";
+      const researchSkills = [
+        {
+          id: "research-brief-primary",
+          name: "hello-world-Research brief",
+          description: "Gather and synthesize source material.",
+          category: "productivity",
+        },
+        {
+          id: "research-brief-secondary",
+          name: "researcher-Research brief",
+          description: "Gather and synthesize source material.",
+          category: "productivity",
+        },
+        ...Array.from({ length: 48 }, (_, index) => ({
+          id: `research-helper-${index + 1}`,
+          name: `Research helper ${index + 1}`,
+          description: "A focused research workflow.",
+          category: "productivity",
+        })),
+      ];
+      await route.fulfill({
+        json: {
+          tool_providers: [
+            provider("github", "GitHub", ["Development"], {
+              documentation: "Issues, pull requests, repositories, and code search.",
+              icon_url: githubIcon,
+            }),
+            provider("google_mail", "Google Mail", ["Productivity"], {
+              documentation: "Search and manage mail.",
+              icon_url: googleIcon,
+              credential_sources: [
+                {
+                  type_id: "google_mail_managed_oauth",
+                  display_name: "Sign in with your browser",
+                  documentation: "Platform-managed OAuth 2.0 — sign in with your provider account.",
+                  requires_brokering: true,
+                  supports_auto_display_name: true,
+                  configuration_schema: { resource_server: null, user_credential: null },
+                },
+              ],
+            }),
+            provider("managed_mcp:apollo", "Apollo.io", ["sales", "productivity"], {
+              documentation: "Search and enrich sales intelligence.",
+              icon_slug: "apollo",
+              credential_sources: [
+                {
+                  type_id: "managed_mcp_oauth",
+                  display_name: "Sign in with your browser",
+                  documentation: "Sign in with your provider account.",
+                  requires_brokering: true,
+                  display_name_description:
+                    "Used to identify this account when choosing it for a bot.",
+                  configuration_schema: {
+                    resource_server: {
+                      type: "object",
+                      properties: {
+                        api_base_url: {
+                          type: "string",
+                          title: "Api base url",
+                          description: "Base URL for your workspace.",
+                        },
+                      },
+                      required: ["api_base_url"],
+                    },
+                    user_credential: null,
+                  },
+                },
+              ],
+            }),
+            provider("sentry", "Sentry", ["Observability"], {
+              documentation: "Inspect production errors, traces, and releases.",
+              icon_slug: "sentry",
+            }),
+            provider("modal-sandbox", "Modal", ["Development"], {
+              documentation: "Run workloads in Modal sandboxes.",
+              icon_slug: "modal sandbox",
+            }),
+            provider("e2b", "E2B", ["Development"], {
+              documentation: "Run workloads in E2B sandboxes.",
+              icon_slug: "e2b",
+            }),
+            provider("tilde_control_plane", "Tilde Control Plane", ["system"]),
+            provider("tilde_skill_registry", "Tilde Skill Registry", ["system"]),
+            provider("tilde_wallet", "Tilde Pay", ["system"]),
+            provider("tilde_browser", "Tilde Browser", ["system"]),
+            provider("chatkit_internal_agent", "Message internal agent", ["system"]),
+          ],
+          tool_accounts: [
+            account("github-work", "Work", "github"),
+            account("github-personal", "Personal", "github"),
+            ...(googleAccountCreated
+              ? [
+                  account(
+                    "google-mail-work",
+                    "Work Gmail",
+                    "google_mail",
+                    "google_mail_managed_oauth",
+                  ),
+                ]
+              : []),
+          ].filter((item) => !deletedToolAccountIds.has(item.id)),
+          mcp_servers: agentIds.map((agentId) => ({
+            id: `openbot-${agentId}`,
+            agent_id: agentId,
+            tools: Object.entries(toolAssignments).flatMap(([id, assigned]) =>
+              assigned.includes(agentId) && !deletedToolAccountIds.has(id)
+                ? [{ tool_group_instance_id: id }]
+                : [],
+            ),
+          })),
+          proxied_mcp_servers: agentIds.map((agentId) => ({
+            server: {
+              id: `vercel-${agentId}`,
+              display_name: `OpenBot ${agentId} Vercel`,
+              endpoint_configuration: { url: "https://mcp.vercel.com" },
+              status: "active",
+              tool_group_instance_id: `vercel-${agentId}`,
+              tool_group_source_type_id: "proxied-vercel",
+            },
+            tool_group_instance: account(
+              `vercel-${agentId}`,
+              `OpenBot ${agentId} Vercel`,
+              "proxied-vercel",
+            ),
+            tool_count: 1,
+          })),
+          skills: [
+            {
+              id: "code-review",
+              name: "Code review",
+              description: "Review changes for correctness, clarity, and risk.",
+              category: "developer_tools",
+              provider_icon_key: "github",
+            },
+            ...researchSkills,
+          ],
+          skill_providers: [
+            {
+              id: "provider-cloudflare",
+              name: "Cloudflare",
+              description: "Cloudflare hosted skills.",
+              categories: ["infrastructure", "developer_tools"],
+              repository_url: "https://github.com/cloudflare/skills",
+              skills: [
+                {
+                  id: "cloudflare-workers",
+                  name: "Workers",
+                  description: "Build and deploy Cloudflare Workers.",
+                  source_path: "workers/SKILL.md",
+                },
+              ],
+            },
+            {
+              id: "provider-aws",
+              name: "AWS",
+              description: "Official AWS agent skills.",
+              categories: ["cloud_infrastructure", "developer_tools"],
+              repository_url: "https://github.com/aws/skills",
+              skills: [
+                {
+                  id: "aws-cdk",
+                  name: "AWS CDK",
+                  description: "Build cloud infrastructure with CDK.",
+                  source_path: "cdk/SKILL.md",
+                },
+              ],
+            },
+          ],
+          skill_registries: agentIds.map((agentId) => ({
+            id: `registry-${agentId}`,
+            agent_id: agentId,
+            name: `OpenBot ${agentId}`,
+            skills: registrySkills(agentId),
+          })),
+        },
+      });
+      return;
+    }
+    if (path.endsWith("/api/tilde/mcp/provider-catalog") && method === "GET") {
+      await route.fulfill({ json: { items: [] } });
+      return;
+    }
+    if (path.endsWith("/api/tilde/provider-setup/start") && method === "POST") {
+      googleAccountCreated = true;
+      await route.fulfill({
+        json: {
+          resource: account(
+            "google-mail-work",
+            "Work Gmail",
+            "google_mail",
+            "google_mail_managed_oauth",
+          ),
+          next_action: { type: "redirect", url: "about:blank" },
+        },
+      });
+      return;
+    }
+    if (path.endsWith("/api/tilde/mcp/tool-group/google-mail-work") && method === "GET") {
+      await new Promise((resolve) => setTimeout(resolve, 600));
+      await route.fulfill({
+        json: {
+          tool_group_instance: account(
+            "google-mail-work",
+            "Work Gmail",
+            "google_mail",
+            "google_mail_managed_oauth",
+          ),
+        },
+      });
+      return;
+    }
+    const enable = /\/api\/tilde\/mcp\/tool-group\/([^/]+)\/tools\/enable-and-bind$/.exec(path);
+    if (enable && method === "POST") {
+      await new Promise((resolve) => setTimeout(resolve, 400));
+      const accountId = decodeURIComponent(enable[1] ?? "");
+      const body = request.postDataJSON() as { mcp_server_instance_ids: string[] };
+      for (const serverId of body.mcp_server_instance_ids) {
+        const agentId = serverId.replace(/^openbot-/, "");
+        toolAssignments[accountId] = [...new Set([...(toolAssignments[accountId] ?? []), agentId])];
+      }
+      await route.fulfill({ json: { complete: true } });
+      return;
+    }
+    const unbind = /\/api\/tilde\/mcp\/mcp-server\/openbot-([^/]+)\/tool-group\/([^/]+)$/.exec(
+      path,
+    );
+    if (unbind && method === "DELETE") {
+      const [, agentId = "", encodedAccountId = ""] = unbind;
+      const accountId = decodeURIComponent(encodedAccountId);
+      toolAssignments[accountId] = (toolAssignments[accountId] ?? []).filter(
+        (candidate) => candidate !== agentId,
+      );
+      await route.fulfill({ json: { ok: true } });
+      return;
+    }
+    const registry = /\/api\/tilde\/skill-registry\/registry-([^/]+)$/.exec(path);
+    if (registry && method === "PATCH") {
+      await new Promise((resolve) => setTimeout(resolve, 400));
+      const agentId = registry[1] ?? "";
+      const body = request.postDataJSON() as { skill_ids: string[] };
+      for (const skillId of Object.keys(skillAssignments)) {
+        skillAssignments[skillId] = body.skill_ids.includes(skillId)
+          ? [...new Set([...(skillAssignments[skillId] ?? []), agentId])]
+          : (skillAssignments[skillId] ?? []).filter((candidate) => candidate !== agentId);
+      }
+      await route.fulfill({ json: { ok: true } });
+      return;
+    }
+    const deleted = /\/api\/tilde\/mcp\/(?:tool-group|proxied-mcp-servers)\/([^/]+)$/.exec(path);
+    if (deleted && method === "DELETE") {
+      await new Promise((resolve) => setTimeout(resolve, 400));
+      deletedToolAccountIds.add(decodeURIComponent(deleted[1] ?? ""));
+      await route.fulfill({ json: { ok: true } });
+      return;
+    }
+    if (path.includes("/api/tilde/signals/")) {
+      await route.fulfill({ json: { items: [] } });
+      return;
+    }
+    await route.fulfill({ status: 404, json: { error: `Unhandled ${method} ${path}` } });
+  });
   await page.route("**/api/chat/**", async (route) => {
     const path = new URL(route.request().url()).pathname;
     if (path.endsWith("/workspace/bootstrap")) {
@@ -610,10 +912,13 @@ test("manages tools and skills by bot", async ({ page }) => {
   const createRequest = page.waitForRequest(
     (request) =>
       request.method() === "POST" &&
-      new URL(request.url()).pathname.endsWith("/api/connectors/accounts"),
+      new URL(request.url()).pathname.endsWith("/api/tilde/provider-setup/start"),
   );
   await continueButton.click();
-  expect((await createRequest).postDataJSON()).toMatchObject({ display_name: "Work Gmail" });
+  expect((await createRequest).postDataJSON()).toMatchObject({
+    provider_id: "google_mail",
+    form_values: { displayName: "Work Gmail" },
+  });
   await expect(setupDialog.getByText(/Waiting for Google Mail authorization/)).toBeVisible();
   await expect(page.getByRole("dialog", { name: "Add account to bot" })).toHaveCount(0);
   const createdAccountBotDialog = page.getByRole("dialog", { name: "Add account to bot" });
@@ -636,14 +941,16 @@ test("manages tools and skills by bot", async ({ page }) => {
   await settingsSidebar.getByRole("button", { name: "Skills" }).click();
   await expect(page).toHaveURL(/\/settings\/plugins\/skills$/);
   await expect(page.getByPlaceholder("Search skills")).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Developer tools" })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Productivity", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Developer tools" }).first()).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Productivity", exact: true }).first(),
+  ).toBeVisible();
   await expect(page.getByRole("heading", { name: "Infrastructure", exact: true })).toBeVisible();
   await expect(
     page.getByRole("heading", { name: "Cloud infrastructure", exact: true }),
   ).toBeVisible();
-  await expect(page.getByText("Development", { exact: true })).toBeVisible();
-  await expect(page.getByText("Research", { exact: true })).toBeVisible();
+  await expect(page.getByText("Developer Tools", { exact: true }).last()).toBeVisible();
+  await expect(page.getByText("Productivity", { exact: true }).last()).toBeVisible();
   await expect(page.getByText("Cloudflare", { exact: true })).toBeVisible();
   await expect(page.getByText("AWS", { exact: true })).toBeVisible();
   await expect(page.getByText("Code review", { exact: true })).toHaveCount(0);
@@ -654,11 +961,11 @@ test("manages tools and skills by bot", async ({ page }) => {
   ).toBeVisible();
   await page.getByRole("button", { name: "Category", exact: true }).click();
   await page.getByRole("menuitemcheckbox", { name: "Productivity" }).click();
-  await expect(page.getByText("Research", { exact: true })).toHaveCount(1);
-  await expect(page.getByText("Development", { exact: true })).toHaveCount(0);
-  await catalog.getByRole("button", { name: /^Research/ }).click();
+  await expect(catalog.getByRole("button", { name: /^Productivity/ })).toBeVisible();
+  await expect(catalog.getByRole("button", { name: /^Developer Tools/ })).toHaveCount(0);
+  await catalog.getByRole("button", { name: /^Productivity/ }).click();
   detailDialog = page.getByRole("dialog");
-  await expect(detailDialog.getByRole("heading", { level: 2, name: "Research" })).toBeVisible();
+  await expect(detailDialog.getByRole("heading", { level: 2, name: "Productivity" })).toBeVisible();
   const viewport = page.viewportSize();
   await expect
     .poll(async () => (await detailDialog.boundingBox())?.width ?? 0)
@@ -715,7 +1022,9 @@ test("manages tools and skills by bot", async ({ page }) => {
   expect(skillHelloBox?.x).not.toBe(skillResearchBox?.x);
   await skillResearchBot.click();
   detailDialog = page.getByRole("dialog");
-  await expect(detailDialog.getByRole("heading", { name: "Research", exact: true })).toBeVisible();
+  await expect(
+    detailDialog.getByRole("heading", { name: "Productivity", exact: true }),
+  ).toBeVisible();
   await expect(detailDialog.getByRole("button", { name: "Adding to Researcher" })).toBeVisible();
   await expect(detailDialog.getByRole("status", { name: "Loading" })).toBeVisible();
   await expect(detailDialog.getByRole("button", { name: "Remove from Researcher" })).toBeVisible();
@@ -794,13 +1103,11 @@ test("manages tools and skills by bot", async ({ page }) => {
   const accountDelete = page.waitForRequest(
     (request) =>
       request.method() === "DELETE" &&
-      new URL(request.url()).pathname.endsWith("/api/connectors/accounts"),
+      new URL(request.url()).pathname.endsWith("/api/tilde/mcp/tool-group/github-work"),
   );
   await deleteDialog.getByRole("button", { name: "Remove account", exact: true }).click();
   await expect(deleteDialog.getByRole("button", { name: "Removing…" })).toBeVisible();
-  expect((await accountDelete).postDataJSON()).toEqual({
-    account_ids: ["github-work"],
-  });
+  await accountDelete;
   await expect(deleteDialog).toHaveCount(0);
   await expect(page.getByRole("dialog", { name: "GitHub" })).toBeVisible();
   await expect(detailDialog.getByText("Work", { exact: true })).toHaveCount(0);

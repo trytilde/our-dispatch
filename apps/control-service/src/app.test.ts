@@ -57,6 +57,105 @@ describe("bare OpenBot server", () => {
     expect(response.status).toBe(404);
   });
 
+  it("serves the public connector OAuth completion handoff", async () => {
+    const response = await createApp({ webRoot: "/missing" }).request(
+      "https://openbot.test/connectors/authorized?client=electron",
+    );
+    expect(response.status).toBe(200);
+    expect(response.headers.get("cache-control")).toBe("no-store");
+    await expect(response.text()).resolves.toContain("openbot://connectors/authorized");
+  });
+
+  it("passes allowlisted owner settings operations through to Tilde unchanged", async () => {
+    const tildeFetch = vi.fn<typeof fetch>(async (input, init) => {
+      const request = input instanceof Request ? input : new Request(input, init);
+      expect(request.url).toBe(
+        "https://tilde.test/api/v1/team/team-one/automations/routine-one?view=owner",
+      );
+      expect(request.method).toBe("PUT");
+      expect(request.headers.get("x-api-key")).toBe("tilde-key");
+      expect(request.headers.get("x-tilde-org-id")).toBe("org-one");
+      expect(request.headers.get("x-tilde-team-id")).toBe("team-one");
+      expect(request.headers.get("authorization")).toBeNull();
+      await expect(request.json()).resolves.toEqual({ enabled: true });
+      return Response.json({ id: "routine-one", enabled: true }, { status: 201 });
+    });
+    const tildeApp = createApp({
+      webRoot: "/missing",
+      tildeProxy: {
+        apiKey: "tilde-key",
+        orgId: "org-one",
+        teamId: "team-one",
+        baseUrl: "https://tilde.test",
+        fetch: tildeFetch,
+      },
+    });
+
+    const response = await tildeApp.request(
+      "https://openbot.test/api/tilde/automations/routine-one?view=owner",
+      {
+        method: "PUT",
+        headers: {
+          authorization: "Bearer browser-token",
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({ enabled: true }),
+      },
+    );
+
+    expect(response.status).toBe(201);
+    await expect(response.json()).resolves.toEqual({ id: "routine-one", enabled: true });
+    expect(tildeFetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("rejects Tilde operations outside the owner settings allowlist", async () => {
+    const tildeFetch = vi.fn<typeof fetch>();
+    const tildeApp = createApp({
+      webRoot: "/missing",
+      tildeProxy: {
+        apiKey: "tilde-key",
+        orgId: "org-one",
+        teamId: "team-one",
+        fetch: tildeFetch,
+      },
+    });
+
+    const response = await tildeApp.request("https://openbot.test/api/tilde/identity/api-key", {
+      method: "POST",
+    });
+
+    expect(response.status).toBe(404);
+    expect(tildeFetch).not.toHaveBeenCalled();
+  });
+
+  it("preserves encoded resource IDs in allowlisted Tilde paths", async () => {
+    const tildeFetch = vi.fn<typeof fetch>(async (input) => {
+      const request = input instanceof Request ? input : new Request(input);
+      expect(request.url).toBe(
+        "https://tilde.test/api/v1/team/team-one/mcp/tool-group/github%2Fwork",
+      );
+      return Response.json({ ok: true });
+    });
+    const tildeApp = createApp({
+      webRoot: "/missing",
+      tildeProxy: {
+        apiKey: "tilde-key",
+        orgId: "org-one",
+        teamId: "team-one",
+        baseUrl: "https://tilde.test",
+        fetch: tildeFetch,
+      },
+    });
+
+    const response = await tildeApp.request(
+      "https://openbot.test/api/tilde/mcp/tool-group/github%2Fwork",
+      { method: "DELETE" },
+    );
+
+    expect(response.status).toBe(200);
+    expect(tildeFetch).toHaveBeenCalledTimes(1);
+  });
+
   it("starts agent setup in the trusted development computer and reports readiness", async () => {
     const jobId = "11111111-1111-4111-8111-111111111111";
     const execute = vi.fn(async () => ({
