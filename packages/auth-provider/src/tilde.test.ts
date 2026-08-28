@@ -91,7 +91,10 @@ describe("TildeAuthProvider", () => {
 
   it("registers once during init and persists public OIDC metadata", async () => {
     const request = vi.fn<typeof fetch>(async (_input, init) => {
-      expect(init?.headers).toMatchObject({ "x-api-key": "tilde-key" });
+      expect(init?.headers).toMatchObject({
+        "x-api-key": "tilde-key",
+        "x-tilde-org-id": "org-one",
+      });
       expect(JSON.parse(typeof init?.body === "string" ? init.body : "{}")).toMatchObject({
         name: "My OpenBot",
         redirect_uris: expect.arrayContaining(["openbot://auth/callback"]),

@@ -1,4 +1,4 @@
-import type { JsonValue } from "@trytilde/sdk";
+import type { JsonObject, JsonValue } from "@trytilde/sdk";
 import { isJsonObject } from "@trytilde/sdk/json";
 import type { ChatKitRequestMessage } from "./chatkit-request";
 
@@ -33,7 +33,62 @@ export type SlackChatKitMessageMetadata = {
   user: string | null;
 };
 
+/** AgentMail metadata attached to an inbound email ChatKit message. */
+export type AgentMailChatKitMessageMetadata = {
+  event_id: string;
+  event_type:
+    | "message.received"
+    | "message.received.blocked"
+    | "message.received.spam"
+    | "message.received.unauthenticated";
+  inbox_id: string;
+  thread_id: string;
+  message_id: string;
+  subject: string | null;
+  from: string;
+  html_present: boolean;
+  attachments: JsonValue[];
+};
+
+export type LinqHandle = JsonObject & {
+  id?: string | null;
+  handle: string;
+  service?: string | null;
+  status?: string | null;
+};
+
+export type LinqChat = JsonObject & {
+  id: string;
+  owner_handle?: LinqHandle | null;
+  group_name?: string | null;
+};
+
+export type LinqMessagePart =
+  | { type: "text"; value: string }
+  | { type: "media"; url: string; media_type?: string | null; filename?: string | null }
+  | (JsonObject & { type: string });
+
+export type LinqMessagePayload = JsonObject & {
+  id?: string | null;
+  chat: LinqChat;
+  sender_handle?: LinqHandle | null;
+  parts?: LinqMessagePart[];
+};
+
+/** Provider metadata attached to inbound Linq ChatKit messages. */
+export type LinqChatKitMessageMetadata = {
+  event_id: string;
+  trace_id: string | null;
+  chat_id: string;
+  owner_handle: string | null;
+  message: LinqMessagePayload;
+};
+
 export type ChatKitProviderMetadata =
+  | {
+      provider: "chatkit.channel.agentmail";
+      metadata: AgentMailChatKitMessageMetadata;
+    }
   | {
       provider: "chatkit.channel.github";
       metadata: GitHubChatKitMessageMetadata;
@@ -41,10 +96,16 @@ export type ChatKitProviderMetadata =
   | {
       provider: "chatkit.channel.slack";
       metadata: SlackChatKitMessageMetadata;
+    }
+  | {
+      provider: "chatkit.channel.linq";
+      metadata: LinqChatKitMessageMetadata;
     };
 
 export type ChatKitEndpointProviderContext = {
+  agentmail?: AgentMailChatKitMessageMetadata;
   github?: GitHubChatKitMessageMetadata;
+  linq?: LinqChatKitMessageMetadata;
   slack?: SlackChatKitMessageMetadata;
   $chatkit_meta_provider?: ChatKitProviderMetadata;
 };
@@ -56,9 +117,21 @@ export function chatKitProviderContext(
     const metadata = messages[index]?.metadata;
     const provider = parseProviderMetadata(metadata);
     if (!provider) continue;
+    if (provider.provider === "chatkit.channel.agentmail") {
+      return {
+        agentmail: provider.metadata,
+        $chatkit_meta_provider: provider,
+      };
+    }
     if (provider.provider === "chatkit.channel.github") {
       return {
         github: provider.metadata,
+        $chatkit_meta_provider: provider,
+      };
+    }
+    if (provider.provider === "chatkit.channel.linq") {
+      return {
+        linq: provider.metadata,
         $chatkit_meta_provider: provider,
       };
     }
@@ -74,6 +147,10 @@ export function parseProviderMetadata(
   value: JsonValue | undefined,
 ): ChatKitProviderMetadata | null {
   if (!isJsonObject(value) || typeof value.provider !== "string") return null;
+  if (value.provider === "chatkit.channel.agentmail") {
+    const metadata = parseAgentMailMetadata(value.agentmail);
+    return metadata ? { provider: value.provider, metadata } : null;
+  }
   if (value.provider === "chatkit.channel.github") {
     const metadata = parseGitHubMetadata(value.github);
     return metadata ? { provider: value.provider, metadata } : null;
@@ -82,7 +159,53 @@ export function parseProviderMetadata(
     const metadata = parseSlackMetadata(value.slack);
     return metadata ? { provider: value.provider, metadata } : null;
   }
+  if (value.provider === "chatkit.channel.linq") {
+    const metadata = parseLinqMetadata(value.linq);
+    return metadata ? { provider: value.provider, metadata } : null;
+  }
   return null;
+}
+
+function parseAgentMailMetadata(
+  value: JsonValue | undefined,
+): AgentMailChatKitMessageMetadata | null {
+  if (
+    !isJsonObject(value) ||
+    typeof value.event_id !== "string" ||
+    !agentMailReceivedEvent(value.event_type) ||
+    typeof value.inbox_id !== "string" ||
+    typeof value.thread_id !== "string" ||
+    typeof value.message_id !== "string" ||
+    !nullableString(value.subject) ||
+    typeof value.from !== "string" ||
+    typeof value.html_present !== "boolean" ||
+    !Array.isArray(value.attachments)
+  ) {
+    return null;
+  }
+  return value as AgentMailChatKitMessageMetadata;
+}
+
+function parseLinqMetadata(value: JsonValue | undefined): LinqChatKitMessageMetadata | null {
+  if (
+    !isJsonObject(value) ||
+    typeof value.event_id !== "string" ||
+    !nullableString(value.trace_id) ||
+    typeof value.chat_id !== "string" ||
+    !nullableString(value.owner_handle) ||
+    !isLinqMessagePayload(value.message)
+  ) {
+    return null;
+  }
+  return value as LinqChatKitMessageMetadata;
+}
+
+function isLinqMessagePayload(value: JsonValue | undefined): value is LinqMessagePayload {
+  if (!isJsonObject(value) || !isJsonObject(value.chat) || typeof value.chat.id !== "string") {
+    return false;
+  }
+  if (value.parts !== undefined && !Array.isArray(value.parts)) return false;
+  return true;
 }
 
 function parseGitHubMetadata(value: JsonValue | undefined): GitHubChatKitMessageMetadata | null {
@@ -138,5 +261,16 @@ function githubThreadKind(value: JsonValue | undefined): boolean {
     value === "pull_request" ||
     value === "pull_request_review_comment" ||
     value === "pull_request_review"
+  );
+}
+
+function agentMailReceivedEvent(
+  value: JsonValue | undefined,
+): value is AgentMailChatKitMessageMetadata["event_type"] {
+  return (
+    value === "message.received" ||
+    value === "message.received.blocked" ||
+    value === "message.received.spam" ||
+    value === "message.received.unauthenticated"
   );
 }

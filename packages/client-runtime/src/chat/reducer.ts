@@ -12,23 +12,15 @@ export function reduceLiveChatEvent(
   activeSessionId: string,
   now = new Date(),
 ): LiveMessageReduction {
-  const kind = event.type.toLowerCase();
-  const payload =
-    eventKindPayload(event.data, "message_streaming") ??
-    eventKindPayload(event.data, "MessageStreaming") ??
-    (kind.includes("message_streaming") || kind.includes("message.streaming")
-      ? record(event.data)
-      : undefined);
-  if (payload) {
-    const sessionId = firstString(payload, "session_id", "sessionId") || activeSessionId;
-    const messageId = firstString(payload, "message_id", "messageId");
+  if (event.type === "message.delta") {
+    const { session_id: sessionId, message_id: messageId, delta } = event.data;
     if (sessionId !== activeSessionId || !messageId) return { messages: current, streaming: true };
-    const deltaKind = findField(payload.delta ?? payload, "type");
+    const deltaKind = findField(delta, "type");
     if (deltaKind === "finish" || deltaKind === "abort")
       return { messages: current, streaming: false };
     if (deltaKind === "error") {
       const text =
-        findField(payload.delta ?? payload, "errorText", "error_text", "error", "message") ||
+        findField(delta, "errorText", "error_text", "error", "message") ||
         "The agent failed to respond.";
       return {
         messages: upsertMessage(current, {
@@ -43,8 +35,8 @@ export function reduceLiveChatEvent(
         streaming: false,
       };
     }
-    const textDelta = findTextDelta(payload);
-    const toolPart = findToolPart(payload);
+    const textDelta = findTextDelta(delta);
+    const toolPart = findToolPart(delta);
     if (!textDelta && !toolPart) return { messages: current, streaming: true };
     const index = current.findIndex((message) => message.id === messageId);
     if (index < 0) {
@@ -82,86 +74,67 @@ export function reduceLiveChatEvent(
     };
   }
 
-  const createdPayload =
-    eventKindPayload(event.data, "message_created") ??
-    eventKindPayload(event.data, "MessageCreated") ??
-    (kind.includes("message_created") || kind.includes("message.created")
-      ? record(event.data)
-      : undefined);
-  const created = record(createdPayload?.message ?? createdPayload);
-  if (
-    typeof created.id === "string" &&
-    created.session_id === activeSessionId &&
-    typeof created.type === "string" &&
-    typeof created.role === "string" &&
-    typeof created.created_at === "string"
-  ) {
+  if (event.type === "message.created" || event.type === "message.updated") {
+    const message = event.data.message;
+    if (message.session_id !== activeSessionId) return { messages: current, streaming: false };
     return {
-      messages: upsertMessage(current, created as unknown as ChatMessage),
+      messages: upsertMessage(current, message),
       streaming: false,
     };
   }
+  if (event.type === "message.deleted")
+    return {
+      messages: current.filter((message) => message.id !== event.data.message_id),
+      streaming: false,
+    };
   return { messages: current, streaming: false };
 }
 
 export function eventStatus(event: ChatEvent): string {
-  const kind = eventName(event);
-  const data = record(event.data);
-  if (kind.includes("turn") || kind.includes("status")) {
-    const status = stringValue(data.status) || stringValue(record(data.payload).status);
-    return status ? humanEventName(status) : humanEventName(event.type);
+  switch (event.type) {
+    case "message.delta":
+      return "Streaming response";
+    case "message.created":
+      return "Message received";
+    case "queue_item.enqueued":
+      return "Queued";
+    case "queue_item.updated":
+      return event.data.change === "reordered" ? "Queue reordered" : "Queued message updated";
+    case "queue_item.dequeued":
+      return "Starting queued message";
+    case "queue_item.removed":
+      return "Queued message removed";
+    case "turn.started":
+      return "Agent is working";
+    case "turn.completed":
+      return "Completed";
+    case "turn.failed":
+      return "Turn failed";
+    case "turn.interrupted":
+      return "Interrupted";
+    default:
+      return "";
   }
-  if (kind.includes("streaming")) return "Streaming response";
-  if (kind.includes("queued")) return "Queued";
-  if (kind.includes("message.created")) return "Message received";
-  return "";
 }
 
 export function eventBusyState(event: ChatEvent): boolean | undefined {
-  const kind = normalizedEventName(event);
-  const data = record(event.data);
-  // Streaming deltas arrive either flat on `data` or nested under `data.kind.message_streaming`,
-  // so resolve the payload the same way the reducer does before reading its delta type.
-  const streaming =
-    eventKindPayload(event.data, "message_streaming") ??
-    eventKindPayload(event.data, "MessageStreaming") ??
-    (kind.includes("message.streaming") ? data : undefined);
-  if (streaming) {
-    const deltaType = findField(streaming.delta ?? streaming, "type").toLowerCase();
+  if (event.type === "message.delta") {
+    const deltaType = findField(event.data.delta, "type").toLowerCase();
     return ["finish", "abort", "error"].includes(deltaType) ? false : true;
   }
-  const deltaType = findField(data, "type").toLowerCase();
-  if (["finish", "abort", "error"].includes(deltaType)) return false;
-  const status = (
-    firstString(data, "status") ||
-    firstString(record(data.payload), "status") ||
-    firstString(record(data.kind), "status")
-  ).toLowerCase();
+  if (event.type === "turn.started" || event.type === "activity.typing.started") return true;
   if (
-    /^(idle|complete|completed|finished|failed|error|aborted|cancelled|canceled|interrupted)$/.test(
-      status,
-    )
+    event.type === "turn.completed" ||
+    event.type === "turn.failed" ||
+    event.type === "turn.interrupted" ||
+    event.type === "activity.typing.stopped"
   )
     return false;
-  if (/^(busy|working|running|streaming|typing|queued|pending|starting|in_progress)$/.test(status))
-    return true;
-  if (kind.includes("turn.started")) return true;
-  if (kind.includes("turn.completed") || kind.includes("turn.failed")) return false;
   return undefined;
 }
 
-/** Tilde names events with underscores; the checks below read as dotted paths. */
-function normalizedEventName(event: ChatEvent): string {
-  return eventName(event).toLowerCase().replaceAll("_", ".");
-}
-
 export function eventName(event: ChatEvent): string {
-  const nestedKind = record(record(event.data).kind);
-  const named = firstString(nestedKind, "kind") || Object.keys(nestedKind)[0] || event.type;
-  return named
-    .replace(/([a-z0-9])([A-Z])/g, "$1.$2")
-    .toLowerCase()
-    .replaceAll("_", ".");
+  return event.type;
 }
 
 export function uniqueMessages(messages: ChatMessage[]): ChatMessage[] {
@@ -262,16 +235,6 @@ function upsertMessage(current: ChatMessage[], message: ChatMessage): ChatMessag
   );
 }
 
-function eventKindPayload(value: unknown, key: string): Record<string, unknown> | undefined {
-  const event = record(value);
-  const kind = record(event.kind);
-  if (kind.kind === key) return kind;
-  const payload = kind[key];
-  return typeof payload === "object" && payload !== null
-    ? (payload as Record<string, unknown>)
-    : undefined;
-}
-
 function findTextDelta(value: unknown, depth = 0): string {
   if (depth > 6) return "";
   const item = record(value);
@@ -351,15 +314,4 @@ function record(value: unknown): Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value)
     ? (value as Record<string, unknown>)
     : {};
-}
-
-function stringValue(value: unknown): string {
-  return typeof value === "string" ? value : "";
-}
-
-function humanEventName(value: string): string {
-  return value
-    .replaceAll("_", " ")
-    .replaceAll("-", " ")
-    .replace(/\b\w/g, (character) => character.toUpperCase());
 }

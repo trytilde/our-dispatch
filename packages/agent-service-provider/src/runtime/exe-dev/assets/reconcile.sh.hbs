@@ -1,0 +1,105 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+remote_directory={{{REMOTE_DIRECTORY_SHELL}}}
+environment_file={{{ENVIRONMENT_FILE_SHELL}}}
+unit_file={{{UNIT_FILE_SHELL}}}
+source_url={{{SOURCE_URL_SHELL}}}
+source_branch={{{SOURCE_BRANCH_SHELL}}}
+
+# exe.dev's non-login SSH path puts Debian's /usr/bin ahead of the pinned toolchain.
+export PATH="/usr/local/bin:${PATH}"
+
+for command in git sudo systemctl curl tar sha256sum fuser pkill; do
+  command -v "$command" >/dev/null || {
+    echo "exe.dev VM is missing required command: $command" >&2
+    exit 1
+  }
+done
+
+node_version=24.20.0
+node_major="$(node -p 'process.versions.node.split(".")[0]' 2>/dev/null || true)"
+if [[ "$node_major" != 24 ]]; then
+  case "$(uname -m)" in
+    x86_64) node_arch=x64 ;;
+    aarch64|arm64) node_arch=arm64 ;;
+    *) echo "Unsupported exe.dev architecture: $(uname -m)" >&2; exit 1 ;;
+  esac
+  node_archive="node-v${node_version}-linux-${node_arch}.tar.xz"
+  node_temporary="$(mktemp -d)"
+  trap 'rm -rf "$node_temporary"' EXIT
+  curl -fsSL "https://nodejs.org/dist/v${node_version}/SHASUMS256.txt" \
+    -o "$node_temporary/SHASUMS256.txt"
+  curl -fsSL "https://nodejs.org/dist/v${node_version}/${node_archive}" \
+    -o "$node_temporary/$node_archive"
+  (
+    cd "$node_temporary"
+    grep "  ${node_archive}$" SHASUMS256.txt | sha256sum --check --strict -
+  )
+  sudo install -d -m 0755 /opt/openbot-node
+  sudo tar -xJf "$node_temporary/$node_archive" -C /opt/openbot-node --strip-components=1
+  for executable in node npm npx corepack; do
+    sudo ln -sfn "/opt/openbot-node/bin/$executable" "/usr/local/bin/$executable"
+  done
+fi
+
+sops_version=3.9.1
+if ! command -v sops >/dev/null; then
+  case "$(uname -m)" in
+    x86_64) sops_arch=amd64 ;;
+    aarch64|arm64) sops_arch=arm64 ;;
+    *) echo "Unsupported exe.dev architecture for SOPS: $(uname -m)" >&2; exit 1 ;;
+  esac
+  sops_binary="sops-v${sops_version}.linux.${sops_arch}"
+  sops_temporary="$(mktemp -d)"
+  trap 'rm -rf "${node_temporary:-}" "${sops_temporary:-}"' EXIT
+  curl -fsSL "https://github.com/getsops/sops/releases/download/v${sops_version}/${sops_binary}" \
+    -o "$sops_temporary/$sops_binary"
+  curl -fsSL "https://github.com/getsops/sops/releases/download/v${sops_version}/sops-v${sops_version}.checksums.txt" \
+    -o "$sops_temporary/checksums.txt"
+  (
+    cd "$sops_temporary"
+    grep "  ${sops_binary}$" checksums.txt | sha256sum --check --strict -
+  )
+  sudo install -m 0755 "$sops_temporary/$sops_binary" /usr/local/bin/sops
+fi
+
+sudo loginctl enable-linger "$(id -un)"
+export XDG_RUNTIME_DIR="/run/user/$(id -u)"
+export DBUS_SESSION_BUS_ADDRESS="unix:path=${XDG_RUNTIME_DIR}/bus"
+sudo corepack enable
+sudo corepack prepare pnpm@10.33.1 --activate
+
+mkdir -p "$(dirname "$remote_directory")" "$(dirname "$environment_file")" "$(dirname "$unit_file")"
+chmod 0700 "$(dirname "$environment_file")"
+
+if [[ ! -d "$remote_directory/.git" ]]; then
+  git clone --branch "$source_branch" --single-branch "$source_url" "$remote_directory"
+elif [[ -n "$(git -C "$remote_directory" status --porcelain)" ]]; then
+  echo "Preserving remote OpenBot edits; skipping source fast-forward"
+else
+  git -C "$remote_directory" remote set-url origin "$source_url"
+  git -C "$remote_directory" fetch origin "$source_branch"
+  git -C "$remote_directory" merge --ff-only "origin/$source_branch"
+fi
+
+(
+  cd "$remote_directory"
+  pnpm install --frozen-lockfile
+)
+mkdir -p "$remote_directory/configuration"
+configuration_env_base64="$(sed -n 's/^EXE_DEV_CONFIGURATION_ENV_BASE64="\(.*\)"$/\1/p' "$environment_file")"
+printf '%s' "$configuration_env_base64" \
+  | base64 --decode > "$remote_directory/configuration/.env"
+chmod 0600 "$remote_directory/configuration/.env"
+chmod 0600 "$environment_file"
+chmod 0644 "$unit_file"
+# exe.dev's user manager can leave detached watch/tunnel children behind after a unit restart.
+# Reap only the outer OpenBot runtime listeners; Computer RPC and noVNC are separate services.
+for port in 4173 4100 17654; do
+  fuser -k -TERM "${port}/tcp" >/dev/null 2>&1 || true
+done
+pkill -TERM -f "cloudflared tunnel run" >/dev/null 2>&1 || true
+systemctl --user daemon-reload
+systemctl --user enable --now openbot-dev.service
+systemctl --user restart openbot-dev.service

@@ -75,6 +75,25 @@ describe("owner authentication", () => {
     for (const cookie of login.headers.getSetCookie()) expect(cookie).not.toContain("Secure");
   });
 
+  it("uses the configured HTTPS origin for a matching remote development host", async () => {
+    vi.stubEnv("PUBLIC_ORIGIN", "https://our-openbot.exe.xyz");
+    const provider = stubProvider();
+    const app = createApp({ authProvider: provider, devMode: true, webRoot: "/missing" });
+
+    const login = await app.request("http://127.0.0.1:4100/auth/login", {
+      headers: {
+        "x-forwarded-host": "our-openbot.exe.xyz",
+        "x-forwarded-proto": "http",
+      },
+    });
+
+    expect(login.status).toBe(302);
+    expect(provider.authorizationUrl).toHaveBeenCalledWith(
+      expect.objectContaining({ redirectUri: "https://our-openbot.exe.xyz/auth/callback" }),
+    );
+    for (const cookie of login.headers.getSetCookie()) expect(cookie).toContain("Secure");
+  });
+
   it("protects control routes and accepts an installation-scoped bearer token", async () => {
     const provider = stubProvider();
     const app = createApp({ authProvider: provider, webRoot: "/missing" });
@@ -167,6 +186,33 @@ describe("owner authentication", () => {
       cookie: "openbot_access=valid-token",
       origin: "http://localhost:4173",
       "x-forwarded-host": "localhost:4173",
+      "x-forwarded-proto": "http",
+    };
+
+    const accepted = await app.request("http://127.0.0.1:4100/api/computer/missing/preview", {
+      method: "POST",
+      headers,
+    });
+    expect(accepted.status).toBe(404);
+
+    const rejected = await app.request("http://127.0.0.1:4100/api/computer/missing/preview", {
+      method: "POST",
+      headers: { ...headers, origin: "https://evil.test" },
+    });
+    expect(rejected.status).toBe(403);
+  });
+
+  it("accepts the configured matching HTTPS origin for remote development mutations", async () => {
+    const app = createApp({
+      authProvider: stubProvider(),
+      devMode: true,
+      environment: { PUBLIC_ORIGIN: "https://our-openbot.exe.xyz" },
+      webRoot: "/missing",
+    });
+    const headers = {
+      cookie: "openbot_access=valid-token",
+      origin: "https://our-openbot.exe.xyz",
+      "x-forwarded-host": "our-openbot.exe.xyz",
       "x-forwarded-proto": "http",
     };
 

@@ -15,4 +15,4 @@ Connect the owner workspace to configured Chat Provider agents in local and depl
 
 Make Tilde initialization default to production, discover the global control-plane toolkit, and keep mixed age/KMS secret updates compatible with older SOPS and AWS SSO credentials.
 
-Provision the shared Tilde Vercel UI channel required by Mission Control idempotently.
+Provision the shared Tilde Vercel UI channel required by ChatKit workspace idempotently.

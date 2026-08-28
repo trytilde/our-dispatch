@@ -70,7 +70,7 @@ Routes:
 - `PATCH /api/routines/:groupId` — diff triggers (create/update/delete members),
   propagate name/instruction to every member, fan out enabled/status.
 - `DELETE /api/routines/:groupId` — delete all members.
-- `POST /api/routines/:groupId/run` — "Test run": create a mission-control session
+- `POST /api/routines/:groupId/run` — "Test run": create a chatkit-workspace session
   titled with the routine name, send the instruction (Tilde has no run-now endpoint;
   this is exactly what its scheduler does).
 - `GET /api/signals/providers` — provider catalog projection.

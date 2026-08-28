@@ -15,6 +15,7 @@ describe("deploy-prod", () => {
       dryRun: false,
       json: true,
       skipDeploy: false,
+      skipAgentReconcile: false,
       service: "all",
     });
     expect(parseOptions(["--dry-run"])).toEqual({
@@ -22,6 +23,7 @@ describe("deploy-prod", () => {
       dryRun: true,
       json: false,
       skipDeploy: false,
+      skipAgentReconcile: false,
       service: "all",
     });
     expect(parseOptions(["--skip-deploy", "--service", "agents"])).toEqual({
@@ -29,6 +31,7 @@ describe("deploy-prod", () => {
       dryRun: false,
       json: false,
       skipDeploy: true,
+      skipAgentReconcile: false,
       service: "agents",
     });
     expect(() => parseOptions(["--service", "unknown"])).toThrow("Unsupported deploy service");
@@ -56,6 +59,13 @@ describe("deploy-prod", () => {
       deployAgents: false,
       deployControl: true,
       deployComputer: false,
+    });
+  });
+
+  it("parses the explicit agent reconciliation escape hatch", () => {
+    expect(parseOptions(["--yes", "--skip-agent-reconcile"])).toMatchObject({
+      yes: true,
+      skipAgentReconcile: true,
     });
   });
 

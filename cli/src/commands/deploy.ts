@@ -25,6 +25,7 @@ export interface DeployOptions {
   dryRun: boolean;
   json: boolean;
   skipDeploy: boolean;
+  skipAgentReconcile: boolean;
   service: "all" | "agents" | "control";
 }
 
@@ -100,6 +101,7 @@ export function parseOptions(argv: readonly string[]): DeployOptions {
       "--dry-run": Boolean,
       "--json": Boolean,
       "--skip-deploy": Boolean,
+      "--skip-agent-reconcile": Boolean,
       "--service": String,
     },
     { argv: argv.filter((argument) => argument !== "--") },
@@ -113,6 +115,7 @@ export function parseOptions(argv: readonly string[]): DeployOptions {
     dryRun: parsed["--dry-run"] ?? false,
     json: parsed["--json"] ?? false,
     skipDeploy: parsed["--skip-deploy"] ?? false,
+    skipAgentReconcile: parsed["--skip-agent-reconcile"] ?? false,
     service: service as DeployOptions["service"],
   };
 }
@@ -287,21 +290,23 @@ export async function runProductionDeploy(argv: readonly string[]): Promise<void
         })
         .toString(),
     });
-    await reconcileAgentResources({
-      repositoryRoot,
-      environment: deploymentConfiguration.environment,
-      configuration: deploymentConfiguration.configuration,
-      providers: configuration.providers,
-      devMode: false,
-      agentServiceOrigin: agentOrigins.preparationOrigin,
-      report,
-    });
+    if (!options.skipAgentReconcile)
+      await reconcileAgentResources({
+        repositoryRoot,
+        environment: deploymentConfiguration.environment,
+        configuration: deploymentConfiguration.configuration,
+        providers: configuration.providers,
+        devMode: false,
+        agentServiceOrigin: agentOrigins.preparationOrigin,
+        report,
+      });
   }
   await deployProviders(participants, {
     ...runOptions,
     initialInputs: built.result(),
   });
   if (
+    !options.skipAgentReconcile &&
     agentOrigins &&
     consolidatedRuntime &&
     agentOrigins.preparationOrigin !== agentOrigins.targetOrigin

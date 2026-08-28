@@ -90,3 +90,6 @@ git work.
 - 2026-08-26T15:31:31+01:00: Split agent creation by runtime ownership: local `openbot dev`
   scaffolds in its live checkout, while deployed control services continue through the trusted
   development sandbox.
+- 2026-08-27T15:15:00+02:00: Added the optional exe.dev mode from ADR-0032, where the trusted
+  development lifecycle is itself the continuously running deployment and therefore never flips
+  back to a separately built runtime.

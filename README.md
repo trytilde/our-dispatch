@@ -114,6 +114,11 @@ it does not modify an existing deployed workspace.
 - `vercel` builds a control/web project and a separate agent project. Every configured agent is a parallel-built Vercel Function; both projects deploy from prebuilt artifacts.
 - `tilde-cloud` uses the same Vercel service and Sandbox implementations behind Tilde's hosted control plane. A single Tilde API request creates a dedicated team, projects, OIDC-backed AI Gateway access, persistent Computer, and deterministic Vercel project hostname. Custom Cloudflare DNS is a follow-up. Its `LocalGitProvider` keeps the writable fork and bare origin entirely under the Computer's ignored `.openbot/` directory. Tilde retains its Vercel credential exclusively in the deployment worker; OpenBot publishes content-addressed prebuilt releases through a team-scoped Tilde capability.
 - `local` builds separate control and agent Hono servers, writes private service environments, and installs two user-level systemd services on Linux or launchd agents on macOS. Development still hosts control and agents in one Hono process.
+- `exe-dev` runs the consolidated watched runtime and host-native Computer continuously on
+  one persistent exe.dev VM. Deployment sizes the VM, publishes Vite through exe.dev HTTPS,
+  installs the complete fork configuration in a private service environment, and supervises
+  `pnpm dev` with systemd user linger. Code Storage supplies the repository remote using only a
+  repository-scoped JWT after transient organization-key setup.
 
 `--dry-run` performs native checks, writes local build artifacts, and calls the read-only `plan()` lifecycle. It does not link projects, publish Vercel deployments, or start services. Use `--skip-deploy` when only the artifacts are wanted and no deployment plan is needed.
 

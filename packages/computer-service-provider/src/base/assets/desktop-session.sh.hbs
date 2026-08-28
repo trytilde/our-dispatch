@@ -5,6 +5,9 @@ set -euo pipefail
 # runtime state below HOME, while the provider asset remains the source of truth on every start.
 panel_configuration="$HOME/.config/xfce4/xfconf/xfce-perchannel-xml/xfce4-panel.xml"
 desktop_ready_file="$XDG_RUNTIME_DIR/desktop-ready"
+settings_log="$XDG_RUNTIME_DIR/xfsettingsd.log"
+window_manager_log="$XDG_RUNTIME_DIR/xfwm4.log"
+panel_log="$XDG_RUNTIME_DIR/xfce4-panel.log"
 rm -f "$desktop_ready_file"
 mkdir -p "$(dirname "$panel_configuration")"
 install -m 0644 /opt/openbot/xfce4-panel.xml "$panel_configuration"
@@ -19,9 +22,9 @@ for launcher in "1:openbot-files.desktop" "2:openbot-browser.desktop"; do
   install -m 0644 "/usr/share/applications/$launcher_file" "$launcher_directory/$launcher_file"
 done
 
-xfsettingsd --replace --no-daemon >/var/log/openbot-xfsettingsd.log 2>&1 &
+xfsettingsd --replace --no-daemon >"$settings_log" 2>&1 &
 settings_pid=$!
-xfwm4 --compositor=on >/var/log/openbot-xfwm4.log 2>&1 &
+xfwm4 --compositor=on >"$window_manager_log" 2>&1 &
 window_manager_pid=$!
 panel_pid=""
 
@@ -37,7 +40,7 @@ trap cleanup EXIT INT TERM
 # Give XFWM a moment to claim the root window before applying the wallpaper and panel.
 sleep 0.35
 feh --no-fehbg --bg-fill /opt/openbot/desktop-wallpaper.png >/dev/null 2>&1 || true
-xfce4-panel --disable-wm-check >/var/log/openbot-xfce4-panel.log 2>&1 &
+xfce4-panel --disable-wm-check >"$panel_log" 2>&1 &
 panel_pid=$!
 
 # The Computer service must not expose Cua until the root pixmap and panel are both painted.

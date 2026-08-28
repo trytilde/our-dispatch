@@ -60,6 +60,13 @@ These locations are conventions, not configuration options. Global `configuratio
 
 Custom provider implementations live under `configuration/providers/` and must be explicitly imported and instantiated in `configuration/index.ts`.
 
+The built-in `exe-dev` composition shares one `ExeDevPlatform` between
+`ExeDevRuntimeServiceProvider` and `ExeDevComputerProvider`, and selects
+`CodeStorageGitProvider`. Its initialization stores VM identity and sizing as environment values,
+accepts the Code Storage organization key only as transient setup input, and persists the generated
+repository-only JWT as a SOPS secret. The remote VM receives the decrypted fork configuration
+because this mode deliberately promotes the trusted development lifecycle to an always-on runtime.
+
 `openbot new-agent` renders the fork-owned agent template, preserves relative
 paths, and removes each `.hbs` suffix. Init seeds the default template when it
 is missing. When an init selector changes inference providers, init can replace

@@ -14,9 +14,34 @@ pnpm add @trytilde/sdk @trytilde/sdk-vercel-ai-node zod
 - `createMCPClient(options)` creates a Tilde-authenticated AI SDK MCP client and merges local tools.
 - `toolEndpoint(options)` exposes signed, Zod-validated custom tool discovery and invocation.
 - `convertToAiSdkMessage` and `convertToAiSdkMessages` convert persisted ChatKit messages.
+- AgentMail, GitHub, and Slack provider metadata is promoted into typed endpoint context, and
+  AgentMail Signals can be handled through the discriminated `AgentMailSignalByType` map.
+- `ChatKitEndpointContext` exposes validated provider metadata through typed `github`, `slack`, and
+  `linq` fields. `LinqChatKitMessageMetadata` describes inbound Linq chats, handles, and parts.
+- `LinqSignalType`, `LinqSignalByType`, and `LinqWebhookEnvelope` strongly type every supported Linq
+  webhook event. Register event-specific conversion handlers under `onUnprocessed.linq`.
 - `createChatKitAttachmentFilePartHandler(options)` resolves ChatKit attachments for model input.
 - `verifyWebhookRequest`, `signBody`, and `WebhookVerificationError` implement signed webhook
   verification.
+
+```ts
+import { convertToAiSdkMessage, type LinqSignalByType } from "@trytilde/sdk-vercel-ai-node";
+
+type Received = LinqSignalByType["linq.message.received"];
+
+const message = await convertToAiSdkMessage({
+  message: signal,
+  onUnprocessed: {
+    linq: {
+      "linq.message.received": async (received: Received) => ({
+        id: received.id,
+        role: "user",
+        parts: [{ type: "text", text: `Message in ${received.data.data.chat?.id}` }],
+      }),
+    },
+  },
+});
+```
 
 ## Remote custom tools
 

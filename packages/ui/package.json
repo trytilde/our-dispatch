@@ -12,6 +12,11 @@
       "development": "./src/index.ts",
       "import": "./dist/index.js"
     },
+    "./agent-avatar": {
+      "types": "./dist/agent-avatar.d.ts",
+      "import": "./dist/agent-avatar.js"
+    },
+    "./agent-avatar.css": "./dist/agent-avatar.css",
     "./beautiful-ui.css": {
       "development": "./src/beautiful-ui/upstream/globals.css",
       "default": "./dist/beautiful-ui/upstream/globals.css"
@@ -32,6 +37,11 @@
         "types": "./dist/index.d.ts",
         "import": "./dist/index.js"
       },
+      "./agent-avatar": {
+        "types": "./dist/agent-avatar.d.ts",
+        "import": "./dist/agent-avatar.js"
+      },
+      "./agent-avatar.css": "./dist/agent-avatar.css",
       "./beautiful-ui.css": "./dist/beautiful-ui/upstream/globals.css",
       "./openbot-ui.css": "./dist/openbot-ui.css",
       "./beautiful-ui/*": {
@@ -45,6 +55,7 @@
     "build": "tsc --noEmit && tsdown --config ../../tsdown.browser.config.ts && node ../../scripts/copy-package-assets.mjs",
     "check": "vp check",
     "lint": "vp lint",
+    "prepare": "pnpm build",
     "prepack": "pnpm build",
     "storybook": "storybook dev -p 6006",
     "storybook:build": "storybook build",
@@ -59,7 +70,6 @@
     "@streamdown/code": "^1.1.1",
     "@streamdown/math": "^1.0.2",
     "@streamdown/mermaid": "^1.0.2",
-    "@tryopenbot/client-runtime": "workspace:*",
     "ai": "7.0.64",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
@@ -78,6 +88,7 @@
   "devDependencies": {
     "@storybook/react-vite": "10.5.0",
     "@tailwindcss/vite": "4.3.3",
+    "@tryopenbot/client-runtime": "workspace:*",
     "@types/react": "19.1.12",
     "@types/react-dom": "19.1.9",
     "react-dom": "19.1.2",
@@ -88,7 +99,13 @@
     "vite-plus": "catalog:"
   },
   "peerDependencies": {
+    "@tryopenbot/client-runtime": "0.1.0",
     "react": ">=19",
     "react-dom": ">=19"
+  },
+  "peerDependenciesMeta": {
+    "@tryopenbot/client-runtime": {
+      "optional": true
+    }
   }
 }

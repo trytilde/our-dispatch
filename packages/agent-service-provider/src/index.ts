@@ -25,6 +25,12 @@ export { discoverAgentWorkspaces } from "./workspaces.js";
 export { LocalAgentServiceProvider } from "./local/index.js";
 export { VercelAgentServiceProvider } from "./vercel/index.js";
 export { LocalRuntimeServiceProvider } from "./runtime/local.js";
+export {
+  ExeDevRuntimeServiceProvider,
+  processExeDevCommandRunner,
+  type ExeDevCommandRunner,
+  type ExeDevRuntimeServiceProviderOptions,
+} from "./runtime/exe-dev.js";
 export { VercelRuntimeServiceProvider } from "./runtime/vercel.js";
 export type { LocalAgentServiceProviderOptions } from "./local/index.js";
 export type { VercelAgentServiceProviderOptions } from "./vercel/index.js";

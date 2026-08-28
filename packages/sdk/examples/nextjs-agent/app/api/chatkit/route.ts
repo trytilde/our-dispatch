@@ -49,7 +49,7 @@ export const POST = chatKitEndpoint({
       tools: {
         hangUntilAbort: tool({
           description:
-            "Indefinitely hangs until the request abort signal is interrupted. Use only when explicitly asked to test Mission Control queue, steer, or abort behavior.",
+            "Indefinitely hangs until the request abort signal is interrupted. Use only when explicitly asked to test ChatKit workspace queue, steer, or abort behavior.",
           inputSchema: jsonSchema({
             type: "object",
             properties: {},

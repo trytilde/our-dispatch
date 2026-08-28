@@ -8,6 +8,7 @@ import { parse as parseDotenv } from "dotenv";
 import { parse as parseYaml, stringify as stringifyYaml } from "yaml";
 import {
   discoverAgents,
+  ExeDevRuntimeServiceProvider,
   LocalRuntimeServiceProvider,
   VercelRuntimeServiceProvider,
 } from "@tryopenbot/agent-service-provider";
@@ -19,6 +20,7 @@ import type {
   UserConfiguration,
 } from "@tryopenbot/configuration";
 import {
+  ExeDevComputerProvider,
   MicrosandboxComputerProvider,
   VercelSandboxComputerProvider,
 } from "@tryopenbot/computer-service-provider";
@@ -29,7 +31,11 @@ import {
   type ProviderInitialization,
   type ProviderInitializationQuestion,
 } from "@tryopenbot/runtime-provider";
-import { GitHubGitProvider, LocalGitProvider } from "@tryopenbot/git-provider";
+import {
+  CodeStorageGitProvider,
+  GitHubGitProvider,
+  LocalGitProvider,
+} from "@tryopenbot/git-provider";
 import {
   CODEX_INFERENCE_PROVIDER,
   CodexInferenceProvider,
@@ -38,7 +44,7 @@ import {
   VERCEL_INFERENCE_PROVIDER,
   VercelInferenceProvider,
 } from "@tryopenbot/inference-provider";
-import { tildePlatform, VercelPlatform } from "@tryopenbot/platform-integrations";
+import { ExeDevPlatform, tildePlatform, VercelPlatform } from "@tryopenbot/platform-integrations";
 import { materializeFileTemplate, renderFileTemplatePath } from "@tryopenbot/utilities";
 import {
   agentTemplateDirectory,
@@ -56,6 +62,7 @@ const configurationAssets = {
   instrumentation: fileURLToPath(
     new URL("./assets/agents/instrumentation.ts.hbs", import.meta.url),
   ),
+  exeDev: fileURLToPath(new URL("./assets/configuration/exe-dev.ts.hbs", import.meta.url)),
   local: fileURLToPath(new URL("./assets/configuration/local.ts.hbs", import.meta.url)),
   tildeCloud: fileURLToPath(new URL("./assets/configuration/tilde-cloud.ts.hbs", import.meta.url)),
   tsconfig: fileURLToPath(new URL("./assets/configuration/tsconfig.json.hbs", import.meta.url)),
@@ -192,6 +199,11 @@ export const ownerIdentityChoices: readonly SelectChoice[] = [
 
 export const runtimeChoices: readonly SelectChoice[] = [
   {
+    value: "exe-dev",
+    label: "exe.dev single VM",
+    description: "Run the complete trusted development stack continuously on one exe.dev VM.",
+  },
+  {
     value: "local",
     label: "Local",
     description: "Run OpenBot as user services on this computer.",
@@ -222,7 +234,7 @@ export const inferenceChoices: readonly SelectChoice[] = [
   },
 ];
 
-type RuntimeChoice = "local" | "vercel" | "tilde-cloud";
+type RuntimeChoice = "exe-dev" | "local" | "vercel" | "tilde-cloud";
 type InferenceChoice = "vercel" | "codex";
 
 interface InitializationProviderSelection {
@@ -249,7 +261,7 @@ interface InitializationStageState {
 }
 
 export function inferenceChoicesForRuntime(
-  runtime: "local" | "vercel" | "tilde-cloud",
+  runtime: "exe-dev" | "local" | "vercel" | "tilde-cloud",
 ): readonly SelectChoice[] {
   return runtime === "tilde-cloud"
     ? inferenceChoices.filter((choice) => choice.value === "vercel")
@@ -311,6 +323,7 @@ export async function initializeOpenBot(options: InitializationOptions): Promise
 
   const environmentValues: Record<string, DescribedValue> = {};
   const secretValues: Record<string, DescribedValue> = {};
+  const transientValues: Record<string, DescribedValue> = {};
   const stageState = createInitializationStageState();
   const provisioningValues = {
     baseEnvironment: options.environment ?? process.env,
@@ -319,6 +332,7 @@ export async function initializeOpenBot(options: InitializationOptions): Promise
     report: options.report,
     request: options.request,
     secretValues,
+    transientValues,
   };
   const ask = async (question: ProviderInitializationQuestion) => {
     const value = await askProviderQuestion(options.prompts, question);
@@ -329,7 +343,9 @@ export async function initializeOpenBot(options: InitializationOptions): Promise
     };
     if (question.destination.kind === "environment")
       environmentValues[question.destination.key] = described;
-    else secretValues[question.destination.key] = described;
+    else if (question.destination.kind === "secret")
+      secretValues[question.destination.key] = described;
+    else transientValues[question.destination.key] = described;
   };
   const selection = await selectInitializationProviders(
     configurationPath,
@@ -452,6 +468,7 @@ async function reconfigureOpenBot(
 ): Promise<void> {
   const state = await loadExistingInitializationState(options, runner, paths);
   const environmentValues: Record<string, DescribedValue> = {};
+  const transientValues: Record<string, DescribedValue> = {};
   const removedEnvironmentNames = new Set<string>();
   const stageState = createInitializationStageState();
   const allEnvironmentValues: Record<string, DescribedValue> = Object.fromEntries(
@@ -464,6 +481,7 @@ async function reconfigureOpenBot(
     baseEnvironment: options.environment ?? process.env,
     environmentValues: allEnvironmentValues,
     secretValues: state.secretValues,
+    transientValues,
     environmentUpdates: environmentValues,
     interactive: options.interactive !== false,
     report: options.report,
@@ -474,7 +492,9 @@ async function reconfigureOpenBot(
     const initialValue =
       question.destination.kind === "environment"
         ? state.environmentValues[question.destination.key]
-        : state.secretValues[secretName]?.value;
+        : question.destination.kind === "secret"
+          ? state.secretValues[secretName]?.value
+          : undefined;
     const value = await askProviderQuestion(options.prompts, question, initialValue);
     if (question.destination.kind === "environment") {
       if (value) {
@@ -488,6 +508,15 @@ async function reconfigureOpenBot(
         removedEnvironmentNames.add(question.destination.key);
         delete allEnvironmentValues[question.destination.key];
       }
+      return;
+    }
+    if (question.destination.kind === "transient") {
+      if (value)
+        transientValues[question.destination.key] = {
+          description: question.description ?? question.prompt,
+          value,
+        };
+      else delete transientValues[question.destination.key];
       return;
     }
     if (value) {
@@ -1536,7 +1565,12 @@ export async function selectInitializationProviders(
     id: "runtime",
     initialValue: "vercel",
   });
-  if (runtime !== "local" && runtime !== "vercel" && runtime !== "tilde-cloud")
+  if (
+    runtime !== "exe-dev" &&
+    runtime !== "local" &&
+    runtime !== "vercel" &&
+    runtime !== "tilde-cloud"
+  )
     throw new Error(`Unsupported runtime provider: ${runtime}`);
   const runtimeProviders = builtInRuntimeProviderGroup(runtime);
   await onSelected?.({ domain: "runtime", providers: runtimeProviders });
@@ -1607,11 +1641,13 @@ async function renderBuiltInConfiguration(
   inference: InferenceChoice,
 ): Promise<string> {
   const asset =
-    runtime === "local"
-      ? configurationAssets.local
-      : runtime === "tilde-cloud"
-        ? configurationAssets.tildeCloud
-        : configurationAssets.vercel;
+    runtime === "exe-dev"
+      ? configurationAssets.exeDev
+      : runtime === "local"
+        ? configurationAssets.local
+        : runtime === "tilde-cloud"
+          ? configurationAssets.tildeCloud
+          : configurationAssets.vercel;
   return renderFileTemplatePath(asset, { CODEX_INFERENCE: inference === "codex" });
 }
 
@@ -1623,6 +1659,8 @@ function initializationDiscoveryEnvironment(environment: NodeJS.ProcessEnv): Nod
     builtInRuntimeInitializationProviders("vercel", "vercel"),
     builtInRuntimeInitializationProviders("vercel", "codex"),
     builtInRuntimeInitializationProviders("tilde-cloud", "vercel"),
+    builtInRuntimeInitializationProviders("exe-dev", "vercel"),
+    builtInRuntimeInitializationProviders("exe-dev", "codex"),
   ];
   for (const providers of selections) {
     for (const initialization of collectProviderInitializations(providers)) {
@@ -1654,6 +1692,13 @@ export function builtInRuntimeInitializationProviders(
 
 function builtInRuntimeProviderGroup(runtime: RuntimeChoice): InitializableProvider[] {
   const vercel = new VercelPlatform({ managed: runtime === "tilde-cloud" });
+  if (runtime === "exe-dev") {
+    const exe = new ExeDevPlatform();
+    return [
+      new ExeDevRuntimeServiceProvider({ platform: exe }),
+      new ExeDevComputerProvider({ platform: exe }),
+    ];
+  }
   return runtime === "local"
     ? [new LocalRuntimeServiceProvider(), new MicrosandboxComputerProvider()]
     : [
@@ -1669,7 +1714,11 @@ function builtInSharedProviderGroup(runtime: RuntimeChoice | "current"): Initial
       platforms: [tildePlatform],
       initialization: tildeAgentProviderInitialization,
     },
-    runtime === "tilde-cloud" ? new LocalGitProvider() : new GitHubGitProvider(tildePlatform),
+    runtime === "tilde-cloud"
+      ? new LocalGitProvider()
+      : runtime === "exe-dev"
+        ? new CodeStorageGitProvider()
+        : new GitHubGitProvider(tildePlatform),
   ];
 }
 
@@ -1806,6 +1855,7 @@ async function runInitializationProvisioning(
     baseEnvironment: NodeJS.ProcessEnv;
     environmentValues: Record<string, DescribedValue>;
     secretValues: Record<string, DescribedValue>;
+    transientValues?: Record<string, DescribedValue>;
     environmentUpdates?: Record<string, DescribedValue>;
     request?: typeof fetch;
     interactive?: boolean;
@@ -1820,6 +1870,12 @@ async function runInitializationProvisioning(
     ...Object.fromEntries(
       Object.entries(values.secretValues).map(([name, described]) => [
         runtimeSecretName(name),
+        described.value,
+      ]),
+    ),
+    ...Object.fromEntries(
+      Object.entries(values.transientValues ?? {}).map(([name, described]) => [
+        name,
         described.value,
       ]),
     ),
@@ -1977,6 +2033,12 @@ export function configuredRuntimeChoice(
     constructorName(configuration.providers.computer),
   ];
   if (
+    constructors[0] === "ExeDevRuntimeServiceProvider" &&
+    constructors[1] === "ExeDevRuntimeServiceProvider" &&
+    constructors[2] === "ExeDevComputerProvider"
+  )
+    return "exe-dev";
+  if (
     constructors[0] === "LocalRuntimeServiceProvider" &&
     constructors[1] === "LocalRuntimeServiceProvider" &&
     constructors[2] === "MicrosandboxComputerProvider"
@@ -2014,6 +2076,10 @@ function compatibleInitializationProvider(provider: InitializableProvider): Init
       return new VercelRuntimeServiceProvider();
     case "VercelSandboxComputerProvider":
       return new VercelSandboxComputerProvider();
+    case "ExeDevRuntimeServiceProvider":
+      return new ExeDevRuntimeServiceProvider();
+    case "ExeDevComputerProvider":
+      return new ExeDevComputerProvider();
     case "TildeAgentProvider":
       return { platforms: [tildePlatform] };
     default:

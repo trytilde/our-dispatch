@@ -1,0 +1,17 @@
+[Unit]
+Description=OpenBot host Computer service
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/workspace
+EnvironmentFile={{{ENVIRONMENT_FILE}}}
+ExecStart=/usr/local/bin/start-openbot-computer
+Restart=always
+RestartSec=3
+TimeoutStopSec=30
+KillMode=mixed
+
+[Install]
+WantedBy=default.target

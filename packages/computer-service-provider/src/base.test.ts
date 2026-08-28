@@ -320,6 +320,41 @@ describe("development sandbox source", () => {
     }
   });
 
+  it("skips tracked gitlinks instead of treating them as source files", async () => {
+    const repositoryRoot = await mkdtemp(join(tmpdir(), "openbot-computer-gitlink-"));
+    const dependencyRoot = await mkdtemp(join(tmpdir(), "openbot-computer-dependency-"));
+    try {
+      await execute("git", ["init"], { cwd: repositoryRoot });
+      await execute("git", ["init"], { cwd: dependencyRoot });
+      await writeFile(join(dependencyRoot, "README.md"), "dependency");
+      await execute("git", ["add", "README.md"], { cwd: dependencyRoot });
+      await execute(
+        "git",
+        ["-c", "user.name=OpenBot", "-c", "user.email=openbot@example.com", "commit", "-m", "seed"],
+        { cwd: dependencyRoot },
+      );
+      await execute(
+        "git",
+        [
+          "-c",
+          "protocol.file.allow=always",
+          "submodule",
+          "add",
+          dependencyRoot,
+          "third-party/dependency",
+        ],
+        { cwd: repositoryRoot },
+      );
+      await execute("git", ["add", "-A"], { cwd: repositoryRoot });
+
+      const files = await developmentSandboxSourceFiles(repositoryRoot);
+      expect(files.map(({ path }) => path)).toEqual(["openbot/.gitmodules"]);
+    } finally {
+      await rm(repositoryRoot, { recursive: true, force: true });
+      await rm(dependencyRoot, { recursive: true, force: true });
+    }
+  });
+
   it("refuses symlinks that would resolve outside the seeded repository", async () => {
     const repositoryRoot = await mkdtemp(join(tmpdir(), "openbot-computer-escape-"));
     try {
@@ -767,6 +802,14 @@ describe("trusted development sandbox", () => {
       "computer",
       {
         command: "chmod",
+        args: ["0600", "/workspace/.openbot/development/sops-age-key.txt"],
+      },
+      expect.anything(),
+    );
+    expect(provider.exec).toHaveBeenCalledWith(
+      "computer",
+      {
+        command: "chmod",
         args: ["0400", "/workspace/.openbot/development/sops-age-key.txt"],
       },
       expect.anything(),
@@ -783,6 +826,12 @@ describe("trusted development sandbox", () => {
     expect(profile).toContain('source "$openbot_source_root/configuration/.env"');
     expect(profile).toContain("SOPS_AGE_KEY_FILE");
     expect(profile).toContain("sops decrypt --output-type json");
+    const desktopSession = await readFile(computerImageAssets.desktopSession, "utf8");
+    expect(desktopSession).toContain("$XDG_RUNTIME_DIR/xfce4-panel.log");
+    expect(desktopSession).not.toContain("/var/log/openbot-xfce4-panel.log");
+    const developmentSetup = await readFile(computerImageAssets.developmentSetup, "utf8");
+    expect(developmentSetup).toContain('if [ -L "$source_directory" ]');
+    expect(developmentSetup).toContain('pkill -f "$state_directory/orchestrator-supervisor.sh"');
   });
 });
 
