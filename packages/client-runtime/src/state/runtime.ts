@@ -15,13 +15,13 @@ import type {
   AuthenticatedSession,
   AuthenticationStatus,
 } from "../contracts/auth.js";
-import type { ActivityEvent } from "../contracts/events.js";
+import type { ActivityEvent, ChatEvent } from "../contracts/events.js";
 import type { ChatMessage, ChatPart } from "../contracts/messages.js";
 import type {
   AttachmentCompletion,
   ChatKitSearchHit,
   ConversationSnapshot,
-} from "../contracts/mission-control.js";
+} from "../contracts/workspace.js";
 import { QueuedTurnSchema, type QueuedTurn } from "../contracts/queue.js";
 import type { CreateRoutineInput, Routine, UpdateRoutineInput } from "../contracts/routines.js";
 import type {
@@ -249,7 +249,7 @@ export function createOpenBotRuntime(options: OpenBotRuntimeOptions): OpenBotRun
   const sessionSort = options.sessionSort ?? "updated_at";
   const busySessionIds = new Set<string>();
   const liveMessagesBySession = new Map<string, ChatMessage[]>();
-  let missionControlObserver: AbortController | undefined;
+  let chatKitRealtimeObserver: AbortController | undefined;
   let agentSetupObserver: AbortController | undefined;
   let sidebarRefreshTimer: ReturnType<typeof setTimeout> | undefined;
   const queueRefreshes = new Map<string, Promise<void>>();
@@ -332,19 +332,19 @@ export function createOpenBotRuntime(options: OpenBotRuntimeOptions): OpenBotRun
   async function hydrateSidebar(silent: boolean, workspace: boolean): Promise<void> {
     if (!silent) updateSidebar({ loading: true, error: "" });
     try {
-      const response = await options.client.getActivity(
+      const response = await options.client.getBootstrap(
         store.getState().conversation.selectedSessionId || undefined,
       );
       const agents = workspace
-        ? await Promise.all(response.activity.items.map(loadRemainingAgentSessions))
-        : response.activity.items;
+        ? await Promise.all(response.sidebar.items.map(loadRemainingAgentSessions))
+        : response.sidebar.items;
       const currentAgentId = store.getState().sidebar.selectedAgentId;
       const selectedAgentId = agents.some((agent) => agent.id === currentAgentId)
         ? currentAgentId
         : (agents[0]?.id ?? "");
       updateSidebar({
         agents,
-        nextAgentToken: response.activity.next_page_token,
+        nextAgentToken: response.sidebar.next_page_token,
         selectedAgentId,
         ...(!silent ? { loading: false } : {}),
       });
@@ -416,7 +416,7 @@ export function createOpenBotRuntime(options: OpenBotRuntimeOptions): OpenBotRun
                 // Authentication still succeeded; the sidebar exposes its own retryable error.
               }
             }
-            beginMissionControlObservation();
+            beginChatKitWorkspaceObservation();
           } else {
             await hydrateSidebar(false, false).catch(() => undefined);
           }
@@ -443,7 +443,7 @@ export function createOpenBotRuntime(options: OpenBotRuntimeOptions): OpenBotRun
       } catch {
         // Authentication still succeeded; the sidebar exposes its own retryable error.
       }
-      beginMissionControlObservation();
+      beginChatKitWorkspaceObservation();
     }
   }
 
@@ -545,24 +545,26 @@ export function createOpenBotRuntime(options: OpenBotRuntimeOptions): OpenBotRun
     }, 120);
   }
 
-  function beginMissionControlObservation(): void {
-    if (missionControlObserver && !missionControlObserver.signal.aborted) return;
+  function beginChatKitWorkspaceObservation(): void {
+    if (chatKitRealtimeObserver && !chatKitRealtimeObserver.signal.aborted) return;
     const controller = new AbortController();
     const seenEventIds = new Set<string>();
-    missionControlObserver = controller;
+    chatKitRealtimeObserver = controller;
     updateConversation({ streamStatus: "Connecting" });
     void (async () => {
       while (!controller.signal.aborted) {
         try {
           updateConversation({ streamStatus: "Live" });
-          await options.client.observeMissionControl(
+          await options.client.observeChatKitRealtime(
             controller.signal,
             (event) => {
               if (event.id && seenEventIds.has(event.id)) return;
-              const sessionId = eventSessionId(event.data);
+              applyAgentEvent(store, event);
+              applySessionEvent(store, event);
+              if (event.type === "access.changed") scheduleSidebarRefresh();
+              const sessionId = eventSessionId(event);
               if (!sessionId) {
-                scheduleSidebarRefresh();
-                rememberMissionControlEvent(event.id, seenEventIds);
+                rememberChatKitRealtimeEvent(event.id, seenEventIds);
                 return;
               }
               const state = store.getState();
@@ -573,13 +575,7 @@ export function createOpenBotRuntime(options: OpenBotRuntimeOptions): OpenBotRun
               const reduction = reduceLiveChatEvent(currentMessages, event, sessionId, now());
               liveMessagesBySession.set(sessionId, reduction.messages);
               const name = eventName(event);
-              const busy =
-                eventBusyState(event) ??
-                (name.includes("error") ||
-                (name.includes("message.created") &&
-                  nestedString(event.data, "role") === "assistant")
-                  ? false
-                  : undefined);
+              const busy = eventBusyState(event);
               if (busy !== undefined) setSessionBusy(sessionId, busy);
               if (name.includes("message"))
                 updateSidebarForSessionEvent(
@@ -596,13 +592,15 @@ export function createOpenBotRuntime(options: OpenBotRuntimeOptions): OpenBotRun
                   state.conversation.messages,
                   reduction.messages,
                 );
-                const dequeued = name.includes("dequeued");
-                const queueItem = name.includes("queue") ? queueEventQueuedTurn(event.data) : null;
-                if (name.includes("queued") && !dequeued && queueItem) {
+                const queueItem = queueEventQueuedTurn(event);
+                if (
+                  (event.type === "queue_item.enqueued" || event.type === "queue_item.updated") &&
+                  queueItem
+                ) {
                   queuedTurns = reconcileQueuedEvent(queuedTurns, queueItem);
                 }
-                if (dequeued) {
-                  const dequeuedTriggerIds = new Set(queueEventTriggerMessageIds(event.data));
+                if (event.type === "queue_item.dequeued" || event.type === "queue_item.removed") {
+                  const dequeuedTriggerIds = new Set(queueEventTriggerMessageIds(event));
                   queuedTurns = queuedTurns.filter(
                     (turn) =>
                       turn.id !== queueItem?.id &&
@@ -620,11 +618,12 @@ export function createOpenBotRuntime(options: OpenBotRuntimeOptions): OpenBotRun
                   ...(busy === undefined ? {} : { agentBusy: busy }),
                 });
               }
-              if (name.includes("session")) scheduleSidebarRefresh();
-              rememberMissionControlEvent(event.id, seenEventIds);
+              if (event.type === "session.created" || event.type === "session.access.updated")
+                scheduleSidebarRefresh();
+              rememberChatKitRealtimeEvent(event.id, seenEventIds);
             },
             async () => {
-              // Keep the socket-ready barrier bounded to one aggregate activity request.
+              // Keep the socket-ready barrier bounded to one aggregate bootstrap request.
               // Loading every inactive agent's remaining session pages would stall later events.
               await hydrateSidebar(true, false);
             },
@@ -694,14 +693,16 @@ export function createOpenBotRuntime(options: OpenBotRuntimeOptions): OpenBotRun
       activity: [],
       loading: true,
       agentBusy: busySessionIds.has(session.id),
-      streamStatus: missionControlObserver?.signal.aborted === false ? "Live" : "Connecting",
+      streamStatus: chatKitRealtimeObserver?.signal.aborted === false ? "Live" : "Connecting",
       turnStatus: "",
       error: "",
     });
     try {
       const snapshot = await options.client.getConversationSnapshot(session.id);
-      if (store.getState().conversation.selectedSessionId === session.id)
+      if (store.getState().conversation.selectedSessionId === session.id) {
         applyConversationSnapshot(session.id, snapshot);
+        await options.client.updateSessionReadState(session.id, false).catch(() => undefined);
+      }
     } catch (error) {
       updateConversation({ error: errorMessage(error) });
     } finally {
@@ -723,7 +724,7 @@ export function createOpenBotRuntime(options: OpenBotRuntimeOptions): OpenBotRun
       queuedTurns: [],
       activity: [],
       agentBusy: false,
-      streamStatus: missionControlObserver?.signal.aborted === false ? "Live" : "Connecting",
+      streamStatus: chatKitRealtimeObserver?.signal.aborted === false ? "Live" : "Connecting",
       turnStatus: "",
       error: "",
     });
@@ -740,7 +741,7 @@ export function createOpenBotRuntime(options: OpenBotRuntimeOptions): OpenBotRun
       activity: [],
       loading: false,
       agentBusy: false,
-      streamStatus: missionControlObserver?.signal.aborted === false ? "Live" : "Connecting",
+      streamStatus: chatKitRealtimeObserver?.signal.aborted === false ? "Live" : "Connecting",
       turnStatus: "",
       error: "",
     });
@@ -850,7 +851,7 @@ export function createOpenBotRuntime(options: OpenBotRuntimeOptions): OpenBotRun
           input.attachmentCompletions ??
           (input.attachmentIds ?? []).map((attachmentId) => ({ attachmentId })),
       });
-      // Mission Control's send endpoint is the sole durable queue producer. Keep the local queued
+      // ChatKit workspace's send endpoint is the sole durable queue producer. Keep the local queued
       // turn visible while that request is pending; queue SSE events own durable reconciliation.
       updateConversation({ submitting: false });
       const response = await responsePromise;
@@ -1127,7 +1128,7 @@ export function createOpenBotRuntime(options: OpenBotRuntimeOptions): OpenBotRun
           if (workspace) {
             await refreshSidebar();
             workspaceInitialized = true;
-            beginMissionControlObservation();
+            beginChatKitWorkspaceObservation();
           } else {
             await hydrateSidebar(false, false);
           }
@@ -1140,7 +1141,7 @@ export function createOpenBotRuntime(options: OpenBotRuntimeOptions): OpenBotRun
     async signOut() {
       await options.auth.signOut();
       workspaceInitialized = false;
-      missionControlObserver?.abort();
+      chatKitRealtimeObserver?.abort();
       agentSetupObserver?.abort();
       stopRoutinePolling();
       clearSignalErrors();
@@ -1199,7 +1200,7 @@ export function createOpenBotRuntime(options: OpenBotRuntimeOptions): OpenBotRun
     store,
     actions,
     dispose() {
-      missionControlObserver?.abort();
+      chatKitRealtimeObserver?.abort();
       agentSetupObserver?.abort();
       stopRoutinePolling();
       if (sidebarRefreshTimer) cancelScheduled(sidebarRefreshTimer);
@@ -1208,7 +1209,7 @@ export function createOpenBotRuntime(options: OpenBotRuntimeOptions): OpenBotRun
   };
 }
 
-function rememberMissionControlEvent(id: string | undefined, seenEventIds: Set<string>): void {
+function rememberChatKitRealtimeEvent(id: string | undefined, seenEventIds: Set<string>): void {
   if (!id) return;
   seenEventIds.add(id);
   if (seenEventIds.size <= 1_000) return;
@@ -1216,31 +1217,141 @@ function rememberMissionControlEvent(id: string | undefined, seenEventIds: Set<s
   if (oldest) seenEventIds.delete(oldest);
 }
 
-function eventSessionId(value: unknown, depth = 0): string {
-  if (depth > 6) return "";
-  const event = record(value);
-  const direct = event.session_id ?? event.sessionId;
-  if (typeof direct === "string") return direct;
-  for (const payload of Object.values(event)) {
-    if (payload && typeof payload === "object") {
-      const sessionId = eventSessionId(payload, depth + 1);
-      if (sessionId) return sessionId;
-    }
+function eventSessionId(event: ChatEvent): string {
+  switch (event.type) {
+    case "session.created":
+    case "session.updated":
+      return event.data.session.id;
+    case "session.deleted":
+    case "session.access.updated":
+      return event.data.session_id;
+    case "session.user_state.updated":
+      return event.data.state.session_id;
+    case "session.child.created":
+      return event.data.session.id;
+    case "message.created":
+    case "message.updated":
+      return event.data.message.session_id;
+    case "message.delta":
+    case "turn.started":
+    case "turn.completed":
+    case "turn.failed":
+    case "turn.interrupted":
+    case "activity.typing.started":
+    case "activity.typing.stopped":
+    case "chat.error":
+      return event.data.session_id;
+    case "queue_item.enqueued":
+    case "queue_item.updated":
+    case "queue_item.removed":
+    case "queue_item.dequeued":
+      return event.data.queue_item.session_id;
+    default:
+      return "";
   }
-  return "";
 }
 
-function nestedString(value: unknown, key: string, depth = 0): string {
-  if (depth > 6) return "";
-  const item = record(value);
-  if (typeof item[key] === "string") return item[key];
-  for (const nested of Object.values(item)) {
-    if (nested && typeof nested === "object") {
-      const found = nestedString(nested, key, depth + 1);
-      if (found) return found;
-    }
+function applyAgentEvent(store: StoreApi<OpenBotState>, event: ChatEvent): void {
+  if (event.type === "agent.deleted") {
+    store.setState((state) => ({
+      sidebar: {
+        ...state.sidebar,
+        agents: state.sidebar.agents.filter((agent) => agent.id !== event.data.agent_id),
+      },
+    }));
+    return;
   }
-  return "";
+  if (event.type !== "agent.created" && event.type !== "agent.updated") return;
+  const incoming = event.data.agent;
+  store.setState((state) => {
+    const existing = state.sidebar.agents.find((agent) => agent.id === incoming.id);
+    const next: ChatAgent = {
+      id: incoming.id,
+      display_name: incoming.display_name,
+      provider_id: incoming.provider_id,
+      status: incoming.status,
+      avatar_url: incoming.avatar_url,
+      lookup_key: incoming.lookup_key,
+      metadata: incoming.metadata,
+      authorization: incoming.authorization,
+      ownership: incoming.ownership,
+      last_message_preview: existing?.last_message_preview,
+      last_user_message_at: existing?.last_user_message_at,
+      sessions: existing?.sessions ?? { items: [] },
+    };
+    return {
+      sidebar: {
+        ...state.sidebar,
+        agents: existing
+          ? state.sidebar.agents.map((agent) => (agent.id === incoming.id ? next : agent))
+          : [...state.sidebar.agents, next],
+      },
+    };
+  });
+}
+
+function applySessionEvent(store: StoreApi<OpenBotState>, event: ChatEvent): void {
+  if (event.type === "session.deleted") {
+    store.setState((state) => ({
+      sidebar: {
+        ...state.sidebar,
+        agents: state.sidebar.agents.map((agent) => ({
+          ...agent,
+          sessions: {
+            ...agent.sessions,
+            items: agent.sessions.items.filter((session) => session.id !== event.data.session_id),
+          },
+        })),
+      },
+    }));
+    return;
+  }
+  if (event.type === "session.user_state.updated") {
+    const userState = event.data.state;
+    store.setState((state) => ({
+      sidebar: {
+        ...state.sidebar,
+        agents: state.sidebar.agents.map((agent) => ({
+          ...agent,
+          sessions: {
+            ...agent.sessions,
+            items: agent.sessions.items.map((session) =>
+              session.id === userState.session_id
+                ? { ...session, unread: userState.unread }
+                : session,
+            ),
+          },
+        })),
+      },
+    }));
+    return;
+  }
+  if (event.type !== "session.updated") return;
+  const incoming = event.data.session;
+  store.setState((state) => ({
+    sidebar: {
+      ...state.sidebar,
+      agents: state.sidebar.agents.map((agent) => ({
+        ...agent,
+        sessions: {
+          ...agent.sessions,
+          items: agent.sessions.items.map((session) =>
+            session.id === incoming.id
+              ? {
+                  ...session,
+                  lookup_key: incoming.lookup_key,
+                  title: incoming.title,
+                  metadata: incoming.metadata,
+                  authorization: incoming.authorization,
+                  ownership: incoming.ownership,
+                  updated_at: incoming.updated_at,
+                }
+              : session,
+          ),
+        },
+      })),
+    },
+  }));
 }
 
 function updateSidebarForSessionEvent(
@@ -1381,30 +1492,20 @@ function record(value: unknown): Record<string, unknown> {
     : {};
 }
 
-function queueEventQueuedTurn(value: unknown): QueuedTurn | null {
-  const parsed = QueuedTurnSchema.safeParse(queueEventItem(value));
+function queueEventQueuedTurn(event: ChatEvent): QueuedTurn | null {
+  if (
+    event.type !== "queue_item.enqueued" &&
+    event.type !== "queue_item.updated" &&
+    event.type !== "queue_item.dequeued" &&
+    event.type !== "queue_item.removed"
+  )
+    return null;
+  const parsed = QueuedTurnSchema.safeParse(event.data.queue_item);
   return parsed.success ? parsed.data : null;
 }
 
-function queueEventItem(value: unknown): unknown {
-  const data = record(value);
-  const kind = record(data.kind);
-  const namedKind = typeof kind.kind === "string" ? kind.kind.toLowerCase() : "";
-  return (
-    record(kind.agent_turn_queued).queue_item ??
-    record(kind.AgentTurnQueued).queue_item ??
-    record(kind.agent_turn_dequeued).queue_item ??
-    record(kind.AgentTurnDequeued).queue_item ??
-    (namedKind === "agent_turn_queued" || namedKind === "agent_turn_dequeued"
-      ? kind.queue_item
-      : undefined) ??
-    data.queue_item
-  );
-}
-
-function queueEventTriggerMessageIds(value: unknown): string[] {
-  const ids = record(queueEventItem(value)).trigger_message_ids;
-  return Array.isArray(ids) ? ids.filter((id): id is string => typeof id === "string") : [];
+function queueEventTriggerMessageIds(event: ChatEvent): string[] {
+  return queueEventQueuedTurn(event)?.trigger_message_ids ?? [];
 }
 
 function uniqueAgents(agents: ChatAgent[]): ChatAgent[] {

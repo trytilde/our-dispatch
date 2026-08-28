@@ -9,6 +9,68 @@ import { configHeaders, wrapMcpClientWithLocalTools } from "@trytilde/sdk";
 import { isJsonObject } from "@trytilde/sdk/json";
 import type { ToolExecutionOptions, ToolSet } from "ai";
 
+/**
+ * What an agent may do inside the ChatKit session its connection is scoped to.
+ *
+ * These are *narrowing hints*, not grants. The runtime supplies them, so they
+ * cannot be the authority — otherwise an agent would widen its own reach by
+ * editing its own client options. Tilde intersects every entry with the
+ * caller's real grants, so `true` means "anything this agent already has
+ * visibility on", never "anything in the team".
+ */
+export type ChatKitSessionPermissions = {
+  /**
+   * Allow delegating to other agents by opening a child session.
+   *
+   * `true` permits any agent this one can already see; a list is intended to
+   * narrow that further to the named agent inbox ids.
+   *
+   * Today Tilde enforces delegation with a visibility check on the target
+   * agent, which is the actual authority. The list narrowing is sent but not
+   * yet applied server-side, so treat it as a declaration of intent rather
+   * than a control.
+   */
+  delegateToOtherAgents?: true | string[];
+  /**
+   * Allow the agent to create a multi-party session and choose who is in it.
+   *
+   * Declared now and not yet implemented server-side: agent-initiated
+   * membership is deliberately out of the first release, so every roster is one
+   * a human chose. Passing it today is accepted and ignored.
+   */
+  createMultiplayerSessions?: {
+    withAgents?: true | string[];
+    withUsers?: true | string[];
+  };
+};
+
+/**
+ * Scopes an MCP connection to one ChatKit session.
+ *
+ * A scoped connection is offered extra tools by Tilde:
+ *
+ * - `chatkit_list_agents` — agents this agent may delegate to
+ * - `chatkit_delegate` — ask one of them to do something, in a private child
+ *   conversation off the current session
+ * - `chatkit_wait_for_response` — wait for that reply
+ * - `chatkit_list_participants` — who is in the current conversation
+ *
+ * None of them take a session id: the session comes from this connection, so a
+ * conversation the caller was not authorized for cannot be addressed. Reaching
+ * a new agent needs no setup — it appears in `chatkit_list_agents` as soon as
+ * this agent has visibility on it.
+ */
+export type ChatKitConnectionOptions = {
+  /**
+   * Session this connection acts inside.
+   *
+   * Tilde validates it against the caller and rejects the connection if the
+   * caller may not use it, rather than quietly omitting the session tools.
+   */
+  sessionId: string;
+  permissions?: ChatKitSessionPermissions;
+};
+
 export type CreateMCPClientOptions<TTools extends ToolSet = ToolSet> = Omit<
   MCPClientConfig,
   "transport"
@@ -17,7 +79,41 @@ export type CreateMCPClientOptions<TTools extends ToolSet = ToolSet> = Omit<
   serverId: string;
   tools?: TTools;
   headers?: Record<string, string>;
+  /**
+   * Scope this connection to a ChatKit session.
+   *
+   * Session-scoped tools — delegation among them — are only offered when this
+   * is present, because they read the session from the connection instead of
+   * taking it as a tool parameter.
+   */
+  chatkit?: ChatKitConnectionOptions;
 };
+
+/** Header carrying the ChatKit session id. Mirrors `CHATKIT_SESSION_HEADER`. */
+const CHATKIT_SESSION_HEADER = "x-tilde-chatkit-session-id";
+
+/** Header carrying the requested, server-narrowed session permissions. */
+const CHATKIT_PERMISSIONS_HEADER = "x-tilde-chatkit-permissions";
+
+/**
+ * Build the ChatKit scoping headers for a connection.
+ *
+ * Exported for tests and for runtimes that construct their own transport.
+ */
+export function chatkitConnectionHeaders(
+  chatkit: ChatKitConnectionOptions | undefined,
+): Record<string, string> {
+  if (!chatkit) return {};
+  const sessionId = chatkit.sessionId.trim();
+  if (sessionId.length === 0) {
+    throw new TypeError("createMCPClient chatkit.sessionId must not be empty");
+  }
+  const headers: Record<string, string> = { [CHATKIT_SESSION_HEADER]: sessionId };
+  if (chatkit.permissions) {
+    headers[CHATKIT_PERMISSIONS_HEADER] = JSON.stringify(chatkit.permissions);
+  }
+  return headers;
+}
 
 export type TildeMCPClient<TTools extends ToolSet = ToolSet> = Omit<MCPClient, "tools"> & {
   readonly serverId: string;
@@ -51,6 +147,7 @@ export async function createMCPClient<TTools extends ToolSet = ToolSet>(
       url: options.client.mcp.getServerUrl({ id: options.serverId }),
       headers: {
         ...clientHeaders,
+        ...chatkitConnectionHeaders(options.chatkit),
         ...options.headers,
         "x-api-key": apiKey,
       },

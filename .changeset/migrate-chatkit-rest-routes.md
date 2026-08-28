@@ -22,7 +22,7 @@
 "@trytilde/sdk": minor
 ---
 
-Migrate OpenBot to Tilde's regular ChatKit activity, agent, session, message, search, turn, and realtime-ticket REST routes while preserving the Mission Control WebSocket contract.
+Migrate OpenBot to Tilde's regular ChatKit activity, agent, session, message, search, turn, and realtime-ticket REST routes while preserving the ChatKit realtime contract.
 
 Migration:
 - Replace `OpenBotClient.getBootstrap` with `OpenBotClient.getActivity`.

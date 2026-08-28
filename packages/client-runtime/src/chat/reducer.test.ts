@@ -6,10 +6,14 @@ describe("live chat reducer", () => {
     const first = reduceLiveChatEvent(
       [],
       {
-        type: "message_streaming",
+        id: "event-one",
+        occurred_at: "2026-08-17T12:00:00Z",
+        type: "message.delta",
         data: {
           message_id: "message-one",
           session_id: "session-one",
+          part_id: "text-one",
+          sequence: 1,
           delta: { type: "text-delta", delta: "Hello" },
         },
       },
@@ -19,10 +23,14 @@ describe("live chat reducer", () => {
     const second = reduceLiveChatEvent(
       first.messages,
       {
-        type: "message_streaming",
+        id: "event-two",
+        occurred_at: "2026-08-17T12:00:01Z",
+        type: "message.delta",
         data: {
           message_id: "message-one",
           session_id: "session-one",
+          part_id: "text-one",
+          sequence: 2,
           delta: { type: "text-delta", delta: " world" },
         },
       },
@@ -38,10 +46,14 @@ describe("live chat reducer", () => {
     const result = reduceLiveChatEvent(
       [],
       {
-        type: "message_streaming",
+        id: "event-three",
+        occurred_at: "2026-08-17T12:00:00Z",
+        type: "message.delta",
         data: {
           message_id: "message-one",
           session_id: "another-session",
+          part_id: "text-one",
+          sequence: 1,
           delta: { type: "text-delta", delta: "Private" },
         },
       },
@@ -52,16 +64,15 @@ describe("live chat reducer", () => {
 });
 
 describe("event busy state", () => {
-  it("treats Mission Control typing indicators as busy", () => {
+  it("treats ChatKit typing activity as busy", () => {
     expect(
       eventBusyState({
-        type: "InboxInstance.typing_indicator.typing",
+        id: "event-four",
+        occurred_at: "2026-08-17T12:00:00Z",
+        type: "activity.typing.started",
         data: {
-          kind: {
-            kind: "inbox_instance_typing_indicator",
-            session_id: "session-one",
-            status: "typing",
-          },
+          session_id: "session-one",
+          inbox_instance_id: "agent-one",
         },
       }),
     ).toBe(true);
@@ -70,45 +81,45 @@ describe("event busy state", () => {
   it("clears busy when a flat streaming delta finishes", () => {
     expect(
       eventBusyState({
-        type: "message_streaming",
+        id: "event-five",
+        occurred_at: "2026-08-17T12:00:00Z",
+        type: "message.delta",
         data: {
           message_id: "message-one",
           session_id: "session-one",
+          part_id: "text-one",
+          sequence: 1,
           delta: { type: "finish" },
         },
       }),
     ).toBe(false);
   });
 
-  it("clears busy when a nested streaming delta finishes", () => {
+  it("clears busy when a turn completes", () => {
     expect(
       eventBusyState({
-        type: "message_streaming",
+        id: "event-six",
+        occurred_at: "2026-08-17T12:00:00Z",
+        type: "turn.completed",
         data: {
-          kind: {
-            message_streaming: {
-              message_id: "message-one",
-              session_id: "session-one",
-              delta: { type: "finish" },
-            },
-          },
+          turn_id: "turn-one",
+          session_id: "session-one",
+          agent_id: "agent-one",
         },
       }),
     ).toBe(false);
   });
 
-  it("stays busy while a nested streaming delta carries text", () => {
+  it("stays busy while a turn is running", () => {
     expect(
       eventBusyState({
-        type: "message_streaming",
+        id: "event-seven",
+        occurred_at: "2026-08-17T12:00:00Z",
+        type: "turn.started",
         data: {
-          kind: {
-            message_streaming: {
-              message_id: "message-one",
-              session_id: "session-one",
-              delta: { type: "text-delta", delta: "Hello" },
-            },
-          },
+          turn_id: "turn-one",
+          session_id: "session-one",
+          agent_id: "agent-one",
         },
       }),
     ).toBe(true);

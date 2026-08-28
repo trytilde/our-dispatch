@@ -12,7 +12,7 @@ const queue = (positions: number[]): ActivityQueueItem[] =>
   }));
 
 describe("queued message ordering", () => {
-  it("renders the Mission Control steer and delete actions", () => {
+  it("renders the ChatKit workspace steer and delete actions", () => {
     const markup = renderToStaticMarkup(
       createElement(ActivityQueue, {
         items: queue([1_000]),

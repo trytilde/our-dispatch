@@ -46,6 +46,11 @@ The package root exports the complete workspace surface:
 geometry, responsive layout, component states, and motion system. Applications
 should consume the package stylesheet instead of maintaining local overrides.
 
+Consumers that need only the avatar can import `AgentAvatar` from
+`@tryopenbot/ui/agent-avatar` and its component-scoped layout from
+`@tryopenbot/ui/agent-avatar.css`. The standalone entry does not require the
+OpenBot global stylesheet, theme tokens, or `@tryopenbot/client-runtime`.
+
 ## Storybook
 
 Run the package-owned component catalog from the repository root:

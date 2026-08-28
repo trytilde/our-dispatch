@@ -17,7 +17,8 @@ import {
   type CreateConnectorAccountInput,
   type CreateConnectorAccountResult,
 } from "../contracts/connectors.js";
-import type { ChatEvent } from "../contracts/events.js";
+import type { ChatEvent, SessionEvent, SessionUserState } from "../contracts/events.js";
+import { SessionUserStateSchema } from "../contracts/events.js";
 import {
   PluginMutationResultSchema,
   PluginsCatalogSchema,
@@ -33,14 +34,14 @@ import { ChatMessagePageSchema, type ChatMessagePage } from "../contracts/messag
 import {
   ConversationSnapshotSchema,
   ChatKitSearchPageSchema,
-  ChatKitActivitySchema,
+  ChatKitWorkspaceBootstrapSchema,
   SubmitTurnResponseSchema,
   type ConversationSnapshot,
   type ChatKitSearchPage,
-  type ChatKitActivity,
+  type ChatKitWorkspaceBootstrap,
   type SubmitTurnInput,
   type SubmitTurnResponse,
-} from "../contracts/mission-control.js";
+} from "../contracts/workspace.js";
 import {
   RoutineListSchema,
   RunRoutineResponseSchema,
@@ -68,6 +69,7 @@ import { QueuedTurnPageSchema, type QueuedTurnPage } from "../contracts/queue.js
 import {
   ChatSessionPageSchema,
   ChatSessionSchema,
+  SidebarResponseSchema,
   type AgentSortOrder,
   type ChatSession,
   type ChatSessionPage,
@@ -76,8 +78,8 @@ import {
 } from "../contracts/sidebar.js";
 import { ClientRequestError } from "../errors.js";
 import {
-  MissionControlSocketTicketSchema,
-  observeMissionControlSocket,
+  ChatKitRealtimeSocketTicketSchema,
+  observeChatKitRealtimeSocket,
   type WebSocketFactory,
   type WebSocketLike,
 } from "./websocket.js";
@@ -91,7 +93,7 @@ export interface OpenBotClientOptions {
   getAccessToken?: () => Promise<string | undefined>;
   createWebSocket?: WebSocketFactory;
   /** Browser by default. Native adapters must opt into Origin-free socket tickets. */
-  missionControlTransport?: "browser" | "native";
+  realtimeTransport?: "browser" | "native";
 }
 
 export interface OpenBotClient {
@@ -105,7 +107,7 @@ export interface OpenBotClient {
     sessionSort?: SessionSortOrder,
     nextAgentToken?: string | null,
   ): Promise<SidebarResponse>;
-  getActivity(activeSessionId?: string): Promise<ChatKitActivity>;
+  getBootstrap(activeSessionId?: string): Promise<ChatKitWorkspaceBootstrap>;
   getConversationSnapshot(sessionId: string): Promise<ConversationSnapshot>;
   searchChatKit(
     query: string,
@@ -122,7 +124,7 @@ export interface OpenBotClient {
     input?: { title?: string; lookupKey?: string },
   ): Promise<ChatSession>;
   renameSession(sessionId: string, title: string): Promise<ChatSession>;
-  markSessionUnread(sessionId: string): Promise<ChatSession>;
+  updateSessionReadState(sessionId: string, unread: boolean): Promise<SessionUserState>;
   interruptSession(sessionId: string): Promise<void>;
   getMessages(sessionId: string, nextPageToken?: string | null): Promise<ChatMessagePage>;
   sendMessage(
@@ -132,7 +134,7 @@ export interface OpenBotClient {
     attachmentIds?: string[],
   ): Promise<ChatMessagePage>;
   submitTurn(agentId: string, input: SubmitTurnInput): Promise<SubmitTurnResponse>;
-  observeMissionControl(
+  observeChatKitRealtime(
     signal: AbortSignal,
     onEvent: (event: ChatEvent) => void | Promise<void>,
     onReady: () => void | Promise<void>,
@@ -140,7 +142,7 @@ export interface OpenBotClient {
   observeSession(
     sessionId: string,
     signal: AbortSignal,
-    onEvent: (event: ChatEvent) => void,
+    onEvent: (event: SessionEvent) => void,
   ): Promise<void>;
   getQueuedTurns(sessionId: string): Promise<QueuedTurnPage>;
   steerQueuedTurn(id: string): Promise<void>;
@@ -297,10 +299,9 @@ export function createOpenBotClient(options: OpenBotClientOptions = {}): OpenBot
       });
       if (query.trim()) parameters.set("q", query.trim());
       if (nextAgentToken) parameters.set("agent_next_page_token", nextAgentToken);
-      const response = await json(chatPath(`activity?${parameters}`), ChatKitActivitySchema);
-      return response.activity;
+      return await json(chatPath(`workspace/sidebar?${parameters}`), SidebarResponseSchema);
     },
-    async getActivity(activeSessionId) {
+    async getBootstrap(activeSessionId) {
       const parameters = new URLSearchParams({
         agent_page_size: "50",
         session_page_size: "12",
@@ -310,12 +311,15 @@ export function createOpenBotClient(options: OpenBotClientOptions = {}): OpenBot
         session_sort: "updated_at",
       });
       if (activeSessionId) parameters.set("active_session_id", activeSessionId);
-      return await json(chatPath(`activity?${parameters}`), ChatKitActivitySchema);
+      return await json(
+        chatPath(`workspace/bootstrap?${parameters}`),
+        ChatKitWorkspaceBootstrapSchema,
+      );
     },
     getConversationSnapshot: (sessionId) =>
       json(
         chatPath(
-          `sessions/${encodeURIComponent(sessionId)}/activity?message_page_size=100&queue_page_size=25`,
+          `workspace/sessions/${encodeURIComponent(sessionId)}/snapshot?message_page_size=100&queue_page_size=25`,
         ),
         ConversationSnapshotSchema,
       ),
@@ -323,71 +327,84 @@ export function createOpenBotClient(options: OpenBotClientOptions = {}): OpenBot
       const parameters = new URLSearchParams({ q: query.trim(), page_size: "25" });
       if (sessionId) parameters.set("session_id", sessionId);
       if (nextPageToken) parameters.set("next_page_token", nextPageToken);
-      return await json(chatPath(`search?${parameters}`), ChatKitSearchPageSchema);
+      return await json(chatPath(`workspace/search?${parameters}`), ChatKitSearchPageSchema);
     },
     async getAgentSessions(agentId, nextPageToken, sessionSort = "updated_at") {
       const parameters = new URLSearchParams({ page_size: "25", session_sort: sessionSort });
       if (nextPageToken) parameters.set("next_page_token", nextPageToken);
       return await json(
-        chatPath(`agents/${encodeURIComponent(agentId)}/sessions?${parameters}`),
+        chatPath(`workspace/agents/${encodeURIComponent(agentId)}/sessions?${parameters}`),
         ChatSessionPageSchema,
       );
     },
     async createSession(agentId, input) {
-      const response = await json(chatPath("sessions"), SessionEnvelopeSchema, {
-        method: "POST",
-        body: JSON.stringify({
-          agent_id: agentId,
-          title: input?.title || null,
-          lookup_key: input?.lookupKey || null,
-        }),
-      });
+      const response = await json(
+        chatPath(`workspace/agents/${encodeURIComponent(agentId)}/sessions`),
+        SessionEnvelopeSchema,
+        {
+          method: "POST",
+          body: JSON.stringify({
+            title: input?.title || null,
+            lookup_key: input?.lookupKey || null,
+          }),
+        },
+      );
       return response.session;
     },
     renameSession: (sessionId, title) =>
-      json(chatPath(`sessions/${encodeURIComponent(sessionId)}`), ChatSessionSchema, {
-        method: "PATCH",
-        body: JSON.stringify({ title }),
-      }),
-    markSessionUnread: (sessionId) =>
-      json(chatPath(`sessions/${encodeURIComponent(sessionId)}/unread`), ChatSessionSchema, {
-        method: "POST",
-      }),
+      json(
+        chatPath(`workspace/sessions/${encodeURIComponent(sessionId)}/rename`),
+        ChatSessionSchema,
+        {
+          method: "PATCH",
+          body: JSON.stringify({ title }),
+        },
+      ),
+    updateSessionReadState: (sessionId, unread) =>
+      json(
+        chatPath(`workspace/sessions/${encodeURIComponent(sessionId)}/read-state`),
+        SessionUserStateSchema,
+        { method: "PUT", body: JSON.stringify({ unread }) },
+      ),
     interruptSession: (sessionId) =>
-      empty(chatPath(`sessions/${encodeURIComponent(sessionId)}/interrupt`), {
+      empty(chatPath(`workspace/sessions/${encodeURIComponent(sessionId)}/interrupt`), {
         method: "POST",
       }),
     async getMessages(sessionId, nextPageToken) {
       const parameters = new URLSearchParams({ page_size: "100" });
       if (nextPageToken) parameters.set("next_page_token", nextPageToken);
       return await json(
-        chatPath(`sessions/${encodeURIComponent(sessionId)}/messages?${parameters}`),
+        chatPath(`workspace/sessions/${encodeURIComponent(sessionId)}/messages?${parameters}`),
         ChatMessagePageSchema,
       );
     },
     sendMessage: (agentId, sessionId, text, attachmentIds = []) =>
       json(
         chatPath(
-          `agents/${encodeURIComponent(agentId)}/sessions/${encodeURIComponent(sessionId)}/messages`,
+          `workspace/agents/${encodeURIComponent(agentId)}/sessions/${encodeURIComponent(sessionId)}/messages`,
         ),
         ChatMessagePageSchema,
         { method: "POST", body: JSON.stringify({ text, attachment_ids: attachmentIds }) },
       ),
     submitTurn: (agentId, input) =>
-      json(chatPath(`agents/${encodeURIComponent(agentId)}/turns`), SubmitTurnResponseSchema, {
-        method: "POST",
-        body: JSON.stringify({
-          session_id: input.sessionId ?? null,
-          title: input.title ?? null,
-          text: input.text,
-          attachments: (input.attachments ?? []).map((attachment) => ({
-            attachment_id: attachment.attachmentId,
-            size_bytes: attachment.sizeBytes ?? null,
-            sha256: attachment.sha256 ?? null,
-          })),
-        }),
-      }),
-    async observeMissionControl(signal, onEvent, onReady) {
+      json(
+        chatPath(`workspace/agents/${encodeURIComponent(agentId)}/turns`),
+        SubmitTurnResponseSchema,
+        {
+          method: "POST",
+          body: JSON.stringify({
+            session_id: input.sessionId ?? null,
+            title: input.title ?? null,
+            text: input.text,
+            attachments: (input.attachments ?? []).map((attachment) => ({
+              attachment_id: attachment.attachmentId,
+              size_bytes: attachment.sizeBytes ?? null,
+              sha256: attachment.sha256 ?? null,
+            })),
+          }),
+        },
+      ),
+    async observeChatKitRealtime(signal, onEvent, onReady) {
       const createWebSocket =
         options.createWebSocket ??
         ((url, protocols) => new globalThis.WebSocket(url, protocols) as WebSocketLike);
@@ -396,15 +413,15 @@ export function createOpenBotClient(options: OpenBotClientOptions = {}): OpenBot
       while (!signal.aborted) {
         try {
           const ticket = await json(
-            chatPath("mission-control/socket-ticket"),
-            MissionControlSocketTicketSchema,
+            chatPath("realtime/socket-ticket"),
+            ChatKitRealtimeSocketTicketSchema,
             {
               method: "POST",
-              body: JSON.stringify({ transport: options.missionControlTransport ?? "browser" }),
+              body: JSON.stringify({ transport: options.realtimeTransport ?? "browser" }),
               signal,
             },
           );
-          await observeMissionControlSocket({
+          await observeChatKitRealtimeSocket({
             signal,
             ticket,
             afterRevision,

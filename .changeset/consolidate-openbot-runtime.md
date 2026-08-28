@@ -20,4 +20,4 @@
 "@tryopenbot/git-provider": minor
 ---
 
-Add a consolidated OpenBot runtime deployment, direct secure Mission Control streaming, persisted unified routines, and bulk tool assignment.
+Add a consolidated OpenBot runtime deployment, direct secure ChatKit workspace streaming, persisted unified routines, and bulk tool assignment.

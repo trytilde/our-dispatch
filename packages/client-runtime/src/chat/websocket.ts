@@ -1,13 +1,13 @@
 import { z } from "zod";
-import type { ChatEvent } from "../contracts/events.js";
+import { ChatEventSchema, type ChatEvent } from "../contracts/events.js";
 
-export const MissionControlSocketTicketSchema = z.object({
+export const ChatKitRealtimeSocketTicketSchema = z.object({
   ticket: z.string().min(1),
   protocol: z.string().min(1),
   expires_at: z.string().min(1),
   websocket_url: z.string().min(1),
 });
-export type MissionControlSocketTicket = z.infer<typeof MissionControlSocketTicketSchema>;
+export type ChatKitRealtimeSocketTicket = z.infer<typeof ChatKitRealtimeSocketTicketSchema>;
 
 export interface WebSocketLike {
   readonly readyState: number;
@@ -23,9 +23,9 @@ export interface WebSocketLike {
 
 export type WebSocketFactory = (url: string, protocols: string[]) => WebSocketLike;
 
-export async function observeMissionControlSocket(options: {
+export async function observeChatKitRealtimeSocket(options: {
   signal: AbortSignal;
-  ticket: MissionControlSocketTicket;
+  ticket: ChatKitRealtimeSocketTicket;
   afterRevision?: number;
   createWebSocket: WebSocketFactory;
   onReady: (revision: number) => void | Promise<void>;
@@ -37,7 +37,7 @@ export async function observeMissionControlSocket(options: {
   if (options.afterRevision !== undefined)
     url.searchParams.set("after_revision", String(options.afterRevision));
   const socket = options.createWebSocket(url.toString(), [
-    "tilde.mission-control.v1",
+    "tilde.chatkit-realtime.v1",
     `${options.ticket.protocol}.${options.ticket.ticket}`,
   ]);
 
@@ -61,12 +61,11 @@ export async function observeMissionControlSocket(options: {
     const open = (): void => {
       opened = true;
       heartbeat = setInterval(() => {
-        if (socket.readyState === 1)
-          socket.send(JSON.stringify({ jsonrpc: "2.0", method: "ping", params: {} }));
+        if (socket.readyState === 1) socket.send(JSON.stringify({ type: "ping" }));
       }, 20_000);
     };
     const message = (messageEvent: { data?: unknown }): void => {
-      const frame = parseMissionControlFrame(messageEvent.data);
+      const frame = parseChatKitRealtimeFrame(messageEvent.data);
       if (!frame) return;
       processing = processing
         .then(async () => {
@@ -89,7 +88,7 @@ export async function observeMissionControlSocket(options: {
     const error = (): void => {
       socket.close();
       if (opened) finish();
-      else fail(new Error("Mission Control WebSocket handshake failed"));
+      else fail(new Error("ChatKit realtime WebSocket handshake failed"));
     };
     const finish = (): void => {
       if (settled) return;
@@ -102,7 +101,7 @@ export async function observeMissionControlSocket(options: {
       settled = true;
       socket.close();
       cleanup();
-      reject(cause instanceof Error ? cause : new Error("Mission Control event handling failed"));
+      reject(cause instanceof Error ? cause : new Error("ChatKit realtime event handling failed"));
     };
 
     options.signal.addEventListener("abort", abort, { once: true });
@@ -114,7 +113,7 @@ export async function observeMissionControlSocket(options: {
   });
 }
 
-function parseMissionControlFrame(
+function parseChatKitRealtimeFrame(
   value: unknown,
 ): { readyRevision?: number; revision?: number; event?: ChatEvent } | undefined {
   if (typeof value !== "string") return undefined;
@@ -125,35 +124,15 @@ function parseMissionControlFrame(
     return undefined;
   }
   if (!parsed || typeof parsed !== "object") return undefined;
-  const frame = parsed as {
-    method?: unknown;
-    params?: {
-      snapshot_revision?: unknown;
-      revision?: unknown;
-      event_type?: unknown;
-      event?: unknown;
-    };
-  };
-  if (frame.method === "mission_control.ready") {
-    const revision = frame.params?.snapshot_revision;
-    return typeof revision === "number" ? { readyRevision: revision } : undefined;
-  }
-  if (frame.method === "pong") return {};
-  const event = frame.params?.event;
-  if (event === undefined) return undefined;
-  const revision = frame.params?.revision;
-  const type =
-    typeof frame.params?.event_type === "string"
-      ? frame.params.event_type
-      : typeof frame.method === "string"
-        ? frame.method
-        : "chatkit.event";
-  const id =
-    event && typeof event === "object" && "id" in event && typeof event.id === "string"
-      ? event.id
-      : undefined;
-  return {
-    ...(typeof revision === "number" ? { revision } : {}),
-    event: { type, ...(id ? { id } : {}), data: event },
-  };
+  const frame = parsed as { type?: unknown; cursor?: unknown; event?: unknown; reason?: unknown };
+  if (frame.type === "ready")
+    return typeof frame.cursor === "number" ? { readyRevision: frame.cursor } : undefined;
+  if (frame.type === "pong") return {};
+  if (frame.type === "resync_required")
+    throw new Error(
+      typeof frame.reason === "string" ? frame.reason : "ChatKit realtime resync required",
+    );
+  if (frame.type !== "event" || typeof frame.cursor !== "number") return undefined;
+  const event = ChatEventSchema.safeParse(frame.event);
+  return event.success ? { revision: frame.cursor, event: event.data } : undefined;
 }

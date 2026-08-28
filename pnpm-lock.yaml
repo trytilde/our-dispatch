@@ -1065,9 +1065,6 @@ importers:
       '@streamdown/mermaid':
         specifier: ^1.0.2
         version: 1.0.2(react@19.1.2)
-      '@tryopenbot/client-runtime':
-        specifier: workspace:*
-        version: link:../client-runtime
       ai:
         specifier: 7.0.64
         version: 7.0.64(zod@4.4.3)
@@ -1117,6 +1114,9 @@ importers:
       '@tailwindcss/vite':
         specifier: 4.3.3
         version: 4.3.3(@voidzero-dev/vite-plus-core@0.2.9(@types/node@24.13.3)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.50.0)(tsx@4.21.0)(typescript@5.9.2)(yaml@2.9.0))
+      '@tryopenbot/client-runtime':
+        specifier: workspace:*
+        version: link:../client-runtime
       '@types/react':
         specifier: 19.1.12
         version: 19.1.12

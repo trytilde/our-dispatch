@@ -28,7 +28,7 @@ export interface TildeChatProxyOptions {
  * them into OpenBot's narrower control RPC contract.
  */
 export function registerTildeChatProxy(app: Hono, configuredOptions?: TildeChatProxyOptions): void {
-  app.post("/api/chat/mission-control/socket-ticket", async (context) => {
+  app.post("/api/chat/realtime/socket-ticket", async (context) => {
     const options = configuredOptions ?? optionsFromEnvironment();
     if (!options) {
       return context.json(
@@ -50,7 +50,7 @@ export function registerTildeChatProxy(app: Hono, configuredOptions?: TildeChatP
     if (transport === "browser" && !validHttpOrigin(origin))
       return context.json({ error: "Browser socket tickets require an HTTP Origin" }, 403);
     const ticketUrl = new URL(
-      `/api/v1/team/${encodeURIComponent(options.teamId)}/identity/openbot/realtime-ticket`,
+      `/api/v1/team/${encodeURIComponent(options.teamId)}/identity/openbot/chatkit-realtime-ticket`,
       baseUrl,
     );
     const upstream = await (options.fetch ?? globalThis.fetch)(ticketUrl, {
@@ -74,7 +74,7 @@ export function registerTildeChatProxy(app: Hono, configuredOptions?: TildeChatP
       });
     const body = (await upstream.json()) as Record<string, unknown>;
     const socketUrl = new URL(
-      `/api/v1/team/${encodeURIComponent(options.teamId)}/chatkit/mission-control/ws`,
+      `/api/v1/team/${encodeURIComponent(options.teamId)}/chatkit/realtime`,
       baseUrl,
     );
     socketUrl.protocol = socketUrl.protocol === "http:" ? "ws:" : "wss:";

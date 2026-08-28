@@ -71,7 +71,7 @@ Browser clients use Authorization Code with PKCE. The control-service callback e
 server-side and sets a short-lived access cookie plus a refresh cookie. Cookies are host-only,
 HttpOnly, Secure outside loopback development, and SameSite. Browser JavaScript never receives either
 token. A protected ticket-exchange route may redeem the authenticated access token server-to-server
-for a short-lived, audience- and Origin-bound capability such as one Mission Control WebSocket;
+for a short-lived, audience- and Origin-bound capability such as one ChatKit workspace WebSocket;
 that capability cannot be refreshed or reused as an owner bearer. Cookie-authenticated unsafe requests additionally require a matching Origin; OAuth callbacks
 require one-time state and PKCE verification.
 
@@ -165,5 +165,4 @@ flowchart LR
 
 - 2026-08-17T18:00:00+02:00: Added Expo mobile PKCE, SecureStore ownership, and the rule that native tokens stay outside shared client and React state.
 - 2026-08-17T19:55:00+02:00: Made control-service selection precede mobile authentication and added provider-owned public PKCE discovery with installation-scoped credential clearing.
-- 2026-08-26T16:18:13+01:00: Allowed a narrowly scoped server-side exchange of the owner access token for a single-use Mission Control socket ticket while keeping bearer and refresh tokens out of browser JavaScript.
-- 2026-08-27T14:20:00+02:00: Moved the server-side exchange to Tilde Identity's regular `/identity/openbot/realtime-ticket` REST route without changing the issued WebSocket subprotocol credential or its authorization boundary.
+- 2026-08-26T16:18:13+01:00: Allowed a narrowly scoped server-side exchange of the owner access token for a single-use ChatKit workspace socket ticket while keeping bearer and refresh tokens out of browser JavaScript.

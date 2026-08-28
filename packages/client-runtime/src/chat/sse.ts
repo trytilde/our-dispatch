@@ -1,6 +1,6 @@
-import { ChatEventSchema, type ChatEvent } from "../contracts/events.js";
+import { SessionEventSchema, type SessionEvent } from "../contracts/events.js";
 
-export function parseSseFrame(frame: string): ChatEvent | undefined {
+export function parseSseFrame(frame: string): SessionEvent | undefined {
   let type = "message";
   let id: string | undefined;
   const data: string[] = [];
@@ -21,13 +21,13 @@ export function parseSseFrame(frame: string): ChatEvent | undefined {
   } catch {
     // Text payloads are valid SSE data.
   }
-  return ChatEventSchema.parse({ type, ...(id ? { id } : {}), data: parsed });
+  return SessionEventSchema.parse({ type, ...(id ? { id } : {}), data: parsed });
 }
 
 export async function consumeSse(
   response: Response,
   signal: AbortSignal,
-  onEvent: (event: ChatEvent) => void,
+  onEvent: (event: SessionEvent) => void,
 ): Promise<void> {
   if (!response.body) throw new Error("The chat event stream did not include a response body");
   const reader = response.body.getReader();

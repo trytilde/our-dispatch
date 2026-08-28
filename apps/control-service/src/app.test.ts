@@ -439,7 +439,7 @@ describe("bare OpenBot server", () => {
     expect(headers.get("last-event-id")).toBe("event-one");
   });
 
-  it("exchanges the HttpOnly owner session for a direct Mission Control socket ticket", async () => {
+  it("exchanges the HttpOnly owner session for a direct ChatKit workspace socket ticket", async () => {
     let upstreamUrl = "";
     let upstreamHeaders = new Headers();
     let upstreamBody = "";
@@ -457,32 +457,29 @@ describe("bare OpenBot server", () => {
           upstreamBody = typeof request?.body === "string" ? request.body : "";
           return Response.json({
             ticket: "short-lived-ticket",
-            protocol: "tilde.mission-control.ticket",
+            protocol: "tilde.chatkit-realtime.ticket",
             expires_at: "2026-08-26T12:00:00Z",
           });
         },
       },
     });
 
-    const response = await chatApp.request(
-      "https://openbot.test/api/chat/mission-control/socket-ticket",
-      {
-        method: "POST",
-        headers: { cookie: "openbot_access=browser-token", origin: "https://openbot.test" },
-      },
-    );
+    const response = await chatApp.request("https://openbot.test/api/chat/realtime/socket-ticket", {
+      method: "POST",
+      headers: { cookie: "openbot_access=browser-token", origin: "https://openbot.test" },
+    });
 
     expect(response.status).toBe(200);
     expect(response.headers.get("cache-control")).toBe("no-store");
     await expect(response.json()).resolves.toEqual({
       ticket: "short-lived-ticket",
-      protocol: "tilde.mission-control.ticket",
+      protocol: "tilde.chatkit-realtime.ticket",
       expires_at: "2026-08-26T12:00:00Z",
       websocket_url:
-        "wss://openbot-org.api.trytilde.ai/api/v1/team/openbot-team/chatkit/mission-control/ws?org_id=openbot-org",
+        "wss://openbot-org.api.trytilde.ai/api/v1/team/openbot-team/chatkit/realtime?org_id=openbot-org",
     });
     expect(upstreamUrl).toBe(
-      "https://openbot-org.api.trytilde.ai/api/v1/team/openbot-team/identity/openbot/realtime-ticket",
+      "https://openbot-org.api.trytilde.ai/api/v1/team/openbot-team/identity/openbot/chatkit-realtime-ticket",
     );
     expect(upstreamHeaders.get("authorization")).toBe("Bearer browser-token");
     expect(upstreamHeaders.get("x-tilde-org-id")).toBe("openbot-org");
@@ -493,7 +490,7 @@ describe("bare OpenBot server", () => {
     });
   });
 
-  it("marks bearer-authenticated native Mission Control tickets as Origin-free", async () => {
+  it("marks bearer-authenticated native ChatKit workspace tickets as Origin-free", async () => {
     let upstreamBody = "";
     const chatApp = createApp({
       authProvider: testAuthProvider(),
@@ -506,24 +503,21 @@ describe("bare OpenBot server", () => {
           upstreamBody = typeof request?.body === "string" ? request.body : "";
           return Response.json({
             ticket: "native-ticket",
-            protocol: "tilde.mission-control.ticket",
+            protocol: "tilde.chatkit-realtime.ticket",
             expires_at: "2026-08-26T12:00:00Z",
           });
         },
       },
     });
 
-    const response = await chatApp.request(
-      "https://openbot.test/api/chat/mission-control/socket-ticket",
-      {
-        method: "POST",
-        headers: {
-          authorization: "Bearer native-token",
-          "content-type": "application/json",
-        },
-        body: JSON.stringify({ transport: "native" }),
+    const response = await chatApp.request("https://openbot.test/api/chat/realtime/socket-ticket", {
+      method: "POST",
+      headers: {
+        authorization: "Bearer native-token",
+        "content-type": "application/json",
       },
-    );
+      body: JSON.stringify({ transport: "native" }),
+    });
 
     expect(response.status).toBe(200);
     expect(JSON.parse(upstreamBody)).toEqual({ transport: "native" });
@@ -542,25 +536,22 @@ describe("bare OpenBot server", () => {
           upstreamBody = typeof request?.body === "string" ? request.body : "";
           return Response.json({
             ticket: "browser-ticket",
-            protocol: "tilde.mission-control.ticket",
+            protocol: "tilde.chatkit-realtime.ticket",
             expires_at: "2026-08-26T12:00:00Z",
           });
         },
       },
     });
 
-    const response = await chatApp.request(
-      "https://openbot.test/api/chat/mission-control/socket-ticket",
-      {
-        method: "POST",
-        headers: {
-          authorization: "Bearer injected-token",
-          origin: "https://openbot.test",
-          "content-type": "application/json",
-        },
-        body: JSON.stringify({ transport: "browser" }),
+    const response = await chatApp.request("https://openbot.test/api/chat/realtime/socket-ticket", {
+      method: "POST",
+      headers: {
+        authorization: "Bearer injected-token",
+        origin: "https://openbot.test",
+        "content-type": "application/json",
       },
-    );
+      body: JSON.stringify({ transport: "browser" }),
+    });
 
     expect(response.status).toBe(200);
     expect(JSON.parse(upstreamBody)).toEqual({
@@ -582,18 +573,15 @@ describe("bare OpenBot server", () => {
       },
     });
 
-    const response = await chatApp.request(
-      "https://openbot.test/api/chat/mission-control/socket-ticket",
-      {
-        method: "POST",
-        headers: {
-          cookie: "openbot_access=browser-token",
-          origin: "https://openbot.test",
-          "content-type": "application/json",
-        },
-        body: JSON.stringify({ transport: "native" }),
+    const response = await chatApp.request("https://openbot.test/api/chat/realtime/socket-ticket", {
+      method: "POST",
+      headers: {
+        cookie: "openbot_access=browser-token",
+        origin: "https://openbot.test",
+        "content-type": "application/json",
       },
-    );
+      body: JSON.stringify({ transport: "native" }),
+    });
 
     expect(response.status).toBe(403);
   });

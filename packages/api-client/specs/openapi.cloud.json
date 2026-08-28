@@ -1701,6 +1701,49 @@
         }
       }
     },
+    "/api/v1/identity/invitations/accept": {
+      "post": {
+        "tags": [
+          "identity",
+          "v1"
+        ],
+        "summary": "Accept invitation",
+        "description": "Accept an invitation after verifying the authenticated email and invitation password",
+        "operationId": "accept-invitation",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AcceptInvitationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserInvitation"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/identity/local-runtime/tunnel-connector": {
       "get": {
         "tags": [
@@ -2341,11 +2384,28 @@
               "type": "string"
             },
             "style": "form"
+          },
+          {
+            "name": "user_type",
+            "in": "query",
+            "description": "Filter to `human` users or `machine` agents.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "style": "form"
           }
         ],
         "responses": {
           "200": {
-            "description": "List of organization members"
+            "description": "List of organization members",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrganizationMemberWithUserPaginatedResponse"
+                }
+              }
+            }
           },
           "400": {
             "description": "Bad Request",
@@ -2477,6 +2537,77 @@
           },
           "500": {
             "description": "Internal Server Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "identity",
+          "v1"
+        ],
+        "summary": "Update organization member role",
+        "description": "Move an organization member between the organization member and organization admin system groups",
+        "operationId": "update-organization-member-role",
+        "parameters": [
+          {
+            "name": "organization_id",
+            "in": "path",
+            "description": "Organization ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "user_id",
+            "in": "path",
+            "description": "User ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateOrganizationMemberRoleBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Organization member role updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserOrganization"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Membership not found",
             "content": {
               "application/json": {
                 "schema": {
@@ -3057,7 +3188,14 @@
         ],
         "responses": {
           "200": {
-            "description": "List of teams"
+            "description": "List of teams",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TeamPaginatedResponse"
+                }
+              }
+            }
           },
           "400": {
             "description": "Bad Request",
@@ -3137,6 +3275,295 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/identity/profile": {
+      "get": {
+        "tags": [
+          "identity",
+          "v1"
+        ],
+        "summary": "Get my profile",
+        "description": "Return the authenticated user's editable profile and readonly group memberships.",
+        "operationId": "get-self-profile",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SelfProfileResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "identity",
+          "v1"
+        ],
+        "summary": "Update my profile",
+        "description": "Update the authenticated user's display name. Email is immutable here.",
+        "operationId": "update-self-profile",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateSelfProfileRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SelfProfileResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/identity/profile/avatar": {
+      "get": {
+        "tags": [
+          "identity",
+          "v1"
+        ],
+        "summary": "Download my profile avatar",
+        "description": "Return the authenticated user's uploaded image or OpenBot avatar reference.",
+        "operationId": "get-self-avatar",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "integer",
+                    "format": "int32",
+                    "minimum": 0
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "identity",
+          "v1"
+        ],
+        "summary": "Upload my profile avatar",
+        "description": "Upload a PNG, JPEG, or WebP avatar up to 2 MiB.",
+        "operationId": "upload-self-avatar",
+        "requestBody": {
+          "content": {
+            "application/octet-stream": {
+              "schema": {
+                "type": "array",
+                "items": {
+                  "type": "integer",
+                  "format": "int32",
+                  "minimum": 0
+                }
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SelfProfileAvatarResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "identity",
+          "v1"
+        ],
+        "summary": "Delete my profile avatar",
+        "description": "Remove the authenticated user's profile avatar.",
+        "operationId": "delete-self-avatar",
+        "responses": {
+          "200": {
+            "description": ""
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/identity/profile/avatar/openbot": {
+      "put": {
+        "tags": [
+          "identity",
+          "v1"
+        ],
+        "summary": "Set my OpenBot avatar",
+        "description": "Select a deterministic animated OpenBot avatar by ID.",
+        "operationId": "set-self-openbot-avatar",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetOpenBotAvatarRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SelfProfileAvatarResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/identity/team-groups": {
+      "get": {
+        "tags": [
+          "identity",
+          "v1"
+        ],
+        "summary": "List organization team groups",
+        "description": "List user-managed groups across every team in the current organization; requires organization administration",
+        "operationId": "list-organization-team-groups",
+        "parameters": [
+          {
+            "name": "page_size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            },
+            "style": "form"
+          },
+          {
+            "name": "next_page_token",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "style": "form"
+          },
+          {
+            "name": "user_type",
+            "in": "query",
+            "description": "Filter to `human` users or `machine` agents.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "style": "form"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "User-managed groups across organization teams",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TeamGroupSummaryPaginatedResponse"
                 }
               }
             }
@@ -3836,6 +4263,607 @@
         }
       }
     },
+    "/api/v1/identity/teams/{team_entity_id}/groups": {
+      "get": {
+        "tags": [
+          "identity",
+          "v1"
+        ],
+        "summary": "List team groups",
+        "description": "List user-managed groups in a team; system groups are excluded",
+        "operationId": "list-team-groups",
+        "parameters": [
+          {
+            "name": "team_entity_id",
+            "in": "path",
+            "description": "Team ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            },
+            "style": "form"
+          },
+          {
+            "name": "next_page_token",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "style": "form"
+          },
+          {
+            "name": "user_type",
+            "in": "query",
+            "description": "Filter to `human` users or `machine` agents.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "style": "form"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "User-managed team groups",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TeamGroupSummaryPaginatedResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "identity",
+          "v1"
+        ],
+        "summary": "Create team group",
+        "description": "Create a team-scoped user-managed group with a unique lowercase alphanumeric-and-hyphen slug",
+        "operationId": "create-team-group",
+        "parameters": [
+          {
+            "name": "team_entity_id",
+            "in": "path",
+            "description": "Team ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateTeamGroupBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Team group created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Group"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid slug or name",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Group slug already exists",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/identity/teams/{team_entity_id}/groups/{group_slug}": {
+      "get": {
+        "tags": [
+          "identity",
+          "v1"
+        ],
+        "summary": "Get team group",
+        "description": "Get one user-managed team group by slug",
+        "operationId": "get-team-group",
+        "parameters": [
+          {
+            "name": "team_entity_id",
+            "in": "path",
+            "description": "Team ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "group_slug",
+            "in": "path",
+            "description": "Group slug",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Team group",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Group"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "identity",
+          "v1"
+        ],
+        "summary": "Delete team group",
+        "description": "Delete a user-managed team group; system groups cannot be addressed by this endpoint",
+        "operationId": "delete-team-group",
+        "parameters": [
+          {
+            "name": "team_entity_id",
+            "in": "path",
+            "description": "Team ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "group_slug",
+            "in": "path",
+            "description": "Group slug",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Team group deleted"
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "identity",
+          "v1"
+        ],
+        "summary": "Update team group",
+        "description": "Rename a user-managed team group while retaining its stable slug",
+        "operationId": "update-team-group",
+        "parameters": [
+          {
+            "name": "team_entity_id",
+            "in": "path",
+            "description": "Team ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "group_slug",
+            "in": "path",
+            "description": "Group slug",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateTeamGroupBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Team group updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Group"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/identity/teams/{team_entity_id}/groups/{group_slug}/members": {
+      "get": {
+        "tags": [
+          "identity",
+          "v1"
+        ],
+        "summary": "List team group members",
+        "description": "List users in a user-managed team group",
+        "operationId": "list-team-group-members",
+        "parameters": [
+          {
+            "name": "team_entity_id",
+            "in": "path",
+            "description": "Team ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "group_slug",
+            "in": "path",
+            "description": "Group slug",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            },
+            "style": "form"
+          },
+          {
+            "name": "next_page_token",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "style": "form"
+          },
+          {
+            "name": "user_type",
+            "in": "query",
+            "description": "Filter to `human` users or `machine` agents.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "style": "form"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Group members",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GroupMemberWithUserPaginatedResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/identity/teams/{team_entity_id}/groups/{group_slug}/members/{user_id}": {
+      "put": {
+        "tags": [
+          "identity",
+          "v1"
+        ],
+        "summary": "Add team group member",
+        "description": "Idempotently add a current team member to a user-managed team group",
+        "operationId": "add-team-group-member",
+        "parameters": [
+          {
+            "name": "team_entity_id",
+            "in": "path",
+            "description": "Team ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "group_slug",
+            "in": "path",
+            "description": "Group slug",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "user_id",
+            "in": "path",
+            "description": "User ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Group member added"
+          },
+          "400": {
+            "description": "User is not a team member",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "identity",
+          "v1"
+        ],
+        "summary": "Remove team group member",
+        "description": "Idempotently remove a user from a user-managed team group",
+        "operationId": "remove-team-group-member",
+        "parameters": [
+          {
+            "name": "team_entity_id",
+            "in": "path",
+            "description": "Team ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "group_slug",
+            "in": "path",
+            "description": "Group slug",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "user_id",
+            "in": "path",
+            "description": "User ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Group member removed"
+          }
+        }
+      }
+    },
+    "/api/v1/identity/teams/{team_entity_id}/invitations": {
+      "get": {
+        "tags": [
+          "identity",
+          "v1"
+        ],
+        "summary": "List team invitations",
+        "description": "List current and historical team invitations",
+        "operationId": "list-team-invitations",
+        "parameters": [
+          {
+            "name": "team_entity_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            },
+            "style": "form"
+          },
+          {
+            "name": "next_page_token",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "style": "form"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserInvitationPaginatedResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "identity",
+          "v1"
+        ],
+        "summary": "Invite users to team",
+        "description": "Create or resend up to 100 email invitations with explicit system groups for the current team",
+        "operationId": "invite-team-users",
+        "parameters": [
+          {
+            "name": "team_entity_id",
+            "in": "path",
+            "description": "Team ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InviteUsersBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Invitations sent",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InviteUsersResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid invitation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient role assignment permission",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/identity/teams/{team_entity_id}/invitations/{invitation_id}": {
+      "delete": {
+        "tags": [
+          "identity",
+          "v1"
+        ],
+        "summary": "Revoke team invitation",
+        "description": "Revoke a team invitation",
+        "operationId": "revoke-team-invitation",
+        "parameters": [
+          {
+            "name": "team_entity_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "invitation_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        }
+      }
+    },
     "/api/v1/identity/teams/{team_entity_id}/members": {
       "get": {
         "tags": [
@@ -3873,11 +4901,28 @@
               "type": "string"
             },
             "style": "form"
+          },
+          {
+            "name": "user_type",
+            "in": "query",
+            "description": "Filter to `human` users or `machine` agents.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "style": "form"
           }
         ],
         "responses": {
           "200": {
-            "description": "List of team members"
+            "description": "List of team members",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TeamMemberWithUserPaginatedResponse"
+                }
+              }
+            }
           },
           "400": {
             "description": "Bad Request",
@@ -4009,6 +5054,77 @@
           },
           "500": {
             "description": "Internal Server Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "identity",
+          "v1"
+        ],
+        "summary": "Update team member role",
+        "description": "Move a team member between the team member and team admin system groups",
+        "operationId": "update-team-member-role",
+        "parameters": [
+          {
+            "name": "team_entity_id",
+            "in": "path",
+            "description": "Team ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "user_id",
+            "in": "path",
+            "description": "User ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateMemberRoleBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Team member role updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserTeam"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Membership not found",
             "content": {
               "application/json": {
                 "schema": {
@@ -5165,153 +6281,6 @@
           }
         },
         "security": [
-          {
-            "api_key": []
-          },
-          {
-            "bearer_token": []
-          }
-        ]
-      }
-    },
-    "/api/v1/team/{team_id}/chatkit/activity": {
-      "get": {
-        "tags": [
-          "chatkit",
-          "v1"
-        ],
-        "summary": "Get ChatKit activity",
-        "description": "Returns agent activity and an optional active conversation snapshot in one request.",
-        "operationId": "chatkit-get-activity",
-        "parameters": [
-          {
-            "name": "team_id",
-            "in": "path",
-            "description": "Team ID",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "agent_page_size",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "format": "int64"
-            }
-          },
-          {
-            "name": "agent_next_page_token",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": [
-                "string",
-                "null"
-              ]
-            }
-          },
-          {
-            "name": "session_page_size",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "format": "int64"
-            }
-          },
-          {
-            "name": "message_page_size",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "format": "int64"
-            }
-          },
-          {
-            "name": "queue_page_size",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "format": "int64"
-            }
-          },
-          {
-            "name": "active_session_id",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "oneOf": [
-                {
-                  "type": "null"
-                },
-                {
-                  "$ref": "#/components/schemas/WrappedUuidV4"
-                }
-              ]
-            }
-          },
-          {
-            "name": "agent_sort",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": [
-                "string",
-                "null"
-              ]
-            }
-          },
-          {
-            "name": "session_sort",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": [
-                "string",
-                "null"
-              ]
-            }
-          },
-          {
-            "name": "q",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": [
-                "string",
-                "null"
-              ]
-            }
-          },
-          {
-            "name": "team_id",
-            "in": "path",
-            "description": "Team ID",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "ChatKit activity projection",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ChatKitActivityResponse"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {},
           {
             "api_key": []
           },
@@ -6694,189 +7663,6 @@
         }
       }
     },
-    "/api/v1/team/{team_id}/chatkit/agents/{agent_id}/sessions": {
-      "get": {
-        "tags": [
-          "chatkit",
-          "v1"
-        ],
-        "summary": "List ChatKit agent sessions",
-        "description": "Lists visible sessions for one ChatKit agent with activity summaries.",
-        "operationId": "chatkit-list-agent-sessions",
-        "parameters": [
-          {
-            "name": "team_id",
-            "in": "path",
-            "description": "Team ID",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "agent_id",
-            "in": "path",
-            "description": "Agent inbox ID",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "page_size",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "format": "int64"
-            }
-          },
-          {
-            "name": "next_page_token",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": [
-                "string",
-                "null"
-              ]
-            }
-          },
-          {
-            "name": "session_sort",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": [
-                "string",
-                "null"
-              ]
-            }
-          },
-          {
-            "name": "q",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": [
-                "string",
-                "null"
-              ]
-            }
-          },
-          {
-            "name": "team_id",
-            "in": "path",
-            "description": "Team ID",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "ChatKit agent sessions",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ChatKitAgentSessionsActivityResponse"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {},
-          {
-            "api_key": []
-          },
-          {
-            "bearer_token": []
-          }
-        ]
-      }
-    },
-    "/api/v1/team/{team_id}/chatkit/agents/{agent_id}/sessions/{session_id}/messages": {
-      "post": {
-        "tags": [
-          "chatkit",
-          "v1"
-        ],
-        "summary": "Send ChatKit agent message",
-        "description": "Sends a user message to the selected ChatKit agent session and invokes the registered Vercel UI-compatible agent endpoint.",
-        "operationId": "chatkit-send-agent-message",
-        "parameters": [
-          {
-            "name": "team_id",
-            "in": "path",
-            "description": "Team ID",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "agent_id",
-            "in": "path",
-            "description": "Agent inbox ID",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "session_id",
-            "in": "path",
-            "description": "Session ID",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "team_id",
-            "in": "path",
-            "description": "Team ID",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/SendChatKitAgentMessageRequestInner"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "ChatKit messages after sending",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/MessagePaginatedResponse"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {},
-          {
-            "api_key": []
-          },
-          {
-            "bearer_token": []
-          }
-        ]
-      }
-    },
     "/api/v1/team/{team_id}/chatkit/agents/{agent_id}/status": {
       "patch": {
         "tags": [
@@ -6962,77 +7748,6 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {},
-          {
-            "api_key": []
-          },
-          {
-            "bearer_token": []
-          }
-        ]
-      }
-    },
-    "/api/v1/team/{team_id}/chatkit/agents/{agent_id}/turns": {
-      "post": {
-        "tags": [
-          "chatkit",
-          "v1"
-        ],
-        "summary": "Submit ChatKit agent turn",
-        "description": "Creates a session when needed, finalizes uploaded attachments, sends the owner message, and returns canonical conversation state.",
-        "operationId": "chatkit-submit-agent-turn",
-        "parameters": [
-          {
-            "name": "team_id",
-            "in": "path",
-            "description": "Team ID",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "agent_id",
-            "in": "path",
-            "description": "Agent inbox ID",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "team_id",
-            "in": "path",
-            "description": "Team ID",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/SubmitChatKitAgentTurnRequestInner"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Submitted ChatKit agent turn",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SubmitChatKitAgentTurnResponse"
                 }
               }
             }
@@ -9373,121 +10088,6 @@
             "description": ""
           }
         }
-      }
-    },
-    "/api/v1/team/{team_id}/chatkit/search": {
-      "get": {
-        "tags": [
-          "chatkit",
-          "v1"
-        ],
-        "summary": "Search ChatKit",
-        "description": "Searches visible session titles, participating agents, and messages across the team. When session_id is provided, searches messages only within that visible session.",
-        "operationId": "chatkit-search",
-        "parameters": [
-          {
-            "name": "team_id",
-            "in": "path",
-            "description": "Team ID",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "q",
-            "in": "query",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "session_id",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "oneOf": [
-                {
-                  "type": "null"
-                },
-                {
-                  "$ref": "#/components/schemas/WrappedUuidV4"
-                }
-              ]
-            }
-          },
-          {
-            "name": "page_size",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "format": "int64"
-            }
-          },
-          {
-            "name": "next_page_token",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": [
-                "string",
-                "null"
-              ]
-            }
-          },
-          {
-            "name": "team_id",
-            "in": "path",
-            "description": "Team ID",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Consolidated ChatKit search results",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ChatKitSearchHitPaginatedResponse"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Invalid query or pagination cursor",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Scoped session not found",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {},
-          {
-            "api_key": []
-          },
-          {
-            "bearer_token": []
-          }
-        ]
       }
     },
     "/api/v1/team/{team_id}/chatkit/session": {
@@ -12026,217 +12626,6 @@
         ]
       }
     },
-    "/api/v1/team/{team_id}/chatkit/sessions/{session_id}": {
-      "patch": {
-        "tags": [
-          "chatkit",
-          "v1"
-        ],
-        "summary": "Update ChatKit session title",
-        "description": "Updates the title of the selected ChatKit session.",
-        "operationId": "chatkit-update-session-title",
-        "parameters": [
-          {
-            "name": "team_id",
-            "in": "path",
-            "description": "Team ID",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "session_id",
-            "in": "path",
-            "description": "Session ID",
-            "required": true,
-            "schema": {
-              "$ref": "#/components/schemas/WrappedUuidV4"
-            }
-          },
-          {
-            "name": "team_id",
-            "in": "path",
-            "description": "Team ID",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/UpdateChatKitSessionTitleRequestInner"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Updated ChatKit session",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Session"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {},
-          {
-            "api_key": []
-          },
-          {
-            "bearer_token": []
-          }
-        ]
-      }
-    },
-    "/api/v1/team/{team_id}/chatkit/sessions/{session_id}/activity": {
-      "get": {
-        "tags": [
-          "chatkit",
-          "v1"
-        ],
-        "summary": "Get ChatKit conversation activity",
-        "description": "Returns messages, pending queued turns, and the durable event revision for one session.",
-        "operationId": "chatkit-get-conversation-activity",
-        "parameters": [
-          {
-            "name": "team_id",
-            "in": "path",
-            "description": "Team ID",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "session_id",
-            "in": "path",
-            "description": "Session ID",
-            "required": true,
-            "schema": {
-              "$ref": "#/components/schemas/WrappedUuidV4"
-            }
-          },
-          {
-            "name": "message_page_size",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "format": "int64"
-            }
-          },
-          {
-            "name": "queue_page_size",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "format": "int64"
-            }
-          },
-          {
-            "name": "team_id",
-            "in": "path",
-            "description": "Team ID",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "ChatKit conversation activity snapshot",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ChatKitConversationActivity"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {},
-          {
-            "api_key": []
-          },
-          {
-            "bearer_token": []
-          }
-        ]
-      }
-    },
-    "/api/v1/team/{team_id}/chatkit/sessions/{session_id}/interrupt": {
-      "post": {
-        "tags": [
-          "chatkit",
-          "v1"
-        ],
-        "summary": "Interrupt ChatKit session",
-        "description": "Interrupts the active HTTP agent response for a ChatKit session.",
-        "operationId": "chatkit-interrupt-session",
-        "parameters": [
-          {
-            "name": "team_id",
-            "in": "path",
-            "description": "Team ID",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "session_id",
-            "in": "path",
-            "description": "Session ID",
-            "required": true,
-            "schema": {
-              "$ref": "#/components/schemas/WrappedUuidV4"
-            }
-          },
-          {
-            "name": "team_id",
-            "in": "path",
-            "description": "Team ID",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "ChatKit session interruption requested",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/InterruptChatKitSessionResponse"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {},
-          {
-            "api_key": []
-          },
-          {
-            "bearer_token": []
-          }
-        ]
-      }
-    },
     "/api/v1/team/{team_id}/chatkit/sessions/{session_id}/join": {
       "post": {
         "tags": [
@@ -12805,15 +13194,600 @@
         ]
       }
     },
-    "/api/v1/team/{team_id}/chatkit/sessions/{session_id}/unread": {
+    "/api/v1/team/{team_id}/chatkit/workspace/agents/{agent_id}/sessions": {
+      "get": {
+        "tags": [
+          "chatkit",
+          "v1"
+        ],
+        "summary": "List ChatKit workspace agent sessions",
+        "description": "Lists more sessions for one ChatKit agent in ChatKit workspace.",
+        "operationId": "chatkit-workspace-agent-sessions",
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "description": "Team ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "agent_id",
+            "in": "path",
+            "description": "Agent inbox ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "next_page_token",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "name": "session_sort",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "name": "team_id",
+            "in": "path",
+            "description": "Team ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "ChatKit workspace agent sessions",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChatKitWorkspaceAgentSessionsResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {},
+          {
+            "api_key": []
+          },
+          {
+            "bearer_token": []
+          }
+        ]
+      },
       "post": {
         "tags": [
           "chatkit",
           "v1"
         ],
-        "summary": "Mark ChatKit session unread",
-        "description": "Marks the selected ChatKit session unread for the effective user.",
-        "operationId": "chatkit-mark-session-unread",
+        "summary": "Create ChatKit workspace session",
+        "description": "Creates a ChatKit session wired to the selected agent and its Vercel UI channel.",
+        "operationId": "chatkit-workspace-create-session",
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "description": "Team ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "agent_id",
+            "in": "path",
+            "description": "Agent inbox ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "team_id",
+            "in": "path",
+            "description": "Team ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateChatKitWorkspaceSessionRequestInner"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Created ChatKit workspace session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChatKitSessionWithParticipants"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {},
+          {
+            "api_key": []
+          },
+          {
+            "bearer_token": []
+          }
+        ]
+      }
+    },
+    "/api/v1/team/{team_id}/chatkit/workspace/agents/{agent_id}/sessions/{session_id}/messages": {
+      "post": {
+        "tags": [
+          "chatkit",
+          "v1"
+        ],
+        "summary": "Send ChatKit workspace message",
+        "description": "Sends a user message to the selected ChatKit agent session and invokes the registered Vercel UI-compatible agent endpoint.",
+        "operationId": "chatkit-workspace-send-message",
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "description": "Team ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "agent_id",
+            "in": "path",
+            "description": "Agent inbox ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "session_id",
+            "in": "path",
+            "description": "Session ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "team_id",
+            "in": "path",
+            "description": "Team ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SendChatKitWorkspaceMessageRequestInner"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "ChatKit workspace messages after sending",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessagePaginatedResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {},
+          {
+            "api_key": []
+          },
+          {
+            "bearer_token": []
+          }
+        ]
+      }
+    },
+    "/api/v1/team/{team_id}/chatkit/workspace/agents/{agent_id}/turns": {
+      "post": {
+        "tags": [
+          "chatkit",
+          "v1"
+        ],
+        "summary": "Submit ChatKit workspace turn",
+        "description": "Creates a session when needed, finalizes uploaded attachments, sends the owner message, and returns canonical conversation state.",
+        "operationId": "chatkit-workspace-submit-turn",
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "description": "Team ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "agent_id",
+            "in": "path",
+            "description": "Agent inbox ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "team_id",
+            "in": "path",
+            "description": "Team ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SubmitChatKitWorkspaceTurnRequestInner"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Submitted ChatKit workspace turn",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SubmitChatKitWorkspaceTurnResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {},
+          {
+            "api_key": []
+          },
+          {
+            "bearer_token": []
+          }
+        ]
+      }
+    },
+    "/api/v1/team/{team_id}/chatkit/workspace/bootstrap": {
+      "get": {
+        "tags": [
+          "chatkit",
+          "v1"
+        ],
+        "summary": "Bootstrap ChatKit workspace",
+        "description": "Returns the sidebar and an optional active conversation snapshot in one request.",
+        "operationId": "chatkit-workspace-bootstrap",
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "description": "Team ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "agent_page_size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "agent_next_page_token",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "name": "session_page_size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "message_page_size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "queue_page_size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "active_session_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "oneOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "$ref": "#/components/schemas/WrappedUuidV4"
+                }
+              ]
+            }
+          },
+          {
+            "name": "agent_sort",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "name": "session_sort",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "name": "team_id",
+            "in": "path",
+            "description": "Team ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "ChatKit workspace bootstrap projection",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChatKitWorkspaceBootstrapResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {},
+          {
+            "api_key": []
+          },
+          {
+            "bearer_token": []
+          }
+        ]
+      }
+    },
+    "/api/v1/team/{team_id}/chatkit/workspace/search": {
+      "get": {
+        "tags": [
+          "chatkit",
+          "v1"
+        ],
+        "summary": "Search ChatKit",
+        "description": "Searches visible session titles, participating agents, and messages across the team. When session_id is provided, searches messages only within that visible session.",
+        "operationId": "chatkit-search",
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "description": "Team ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "session_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "oneOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "$ref": "#/components/schemas/WrappedUuidV4"
+                }
+              ]
+            }
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "next_page_token",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "name": "team_id",
+            "in": "path",
+            "description": "Team ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Consolidated ChatKit search results",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChatKitSearchHitPaginatedResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid query or pagination cursor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Scoped session not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {},
+          {
+            "api_key": []
+          },
+          {
+            "bearer_token": []
+          }
+        ]
+      }
+    },
+    "/api/v1/team/{team_id}/chatkit/workspace/sessions/{session_id}/interrupt": {
+      "post": {
+        "tags": [
+          "chatkit",
+          "v1"
+        ],
+        "summary": "Interrupt ChatKit workspace session",
+        "description": "Interrupts the active ChatKit HTTP agent response for a ChatKit workspace session.",
+        "operationId": "chatkit-workspace-interrupt-session",
         "parameters": [
           {
             "name": "team_id",
@@ -12845,11 +13819,460 @@
         ],
         "responses": {
           "200": {
-            "description": "ChatKit session marked unread",
+            "description": "ChatKit workspace session interruption requested",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InterruptChatKitSessionResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {},
+          {
+            "api_key": []
+          },
+          {
+            "bearer_token": []
+          }
+        ]
+      }
+    },
+    "/api/v1/team/{team_id}/chatkit/workspace/sessions/{session_id}/messages": {
+      "get": {
+        "tags": [
+          "chatkit",
+          "v1"
+        ],
+        "summary": "List ChatKit workspace messages",
+        "description": "Lists newest-first message history for a ChatKit workspace session with standard pagination.",
+        "operationId": "chatkit-workspace-messages",
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "description": "Team ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "session_id",
+            "in": "path",
+            "description": "Session ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "next_page_token",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "name": "team_id",
+            "in": "path",
+            "description": "Team ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "ChatKit workspace messages",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessagePaginatedResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {},
+          {
+            "api_key": []
+          },
+          {
+            "bearer_token": []
+          }
+        ]
+      }
+    },
+    "/api/v1/team/{team_id}/chatkit/workspace/sessions/{session_id}/read-state": {
+      "put": {
+        "tags": [
+          "chatkit",
+          "v1"
+        ],
+        "summary": "Update ChatKit session read state",
+        "description": "Marks the shared ChatKit session read or unread for only the authenticated user.",
+        "operationId": "chatkit-workspace-update-session-read-state",
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "description": "Team ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "session_id",
+            "in": "path",
+            "description": "Session ID",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/WrappedUuidV4"
+            }
+          },
+          {
+            "name": "team_id",
+            "in": "path",
+            "description": "Team ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateChatKitSessionUserStateRequestInner"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Current user's ChatKit session read state",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChatKitSessionUserState"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {},
+          {
+            "api_key": []
+          },
+          {
+            "bearer_token": []
+          }
+        ]
+      }
+    },
+    "/api/v1/team/{team_id}/chatkit/workspace/sessions/{session_id}/rename": {
+      "patch": {
+        "tags": [
+          "chatkit",
+          "v1"
+        ],
+        "summary": "Rename ChatKit workspace thread",
+        "description": "Renames the selected ChatKit workspace ChatKit session.",
+        "operationId": "chatkit-workspace-rename-thread",
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "description": "Team ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "session_id",
+            "in": "path",
+            "description": "Session ID",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/WrappedUuidV4"
+            }
+          },
+          {
+            "name": "team_id",
+            "in": "path",
+            "description": "Team ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RenameChatKitWorkspaceThreadRequestInner"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Renamed ChatKit workspace thread",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Session"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {},
+          {
+            "api_key": []
+          },
+          {
+            "bearer_token": []
+          }
+        ]
+      }
+    },
+    "/api/v1/team/{team_id}/chatkit/workspace/sessions/{session_id}/snapshot": {
+      "get": {
+        "tags": [
+          "chatkit",
+          "v1"
+        ],
+        "summary": "Get ChatKit workspace conversation snapshot",
+        "description": "Returns messages, pending queued turns, and the durable event revision for one session.",
+        "operationId": "chatkit-workspace-conversation-snapshot",
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "description": "Team ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "session_id",
+            "in": "path",
+            "description": "Session ID",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/WrappedUuidV4"
+            }
+          },
+          {
+            "name": "message_page_size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "queue_page_size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "team_id",
+            "in": "path",
+            "description": "Team ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "ChatKit workspace conversation snapshot",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChatKitWorkspaceConversationSnapshot"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {},
+          {
+            "api_key": []
+          },
+          {
+            "bearer_token": []
+          }
+        ]
+      }
+    },
+    "/api/v1/team/{team_id}/chatkit/workspace/sidebar": {
+      "get": {
+        "tags": [
+          "chatkit",
+          "v1"
+        ],
+        "summary": "List ChatKit workspace sidebar",
+        "description": "Lists ChatKit agents with nested session previews for ChatKit workspace.",
+        "operationId": "chatkit-workspace-sidebar",
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "description": "Team ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "agent_page_size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "agent_next_page_token",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "name": "session_page_size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "message_page_size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "queue_page_size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "active_session_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "oneOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "$ref": "#/components/schemas/WrappedUuidV4"
+                }
+              ]
+            }
+          },
+          {
+            "name": "agent_sort",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "name": "session_sort",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "name": "team_id",
+            "in": "path",
+            "description": "Team ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "ChatKit workspace sidebar",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChatKitWorkspaceSidebarResponse"
                 }
               }
             }
@@ -15629,6 +17052,85 @@
         ]
       }
     },
+    "/api/v1/team/{team_id}/identity/openbot/chatkit-realtime-ticket": {
+      "post": {
+        "tags": [
+          "identity",
+          "chatkit",
+          "v1"
+        ],
+        "summary": "Issue an OpenBot ChatKit realtime socket ticket",
+        "description": "Exchanges an installation-audience OpenBot bearer token for a 60-second credential accepted only by the requested team's ChatKit realtime WebSocket. Present it as the `tilde.chatkit-realtime.ticket.<ticket>` WebSocket subprotocol; the long-lived access token never enters a URL or browser JavaScript.",
+        "operationId": "issue_openbot_chatkit_realtime_ticket",
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "description": "Tilde team ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "team_id",
+            "in": "path",
+            "description": "Team ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IssueChatKitRealtimeSocketTicketRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Short-lived ChatKit realtime socket ticket",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChatKitRealtimeSocketTicket"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Invalid OpenBot access token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Token is not bound to this team",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_token": []
+          }
+        ]
+      }
+    },
     "/api/v1/team/{team_id}/identity/openbot/deployments": {
       "get": {
         "tags": [
@@ -16326,85 +17828,6 @@
           {
             "api_key": []
           },
-          {
-            "bearer_token": []
-          }
-        ]
-      }
-    },
-    "/api/v1/team/{team_id}/identity/openbot/realtime-ticket": {
-      "post": {
-        "tags": [
-          "identity",
-          "chatkit",
-          "v1"
-        ],
-        "summary": "Issue an OpenBot realtime ticket",
-        "description": "Exchanges an installation-audience OpenBot bearer token for a 60-second credential accepted only by the requested team's ChatKit realtime WebSocket. Present it as the `tilde.mission-control.ticket.<ticket>` WebSocket subprotocol; the long-lived access token never enters a URL or browser JavaScript.",
-        "operationId": "issue_openbot_realtime_ticket",
-        "parameters": [
-          {
-            "name": "team_id",
-            "in": "path",
-            "description": "Tilde team ID",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "team_id",
-            "in": "path",
-            "description": "Team ID",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/IssueOpenBotRealtimeTicketRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Short-lived OpenBot realtime ticket",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/OpenBotRealtimeTicket"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Invalid OpenBot access token",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Token is not bound to this team",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        },
-        "security": [
           {
             "bearer_token": []
           }
@@ -23568,7 +24991,7 @@
           "v1"
         ],
         "summary": "Reconcile OpenBot agent bundle",
-        "description": "Idempotently reconciles the agent, Vercel UI channel, authored skills and registry, MCP server, and tool-group bindings in one request.",
+        "description": "Idempotently reconciles the agent, ChatKit workspace channel, authored skills and registry, MCP server, and tool-group bindings in one request.",
         "operationId": "reconcile-openbot-agent-bundle",
         "parameters": [
           {
@@ -29209,312 +30632,6 @@
         }
       }
     },
-    "/api/v1/team/{team_id}/tilde-pay/onboarding": {
-      "post": {
-        "tags": [
-          "tilde-pay",
-          "v1"
-        ],
-        "summary": "Provision Tilde Pay",
-        "description": "Idempotently enroll billing, create a customer when details are supplied, create a wallet after KYC, configure the wallet MCP server and tools, and optionally configure browser tools when enabled.",
-        "operationId": "tilde-pay-provision",
-        "parameters": [
-          {
-            "name": "team_id",
-            "in": "path",
-            "description": "Team ID",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "team_id",
-            "in": "path",
-            "description": "Team ID",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ProvisionTildePayRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Fully reconciled Tilde Pay onboarding state",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProvisionTildePayResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/team/{team_id}/tilde-pay/payments/mpp": {
-      "post": {
-        "tags": [
-          "tilde-pay",
-          "v1"
-        ],
-        "summary": "Make MPP payment",
-        "description": "Make an MPP payment from a Tilde Pay wallet.",
-        "operationId": "tilde-pay-payment-mpp",
-        "parameters": [
-          {
-            "name": "team_id",
-            "in": "path",
-            "description": "Team ID",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "team_id",
-            "in": "path",
-            "description": "Team ID",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/PayPaymentRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Tilde Pay payment response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/PaymentResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/team/{team_id}/tilde-pay/payments/x402": {
-      "post": {
-        "tags": [
-          "tilde-pay",
-          "v1"
-        ],
-        "summary": "Make x402 payment",
-        "description": "Make an x402 payment from a Tilde Pay wallet.",
-        "operationId": "tilde-pay-payment-x402",
-        "parameters": [
-          {
-            "name": "team_id",
-            "in": "path",
-            "description": "Team ID",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "team_id",
-            "in": "path",
-            "description": "Team ID",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/PayPaymentRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Tilde Pay payment response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/PaymentResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/team/{team_id}/tilde-pay/wallet": {
-      "get": {
-        "tags": [
-          "tilde-pay",
-          "v1"
-        ],
-        "summary": "Get Tilde Pay wallet summary",
-        "description": "Return wallet, balances, fiat deposit information, and crypto deposit information for Tilde Pay.",
-        "operationId": "tilde-pay-wallet-summary",
-        "parameters": [
-          {
-            "name": "team_id",
-            "in": "path",
-            "description": "Team ID",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "team_id",
-            "in": "path",
-            "description": "Team ID",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Tilde Pay wallet summary",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/PayWalletSummaryResponse"
-                }
-              }
-            }
-          }
-        }
-      },
-      "post": {
-        "tags": [
-          "tilde-pay",
-          "v1"
-        ],
-        "summary": "Create Tilde Pay wallet",
-        "description": "Create a Tilde Pay wallet after KYC and return product-shaped wallet details.",
-        "operationId": "tilde-pay-wallet-create",
-        "parameters": [
-          {
-            "name": "team_id",
-            "in": "path",
-            "description": "Team ID",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "team_id",
-            "in": "path",
-            "description": "Team ID",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CreatePayWalletRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Tilde Pay wallet summary",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/PayWalletSummaryResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/team/{team_id}/tilde-pay/wallet/wait-until-balance": {
-      "post": {
-        "tags": [
-          "tilde-pay",
-          "v1"
-        ],
-        "summary": "Wait for Tilde Pay balance",
-        "description": "Poll wallet balances until the requested asset reaches the requested minimum.",
-        "operationId": "tilde-pay-wallet-wait-until-balance",
-        "parameters": [
-          {
-            "name": "team_id",
-            "in": "path",
-            "description": "Team ID",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "team_id",
-            "in": "path",
-            "description": "Team ID",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/WaitForPayBalanceRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Tilde Pay balance wait result",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/WaitUntilBalanceResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/v1/team/{team_id}/trusted-runtime": {
       "get": {
         "tags": [
@@ -29839,1009 +30956,6 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/team/{team_id}/wallet": {
-      "get": {
-        "tags": [
-          "wallet",
-          "v1"
-        ],
-        "summary": "List wallets",
-        "description": "List wallets for the current org/team.",
-        "operationId": "wallet-list",
-        "parameters": [
-          {
-            "name": "team_id",
-            "in": "path",
-            "description": "Team ID",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "page_size",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "format": "int64"
-            }
-          },
-          {
-            "name": "owner_id",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": [
-                "string",
-                "null"
-              ]
-            }
-          },
-          {
-            "name": "team_id",
-            "in": "path",
-            "description": "Team ID",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "List wallets",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/WalletPaginatedResponse"
-                }
-              }
-            }
-          }
-        }
-      },
-      "post": {
-        "tags": [
-          "wallet",
-          "v1"
-        ],
-        "summary": "Create wallet",
-        "description": "Create a Tilde wallet by provisioning a Privy EVM wallet, Compose virtual IBAN, and Compose crypto deposit wallet.",
-        "operationId": "wallet-create",
-        "parameters": [
-          {
-            "name": "team_id",
-            "in": "path",
-            "description": "Team ID",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "team_id",
-            "in": "path",
-            "description": "Team ID",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CreateWalletBody"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Created wallet",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Wallet"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Invalid request",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Authentication failed",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Forbidden",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "502": {
-            "description": "Upstream provider error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/team/{team_id}/wallet/customer": {
-      "get": {
-        "tags": [
-          "wallet",
-          "v1"
-        ],
-        "summary": "List wallet customers",
-        "description": "List wallet customers for the current org/team.",
-        "operationId": "wallet-customer-list",
-        "parameters": [
-          {
-            "name": "team_id",
-            "in": "path",
-            "description": "Team ID",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "page_size",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "format": "int64"
-            }
-          },
-          {
-            "name": "owner_id",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": [
-                "string",
-                "null"
-              ]
-            }
-          },
-          {
-            "name": "team_id",
-            "in": "path",
-            "description": "Team ID",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "List wallet customers",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/WalletCustomerPaginatedResponse"
-                }
-              }
-            }
-          }
-        }
-      },
-      "post": {
-        "tags": [
-          "wallet",
-          "v1"
-        ],
-        "summary": "Create wallet customer",
-        "description": "Create a Compose customer and return a KYC verification link for wallet onboarding.",
-        "operationId": "wallet-customer-create",
-        "parameters": [
-          {
-            "name": "team_id",
-            "in": "path",
-            "description": "Team ID",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "team_id",
-            "in": "path",
-            "description": "Team ID",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CreateWalletCustomerBody"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Created wallet customer",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/WalletCustomer"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/team/{team_id}/wallet/customer/{customer_id}": {
-      "get": {
-        "tags": [
-          "wallet",
-          "v1"
-        ],
-        "summary": "Get wallet customer",
-        "description": "Get a wallet customer by local id.",
-        "operationId": "wallet-customer-get",
-        "parameters": [
-          {
-            "name": "team_id",
-            "in": "path",
-            "description": "Team ID",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "customer_id",
-            "in": "path",
-            "description": "Wallet customer ID",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "team_id",
-            "in": "path",
-            "description": "Team ID",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Wallet customer",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/WalletCustomer"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/team/{team_id}/wallet/customer/{customer_id}/kyc": {
-      "get": {
-        "tags": [
-          "wallet",
-          "v1"
-        ],
-        "summary": "Get wallet customer KYC details",
-        "description": "Return the stored Compose KYC verification status and KYC flow URL for a wallet customer.",
-        "operationId": "wallet-customer-kyc-get",
-        "parameters": [
-          {
-            "name": "team_id",
-            "in": "path",
-            "description": "Team ID",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "customer_id",
-            "in": "path",
-            "description": "Wallet customer ID",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "team_id",
-            "in": "path",
-            "description": "Team ID",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Wallet customer KYC details",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/GetWalletCustomerKycResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/team/{team_id}/wallet/{wallet_id}": {
-      "get": {
-        "tags": [
-          "wallet",
-          "v1"
-        ],
-        "summary": "Get wallet",
-        "description": "Get a wallet by id.",
-        "operationId": "wallet-get",
-        "parameters": [
-          {
-            "name": "team_id",
-            "in": "path",
-            "description": "Team ID",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "wallet_id",
-            "in": "path",
-            "description": "Wallet ID",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "team_id",
-            "in": "path",
-            "description": "Team ID",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Wallet",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Wallet"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/team/{team_id}/wallet/{wallet_id}/balances": {
-      "get": {
-        "tags": [
-          "wallet",
-          "v1"
-        ],
-        "summary": "Get wallet balances",
-        "description": "Refresh and return Compose balances for this wallet.",
-        "operationId": "wallet-get-balances",
-        "parameters": [
-          {
-            "name": "team_id",
-            "in": "path",
-            "description": "Team ID",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "wallet_id",
-            "in": "path",
-            "description": "Wallet ID",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "team_id",
-            "in": "path",
-            "description": "Team ID",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Wallet balances",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/GetBalancesResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/team/{team_id}/wallet/{wallet_id}/deposit-information/crypto": {
-      "get": {
-        "tags": [
-          "wallet",
-          "v1"
-        ],
-        "summary": "Get wallet crypto deposit information",
-        "description": "Return crypto deposit information for this wallet.",
-        "operationId": "wallet-get-crypto-deposit-information",
-        "parameters": [
-          {
-            "name": "team_id",
-            "in": "path",
-            "description": "Team ID",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "wallet_id",
-            "in": "path",
-            "description": "Wallet ID",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "team_id",
-            "in": "path",
-            "description": "Team ID",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Wallet crypto deposit information",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/GetCryptoDepositInformationResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/team/{team_id}/wallet/{wallet_id}/deposit-information/fiat": {
-      "get": {
-        "tags": [
-          "wallet",
-          "v1"
-        ],
-        "summary": "Get wallet fiat deposit information",
-        "description": "Refresh and return Compose fiat deposit information for this wallet.",
-        "operationId": "wallet-get-fiat-deposit-information",
-        "parameters": [
-          {
-            "name": "team_id",
-            "in": "path",
-            "description": "Team ID",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "wallet_id",
-            "in": "path",
-            "description": "Wallet ID",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "currency",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": [
-                "string",
-                "null"
-              ]
-            }
-          },
-          {
-            "name": "team_id",
-            "in": "path",
-            "description": "Team ID",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Wallet fiat deposit information",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/GetFiatDepositInformationResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/team/{team_id}/wallet/{wallet_id}/payments/mpp": {
-      "post": {
-        "tags": [
-          "wallet",
-          "v1"
-        ],
-        "summary": "Make MPP payment",
-        "description": "Make an MPP payment from the wallet using the configured payment adapter.",
-        "operationId": "wallet-make-mpp-payment",
-        "parameters": [
-          {
-            "name": "team_id",
-            "in": "path",
-            "description": "Team ID",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "wallet_id",
-            "in": "path",
-            "description": "Wallet ID",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "team_id",
-            "in": "path",
-            "description": "Team ID",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/MakeMppPaymentRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Payment response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/PaymentResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/team/{team_id}/wallet/{wallet_id}/payments/x402": {
-      "post": {
-        "tags": [
-          "wallet",
-          "v1"
-        ],
-        "summary": "Make x402 payment",
-        "description": "Make an x402 payment from the wallet using the configured payment adapter.",
-        "operationId": "wallet-make-x402-payment",
-        "parameters": [
-          {
-            "name": "team_id",
-            "in": "path",
-            "description": "Team ID",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "wallet_id",
-            "in": "path",
-            "description": "Wallet ID",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "team_id",
-            "in": "path",
-            "description": "Team ID",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/MakeX402PaymentRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Payment response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/PaymentResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/team/{team_id}/wallet/{wallet_id}/transaction-history": {
-      "get": {
-        "tags": [
-          "wallet",
-          "v1"
-        ],
-        "summary": "List wallet transaction history",
-        "description": "Return cached transaction history for this wallet without scanning the chain.",
-        "operationId": "wallet-transaction-history-list",
-        "parameters": [
-          {
-            "name": "team_id",
-            "in": "path",
-            "description": "Team ID",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "wallet_id",
-            "in": "path",
-            "description": "Wallet ID",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "page_size",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "format": "int64"
-            }
-          },
-          {
-            "name": "next_page_token",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": [
-                "string",
-                "null"
-              ]
-            }
-          },
-          {
-            "name": "team_id",
-            "in": "path",
-            "description": "Team ID",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Wallet transaction history",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/WalletTransactionHistoryItemPaginatedResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/team/{team_id}/wallet/{wallet_id}/transaction-history/refresh": {
-      "post": {
-        "tags": [
-          "wallet",
-          "v1"
-        ],
-        "summary": "Refresh wallet transaction history",
-        "description": "Scan configured chains for wallet-linked USDC transfers and upsert cached transaction history.",
-        "operationId": "wallet-transaction-history-refresh",
-        "parameters": [
-          {
-            "name": "team_id",
-            "in": "path",
-            "description": "Team ID",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "wallet_id",
-            "in": "path",
-            "description": "Wallet ID",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "team_id",
-            "in": "path",
-            "description": "Team ID",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Wallet transaction history refresh result",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/RefreshWalletTransactionHistoryResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/team/{team_id}/wallet/{wallet_id}/virtual-account": {
-      "post": {
-        "tags": [
-          "wallet",
-          "v1"
-        ],
-        "summary": "Create wallet virtual account",
-        "description": "Create a currency-denominated Compose virtual account for an existing wallet.",
-        "operationId": "wallet-virtual-account-create",
-        "parameters": [
-          {
-            "name": "team_id",
-            "in": "path",
-            "description": "Team ID",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "wallet_id",
-            "in": "path",
-            "description": "Wallet ID",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "team_id",
-            "in": "path",
-            "description": "Team ID",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CreateWalletVirtualAccountBody"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Created wallet virtual account",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/WalletVirtualAccount"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Invalid request",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Authentication failed",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Forbidden",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "502": {
-            "description": "Upstream provider error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/team/{team_id}/wallet/{wallet_id}/wait-until-balance": {
-      "post": {
-        "tags": [
-          "wallet",
-          "v1"
-        ],
-        "summary": "Wait until wallet balance",
-        "description": "Poll the local wallet balance cache until an asset reaches the requested minimum.",
-        "operationId": "wallet-wait-until-balance",
-        "parameters": [
-          {
-            "name": "team_id",
-            "in": "path",
-            "description": "Team ID",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "wallet_id",
-            "in": "path",
-            "description": "Wallet ID",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "team_id",
-            "in": "path",
-            "description": "Team ID",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/WaitUntilBalanceRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Wait result",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/WaitUntilBalanceResponse"
                 }
               }
             }
@@ -40859,6 +40973,21 @@
   },
   "components": {
     "schemas": {
+      "AcceptInvitationRequest": {
+        "type": "object",
+        "required": [
+          "invitation_id",
+          "password"
+        ],
+        "properties": {
+          "invitation_id": {
+            "type": "string"
+          },
+          "password": {
+            "type": "string"
+          }
+        }
+      },
       "AddChatKitParticipantRequestInner": {
         "type": "object",
         "description": "Request body for adding a participant to a ChatKit session.",
@@ -42190,40 +42319,6 @@
           }
         }
       },
-      "ChatKitActivityResponse": {
-        "type": "object",
-        "description": "ChatKit activity projection with an optional active conversation.",
-        "required": [
-          "activity",
-          "active_session_id",
-          "active_conversation"
-        ],
-        "properties": {
-          "active_conversation": {
-            "oneOf": [
-              {
-                "type": "null"
-              },
-              {
-                "$ref": "#/components/schemas/ChatKitConversationActivity"
-              }
-            ]
-          },
-          "active_session_id": {
-            "oneOf": [
-              {
-                "type": "null"
-              },
-              {
-                "$ref": "#/components/schemas/WrappedUuidV4"
-              }
-            ]
-          },
-          "activity": {
-            "$ref": "#/components/schemas/ChatKitAgentActivityPage"
-          }
-        }
-      },
       "ChatKitAgent": {
         "allOf": [
           {
@@ -42248,89 +42343,6 @@
           }
         ],
         "description": "Public agent view used by list/get routes."
-      },
-      "ChatKitAgentActivityPage": {
-        "type": "object",
-        "description": "Paginated ChatKit agent activity payload.",
-        "required": [
-          "items"
-        ],
-        "properties": {
-          "items": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/ChatKitAgentActivitySummary"
-            }
-          },
-          "next_page_token": {
-            "type": [
-              "string",
-              "null"
-            ]
-          }
-        }
-      },
-      "ChatKitAgentActivitySummary": {
-        "type": "object",
-        "description": "Agent summary returned by the ChatKit activity projection.",
-        "required": [
-          "id",
-          "display_name",
-          "provider_id",
-          "status",
-          "has_vercel_ui_endpoint",
-          "created_at",
-          "updated_at",
-          "sessions"
-        ],
-        "properties": {
-          "created_at": {
-            "$ref": "#/components/schemas/WrappedChronoDateTime"
-          },
-          "display_name": {
-            "type": "string"
-          },
-          "endpoint_url": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "has_vercel_ui_endpoint": {
-            "type": "boolean"
-          },
-          "id": {
-            "type": "string"
-          },
-          "last_message_preview": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "last_user_message_at": {
-            "oneOf": [
-              {
-                "type": "null"
-              },
-              {
-                "$ref": "#/components/schemas/WrappedChronoDateTime"
-              }
-            ]
-          },
-          "provider_id": {
-            "type": "string"
-          },
-          "sessions": {
-            "$ref": "#/components/schemas/ChatKitAgentSessionsActivityResponse"
-          },
-          "status": {
-            "type": "string"
-          },
-          "updated_at": {
-            "$ref": "#/components/schemas/WrappedChronoDateTime"
-          }
-        }
       },
       "ChatKitAgentAvatar": {
         "type": "object",
@@ -42401,27 +42413,6 @@
           },
           "next_page_token": {
             "type": "string"
-          }
-        }
-      },
-      "ChatKitAgentSessionsActivityResponse": {
-        "type": "object",
-        "description": "Paginated sessions payload for \"show more\".",
-        "required": [
-          "items"
-        ],
-        "properties": {
-          "items": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/ChatKitSessionActivitySummary"
-            }
-          },
-          "next_page_token": {
-            "type": [
-              "string",
-              "null"
-            ]
           }
         }
       },
@@ -42555,31 +42546,6 @@
           "cancelled"
         ]
       },
-      "ChatKitAttachmentCompletion": {
-        "type": "object",
-        "description": "Attachment upload details finalized atomically with a submitted turn.",
-        "required": [
-          "attachment_id"
-        ],
-        "properties": {
-          "attachment_id": {
-            "$ref": "#/components/schemas/WrappedUuidV4"
-          },
-          "sha256": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "size_bytes": {
-            "type": [
-              "integer",
-              "null"
-            ],
-            "format": "int64"
-          }
-        }
-      },
       "ChatKitChatProviderConfigField": {
         "type": "object",
         "description": "Provider-specific configuration field for a ChatKit chat provider.",
@@ -42604,27 +42570,6 @@
           },
           "required": {
             "type": "boolean"
-          }
-        }
-      },
-      "ChatKitConversationActivity": {
-        "type": "object",
-        "description": "Initial messages and pending queue state for one ChatKit session.",
-        "required": [
-          "messages",
-          "queued_turns",
-          "snapshot_revision"
-        ],
-        "properties": {
-          "messages": {
-            "$ref": "#/components/schemas/MessagePaginatedResponse"
-          },
-          "queued_turns": {
-            "$ref": "#/components/schemas/ChatKitQueuedTurns"
-          },
-          "snapshot_revision": {
-            "type": "integer",
-            "format": "int64"
           }
         }
       },
@@ -42694,26 +42639,33 @@
           "agent"
         ]
       },
-      "ChatKitQueuedTurns": {
+      "ChatKitRealtimeSocketTicket": {
         "type": "object",
-        "description": "Concrete pending-turn page used by ChatKit activity responses.",
         "required": [
-          "items"
+          "ticket",
+          "protocol",
+          "expires_at"
         ],
         "properties": {
-          "items": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/ChatKitAgentTurnQueueItem"
-            }
+          "expires_at": {
+            "$ref": "#/components/schemas/WrappedChronoDateTime"
           },
-          "next_page_token": {
-            "type": [
-              "string",
-              "null"
-            ]
+          "protocol": {
+            "type": "string",
+            "description": "Stable subprotocol prefix. Append `.` and the returned ticket."
+          },
+          "ticket": {
+            "type": "string",
+            "description": "Short-lived credential presented through the WebSocket subprotocol header."
           }
         }
+      },
+      "ChatKitRealtimeTicketTransport": {
+        "type": "string",
+        "enum": [
+          "browser",
+          "native"
+        ]
       },
       "ChatKitSearchAgent": {
         "type": "object",
@@ -42819,9 +42771,244 @@
           }
         }
       },
-      "ChatKitSessionActivitySummary": {
+      "ChatKitSessionUserState": {
         "type": "object",
-        "description": "Session summary returned under one ChatKit agent activity item.",
+        "description": "Per-user read state for one shared ChatKit session.",
+        "required": [
+          "session_id",
+          "user_id",
+          "unread",
+          "updated_at"
+        ],
+        "properties": {
+          "last_read_at": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/WrappedChronoDateTime"
+              }
+            ]
+          },
+          "session_id": {
+            "$ref": "#/components/schemas/WrappedUuidV4"
+          },
+          "unread": {
+            "type": "boolean"
+          },
+          "updated_at": {
+            "$ref": "#/components/schemas/WrappedChronoDateTime"
+          },
+          "user_id": {
+            "type": "string"
+          }
+        }
+      },
+      "ChatKitSessionWithParticipants": {
+        "type": "object",
+        "description": "ChatKit session response with explicit participants.",
+        "required": [
+          "session",
+          "participants"
+        ],
+        "properties": {
+          "participants": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ChatKitParticipant"
+            }
+          },
+          "session": {
+            "$ref": "#/components/schemas/Session"
+          }
+        }
+      },
+      "ChatKitWorkspaceAgentSessionsResponse": {
+        "type": "object",
+        "description": "Paginated sessions payload for \"show more\".",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ChatKitWorkspaceSessionSummary"
+            }
+          },
+          "next_page_token": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "ChatKitWorkspaceAgentSummary": {
+        "type": "object",
+        "description": "Agent summary rendered in the ChatKit workspace sidebar.",
+        "required": [
+          "id",
+          "display_name",
+          "provider_id",
+          "status",
+          "has_vercel_ui_endpoint",
+          "created_at",
+          "updated_at",
+          "sessions"
+        ],
+        "properties": {
+          "created_at": {
+            "$ref": "#/components/schemas/WrappedChronoDateTime"
+          },
+          "display_name": {
+            "type": "string"
+          },
+          "endpoint_url": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "has_vercel_ui_endpoint": {
+            "type": "boolean"
+          },
+          "id": {
+            "type": "string"
+          },
+          "last_message_preview": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "last_user_message_at": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/WrappedChronoDateTime"
+              }
+            ]
+          },
+          "provider_id": {
+            "type": "string"
+          },
+          "sessions": {
+            "$ref": "#/components/schemas/ChatKitWorkspaceAgentSessionsResponse"
+          },
+          "status": {
+            "type": "string"
+          },
+          "updated_at": {
+            "$ref": "#/components/schemas/WrappedChronoDateTime"
+          }
+        }
+      },
+      "ChatKitWorkspaceAttachmentCompletion": {
+        "type": "object",
+        "description": "Attachment upload details finalized atomically with a submitted turn.",
+        "required": [
+          "attachment_id"
+        ],
+        "properties": {
+          "attachment_id": {
+            "$ref": "#/components/schemas/WrappedUuidV4"
+          },
+          "sha256": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "size_bytes": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          }
+        }
+      },
+      "ChatKitWorkspaceBootstrapResponse": {
+        "type": "object",
+        "description": "ChatKit workspace bootstrap projection for the sidebar and optional active conversation.",
+        "required": [
+          "sidebar"
+        ],
+        "properties": {
+          "active_conversation": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ChatKitWorkspaceConversationSnapshot"
+              }
+            ]
+          },
+          "active_session_id": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/WrappedUuidV4"
+              }
+            ]
+          },
+          "sidebar": {
+            "$ref": "#/components/schemas/ChatKitWorkspaceSidebarResponse"
+          }
+        }
+      },
+      "ChatKitWorkspaceConversationSnapshot": {
+        "type": "object",
+        "description": "Initial messages and pending queue state for one ChatKit workspace session.",
+        "required": [
+          "messages",
+          "queued_turns",
+          "snapshot_revision"
+        ],
+        "properties": {
+          "messages": {
+            "$ref": "#/components/schemas/MessagePaginatedResponse"
+          },
+          "queued_turns": {
+            "$ref": "#/components/schemas/ChatKitWorkspaceQueuedTurns"
+          },
+          "snapshot_revision": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "ChatKitWorkspaceQueuedTurns": {
+        "type": "object",
+        "description": "Concrete pending-turn page used by ChatKit workspace aggregate responses.",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ChatKitAgentTurnQueueItem"
+            }
+          },
+          "next_page_token": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "ChatKitWorkspaceSessionSummary": {
+        "type": "object",
+        "description": "Session summary rendered under one ChatKit workspace agent.",
         "required": [
           "id",
           "created_at",
@@ -42858,22 +43045,24 @@
           }
         }
       },
-      "ChatKitSessionWithParticipants": {
+      "ChatKitWorkspaceSidebarResponse": {
         "type": "object",
-        "description": "ChatKit session response with explicit participants.",
+        "description": "Paginated ChatKit agent activity payload.",
         "required": [
-          "session",
-          "participants"
+          "items"
         ],
         "properties": {
-          "participants": {
+          "items": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/ChatKitParticipant"
+              "$ref": "#/components/schemas/ChatKitWorkspaceAgentSummary"
             }
           },
-          "session": {
-            "$ref": "#/components/schemas/Session"
+          "next_page_token": {
+            "type": [
+              "string",
+              "null"
+            ]
           }
         }
       },
@@ -43978,6 +44167,24 @@
           }
         }
       },
+      "CreateChatKitWorkspaceSessionRequestInner": {
+        "type": "object",
+        "description": "Request body for creating a ChatKit workspace session for an agent.",
+        "properties": {
+          "lookup_key": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "title": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
       "CreateCustomToolProviderRequestInner": {
         "type": "object",
         "required": [
@@ -44488,27 +44695,6 @@
         ],
         "properties": {
           "schema": {}
-        }
-      },
-      "CreatePayWalletRequest": {
-        "type": "object",
-        "required": [
-          "name",
-          "wallet_customer_id"
-        ],
-        "properties": {
-          "name": {
-            "type": "string"
-          },
-          "owner_id": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "wallet_customer_id": {
-            "type": "string"
-          }
         }
       },
       "CreatePersonalToolGroupInstanceBody": {
@@ -45309,6 +45495,24 @@
           }
         }
       },
+      "CreateTeamGroupBody": {
+        "type": "object",
+        "description": "Request to create a user-managed group inside one team.",
+        "required": [
+          "slug",
+          "name"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Human-readable group name."
+          },
+          "slug": {
+            "type": "string",
+            "description": "URL-safe group slug, unique within the team."
+          }
+        }
+      },
       "CreateTeamRequest": {
         "type": "object",
         "required": [
@@ -45748,58 +45952,6 @@
           },
           "user_credential_configuration": {
             "$ref": "#/components/schemas/WrappedJsonValue"
-          }
-        }
-      },
-      "CreateWalletBody": {
-        "type": "object",
-        "required": [
-          "name",
-          "wallet_customer_id"
-        ],
-        "properties": {
-          "name": {
-            "type": "string"
-          },
-          "owner_id": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "wallet_customer_id": {
-            "type": "string"
-          }
-        }
-      },
-      "CreateWalletCustomerBody": {
-        "type": "object",
-        "required": [
-          "name"
-        ],
-        "properties": {
-          "account_type": {
-            "type": "string"
-          },
-          "name": {
-            "type": "string"
-          },
-          "owner_id": {
-            "type": [
-              "string",
-              "null"
-            ]
-          }
-        }
-      },
-      "CreateWalletVirtualAccountBody": {
-        "type": "object",
-        "required": [
-          "currency"
-        ],
-        "properties": {
-          "currency": {
-            "type": "string"
           }
         }
       },
@@ -46523,46 +46675,6 @@
           }
         }
       },
-      "DirectTokenPayment": {
-        "type": "object",
-        "required": [
-          "destination_address",
-          "amount"
-        ],
-        "properties": {
-          "amount": {
-            "type": "string"
-          },
-          "asset": {
-            "type": "string"
-          },
-          "chain": {
-            "type": "string"
-          },
-          "destination_address": {
-            "type": "string"
-          },
-          "destination_asset": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "destination_chain": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "slippage_bps": {
-            "type": [
-              "integer",
-              "null"
-            ],
-            "format": "int64"
-          }
-        }
-      },
       "DownloadSkillPackageFileRequest": {
         "type": "object",
         "description": "Selects one package file for a lazy download URL.",
@@ -47039,76 +47151,99 @@
           }
         }
       },
-      "GetBalancesResponse": {
+      "Group": {
         "type": "object",
+        "description": "A group entity for organizing users and managing access control.\n\nGroups allow assigning permissions to multiple users at once.",
         "required": [
-          "wallet_id",
-          "balances"
+          "id",
+          "name",
+          "created_at",
+          "updated_at"
         ],
         "properties": {
-          "balances": {
-            "$ref": "#/components/schemas/WrappedJsonValue"
+          "created_at": {
+            "$ref": "#/components/schemas/WrappedChronoDateTime",
+            "description": "Timestamp when the group was created (UTC)"
           },
-          "wallet_id": {
-            "type": "string"
-          }
-        }
-      },
-      "GetCryptoDepositInformationResponse": {
-        "type": "object",
-        "required": [
-          "wallet_id",
-          "crypto"
-        ],
-        "properties": {
-          "crypto": {
-            "$ref": "#/components/schemas/WrappedJsonValue"
+          "id": {
+            "type": "string",
+            "description": "Unique identifier (UUID format)"
           },
-          "wallet_id": {
-            "type": "string"
-          }
-        }
-      },
-      "GetFiatDepositInformationResponse": {
-        "type": "object",
-        "required": [
-          "wallet_id",
-          "currency",
-          "fiat"
-        ],
-        "properties": {
-          "currency": {
-            "type": "string"
+          "name": {
+            "type": "string",
+            "description": "Human-readable group name"
           },
-          "fiat": {
-            "$ref": "#/components/schemas/WrappedJsonValue"
-          },
-          "wallet_id": {
-            "type": "string"
-          }
-        }
-      },
-      "GetWalletCustomerKycResponse": {
-        "type": "object",
-        "required": [
-          "wallet_customer_id",
-          "compose_customer_id",
-          "kyc_verified"
-        ],
-        "properties": {
-          "compose_customer_id": {
-            "type": "string"
-          },
-          "kyc_flow_link": {
+          "org_id": {
             "type": [
               "string",
               "null"
-            ]
+            ],
+            "description": "Owning organization. `None` is reserved for global system groups."
           },
-          "kyc_verified": {
-            "type": "boolean"
+          "team_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Optional owning team within `org_id`."
           },
-          "wallet_customer_id": {
+          "updated_at": {
+            "$ref": "#/components/schemas/WrappedChronoDateTime",
+            "description": "Timestamp when the group was last modified (UTC)"
+          }
+        }
+      },
+      "GroupMemberWithUser": {
+        "type": "object",
+        "required": [
+          "membership",
+          "user"
+        ],
+        "properties": {
+          "membership": {
+            "$ref": "#/components/schemas/GroupMembership"
+          },
+          "user": {
+            "$ref": "#/components/schemas/User"
+          }
+        }
+      },
+      "GroupMemberWithUserPaginatedResponse": {
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GroupMemberWithUser"
+            }
+          },
+          "next_page_token": {
+            "type": "string"
+          }
+        }
+      },
+      "GroupMembership": {
+        "type": "object",
+        "required": [
+          "group_id",
+          "user_id",
+          "created_at",
+          "updated_at"
+        ],
+        "properties": {
+          "created_at": {
+            "$ref": "#/components/schemas/WrappedChronoDateTime"
+          },
+          "group_id": {
+            "type": "string"
+          },
+          "updated_at": {
+            "$ref": "#/components/schemas/WrappedChronoDateTime"
+          },
+          "user_id": {
             "type": "string"
           }
         }
@@ -48089,6 +48224,70 @@
           }
         }
       },
+      "InviteUserFailure": {
+        "type": "object",
+        "required": [
+          "email",
+          "reason",
+          "committed"
+        ],
+        "properties": {
+          "committed": {
+            "type": "boolean"
+          },
+          "email": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          }
+        }
+      },
+      "InviteUserInput": {
+        "type": "object",
+        "required": [
+          "email",
+          "groups"
+        ],
+        "properties": {
+          "email": {
+            "type": "string"
+          },
+          "groups": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "InviteUsersBody": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/InviteUserInput"
+        }
+      },
+      "InviteUsersResponse": {
+        "type": "object",
+        "required": [
+          "invitations",
+          "failures"
+        ],
+        "properties": {
+          "failures": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InviteUserFailure"
+            }
+          },
+          "invitations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/UserInvitation"
+            }
+          }
+        }
+      },
       "InvokeCustomToolRequestInner": {
         "type": "object",
         "required": [
@@ -48180,7 +48379,7 @@
           }
         }
       },
-      "IssueOpenBotRealtimeTicketRequest": {
+      "IssueChatKitRealtimeSocketTicketRequest": {
         "type": "object",
         "required": [
           "transport"
@@ -48194,7 +48393,7 @@
             "description": "Required for browser tickets and forbidden for native tickets. Browser\norigins must match this OpenBot registration."
           },
           "transport": {
-            "$ref": "#/components/schemas/OpenBotRealtimeTicketTransport"
+            "$ref": "#/components/schemas/ChatKitRealtimeTicketTransport"
           }
         }
       },
@@ -48483,233 +48682,6 @@
           "sub": {
             "type": "string",
             "description": "Subject identifier (user ID) of the machine account"
-          }
-        }
-      },
-      "MakeMppPaymentRequest": {
-        "type": "object",
-        "required": [
-          "wallet_id",
-          "url"
-        ],
-        "properties": {
-          "body": {},
-          "headers": {
-            "type": "object",
-            "additionalProperties": {
-              "type": "string"
-            },
-            "propertyNames": {
-              "type": "string"
-            }
-          },
-          "max_amount": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "max_amount_atomic": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "method": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "payment": {
-            "oneOf": [
-              {
-                "type": "null"
-              },
-              {
-                "$ref": "#/components/schemas/DirectTokenPayment"
-              }
-            ]
-          },
-          "preferred_assets": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          },
-          "preferred_channels": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            },
-            "description": "Payment-channel contract addresses the caller explicitly permits.\nStateful methods that sign a server-selected channel, such as the\nStellar `channel` intent, require this pin on their first use. A\nvalidated `session_snapshot` pins subsequent requests."
-          },
-          "preferred_networks": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          },
-          "preferred_recipients": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          },
-          "session_action": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "description": "Session lifecycle action (`open`, `voucher`, `commit`, `topUp`, or\n`close`). Omit to open when no snapshot is supplied and voucher\notherwise."
-          },
-          "session_amount_atomic": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "description": "Incremental session amount in atomic units. Required for voucher and\ncommit actions unless the challenge pins an increment."
-          },
-          "session_delivery_id": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "description": "Delivery identifier required by a metered `commit` action."
-          },
-          "session_snapshot": {
-            "oneOf": [
-              {
-                "type": "null"
-              },
-              {
-                "$ref": "#/components/schemas/PaymentSessionSnapshot",
-                "description": "Previously returned client session state for restart-safe continuation."
-              }
-            ]
-          },
-          "settlement_mode": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "description": "Preferred method-specific settlement mode. Methods that negotiate\nclient versus server broadcast currently accept `push` or `pull`."
-          },
-          "transport": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "description": "Payment transport. Defaults to `http`; use `mcp` for MCP's nested\npayment metadata or `jsonrpc` for the generic root `_meta` binding.\nTempo session challenges also support `sse` and `websocket` (`ws`) for\nmetered streaming with in-band voucher and receipt handling."
-          },
-          "url": {
-            "type": "string"
-          },
-          "wallet_id": {
-            "type": "string"
-          }
-        }
-      },
-      "MakeX402PaymentRequest": {
-        "type": "object",
-        "required": [
-          "wallet_id",
-          "url"
-        ],
-        "properties": {
-          "body": {},
-          "headers": {
-            "type": "object",
-            "additionalProperties": {
-              "type": "string"
-            },
-            "propertyNames": {
-              "type": "string"
-            }
-          },
-          "max_amount": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "max_amount_atomic": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "method": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "payment": {
-            "oneOf": [
-              {
-                "type": "null"
-              },
-              {
-                "$ref": "#/components/schemas/DirectTokenPayment"
-              }
-            ]
-          },
-          "preferred_assets": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          },
-          "preferred_networks": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          },
-          "preferred_recipients": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          },
-          "session_action": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "description": "Stateful scheme action (`open`, `voucher`, or `refund`). Omit to open\nwhen no snapshot is supplied and voucher otherwise."
-          },
-          "session_amount_atomic": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "description": "Incremental amount for voucher/close actions, in atomic units."
-          },
-          "session_snapshot": {
-            "oneOf": [
-              {
-                "type": "null"
-              },
-              {
-                "$ref": "#/components/schemas/PaymentSessionSnapshot",
-                "description": "Previously returned client session state for restart-safe continuation."
-              }
-            ]
-          },
-          "transport": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "description": "Payment transport. Defaults to `http`; use `mcp` when `body` is the\nJSON-RPC MCP tool-call request that should be retried with x402 metadata."
-          },
-          "url": {
-            "type": "string"
-          },
-          "wallet_id": {
-            "type": "string"
           }
         }
       },
@@ -50274,34 +50246,6 @@
           }
         }
       },
-      "OpenBotRealtimeTicket": {
-        "type": "object",
-        "required": [
-          "ticket",
-          "protocol",
-          "expires_at"
-        ],
-        "properties": {
-          "expires_at": {
-            "$ref": "#/components/schemas/WrappedChronoDateTime"
-          },
-          "protocol": {
-            "type": "string",
-            "description": "Stable subprotocol prefix. Append `.` and the returned ticket."
-          },
-          "ticket": {
-            "type": "string",
-            "description": "Short-lived credential presented through the WebSocket subprotocol header."
-          }
-        }
-      },
-      "OpenBotRealtimeTicketTransport": {
-        "type": "string",
-        "enum": [
-          "browser",
-          "native"
-        ]
-      },
       "OrgOidcProvider": {
         "type": "object",
         "required": [
@@ -50459,6 +50403,38 @@
           }
         }
       },
+      "OrganizationMemberWithUser": {
+        "type": "object",
+        "required": [
+          "membership",
+          "user"
+        ],
+        "properties": {
+          "membership": {
+            "$ref": "#/components/schemas/UserOrganization"
+          },
+          "user": {
+            "$ref": "#/components/schemas/User"
+          }
+        }
+      },
+      "OrganizationMemberWithUserPaginatedResponse": {
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OrganizationMemberWithUser"
+            }
+          },
+          "next_page_token": {
+            "type": "string"
+          }
+        }
+      },
       "PageRelationshipView": {
         "type": "object",
         "required": [
@@ -50554,264 +50530,6 @@
           "streaming",
           "done"
         ]
-      },
-      "PayOnboardingStep": {
-        "type": "string",
-        "enum": [
-          "enter_details",
-          "complete_kyc",
-          "ready"
-        ]
-      },
-      "PayPaymentRequest": {
-        "type": "object",
-        "required": [
-          "wallet_id",
-          "url"
-        ],
-        "properties": {
-          "body": {},
-          "headers": {
-            "type": "object",
-            "additionalProperties": {
-              "type": "string"
-            },
-            "propertyNames": {
-              "type": "string"
-            }
-          },
-          "max_amount": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "max_amount_atomic": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "method": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "payment": {
-            "oneOf": [
-              {
-                "type": "null"
-              },
-              {
-                "$ref": "#/components/schemas/DirectTokenPayment"
-              }
-            ]
-          },
-          "preferred_assets": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          },
-          "preferred_channels": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          },
-          "preferred_networks": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          },
-          "preferred_recipients": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          },
-          "session_action": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "session_amount_atomic": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "session_delivery_id": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "session_snapshot": {
-            "oneOf": [
-              {
-                "type": "null"
-              },
-              {
-                "$ref": "#/components/schemas/PaymentSessionSnapshot"
-              }
-            ]
-          },
-          "settlement_mode": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "transport": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "url": {
-            "type": "string"
-          },
-          "wallet_id": {
-            "type": "string"
-          }
-        }
-      },
-      "PayWalletSummaryError": {
-        "type": "object",
-        "required": [
-          "field",
-          "message"
-        ],
-        "properties": {
-          "field": {
-            "type": "string"
-          },
-          "message": {
-            "type": "string"
-          }
-        }
-      },
-      "PayWalletSummaryResponse": {
-        "type": "object",
-        "properties": {
-          "balances": {
-            "oneOf": [
-              {
-                "type": "null"
-              },
-              {
-                "$ref": "#/components/schemas/GetBalancesResponse"
-              }
-            ]
-          },
-          "crypto_deposit": {
-            "oneOf": [
-              {
-                "type": "null"
-              },
-              {
-                "$ref": "#/components/schemas/GetCryptoDepositInformationResponse"
-              }
-            ]
-          },
-          "fiat_deposit": {
-            "oneOf": [
-              {
-                "type": "null"
-              },
-              {
-                "$ref": "#/components/schemas/GetFiatDepositInformationResponse"
-              }
-            ]
-          },
-          "summary_errors": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/PayWalletSummaryError"
-            }
-          },
-          "wallet": {
-            "oneOf": [
-              {
-                "type": "null"
-              },
-              {
-                "$ref": "#/components/schemas/Wallet"
-              }
-            ]
-          }
-        }
-      },
-      "PaymentResponse": {
-        "type": "object",
-        "required": [
-          "wallet_id",
-          "protocol",
-          "response"
-        ],
-        "properties": {
-          "protocol": {
-            "type": "string"
-          },
-          "response": {
-            "$ref": "#/components/schemas/WrappedJsonValue"
-          },
-          "wallet_id": {
-            "type": "string"
-          }
-        }
-      },
-      "PaymentSessionSnapshot": {
-        "type": "object",
-        "description": "Opaque-enough client state needed to safely resume a stateful payment\nscheme after a process restart. Every field is authenticated again against\nthe next server challenge before it is used.",
-        "required": [
-          "protocol",
-          "method",
-          "network",
-          "channel_id",
-          "cumulative_amount",
-          "nonce",
-          "expires_at",
-          "deposit_amount",
-          "authorized_signer"
-        ],
-        "properties": {
-          "authorized_signer": {
-            "type": "string"
-          },
-          "channel_id": {
-            "type": "string"
-          },
-          "cumulative_amount": {
-            "type": "string"
-          },
-          "deposit_amount": {
-            "type": "string"
-          },
-          "expires_at": {
-            "type": "integer",
-            "format": "int64"
-          },
-          "metadata": {},
-          "method": {
-            "type": "string"
-          },
-          "network": {
-            "type": "string"
-          },
-          "nonce": {
-            "type": "integer",
-            "format": "int64",
-            "minimum": 0
-          },
-          "protocol": {
-            "type": "string"
-          }
-        }
       },
       "PersonalMcpServerInstanceSerialized": {
         "type": "object",
@@ -52338,108 +52056,6 @@
           }
         }
       },
-      "ProvisionPayBrowserResponse": {
-        "type": "object",
-        "required": [
-          "browser_definition_id",
-          "enabled_tool_ids"
-        ],
-        "properties": {
-          "browser_definition_id": {
-            "type": "string"
-          },
-          "enabled_tool_ids": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          }
-        }
-      },
-      "ProvisionTildePayRequest": {
-        "type": "object",
-        "properties": {
-          "account_type": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "name": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "owner_id": {
-            "type": [
-              "string",
-              "null"
-            ]
-          }
-        }
-      },
-      "ProvisionTildePayResponse": {
-        "type": "object",
-        "required": [
-          "next_step"
-        ],
-        "properties": {
-          "browser": {
-            "oneOf": [
-              {
-                "type": "null"
-              },
-              {
-                "$ref": "#/components/schemas/ProvisionPayBrowserResponse"
-              }
-            ]
-          },
-          "customer": {
-            "oneOf": [
-              {
-                "type": "null"
-              },
-              {
-                "$ref": "#/components/schemas/WalletCustomer"
-              }
-            ]
-          },
-          "kyc": {
-            "oneOf": [
-              {
-                "type": "null"
-              },
-              {
-                "$ref": "#/components/schemas/GetWalletCustomerKycResponse"
-              }
-            ]
-          },
-          "mcp": {
-            "oneOf": [
-              {
-                "type": "null"
-              },
-              {
-                "$ref": "#/components/schemas/SetupPayMcpResponse"
-              }
-            ]
-          },
-          "next_step": {
-            "$ref": "#/components/schemas/PayOnboardingStep"
-          },
-          "wallet": {
-            "oneOf": [
-              {
-                "type": "null"
-              },
-              {
-                "$ref": "#/components/schemas/Wallet"
-              }
-            ]
-          }
-        }
-      },
       "ProvisionedProviderApp": {
         "type": "object",
         "description": "App credentials and metadata created by a provider provisioner.",
@@ -53113,34 +52729,6 @@
           }
         }
       },
-      "RefreshWalletTransactionHistoryResponse": {
-        "type": "object",
-        "required": [
-          "wallet_id",
-          "scanned_chains",
-          "inserted_or_updated",
-          "linked_transactions"
-        ],
-        "properties": {
-          "inserted_or_updated": {
-            "type": "integer",
-            "minimum": 0
-          },
-          "linked_transactions": {
-            "type": "integer",
-            "minimum": 0
-          },
-          "scanned_chains": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          },
-          "wallet_id": {
-            "type": "string"
-          }
-        }
-      },
       "RegisterChatKitChatProviderRequestInner": {
         "type": "object",
         "description": "Request body for registering a ChatKit chat provider.",
@@ -53616,6 +53204,18 @@
         "properties": {
           "success": {
             "type": "boolean"
+          }
+        }
+      },
+      "RenameChatKitWorkspaceThreadRequestInner": {
+        "type": "object",
+        "description": "Request body for renaming a ChatKit workspace thread.",
+        "required": [
+          "title"
+        ],
+        "properties": {
+          "title": {
+            "type": "string"
           }
         }
       },
@@ -54585,9 +54185,83 @@
           }
         }
       },
-      "SendChatKitAgentMessageRequestInner": {
+      "SelfProfileAvatarResponse": {
         "type": "object",
-        "description": "Request body for sending a message to a ChatKit agent.",
+        "required": [
+          "avatar"
+        ],
+        "properties": {
+          "avatar": {
+            "$ref": "#/components/schemas/UserAvatar"
+          }
+        }
+      },
+      "SelfProfileResponse": {
+        "type": "object",
+        "required": [
+          "user",
+          "groups"
+        ],
+        "properties": {
+          "groups": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "user": {
+            "$ref": "#/components/schemas/SelfProfileUser"
+          }
+        }
+      },
+      "SelfProfileUser": {
+        "type": "object",
+        "required": [
+          "id",
+          "user_type",
+          "created_at",
+          "updated_at"
+        ],
+        "properties": {
+          "avatar": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/UserAvatar"
+              }
+            ]
+          },
+          "created_at": {
+            "$ref": "#/components/schemas/WrappedChronoDateTime"
+          },
+          "display_name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "email": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "updated_at": {
+            "$ref": "#/components/schemas/WrappedChronoDateTime"
+          },
+          "user_type": {
+            "$ref": "#/components/schemas/UserType"
+          }
+        }
+      },
+      "SendChatKitWorkspaceMessageRequestInner": {
+        "type": "object",
+        "description": "Request body for sending a ChatKit workspace message to an agent.",
         "required": [
           "text"
         ],
@@ -54753,6 +54427,17 @@
           }
         }
       },
+      "SetOpenBotAvatarRequest": {
+        "type": "object",
+        "required": [
+          "avatar_id"
+        ],
+        "properties": {
+          "avatar_id": {
+            "type": "string"
+          }
+        }
+      },
       "SetResourceAccessModeRequest": {
         "type": "object",
         "description": "Body used by the standard `POST /{id}/visibility` and\n`POST /{id}/ownership` endpoints.",
@@ -54762,32 +54447,6 @@
         "properties": {
           "mode": {
             "$ref": "#/components/schemas/ResourceAccessMode"
-          }
-        }
-      },
-      "SetupPayMcpResponse": {
-        "type": "object",
-        "required": [
-          "mcp_server_id",
-          "tool_group_instance_id",
-          "enabled_tool_ids",
-          "mcp_path"
-        ],
-        "properties": {
-          "enabled_tool_ids": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          },
-          "mcp_path": {
-            "type": "string"
-          },
-          "mcp_server_id": {
-            "type": "string"
-          },
-          "tool_group_instance_id": {
-            "type": "string"
           }
         }
       },
@@ -56741,7 +56400,7 @@
           }
         }
       },
-      "SubmitChatKitAgentTurnRequestInner": {
+      "SubmitChatKitWorkspaceTurnRequestInner": {
         "type": "object",
         "description": "Body for creating a session when needed and submitting one owner turn.",
         "required": [
@@ -56751,7 +56410,7 @@
           "attachments": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/ChatKitAttachmentCompletion"
+              "$ref": "#/components/schemas/ChatKitWorkspaceAttachmentCompletion"
             }
           },
           "session_id": {
@@ -56775,7 +56434,7 @@
           }
         }
       },
-      "SubmitChatKitAgentTurnResponse": {
+      "SubmitChatKitWorkspaceTurnResponse": {
         "type": "object",
         "description": "Result of submitting one owner turn with canonical conversation state.",
         "required": [
@@ -56784,7 +56443,7 @@
         ],
         "properties": {
           "conversation": {
-            "$ref": "#/components/schemas/ChatKitConversationActivity"
+            "$ref": "#/components/schemas/ChatKitWorkspaceConversationSnapshot"
           },
           "session": {
             "$ref": "#/components/schemas/Session"
@@ -56837,6 +56496,101 @@
           },
           "updated_at": {
             "$ref": "#/components/schemas/WrappedChronoDateTime"
+          }
+        }
+      },
+      "TeamGroupSummary": {
+        "type": "object",
+        "required": [
+          "group",
+          "members",
+          "member_count"
+        ],
+        "properties": {
+          "group": {
+            "$ref": "#/components/schemas/Group"
+          },
+          "member_count": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "members": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/User"
+            }
+          },
+          "team_name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "TeamGroupSummaryPaginatedResponse": {
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TeamGroupSummary"
+            }
+          },
+          "next_page_token": {
+            "type": "string"
+          }
+        }
+      },
+      "TeamMemberWithUser": {
+        "type": "object",
+        "required": [
+          "membership",
+          "user"
+        ],
+        "properties": {
+          "membership": {
+            "$ref": "#/components/schemas/UserTeam"
+          },
+          "user": {
+            "$ref": "#/components/schemas/User"
+          }
+        }
+      },
+      "TeamMemberWithUserPaginatedResponse": {
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TeamMemberWithUser"
+            }
+          },
+          "next_page_token": {
+            "type": "string"
+          }
+        }
+      },
+      "TeamPaginatedResponse": {
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Team"
+            }
+          },
+          "next_page_token": {
+            "type": "string"
           }
         }
       },
@@ -58082,15 +57836,15 @@
           }
         }
       },
-      "UpdateChatKitSessionTitleRequestInner": {
+      "UpdateChatKitSessionUserStateRequestInner": {
         "type": "object",
-        "description": "Request body for updating a ChatKit session title.",
+        "description": "Request body for setting the current user's read state.",
         "required": [
-          "title"
+          "unread"
         ],
         "properties": {
-          "title": {
-            "type": "string"
+          "unread": {
+            "type": "boolean"
           }
         }
       },
@@ -58355,6 +58109,17 @@
           }
         }
       },
+      "UpdateMemberRoleBody": {
+        "type": "object",
+        "required": [
+          "role"
+        ],
+        "properties": {
+          "role": {
+            "type": "string"
+          }
+        }
+      },
       "UpdateMemoryBankBody": {
         "type": "object",
         "properties": {
@@ -58454,6 +58219,17 @@
               "string",
               "null"
             ]
+          }
+        }
+      },
+      "UpdateOrganizationMemberRoleBody": {
+        "type": "object",
+        "required": [
+          "role"
+        ],
+        "properties": {
+          "role": {
+            "type": "string"
           }
         }
       },
@@ -58616,6 +58392,17 @@
           }
         }
       },
+      "UpdateSelfProfileRequest": {
+        "type": "object",
+        "properties": {
+          "display_name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
       "UpdateSignalProviderInstanceRequestInner": {
         "type": "object",
         "required": [
@@ -58754,6 +58541,18 @@
             "items": {
               "$ref": "#/components/schemas/WrappedUuidV4"
             }
+          }
+        }
+      },
+      "UpdateTeamGroupBody": {
+        "type": "object",
+        "description": "Request to rename a user-managed team group.",
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
           }
         }
       },
@@ -58992,6 +58791,66 @@
           }
         }
       },
+      "User": {
+        "type": "object",
+        "description": "A user entity in the system.\n\nRepresents both human users and machine accounts with their associated metadata.",
+        "required": [
+          "id",
+          "user_type",
+          "created_at",
+          "updated_at"
+        ],
+        "properties": {
+          "avatar": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/UserAvatar",
+                "description": "Canonical uploaded profile image metadata."
+              }
+            ]
+          },
+          "created_at": {
+            "$ref": "#/components/schemas/WrappedChronoDateTime",
+            "description": "Timestamp when the user was created (UTC)"
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Optional human-readable description of the user or its purpose"
+          },
+          "display_name": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Human-readable profile name shared across product surfaces."
+          },
+          "email": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Email address (required for human users, optional for machines)"
+          },
+          "id": {
+            "type": "string",
+            "description": "Unique identifier (UUID format)"
+          },
+          "updated_at": {
+            "$ref": "#/components/schemas/WrappedChronoDateTime",
+            "description": "Timestamp when the user was last modified (UTC)"
+          },
+          "user_type": {
+            "$ref": "#/components/schemas/UserType",
+            "description": "Whether this is a machine or human user"
+          }
+        }
+      },
       "UserAvatar": {
         "type": "object",
         "description": "Uploaded profile image metadata for a human or machine user.",
@@ -59171,6 +59030,73 @@
           }
         }
       },
+      "UserInvitation": {
+        "type": "object",
+        "required": [
+          "id",
+          "email",
+          "org_id",
+          "team_id",
+          "groups",
+          "invited_by_user_id",
+          "status",
+          "last_sent_at",
+          "created_at",
+          "updated_at"
+        ],
+        "properties": {
+          "created_at": {
+            "$ref": "#/components/schemas/WrappedChronoDateTime"
+          },
+          "email": {
+            "type": "string"
+          },
+          "groups": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "id": {
+            "type": "string"
+          },
+          "invited_by_user_id": {
+            "type": "string"
+          },
+          "last_sent_at": {
+            "$ref": "#/components/schemas/WrappedChronoDateTime"
+          },
+          "org_id": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "team_id": {
+            "type": "string"
+          },
+          "updated_at": {
+            "$ref": "#/components/schemas/WrappedChronoDateTime"
+          }
+        }
+      },
+      "UserInvitationPaginatedResponse": {
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/UserInvitation"
+            }
+          },
+          "next_page_token": {
+            "type": "string"
+          }
+        }
+      },
       "UserOrganization": {
         "type": "object",
         "required": [
@@ -59263,6 +59189,14 @@
             "type": "string"
           }
         }
+      },
+      "UserType": {
+        "type": "string",
+        "description": "Type of user identity in the system.\n\nDistinguishes between automated services and real users.",
+        "enum": [
+          "machine",
+          "human"
+        ]
       },
       "ValidatePageTypeDataBody": {
         "type": "object",
@@ -59388,553 +59322,6 @@
                 "$ref": "#/components/schemas/UserToolFederationSelection"
               }
             }
-          }
-        }
-      },
-      "WaitForPayBalanceRequest": {
-        "type": "object",
-        "required": [
-          "wallet_id",
-          "asset",
-          "minimum_amount"
-        ],
-        "properties": {
-          "asset": {
-            "type": "string"
-          },
-          "minimum_amount": {
-            "type": "number",
-            "format": "double"
-          },
-          "poll_interval_secs": {
-            "type": [
-              "integer",
-              "null"
-            ],
-            "format": "int64",
-            "minimum": 0
-          },
-          "timeout_secs": {
-            "type": [
-              "integer",
-              "null"
-            ],
-            "format": "int64",
-            "minimum": 0
-          },
-          "wallet_id": {
-            "type": "string"
-          }
-        }
-      },
-      "WaitUntilBalanceRequest": {
-        "type": "object",
-        "required": [
-          "wallet_id",
-          "asset",
-          "minimum_amount"
-        ],
-        "properties": {
-          "asset": {
-            "type": "string"
-          },
-          "minimum_amount": {
-            "type": "number",
-            "format": "double"
-          },
-          "poll_interval_secs": {
-            "type": "integer",
-            "format": "int64",
-            "minimum": 0
-          },
-          "timeout_secs": {
-            "type": "integer",
-            "format": "int64",
-            "minimum": 0
-          },
-          "wallet_id": {
-            "type": "string"
-          }
-        }
-      },
-      "WaitUntilBalanceResponse": {
-        "type": "object",
-        "required": [
-          "wallet_id",
-          "satisfied",
-          "observed_amount"
-        ],
-        "properties": {
-          "observed_amount": {
-            "type": "number",
-            "format": "double"
-          },
-          "satisfied": {
-            "type": "boolean"
-          },
-          "wallet_id": {
-            "type": "string"
-          }
-        }
-      },
-      "Wallet": {
-        "type": "object",
-        "required": [
-          "id",
-          "org_id",
-          "team_id",
-          "name",
-          "status",
-          "wallet_customer_id",
-          "privy_wallet_id",
-          "privy_evm_address",
-          "compose_customer_id",
-          "compose_deposit_currency",
-          "compose_deposit_chain",
-          "created_at",
-          "updated_at"
-        ],
-        "properties": {
-          "cached_compose_balances": {
-            "oneOf": [
-              {
-                "type": "null"
-              },
-              {
-                "$ref": "#/components/schemas/WrappedJsonValue"
-              }
-            ]
-          },
-          "compose_customer_id": {
-            "type": "string"
-          },
-          "compose_deposit_chain": {
-            "type": "string"
-          },
-          "compose_deposit_currency": {
-            "type": "string"
-          },
-          "compose_deposit_wallet_id": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "created_at": {
-            "$ref": "#/components/schemas/WrappedChronoDateTime"
-          },
-          "id": {
-            "type": "string"
-          },
-          "last_compose_sync_at": {
-            "oneOf": [
-              {
-                "type": "null"
-              },
-              {
-                "$ref": "#/components/schemas/WrappedChronoDateTime"
-              }
-            ]
-          },
-          "name": {
-            "type": "string"
-          },
-          "org_id": {
-            "type": "string"
-          },
-          "owner_id": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "privy_evm_address": {
-            "type": "string"
-          },
-          "privy_wallet_id": {
-            "type": "string"
-          },
-          "status": {
-            "type": "string"
-          },
-          "team_id": {
-            "type": "string"
-          },
-          "updated_at": {
-            "$ref": "#/components/schemas/WrappedChronoDateTime"
-          },
-          "wallet_customer_id": {
-            "type": "string"
-          }
-        }
-      },
-      "WalletCustomer": {
-        "type": "object",
-        "required": [
-          "id",
-          "org_id",
-          "team_id",
-          "name",
-          "account_type",
-          "compose_customer_id",
-          "kyc_verified",
-          "compose_customer_payload",
-          "created_at",
-          "updated_at"
-        ],
-        "properties": {
-          "account_type": {
-            "type": "string"
-          },
-          "compose_customer_id": {
-            "type": "string"
-          },
-          "compose_customer_payload": {
-            "$ref": "#/components/schemas/WrappedJsonValue"
-          },
-          "compose_kyc_payload": {
-            "oneOf": [
-              {
-                "type": "null"
-              },
-              {
-                "$ref": "#/components/schemas/WrappedJsonValue"
-              }
-            ]
-          },
-          "created_at": {
-            "$ref": "#/components/schemas/WrappedChronoDateTime"
-          },
-          "id": {
-            "type": "string"
-          },
-          "kyc_flow_link": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "kyc_verified": {
-            "type": "boolean"
-          },
-          "name": {
-            "type": "string"
-          },
-          "org_id": {
-            "type": "string"
-          },
-          "owner_id": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "team_id": {
-            "type": "string"
-          },
-          "updated_at": {
-            "$ref": "#/components/schemas/WrappedChronoDateTime"
-          }
-        }
-      },
-      "WalletCustomerPaginatedResponse": {
-        "type": "object",
-        "required": [
-          "items"
-        ],
-        "properties": {
-          "items": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/WalletCustomer"
-            }
-          },
-          "next_page_token": {
-            "type": "string"
-          }
-        }
-      },
-      "WalletMerchant": {
-        "type": "object",
-        "required": [
-          "id",
-          "org_id",
-          "team_id",
-          "origin",
-          "merchant_url",
-          "raw_metadata",
-          "created_at",
-          "updated_at"
-        ],
-        "properties": {
-          "created_at": {
-            "$ref": "#/components/schemas/WrappedChronoDateTime"
-          },
-          "favicon_url": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "icon_fetched_at": {
-            "oneOf": [
-              {
-                "type": "null"
-              },
-              {
-                "$ref": "#/components/schemas/WrappedChronoDateTime"
-              }
-            ]
-          },
-          "icon_media_type": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "icon_sha256": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "id": {
-            "type": "string"
-          },
-          "merchant_url": {
-            "type": "string"
-          },
-          "name": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "org_id": {
-            "type": "string"
-          },
-          "origin": {
-            "type": "string"
-          },
-          "raw_metadata": {
-            "$ref": "#/components/schemas/WrappedJsonValue"
-          },
-          "team_id": {
-            "type": "string"
-          },
-          "updated_at": {
-            "$ref": "#/components/schemas/WrappedChronoDateTime"
-          }
-        }
-      },
-      "WalletPaginatedResponse": {
-        "type": "object",
-        "required": [
-          "items"
-        ],
-        "properties": {
-          "items": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/Wallet"
-            }
-          },
-          "next_page_token": {
-            "type": "string"
-          }
-        }
-      },
-      "WalletTransactionHistoryItem": {
-        "type": "object",
-        "required": [
-          "id",
-          "org_id",
-          "team_id",
-          "wallet_id",
-          "item_type",
-          "direction",
-          "status",
-          "occurred_at",
-          "raw_payload",
-          "created_at",
-          "updated_at"
-        ],
-        "properties": {
-          "amount": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "amount_decimals": {
-            "type": [
-              "integer",
-              "null"
-            ],
-            "format": "int32"
-          },
-          "amount_raw": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "asset": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "chain": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "counterparty_address": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "created_at": {
-            "$ref": "#/components/schemas/WrappedChronoDateTime"
-          },
-          "direction": {
-            "type": "string"
-          },
-          "id": {
-            "type": "string"
-          },
-          "item_type": {
-            "type": "string"
-          },
-          "merchant": {
-            "oneOf": [
-              {
-                "type": "null"
-              },
-              {
-                "$ref": "#/components/schemas/WalletMerchant"
-              }
-            ]
-          },
-          "merchant_id": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "occurred_at": {
-            "$ref": "#/components/schemas/WrappedChronoDateTime"
-          },
-          "org_id": {
-            "type": "string"
-          },
-          "raw_payload": {
-            "$ref": "#/components/schemas/WrappedJsonValue"
-          },
-          "scanned_at": {
-            "oneOf": [
-              {
-                "type": "null"
-              },
-              {
-                "$ref": "#/components/schemas/WrappedChronoDateTime"
-              }
-            ]
-          },
-          "status": {
-            "type": "string"
-          },
-          "team_id": {
-            "type": "string"
-          },
-          "updated_at": {
-            "$ref": "#/components/schemas/WrappedChronoDateTime"
-          },
-          "wallet_id": {
-            "type": "string"
-          }
-        }
-      },
-      "WalletTransactionHistoryItemPaginatedResponse": {
-        "type": "object",
-        "required": [
-          "items"
-        ],
-        "properties": {
-          "items": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/WalletTransactionHistoryItem"
-            }
-          },
-          "next_page_token": {
-            "type": "string"
-          }
-        }
-      },
-      "WalletVirtualAccount": {
-        "type": "object",
-        "required": [
-          "id",
-          "org_id",
-          "team_id",
-          "wallet_id",
-          "wallet_customer_id",
-          "compose_customer_id",
-          "compose_virtual_account_id",
-          "currency",
-          "created_at",
-          "updated_at"
-        ],
-        "properties": {
-          "cached_compose_deposit_info": {
-            "oneOf": [
-              {
-                "type": "null"
-              },
-              {
-                "$ref": "#/components/schemas/WrappedJsonValue"
-              }
-            ]
-          },
-          "compose_customer_id": {
-            "type": "string"
-          },
-          "compose_virtual_account_id": {
-            "type": "string"
-          },
-          "created_at": {
-            "$ref": "#/components/schemas/WrappedChronoDateTime"
-          },
-          "currency": {
-            "type": "string"
-          },
-          "id": {
-            "type": "string"
-          },
-          "org_id": {
-            "type": "string"
-          },
-          "status": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "team_id": {
-            "type": "string"
-          },
-          "updated_at": {
-            "$ref": "#/components/schemas/WrappedChronoDateTime"
-          },
-          "wallet_customer_id": {
-            "type": "string"
-          },
-          "wallet_id": {
-            "type": "string"
           }
         }
       },

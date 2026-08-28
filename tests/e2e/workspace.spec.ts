@@ -1,8 +1,8 @@
 import { expect, test, type Page } from "@playwright/test";
 import { seedCompletedOnboarding } from "./onboarding-state.js";
 
-function chatKitActivity(items: unknown[]) {
-  return { activity: { items }, active_session_id: null, active_conversation: null };
+function chatKitRealtimeBootstrap(items: unknown[]) {
+  return { sidebar: { items } };
 }
 
 // Every test but the first-run one wants the workspace, so skip onboarding by seeding
@@ -106,9 +106,9 @@ test("lists the user's continuous chat and the agent's named threads", async ({ 
   const defaultUpdatedAt = "2026-08-25T08:00:00.000Z";
   await page.route("**/api/chat/**", async (route) => {
     const path = new URL(route.request().url()).pathname;
-    if (path === "/api/chat/activity") {
+    if (path.endsWith("/workspace/bootstrap")) {
       await route.fulfill({
-        json: chatKitActivity([
+        json: chatKitRealtimeBootstrap([
           {
             id: "hello-world",
             display_name: "Hello World",
@@ -146,7 +146,7 @@ test("lists the user's continuous chat and the agent's named threads", async ({ 
       await route.fulfill({ json: { items: [] } });
       return;
     }
-    if (path.endsWith("/activity")) {
+    if (path.endsWith("/snapshot")) {
       const sessionId = path.split("/").at(-2) ?? "";
       messageRequests.push(sessionId);
       await route.fulfill({
@@ -190,7 +190,7 @@ test("lists the user's continuous chat and the agent's named threads", async ({ 
     }
     await route.fulfill({ status: 404, json: { error: `Unhandled route ${path}` } });
   });
-  await routeMissionControlSocket(page, []);
+  await routeChatKitWorkspaceSocket(page, []);
 
   await page.goto("/");
 
@@ -440,9 +440,9 @@ test("streams rich messages and uploads a file through Tilde ChatKit", async ({ 
   await page.route("**/api/chat/**", async (route) => {
     const request = route.request();
     const path = new URL(request.url()).pathname;
-    if (path === "/api/chat/activity") {
+    if (path.endsWith("/workspace/bootstrap")) {
       await route.fulfill({
-        json: chatKitActivity([
+        json: chatKitRealtimeBootstrap([
           {
             id: "hello-world",
             display_name: "Hello World",
@@ -504,7 +504,7 @@ test("streams rich messages and uploads a file through Tilde ChatKit", async ({ 
       await route.fulfill({ status: 204 });
       return;
     }
-    if (path.endsWith("/activity")) {
+    if (path.endsWith("/snapshot")) {
       if (path.includes("/research-session/")) {
         researchMessageRequests += 1;
         await researchMessagesReady;
@@ -697,37 +697,32 @@ test("streams rich messages and uploads a file through Tilde ChatKit", async ({ 
     }
     await route.fulfill({ status: 404, json: { error: `Unhandled ${request.method()} ${path}` } });
   });
-  await routeMissionControlSocket(page, [
+  await routeChatKitWorkspaceSocket(page, [
     {
-      type: "agent_turn_status",
-      data: { session_id: "session-one", status: "working" },
-    },
-    {
-      type: "shell_started",
+      type: "turn.started",
       data: {
         session_id: "session-one",
-        id: "shell-one",
-        status: "running",
-        label: "Build workspace",
-        summary: "pnpm build",
+        turn_id: "turn-one",
+        agent_id: "hello-world",
       },
     },
     {
-      type: "message_streaming",
+      type: "message.delta",
       data: {
-        id: "stream-preview",
-        kind: {
-          message_streaming: {
-            session_id: "session-one",
-            message_id: "stream-one",
-            delta: { type: "text-delta", delta: "Streaming preview" },
-          },
-        },
+        session_id: "session-one",
+        message_id: "stream-one",
+        part_id: "text-one",
+        sequence: 1,
+        delta: { type: "text-delta", delta: "Streaming preview" },
       },
     },
     {
-      type: "agent_turn_status",
-      data: { session_id: "session-one", status: "idle" },
+      type: "turn.completed",
+      data: {
+        session_id: "session-one",
+        turn_id: "turn-one",
+        agent_id: "hello-world",
+      },
     },
   ]);
 
@@ -999,9 +994,9 @@ test("creates a bot and sends its first message", async ({ page }) => {
   await page.route("**/api/chat/**", async (route) => {
     const request = route.request();
     const path = new URL(route.request().url()).pathname;
-    if (path === "/api/chat/activity") {
+    if (path.endsWith("/workspace/bootstrap")) {
       await route.fulfill({
-        json: chatKitActivity([
+        json: chatKitRealtimeBootstrap([
           {
             id: "hello-world",
             display_name: "Hello World",
@@ -1049,7 +1044,7 @@ test("creates a bot and sends its first message", async ({ page }) => {
       });
       return;
     }
-    if (path.endsWith("/mission-control/events")) {
+    if (path.endsWith("/workspace/events")) {
       await route.fulfill({ contentType: "text/event-stream", body: "" });
       return;
     }
@@ -1057,7 +1052,7 @@ test("creates a bot and sends its first message", async ({ page }) => {
       await route.fulfill({ json: { items: [] } });
       return;
     }
-    if (request.method() === "POST" && path === "/api/chat/sessions") {
+    if (request.method() === "POST" && path.endsWith("/workspace/agents/reviewer/sessions")) {
       await route.fulfill({
         json: {
           session: {
@@ -1141,9 +1136,9 @@ test("queues another turn while the agent is busy", async ({ page }) => {
     const request = route.request();
     const url = new URL(request.url());
     const path = url.pathname;
-    if (path === "/api/chat/activity") {
+    if (path.endsWith("/workspace/bootstrap")) {
       await route.fulfill({
-        json: chatKitActivity([
+        json: chatKitRealtimeBootstrap([
           {
             id: "busy-agent",
             display_name: "Busy Agent",
@@ -1159,7 +1154,7 @@ test("queues another turn while the agent is busy", async ({ page }) => {
       });
       return;
     }
-    if (path.endsWith("/search")) {
+    if (path.endsWith("/workspace/search")) {
       await route.fulfill({
         json: {
           items: [
@@ -1212,10 +1207,10 @@ test("queues another turn while the agent is busy", async ({ page }) => {
     }
     await route.fulfill({ status: 204 });
   });
-  await routeMissionControlSocket(page, [
+  await routeChatKitWorkspaceSocket(page, [
     {
-      type: "agent_turn_status",
-      data: { session_id: "busy-session", status: "working" },
+      type: "turn.started",
+      data: { session_id: "busy-session", turn_id: "turn-busy", agent_id: "busy-agent" },
     },
   ]);
 
@@ -1346,9 +1341,9 @@ test("configures a connector through the in-chat account picker", async ({ page 
   await page.route("**/api/chat/**", async (route) => {
     const request = route.request();
     const path = new URL(request.url()).pathname;
-    if (path === "/api/chat/activity") {
+    if (path.endsWith("/workspace/bootstrap")) {
       await route.fulfill({
-        json: chatKitActivity([
+        json: chatKitRealtimeBootstrap([
           {
             id: "hello-world",
             display_name: "Hello World",
@@ -1362,7 +1357,7 @@ test("configures a connector through the in-chat account picker", async ({ page 
       });
       return;
     }
-    if (path.endsWith("/mission-control/events")) {
+    if (path.endsWith("/workspace/events")) {
       await route.fulfill({ contentType: "text/event-stream", body: "" });
       return;
     }
@@ -1370,7 +1365,7 @@ test("configures a connector through the in-chat account picker", async ({ page 
       await route.fulfill({ json: { items: [] } });
       return;
     }
-    if (path.endsWith("/activity")) {
+    if (path.endsWith("/snapshot")) {
       await route.fulfill({
         json: {
           messages: { items: transcript },
@@ -1463,9 +1458,9 @@ async function routeDefaultWorkspace(page: Page): Promise<void> {
   const now = new Date().toISOString();
   await page.route("**/api/chat/**", async (route) => {
     const path = new URL(route.request().url()).pathname;
-    if (path === "/api/chat/activity") {
+    if (path.endsWith("/workspace/bootstrap")) {
       await route.fulfill({
-        json: chatKitActivity([
+        json: chatKitRealtimeBootstrap([
           {
             id: "hello-world",
             display_name: "Hello World",
@@ -1486,7 +1481,7 @@ async function routeDefaultWorkspace(page: Page): Promise<void> {
       });
       return;
     }
-    if (path.endsWith("/mission-control/events")) {
+    if (path.endsWith("/workspace/events")) {
       await route.fulfill({ contentType: "text/event-stream", body: "" });
       return;
     }
@@ -1498,17 +1493,17 @@ async function routeDefaultWorkspace(page: Page): Promise<void> {
   });
 }
 
-async function routeMissionControlSocket(
+async function routeChatKitWorkspaceSocket(
   page: Page,
   events: readonly { type: string; data: Record<string, unknown> }[],
 ): Promise<void> {
-  const websocketUrl = "wss://mission-control.e2e.test/ws";
+  const websocketUrl = "wss://chatkit-workspace.e2e.test/ws";
   await page.addInitScript(
-    ({ missionControlUrl, missionControlEvents }) => {
+    ({ chatKitRealtimeUrl, chatKitRealtimeEvents }) => {
       const NativeWebSocket = globalThis.WebSocket;
-      class MissionControlWebSocket {
-        readonly url = missionControlUrl;
-        readonly protocol = "tilde.mission-control.v1";
+      class ChatKitWorkspaceWebSocket {
+        readonly url = chatKitRealtimeUrl;
+        readonly protocol = "tilde.chatkit-realtime.v1";
         readonly extensions = "";
         readonly bufferedAmount = 0;
         binaryType: BinaryType = "blob";
@@ -1520,22 +1515,19 @@ async function routeMissionControlSocket(
             this.readyState = NativeWebSocket.OPEN;
             this.emit("open", {});
             this.emit("message", {
-              data: JSON.stringify({
-                jsonrpc: "2.0",
-                method: "mission_control.ready",
-                params: { snapshot_revision: 1 },
-              }),
+              data: JSON.stringify({ type: "ready", cursor: 1 }),
             });
             queueMicrotask(() => {
-              missionControlEvents.forEach((event, index) => {
+              chatKitRealtimeEvents.forEach((event, index) => {
                 this.emit("message", {
                   data: JSON.stringify({
-                    jsonrpc: "2.0",
-                    method: "mission_control.event",
-                    params: {
-                      revision: index + 2,
-                      event_type: event.type,
-                      event: event.data,
+                    type: "event",
+                    cursor: index + 2,
+                    event: {
+                      id: `event-${index + 2}`,
+                      occurred_at: new Date().toISOString(),
+                      type: event.type,
+                      data: event.data,
                     },
                   }),
                 });
@@ -1572,8 +1564,8 @@ async function routeMissionControlSocket(
         url: string | URL,
         protocols?: string | string[],
       ): WebSocket {
-        if (String(url).startsWith(missionControlUrl))
-          return new MissionControlWebSocket() as unknown as WebSocket;
+        if (String(url).startsWith(chatKitRealtimeUrl))
+          return new ChatKitWorkspaceWebSocket() as unknown as WebSocket;
         return protocols === undefined
           ? new NativeWebSocket(url)
           : new NativeWebSocket(url, protocols);
@@ -1586,13 +1578,13 @@ async function routeMissionControlSocket(
       });
       globalThis.WebSocket = WebSocketForTest as unknown as typeof WebSocket;
     },
-    { missionControlUrl: websocketUrl, missionControlEvents: events },
+    { chatKitRealtimeUrl: websocketUrl, chatKitRealtimeEvents: events },
   );
-  await page.route("**/api/chat/mission-control/socket-ticket", async (route) => {
+  await page.route("**/api/chat/realtime/socket-ticket", async (route) => {
     await route.fulfill({
       json: {
         ticket: "e2e-ticket",
-        protocol: "tilde.mission-control.ticket",
+        protocol: "tilde.chatkit-realtime.ticket",
         expires_at: "2099-01-01T00:00:00.000Z",
         websocket_url: websocketUrl,
       },

@@ -1,5 +1,11 @@
 import type { JsonObject, JsonValue } from "@trytilde/sdk";
 import { isJsonObject } from "@trytilde/sdk/json";
+import {
+  type ChatKitMessageIdentity,
+  type ChatKitSessionContext,
+  parseChatKitMessageIdentity,
+  parseChatKitSessionContext,
+} from "./chatkit-identity";
 
 export type ChatKitRequestMessageRole = "system" | "user" | "assistant";
 
@@ -86,11 +92,15 @@ export type ChatKitRequestMessage = {
   role: ChatKitRequestMessageRole;
   parts: ChatKitRequestMessagePart[];
   metadata?: JsonValue;
+  /** Who sent the message, when Tilde could attribute it. */
+  identity?: ChatKitMessageIdentity;
 };
 
 export type ChatKitRequestBody = {
   chatId?: string | null;
   messages: ChatKitRequestMessage[];
+  /** Where the conversation originated, when Tilde supplied provenance. */
+  session?: ChatKitSessionContext;
 };
 
 export class ChatKitRequestValidationError extends Error {
@@ -118,6 +128,10 @@ export function parseChatKitRequestBody(value: JsonValue): ChatKitRequestBody {
   };
   if (value.chatId !== undefined) {
     body.chatId = value.chatId as string | null;
+  }
+  const session = parseChatKitSessionContext(value.session as JsonValue | undefined);
+  if (session) {
+    body.session = session;
   }
   return body;
 }
@@ -149,6 +163,10 @@ function parseMessage(value: JsonValue, path: string): ChatKitRequestMessage {
   };
   if (value.metadata !== undefined) {
     message.metadata = value.metadata;
+  }
+  const identity = parseChatKitMessageIdentity(value.identity as JsonValue | undefined);
+  if (identity) {
+    message.identity = identity;
   }
   return message;
 }

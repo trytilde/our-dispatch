@@ -1,8 +1,8 @@
 import { expect, test } from "@playwright/test";
 import { seedCompletedOnboarding } from "./onboarding-state.js";
 
-function chatKitActivity(activity: { items: unknown[]; next_page_token?: string | null }) {
-  return { activity, active_session_id: null, active_conversation: null };
+function chatKitRealtimeBootstrap(sidebar: { items: unknown[]; next_page_token?: string | null }) {
+  return { sidebar };
 }
 
 test.beforeEach(async ({ page }) => {
@@ -404,10 +404,10 @@ test.beforeEach(async ({ page }) => {
   });
   await page.route("**/api/chat/**", async (route) => {
     const path = new URL(route.request().url()).pathname;
-    if (path === "/api/chat/activity") {
+    if (path.endsWith("/workspace/bootstrap")) {
       const now = new Date().toISOString();
       await route.fulfill({
-        json: chatKitActivity({
+        json: chatKitRealtimeBootstrap({
           items: [
             {
               id: "hello-world",
@@ -815,7 +815,7 @@ test("loads plugin settings without hydrating agent messages", async ({ page }) 
   page.on("request", (request) => {
     const path = new URL(request.url()).pathname;
     if (path.endsWith("/messages")) messageRequests.push(path);
-    if (path === "/api/chat/activity") sidebarRequests += 1;
+    if (path.endsWith("/workspace/bootstrap")) sidebarRequests += 1;
   });
 
   await page.goto("/settings/plugins/tools");

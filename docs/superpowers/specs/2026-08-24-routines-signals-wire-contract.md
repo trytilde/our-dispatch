@@ -71,7 +71,7 @@ Tilde resources without an `openbot.group` stamp are ignored by the unified list
   `status` on rules).
 - `DELETE /api/routines/:groupId?agent_id=<id>` — deletes all members →
   `{ "items": Routine[] }`.
-- `POST /api/routines/:groupId/run?agent_id=<id>` — creates a mission-control
+- `POST /api/routines/:groupId/run?agent_id=<id>` — creates a chatkit-workspace
   session titled with the routine name and sends the instruction →
   `{ "session_id": "…" }`.
 
