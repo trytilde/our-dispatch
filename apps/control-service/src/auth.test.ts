@@ -75,6 +75,25 @@ describe("owner authentication", () => {
     for (const cookie of login.headers.getSetCookie()) expect(cookie).not.toContain("Secure");
   });
 
+  it("uses the configured HTTPS origin for a matching remote development host", async () => {
+    vi.stubEnv("PUBLIC_ORIGIN", "https://our-openbot.exe.xyz");
+    const provider = stubProvider();
+    const app = createApp({ authProvider: provider, devMode: true, webRoot: "/missing" });
+
+    const login = await app.request("http://127.0.0.1:4100/auth/login", {
+      headers: {
+        "x-forwarded-host": "our-openbot.exe.xyz",
+        "x-forwarded-proto": "http",
+      },
+    });
+
+    expect(login.status).toBe(302);
+    expect(provider.authorizationUrl).toHaveBeenCalledWith(
+      expect.objectContaining({ redirectUri: "https://our-openbot.exe.xyz/auth/callback" }),
+    );
+    for (const cookie of login.headers.getSetCookie()) expect(cookie).toContain("Secure");
+  });
+
   it("protects control routes and accepts an installation-scoped bearer token", async () => {
     const provider = stubProvider();
     const app = createApp({ authProvider: provider, webRoot: "/missing" });

@@ -175,9 +175,33 @@ function callbackUrl(context: Context, options: OwnerAuthOptions): string {
   const requestOrigin = new URL(context.req.url).origin;
   const environment = options.environment ?? process.env;
   if (options.devMode)
-    return `${developmentBrowserOrigin(context, environment) ?? requestOrigin}/auth/callback`;
+    return `${
+      configuredDevelopmentOrigin(context, environment) ??
+      developmentBrowserOrigin(context, environment) ??
+      requestOrigin
+    }/auth/callback`;
   const configured = environment.PUBLIC_ORIGIN?.trim()?.replace(/\/$/, "");
   return `${configured || requestOrigin}/auth/callback`;
+}
+
+function configuredDevelopmentOrigin(
+  context: Context,
+  environment: NodeJS.ProcessEnv,
+): string | undefined {
+  const configured = environment.PUBLIC_ORIGIN?.trim()?.replace(/\/$/, "");
+  if (!configured) return undefined;
+  const forwardedHost = context.req.header("x-forwarded-host")?.split(",", 1)[0]?.trim();
+  const requestHost = forwardedHost || context.req.header("host");
+  if (!requestHost) return undefined;
+  try {
+    const configuredUrl = new URL(configured);
+    const requestHostname = new URL(`http://${requestHost}`).hostname;
+    return configuredUrl.protocol === "https:" && configuredUrl.hostname === requestHostname
+      ? configuredUrl.origin
+      : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 function developmentBrowserOrigin(
