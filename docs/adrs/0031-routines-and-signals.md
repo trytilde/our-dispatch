@@ -39,7 +39,7 @@ flowchart LR
     A -->|event trigger| SR[Tilde signal rule]
     SR --> SPI[signal provider instance]
     SPI --> WH[/api/v1/webhooks/... ingress/]
-    R -->|cron fire| S1[new mission-control session]
+    R -->|cron fire| S1[new chatkit-workspace session]
     SR -->|delivery| S2[session via session_policy]
 ```
 

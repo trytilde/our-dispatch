@@ -36,7 +36,7 @@ export { tildeAgentProviderInitialization } from "./tools.js";
 export interface TildeAgentProviderConfig extends TildePlatformConfig {}
 
 type JsonRecord = Record<string, unknown>;
-const missionControlChannelId = "openbot-mission-control";
+const chatKitRealtimeChannelId = "openbot-chatkit-workspace";
 const maxConcurrentRequests = 10;
 
 /** Idempotently reconciles every authored agent with Tilde ChatKit. */
@@ -97,7 +97,7 @@ export class TildeAgentProvider implements AgentProvider {
       summary: `Reconcile authored agent ${agent.id} with Tilde`,
       steps: [
         "Create missing ChatKit agents",
-        "Create the shared OpenBot Mission Control chat channel when missing",
+        "Create the shared OpenBot ChatKit workspace channel when missing",
         "Reconcile Vercel AI SDK endpoint URLs and enabled status",
         "Upload the agent's canonical machine-user avatar",
         "Synchronize authored skills and exact registry membership",
@@ -253,7 +253,7 @@ export class TildeAgentProvider implements AgentProvider {
       `Tilde MCP server ID for ${slug}.`,
     );
     await Promise.all([
-      this.#ensureMissionControlChannel(slug, slug, context.agentKind ?? "subagent"),
+      this.#ensureChatKitWorkspaceChannel(slug, slug, context.agentKind ?? "subagent"),
       this.#tools.deployExternalResources(context),
       unsetEnvironment(context, `${prefix}_AGENT_ID`),
       unsetEnvironment(context, `${prefix}_PROVIDER_ID`),
@@ -287,21 +287,21 @@ export class TildeAgentProvider implements AgentProvider {
   }
 
   /**
-   * Tilde resolves Mission Control sessions through the channel whose default agent matches the
+   * Tilde resolves ChatKit workspace sessions through the channel whose default agent matches the
    * requested agent, so every authored agent needs its own channel. The primary agent keeps the
    * original shared channel ID.
    */
-  async #ensureMissionControlChannel(
+  async #ensureChatKitWorkspaceChannel(
     slug: string,
     defaultAgentId: string,
     kind: "primary" | "subagent",
   ): Promise<void> {
     const channelId =
-      kind === "primary" ? missionControlChannelId : `${missionControlChannelId}-${slug}`;
+      kind === "primary" ? chatKitRealtimeChannelId : `${chatKitRealtimeChannelId}-${slug}`;
     let nextPageToken: string | undefined;
     let existing: JsonRecord | undefined;
     do {
-      const response = await this.#generated("list Mission Control chat channels", (signal) =>
+      const response = await this.#generated("list ChatKit workspace chat channels", (signal) =>
         chatkitListChatProviders({
           client: this.#api,
           path: { team_id: this.#teamId },
@@ -316,14 +316,16 @@ export class TildeAgentProvider implements AgentProvider {
     } while (nextPageToken);
 
     if (!existing) {
-      await this.#generated(`create the Mission Control channel for "${slug}"`, (signal) =>
+      await this.#generated(`create the ChatKit workspace channel for "${slug}"`, (signal) =>
         chatkitRegisterVercelUiChatProvider({
           client: this.#api,
           path: { team_id: this.#teamId },
           body: {
             id: channelId,
             display_name:
-              kind === "primary" ? "OpenBot Mission Control" : `OpenBot Mission Control: ${slug}`,
+              kind === "primary"
+                ? "OpenBot ChatKit workspace"
+                : `OpenBot ChatKit workspace: ${slug}`,
             default_agent_inbox_id: defaultAgentId,
           },
           signal,
@@ -333,7 +335,7 @@ export class TildeAgentProvider implements AgentProvider {
     }
     const configuration = jsonRecord(existing.configuration);
     if (configuration?.default_agent_inbox_id === defaultAgentId) return;
-    await this.#generated(`repoint the Mission Control channel for "${slug}"`, (signal) =>
+    await this.#generated(`repoint the ChatKit workspace channel for "${slug}"`, (signal) =>
       chatkitUpdateChatProvider({
         client: this.#api,
         path: { team_id: this.#teamId, channel_id: channelId },

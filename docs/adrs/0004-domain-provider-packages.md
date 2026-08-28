@@ -65,7 +65,7 @@ flowchart LR
 
 ## Updates
 
-- 2026-08-25T12:35:12+02:00: Replaced client-side agent/MCP/registry choreography with Tilde's durable Agent Resource Bundle API. OpenBot still authors runtime source and reconciles Mission Control plus credential-bearing platform integrations, while Tilde owns the canonical MCP server, skill registry, default memory bank, bindings, credential rotation, and deletion cleanup.
+- 2026-08-25T12:35:12+02:00: Replaced client-side agent/MCP/registry choreography with Tilde's durable Agent Resource Bundle API. OpenBot still authors runtime source and reconciles ChatKit realtime plus credential-bearing platform integrations, while Tilde owns the canonical MCP server, skill registry, default memory bank, bindings, credential rotation, and deletion cleanup.
 - 2026-08-25T19:41:00+02:00: Made Tilde's stable machine-user profile the canonical agent identity. The Agent Provider renders and uploads a deterministic PNG avatar after bundle convergence; display-name and avatar updates no longer depend on device-local onboarding state.
 - 2026-08-25T20:12:00+02:00: The owner-facing agent-creation route establishes the initial bundle with the deployment API key delegated by the signed-in human. Later machine-only deploys reconcile the same bundle without replacing that individual lifecycle owner.
 

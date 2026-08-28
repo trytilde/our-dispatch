@@ -52,8 +52,8 @@ describe("Electron renderer server", () => {
 
     const frontendRoute = await fetch(`${renderer.origin}/api/setup/unlock`);
     expect(await frontendRoute.text()).toBe("/api/setup/unlock:none:Bearer desktop-token");
-    const chatRoute = await fetch(`${renderer.origin}/api/chat/activity`);
-    expect(await chatRoute.text()).toBe("/api/chat/activity:none:Bearer desktop-token");
+    const chatRoute = await fetch(`${renderer.origin}/api/chat/workspace/sidebar`);
+    expect(await chatRoute.text()).toBe("/api/chat/workspace/sidebar:none:Bearer desktop-token");
     expect(proxied.headers.get("set-cookie")).toContain("HttpOnly");
     expect(proxied.headers.get("set-cookie")).not.toContain("Secure");
   });

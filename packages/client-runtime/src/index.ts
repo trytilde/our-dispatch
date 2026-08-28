@@ -12,7 +12,7 @@ export * from "./contracts/plugins.js";
 export * from "./contracts/events.js";
 export * from "./contracts/installation.js";
 export * from "./contracts/messages.js";
-export * from "./contracts/mission-control.js";
+export * from "./contracts/workspace.js";
 export * from "./contracts/onboarding.js";
 export * from "./contracts/platform.js";
 export * from "./contracts/queue.js";

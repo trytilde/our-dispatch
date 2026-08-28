@@ -1,0 +1,23 @@
+/* Standalone AgentAvatar layout. This stylesheet is intentionally scoped to
+ * the component's data attribute and does not define OpenBot theme tokens. */
+[data-avatar-key] {
+  position: relative;
+  display: flex;
+  width: 2.25rem;
+  height: 2.25rem;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+}
+
+[data-avatar-key] > .agent-avatar-orbit {
+  position: absolute;
+  inset: -4%;
+  transition: opacity 200ms;
+}
+
+[data-avatar-key] > .agent-avatar-mark {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
