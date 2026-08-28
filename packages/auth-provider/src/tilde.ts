@@ -259,7 +259,11 @@ export class TildeAuthProvider implements AuthProvider, InitializableProvider {
       `${connection.baseUrl.replace(/\/$/, "")}/api/v1/team/${encodeURIComponent(connection.teamId)}/identity/openbot/deployments`,
       {
         method: "POST",
-        headers: { "content-type": "application/json", "x-api-key": connection.apiKey },
+        headers: {
+          "content-type": "application/json",
+          "x-api-key": connection.apiKey,
+          "x-tilde-org-id": connection.orgId,
+        },
         body: JSON.stringify({
           client_id: environment.OPENBOT_OIDC_CLIENT_ID?.trim() || undefined,
           name: environment.OPENBOT_DEPLOYMENT_NAME?.trim() || "OpenBot",
