@@ -65,6 +65,7 @@ describe("ExeDevRuntimeServiceProvider", () => {
     });
     const deployment = context();
 
+    await provider.deployable.configure(deployment);
     await provider.deployable.deploy(deployment);
 
     expect(calls[0]).toMatchObject({
@@ -84,5 +85,6 @@ describe("ExeDevRuntimeServiceProvider", () => {
     expect(calls.at(-1)?.input).toContain('fuser -k -TERM "${port}/tcp"');
     expect(calls.at(-1)?.input).toContain("sha256sum --check --strict");
     expect(calls.at(-1)?.input).toContain("repository-only-token");
+    expect(deployment.environment.PUBLIC_ORIGIN).toBe("https://openbot.exe.xyz");
   });
 });

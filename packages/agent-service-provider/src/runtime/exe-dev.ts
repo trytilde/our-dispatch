@@ -123,6 +123,7 @@ export class ExeDevRuntimeServiceProvider {
 
   async #configure(context: DeploymentContext): Promise<DeploymentResult> {
     const origin = this.baseUrl(context).toString().replace(/\/$/, "");
+    await persistEnvironment(context, "PUBLIC_ORIGIN", origin, "OpenBot public origin.");
     return {
       outputs: {
         "control-service.origin": origin,
