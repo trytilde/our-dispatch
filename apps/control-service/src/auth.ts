@@ -131,7 +131,9 @@ function trustedCookieMutation(context: Context, options: OwnerAuthOptions): boo
   try {
     const requestOrigin = new URL(context.req.url).origin;
     const expectedOrigin = options.devMode
-      ? (developmentBrowserOrigin(context, options.environment ?? process.env) ?? requestOrigin)
+      ? (configuredDevelopmentOrigin(context, options.environment ?? process.env) ??
+        developmentBrowserOrigin(context, options.environment ?? process.env) ??
+        requestOrigin)
       : requestOrigin;
     return new URL(origin).origin === expectedOrigin;
   } catch {
