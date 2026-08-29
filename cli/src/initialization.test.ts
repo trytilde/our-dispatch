@@ -429,6 +429,7 @@ describe("OpenBot initialization", () => {
       expect(primaryAgent).toContain("createTildeAttachmentMessageHandlers(client, context)");
       expect(primaryAgent).toContain("createTildeMediaUploader");
       expect(primaryAgent).toContain("createTildeMediaDownloader");
+      expect(primaryAgent).toContain('responseMode: "agentLoop"');
       expect(primaryAgent).not.toContain("createChatKitAttachmentFilePartHandler");
       expect(primaryAgent).not.toContain("base64");
       expect(primaryAgent).not.toContain("@tryopenbot/agent-provider");
@@ -477,6 +478,9 @@ describe("OpenBot initialization", () => {
       expect(
         await readFile(join(repositoryRoot, "configuration/instrumentation.ts"), "utf8"),
       ).toContain("defineInstrumentation");
+      expect(
+        await readFile(join(repositoryRoot, "configuration/templates/agent/agent.ts.hbs"), "utf8"),
+      ).toContain('responseMode: "agentLoop"');
       expect(
         await readFile(join(repositoryRoot, "configuration/templates/agent/agent.ts.hbs"), "utf8"),
       ).toContain("AGENT_{{AGENT_ENV_PREFIX}}_API_KEY");
