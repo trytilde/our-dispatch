@@ -7,6 +7,7 @@
 - Web gets host-only HttpOnly cookies. Electron main and mobile get native PKCE credentials. UI gets no token.
 - Central Tilde login gives multi-installation SSO. Installation cookies and access tokens never cross installations.
 - Owner middleware guards owner surfaces. Tilde callbacks, agent endpoints, and Computer credentials stay separate.
+- Team-linked API keys may call the same control surfaces. Auth records both actor (`human` or `agent`) and credential (`api_key` or `bearer_token`); there is no machine or delegated identity mode.
 - Cost: Tilde dependency and bounded token-revocation delay. Accepted; BYO OIDC remains possible.
 
 ## Context
@@ -101,6 +102,11 @@ surface, including chat proxying, attachments, and Computer preview. It accepts 
 bearer before falling back to the access cookie, verifies signature and time claims, and requires the
 configured issuer, installation audience, authorized client, token purpose, subject, installation
 link, and route scope. It then supplies a typed owner principal to handlers and provider calls.
+An Authorization bearer that is an API key is resolved through Tilde `whoami` instead of JWT
+verification. It is accepted only when its persisted user is a `human` or `agent` with access to the
+installation team. The typed principal records actor and credential independently, so an agent API
+key remains distinguishable from a human API key and a human OIDC bearer. OpenBot does not introduce
+machine users, machine-on-behalf-of-human credentials, or delegated privileged agent tokens.
 Static application assets, health, public native-auth discovery, and the narrowly bounded login,
 callback, session-refresh, and logout routes are the only public control surfaces. Installation registration belongs to the Tilde
 team API and is never exposed by the OpenBot control service.
@@ -166,3 +172,4 @@ flowchart LR
 - 2026-08-17T18:00:00+02:00: Added Expo mobile PKCE, SecureStore ownership, and the rule that native tokens stay outside shared client and React state.
 - 2026-08-17T19:55:00+02:00: Made control-service selection precede mobile authentication and added provider-owned public PKCE discovery with installation-scoped credential clearing.
 - 2026-08-26T16:18:13+01:00: Allowed a narrowly scoped server-side exchange of the owner access token for a single-use ChatKit workspace socket ticket while keeping bearer and refresh tokens out of browser JavaScript.
+- 2026-08-29T18:12:00+02:00: Accepted team-linked human and agent API keys on control surfaces, with explicit actor and credential classification and no machine or delegated identity mode.

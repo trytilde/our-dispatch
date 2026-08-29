@@ -3,6 +3,8 @@ import type { DeployableProvider } from "@tryopenbot/runtime-provider";
 export interface OwnerPrincipal {
   subject: string;
   email?: string;
+  actorType: "human" | "agent";
+  credentialType: "api_key" | "bearer_token";
   groups: readonly string[];
   scope: readonly string[];
 }
