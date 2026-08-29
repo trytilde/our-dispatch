@@ -130,11 +130,15 @@ export function registerAgentCreation(app: Hono, options: AgentCreationOptions =
       { authorization: apiKey ? `Bearer ${apiKey}` : "", signal: context.req.raw.signal },
     );
     if (response.running) return context.json({ status: "setting_up" });
-    if (response.exitCode !== 0)
+    if (response.exitCode !== 0) {
+      localCreation?.forget(jobId);
       return context.json({ status: "failed", error: commandError(response) });
+    }
     const created = parseCreatedAgent(response.stdout);
-    if (!created)
+    if (!created) {
+      localCreation?.forget(jobId);
       return context.json({ status: "failed", error: "Agent creation returned no result" });
+    }
     const tilde = tildeOptionsFromEnvironment(environment);
     if (tilde && options.tildeFetch) tilde.fetch = options.tildeFetch;
     const agentServiceOrigin = environment.AGENT_SERVICE_ORIGIN?.trim();
@@ -142,11 +146,13 @@ export function registerAgentCreation(app: Hono, options: AgentCreationOptions =
     const ownerAccessToken = context.get("ownerAccessToken") as string | undefined;
     const authorization = ownerAccessToken ? `Bearer ${ownerAccessToken}` : headerAuthorization;
     if (tilde && agentServiceOrigin) {
-      if (!authorization)
+      if (!authorization) {
+        localCreation?.forget(jobId);
         return context.json({
           status: "failed",
           error: "Owner authorization is unavailable for Tilde agent provisioning",
         });
+      }
       try {
         const operation = (await tildeJson(
           tilde,
@@ -170,20 +176,24 @@ export function registerAgentCreation(app: Hono, options: AgentCreationOptions =
             },
           },
         )) as { status?: string; error_message?: string };
-        if (operation.status === "error")
+        if (operation.status === "error") {
+          localCreation?.forget(jobId);
           return context.json({
             status: "failed",
             error: operation.error_message ?? "Tilde agent provisioning failed",
           });
+        }
         if (operation.status !== "active")
           return context.json({ status: "setting_up", job_id: jobId, agent: created });
       } catch (error) {
+        localCreation?.forget(jobId);
         return context.json({
           status: "failed",
           error: error instanceof Error ? error.message : "Tilde agent provisioning failed",
         });
       }
     }
+    localCreation?.forget(jobId);
     return context.json({ status: "ready", agent: created });
   });
 }
@@ -191,7 +201,11 @@ export function registerAgentCreation(app: Hono, options: AgentCreationOptions =
 function createLocalAgentCreation(
   repositoryRoot: string,
   environment: NodeJS.ProcessEnv = process.env,
-): { execute: AgentCreationExecutor; awaitExecution: AgentCreationWaiter } {
+): {
+  execute: AgentCreationExecutor;
+  awaitExecution: AgentCreationWaiter;
+  forget(jobId: string): boolean;
+} {
   const jobs = new Map<string, AgentCreationResult>();
   return {
     execute: async (request) => {
@@ -222,16 +236,14 @@ function createLocalAgentCreation(
       });
       return jobs.get(jobId)!;
     },
-    awaitExecution: async ({ jobId }) => {
-      const result = jobs.get(jobId) ?? {
+    awaitExecution: async ({ jobId }) =>
+      jobs.get(jobId) ?? {
         exitCode: 1,
         stdout: "",
         stderr: "Agent creation job was not found",
         jobId,
-      };
-      if (!result.running) jobs.delete(jobId);
-      return result;
-    },
+      },
+    forget: (jobId: string) => jobs.delete(jobId),
   };
 }
 

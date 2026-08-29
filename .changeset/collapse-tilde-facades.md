@@ -26,6 +26,8 @@ Plugin inventory now pages Tilde's native MCP, skill, provider, and registry col
 
 Routines now consume Tilde's native trigger/version contract, and signal history uses native trigger IDs while accepting legacy rule IDs during the migration window. Signal provider and instance inventories follow every continuation token.
 
+Development agent creation retains the completed source-generation result until asynchronous Tilde bundle provisioning becomes active, so queued provisioning no longer turns the next status poll into “job not found”.
+
 Migration:
 - Replace direct calls to `/api/plugins`, `/api/connectors`, `/api/routines`, and `/api/signals` with `@tryopenbot/client-runtime`.
 - Replace `registerConnectorRoutes` with `registerConnectorAuthorizedRoute` when constructing a custom control service.
