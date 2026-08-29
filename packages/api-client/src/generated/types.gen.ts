@@ -69,6 +69,20 @@ export enum AgentEventVisibility {
     DETAILS = 'details'
 }
 
+/**
+ * Who an agent may pull into a session it creates.
+ */
+export type AgentMultiplayerPermissions = {
+    /**
+     * Agents the agent may add.
+     */
+    with_agents?: AgentReachScope;
+    /**
+     * Tilde users the agent may add.
+     */
+    with_users?: AgentReachScope;
+};
+
 export type AgentObservabilityConfiguration = {
     policy: AgentObservabilityPolicy;
     tools: Array<AgentToolCatalogEntry>;
@@ -83,6 +97,22 @@ export type AgentObservabilityPolicy = {
     thinking_visibility: AgentEventVisibility;
     tool_visibility: AgentEventVisibility;
     updated_at: WrappedChronoDateTime;
+};
+
+/**
+ * The reach recorded on an agent record.
+ */
+export type AgentPermissions = {
+    /**
+     * Whether the agent may create a session with more than two parties, and
+     * who it may add.
+     */
+    create_multiplayer_sessions?: AgentMultiplayerPermissions;
+    /**
+     * Whether the agent may open a private child conversation with another
+     * agent, and with which agents.
+     */
+    delegate_to_other_agents?: AgentReachScope;
 };
 
 export type AgentProvisioningOperation = {
@@ -114,6 +144,21 @@ export enum AgentProvisioningStatus {
     ERROR = 'error',
     DEPROVISIONING = 'deprovisioning'
 }
+
+/**
+ * Who an agent may reach for one kind of action.
+ */
+export type AgentReachScope = {
+    mode: 'none';
+} | {
+    mode: 'any';
+} | {
+    /**
+     * Agent inbox ids or Tilde user ids, depending on the field.
+     */
+    ids: Array<string>;
+    mode: 'only';
+};
 
 export type AgentSpec = {
     credential_strategy?: AgentCredentialStrategy;
@@ -246,76 +291,6 @@ export type AutoProvisionToolGroupInstanceResponse = {
     broker_response?: null | UserCredentialBrokeringResponse;
     provider_provisioning_response: ProviderAppProvisioningResponse;
     tool_group_instance?: null | ToolGroupInstanceSerialized;
-};
-
-export type Automation = {
-    agent_id: string;
-    applied_generation: number;
-    authorization: ResourceAuthorizationModes;
-    created_at: WrappedChronoDateTime;
-    created_by_user_id: string;
-    enabled: boolean;
-    error_message?: string | null;
-    generation: number;
-    id: WrappedUuidV4;
-    instruction: string;
-    /**
-     * Execution error paired with the latest materialized schedule execution.
-     */
-    last_error?: string | null;
-    last_run_at?: null | WrappedChronoDateTime;
-    last_session_id?: null | WrappedUuidV4;
-    name: string;
-    org_id: string;
-    status: AutomationStatus;
-    team_id: string;
-    triggers: Array<AutomationTrigger>;
-    updated_at: WrappedChronoDateTime;
-};
-
-export type AutomationPaginatedResponse = {
-    items: Array<Automation>;
-    next_page_token?: string;
-};
-
-export enum AutomationStatus {
-    RECONCILING = 'reconciling',
-    ACTIVE = 'active',
-    ERROR = 'error',
-    DELETING = 'deleting'
-}
-
-export type AutomationTrigger = AutomationTriggerSpec & {
-    created_at: WrappedChronoDateTime;
-    id: WrappedUuidV4;
-    /**
-     * Schedule-only live projection from the materialized ChatKit routine.
-     */
-    last_error?: string | null;
-    last_run_at?: null | WrappedChronoDateTime;
-    last_session_id?: null | WrappedUuidV4;
-    materialized_resource_id?: null | WrappedUuidV4;
-    next_run_at?: null | WrappedChronoDateTime;
-    /**
-     * Schedule-only live projection from the materialized ChatKit routine.
-     */
-    schedule_description?: string | null;
-    updated_at: WrappedChronoDateTime;
-};
-
-export type AutomationTriggerInput = AutomationTriggerSpec & {
-    id: WrappedUuidV4;
-};
-
-export type AutomationTriggerSpec = {
-    kind: 'schedule';
-    schedule: string;
-} | {
-    filter?: SignalRuleFilter;
-    kind: 'event';
-    session_policy?: null | SignalSessionPolicy;
-    signal_provider_instance_id: string;
-    signal_type: string;
 };
 
 /**
@@ -1393,20 +1368,6 @@ export type CreateReverseProxyProfileInner = {
 };
 
 /**
- * User-authored fields for a new routine.
- */
-export type CreateRoutineRequestInner = {
-    agent_inbox_id: string;
-    authorization?: ResourceAuthorizationModes;
-    enabled?: boolean;
-    initial_grants?: Array<ResourceGrantRequest>;
-    metadata?: null | WrappedJsonValue;
-    prompt: string;
-    schedule: string;
-    title: string;
-};
-
-/**
  * Inner create fields for a ChatKit session.
  */
 export type CreateSessionInner = {
@@ -1473,20 +1434,6 @@ export type CreateSignalProviderInstanceRequestInner = {
     signal_provider_source_type_id: string;
     user_credential_id?: null | WrappedUuidV4;
     webhook_endpoint_id?: string | null;
-};
-
-export type CreateSignalRuleRequestInner = {
-    action: SignalAction;
-    authorization?: ResourceAuthorizationModes;
-    display_name: string;
-    filter?: SignalRuleFilter;
-    id?: null | WrappedUuidV4;
-    initial_grants?: Array<ResourceGrantRequest>;
-    metadata?: null | WrappedJsonValue;
-    session_policy: SignalSessionPolicy;
-    signal_provider_instance_id: string;
-    signal_type: string;
-    target_team_id?: string | null;
 };
 
 /**
@@ -1824,10 +1771,6 @@ export type DebugAuthProfilesResponse = {
     profiles: Array<string>;
 };
 
-export type DeleteAutomationResponse = {
-    deleted: boolean;
-};
-
 export type DeleteChatKitAgentTurnQueueItemResponse = {
     deleted: boolean;
 };
@@ -1850,9 +1793,6 @@ export type DeleteMessageResponse = {
     success: boolean;
 };
 
-/**
- * Routine deletion response.
- */
 export type DeleteRoutineResponse = {
     deleted: boolean;
 };
@@ -2345,19 +2285,33 @@ export type ImportStateResponse = {
  * Cross-crate public inbox view.
  */
 export type Inbox = {
+    agent_permissions?: null | AgentPermissions;
+    api_key_id?: string | null;
     authorization: ResourceAuthorizationModes;
     common_provider_installation_id?: string | null;
+    concurrency_policy?: string | null;
     configuration: WrappedJsonValue;
     created_at: WrappedChronoDateTime;
     created_by_user_id?: string | null;
+    /**
+     * Human-readable name. Unique per team and inbox type.
+     */
+    display_name?: string | null;
+    /**
+     * Agent HTTP endpoint. `None` for anything that is not an agent.
+     */
+    endpoint_url?: string | null;
     id: string;
     inbox_type?: InboxType;
+    local_running_endpoint?: boolean | null;
     lookup_key?: string | null;
     message_format?: null | MessageFormatConfig;
     org_id: string;
     provider_id: string;
     status: InboxStatus;
+    streaming?: boolean | null;
     team_id: string;
+    timeout_ms?: number | null;
     updated_at: WrappedChronoDateTime;
 };
 
@@ -3692,14 +3646,16 @@ export type ProxyCredentialTemplate = {
     kind: 'query_param';
 };
 
-export type PutAutomationBody = {
+export type PutRoutineBody = {
     agent_id: string;
     authorization?: ResourceAuthorizationModes;
     enabled?: boolean;
+    expected_version?: number | null;
     initial_grants?: Array<ResourceGrantRequest>;
     instruction: string;
+    metadata?: null | WrappedJsonValue;
     name: string;
-    triggers: Array<AutomationTriggerInput>;
+    triggers: Array<RoutineTriggerInput>;
 };
 
 /**
@@ -4215,34 +4171,48 @@ export type RotateCustomToolProviderSigningKeyResponse = {
     signing_key_metadata: WebhookSigningKeyMetadata;
 };
 
-/**
- * A recurring prompt scheduled against one ChatKit agent.
- */
 export type Routine = {
-    agent_inbox_id: string;
+    agent_id: string;
     authorization: ResourceAuthorizationModes;
     created_at: WrappedChronoDateTime;
-    created_by_user_id?: string | null;
+    created_by_user_id: string;
     enabled: boolean;
     id: WrappedUuidV4;
+    instruction: string;
     last_error?: string | null;
     last_run_at?: null | WrappedChronoDateTime;
     last_session_id?: null | WrappedUuidV4;
     metadata?: null | WrappedJsonValue;
-    next_run_at: WrappedChronoDateTime;
+    name: string;
     org_id: string;
-    prompt: string;
-    /**
-     * Minute-granularity cron expression evaluated in UTC.
-     */
-    schedule: string;
-    /**
-     * Human-readable rendering of `schedule`.
-     */
-    schedule_description: string;
     team_id: string;
-    title: string;
+    triggers: Array<RoutineTrigger>;
     updated_at: WrappedChronoDateTime;
+    version: number;
+};
+
+export enum RoutineEventInstructionPolicy {
+    SIGNAL_ONLY = 'signal_only',
+    SIGNAL_AND_INSTRUCTION = 'signal_and_instruction'
+}
+
+export type RoutineExecution = {
+    completed_at?: null | WrappedChronoDateTime;
+    error?: string | null;
+    id: WrappedUuidV4;
+    org_id: string;
+    routine_id: WrappedUuidV4;
+    session_id?: null | WrappedUuidV4;
+    signal_delivery_id?: null | WrappedUuidV4;
+    started_at: WrappedChronoDateTime;
+    status: string;
+    team_id: string;
+    trigger_id?: null | WrappedUuidV4;
+};
+
+export type RoutineExecutionPaginatedResponse = {
+    items: Array<RoutineExecution>;
+    next_page_token?: string;
 };
 
 export type RoutinePaginatedResponse = {
@@ -4250,14 +4220,43 @@ export type RoutinePaginatedResponse = {
     next_page_token?: string;
 };
 
-export type RunAutomationBody = {
-    /**
-     * Stable client run identity used for deduplication.
-     */
+export type RoutineTrigger = RoutineTriggerSpec & {
+    created_at: WrappedChronoDateTime;
+    enabled: boolean;
+    id: WrappedUuidV4;
+    last_error?: string | null;
+    last_run_at?: null | WrappedChronoDateTime;
+    last_session_id?: null | WrappedUuidV4;
+    metadata?: null | WrappedJsonValue;
+    next_run_at?: null | WrappedChronoDateTime;
+    schedule_description?: string | null;
+    updated_at: WrappedChronoDateTime;
+};
+
+export type RoutineTriggerInput = RoutineTriggerSpec & {
+    enabled?: boolean;
+    id: WrappedUuidV4;
+    metadata?: null | WrappedJsonValue;
+};
+
+export type RoutineTriggerSpec = {
+    kind: 'schedule';
+    schedule: string;
+} | {
+    action?: null | SignalAction;
+    filter?: SignalRuleFilter;
+    instruction_policy?: RoutineEventInstructionPolicy;
+    kind: 'event';
+    session_policy?: null | SignalSessionPolicy;
+    signal_provider_instance_id: string;
+    signal_type: string;
+};
+
+export type RunRoutineBody = {
     run_id: WrappedUuidV4;
 };
 
-export type RunAutomationResponse = {
+export type RunRoutineResponse = {
     duplicate: boolean;
     run_id: WrappedUuidV4;
     session_id: WrappedUuidV4;
@@ -4428,7 +4427,7 @@ export type SignalDelivery = {
         [key: string]: unknown;
     };
     id: WrappedUuidV4;
-    matched_rule_ids: Array<string>;
+    matched_trigger_ids: Array<string>;
     org_id: string;
     provider_delivery_id: string;
     provider_endpoint: string;
@@ -4442,6 +4441,11 @@ export type SignalDelivery = {
     summary?: string | null;
     team_id?: string | null;
     updated_at: WrappedChronoDateTime;
+};
+
+export type SignalDeliveryPaginatedResponse = {
+    items: Array<SignalDelivery>;
+    next_page_token?: string;
 };
 
 export enum SignalDeliveryStatus {
@@ -4535,6 +4539,11 @@ export type SignalProviderInstance = {
     webhook_endpoint_id?: string | null;
 };
 
+export type SignalProviderInstancePaginatedResponse = {
+    items: Array<SignalProviderInstance>;
+    next_page_token?: string;
+};
+
 export enum SignalProviderInstanceStatus {
     ENABLED = 'enabled',
     DISABLED = 'disabled'
@@ -4562,37 +4571,14 @@ export type SignalProviderSourceSerialized = {
     webhook_verification?: null | SignalWebhookVerificationDescriptor;
 };
 
-export type SignalRule = {
-    action: SignalAction;
-    authorization?: ResourceAuthorizationModes;
-    created_at: WrappedChronoDateTime;
-    created_by_user_id?: string | null;
-    display_name: string;
-    filter: SignalRuleFilter;
-    id: WrappedUuidV4;
-    metadata?: null | WrappedJsonValue;
-    org_id: string;
-    session_policy: SignalSessionPolicy;
-    signal_provider_instance_id: string;
-    signal_type: string;
-    status: SignalRuleStatus;
-    /**
-     * Team in which ChatKit sessions and agent actions execute. Personal
-     * rules require this explicit target and create user_team sessions.
-     */
-    target_team_id: string;
-    team_id?: string | null;
-    updated_at: WrappedChronoDateTime;
+export type SignalProviderSourceSerializedPaginatedResponse = {
+    items: Array<SignalProviderSourceSerialized>;
+    next_page_token?: string;
 };
 
 export type SignalRuleFilter = {
     json_equals?: Array<JsonEqualsPredicate>;
 };
-
-export enum SignalRuleStatus {
-    ENABLED = 'enabled',
-    DISABLED = 'disabled'
-}
 
 export type SignalSessionPolicy = {
     session_id: WrappedUuidV4;
@@ -5120,12 +5106,12 @@ export type ToolConfigPaginatedResponse = {
 };
 
 export type ToolDeploymentWithGroupSerialized = {
-    categories: WrappedJsonValue;
+    categories: Array<string>;
     created_at: WrappedChronoDateTime;
     documentation: string;
     metadata: Metadata;
     name: string;
-    tool_group_categories: WrappedJsonValue;
+    tool_group_categories: Array<string>;
     tool_group_deployment_deployment_id: string;
     tool_group_deployment_type_id: string;
     tool_group_documentation: string;
@@ -5582,18 +5568,6 @@ export type UpdateReverseProxyProfileInner = {
     user_credential_id?: null | WrappedUuidV4;
 };
 
-/**
- * User-authored fields for editing a routine.
- */
-export type UpdateRoutineRequestInner = {
-    agent_inbox_id?: string | null;
-    enabled?: boolean | null;
-    metadata?: null | WrappedJsonValue;
-    prompt?: string | null;
-    schedule?: string | null;
-    title?: string | null;
-};
-
 export type UpdateSelfProfileRequest = {
     display_name?: string | null;
 };
@@ -5612,15 +5586,6 @@ export type UpdateSignalProviderInstanceRequestInner = {
         [key: string]: unknown;
     };
     status: SignalProviderInstanceStatus;
-};
-
-export type UpdateSignalRuleRequestInner = {
-    action: SignalAction;
-    display_name: string;
-    filter?: SignalRuleFilter;
-    metadata?: null | WrappedJsonValue;
-    session_policy: SignalSessionPolicy;
-    status: SignalRuleStatus;
 };
 
 export type UpdateSkillBody = {
@@ -8965,7 +8930,6 @@ export type AutomationsListData = {
     };
     query?: {
         agent_id?: string | null;
-        status?: null | AutomationStatus;
         page_size?: number;
         next_page_token?: string | null;
     };
@@ -8973,7 +8937,7 @@ export type AutomationsListData = {
 };
 
 export type AutomationsListResponses = {
-    200: AutomationPaginatedResponse;
+    200: RoutinePaginatedResponse;
 };
 
 export type AutomationsListResponse = AutomationsListResponses[keyof AutomationsListResponses];
@@ -8985,14 +8949,14 @@ export type AutomationsDeleteData = {
          * Team ID
          */
         team_id: string;
-        automation_id: WrappedUuidV4;
+        routine_id: WrappedUuidV4;
     };
     query?: never;
-    url: '/api/v1/team/{team_id}/automations/{automation_id}';
+    url: '/api/v1/team/{team_id}/automations/{routine_id}';
 };
 
 export type AutomationsDeleteResponses = {
-    200: DeleteAutomationResponse;
+    200: DeleteRoutineResponse;
 };
 
 export type AutomationsDeleteResponse = AutomationsDeleteResponses[keyof AutomationsDeleteResponses];
@@ -9004,10 +8968,10 @@ export type AutomationsGetData = {
          * Team ID
          */
         team_id: string;
-        automation_id: WrappedUuidV4;
+        routine_id: WrappedUuidV4;
     };
     query?: never;
-    url: '/api/v1/team/{team_id}/automations/{automation_id}';
+    url: '/api/v1/team/{team_id}/automations/{routine_id}';
 };
 
 export type AutomationsGetErrors = {
@@ -9017,22 +8981,22 @@ export type AutomationsGetErrors = {
 export type AutomationsGetError = AutomationsGetErrors[keyof AutomationsGetErrors];
 
 export type AutomationsGetResponses = {
-    200: Automation;
+    200: Routine;
 };
 
 export type AutomationsGetResponse = AutomationsGetResponses[keyof AutomationsGetResponses];
 
 export type AutomationsPutData = {
-    body: PutAutomationBody;
+    body: PutRoutineBody;
     path: {
         /**
          * Team ID
          */
         team_id: string;
-        automation_id: WrappedUuidV4;
+        routine_id: WrappedUuidV4;
     };
     query?: never;
-    url: '/api/v1/team/{team_id}/automations/{automation_id}';
+    url: '/api/v1/team/{team_id}/automations/{routine_id}';
 };
 
 export type AutomationsPutErrors = {
@@ -9042,10 +9006,33 @@ export type AutomationsPutErrors = {
 export type AutomationsPutError = AutomationsPutErrors[keyof AutomationsPutErrors];
 
 export type AutomationsPutResponses = {
-    200: Automation;
+    200: Routine;
 };
 
 export type AutomationsPutResponse = AutomationsPutResponses[keyof AutomationsPutResponses];
+
+export type AutomationsListExecutionsData = {
+    body?: never;
+    path: {
+        /**
+         * Team ID
+         */
+        team_id: string;
+        routine_id: WrappedUuidV4;
+    };
+    query?: {
+        agent_id?: string | null;
+        page_size?: number;
+        next_page_token?: string | null;
+    };
+    url: '/api/v1/team/{team_id}/automations/{routine_id}/executions';
+};
+
+export type AutomationsListExecutionsResponses = {
+    200: RoutineExecutionPaginatedResponse;
+};
+
+export type AutomationsListExecutionsResponse = AutomationsListExecutionsResponses[keyof AutomationsListExecutionsResponses];
 
 export type AutomationsSetOwnershipData = {
     body: SetResourceAccessModeRequest;
@@ -9054,10 +9041,10 @@ export type AutomationsSetOwnershipData = {
          * Team ID
          */
         team_id: string;
-        automation_id: WrappedUuidV4;
+        routine_id: WrappedUuidV4;
     };
     query?: never;
-    url: '/api/v1/team/{team_id}/automations/{automation_id}/ownership';
+    url: '/api/v1/team/{team_id}/automations/{routine_id}/ownership';
 };
 
 export type AutomationsSetOwnershipResponses = {
@@ -9067,20 +9054,20 @@ export type AutomationsSetOwnershipResponses = {
 export type AutomationsSetOwnershipResponse = AutomationsSetOwnershipResponses[keyof AutomationsSetOwnershipResponses];
 
 export type AutomationsRunData = {
-    body: RunAutomationBody;
+    body: RunRoutineBody;
     path: {
         /**
          * Team ID
          */
         team_id: string;
-        automation_id: WrappedUuidV4;
+        routine_id: WrappedUuidV4;
     };
     query?: never;
-    url: '/api/v1/team/{team_id}/automations/{automation_id}/run';
+    url: '/api/v1/team/{team_id}/automations/{routine_id}/run';
 };
 
 export type AutomationsRunResponses = {
-    200: RunAutomationResponse;
+    200: RunRoutineResponse;
 };
 
 export type AutomationsRunResponse = AutomationsRunResponses[keyof AutomationsRunResponses];
@@ -9092,10 +9079,10 @@ export type AutomationsSetVisibilityData = {
          * Team ID
          */
         team_id: string;
-        automation_id: WrappedUuidV4;
+        routine_id: WrappedUuidV4;
     };
     query?: never;
-    url: '/api/v1/team/{team_id}/automations/{automation_id}/visibility';
+    url: '/api/v1/team/{team_id}/automations/{routine_id}/visibility';
 };
 
 export type AutomationsSetVisibilityResponses = {
@@ -9111,11 +9098,11 @@ export type AutomationsListGrantsData = {
          * Team ID
          */
         team_id: string;
-        automation_id: WrappedUuidV4;
+        routine_id: WrappedUuidV4;
         plane: ResourceGrantPlane;
     };
     query?: never;
-    url: '/api/v1/team/{team_id}/automations/{automation_id}/{plane}/grants';
+    url: '/api/v1/team/{team_id}/automations/{routine_id}/{plane}/grants';
 };
 
 export type AutomationsListGrantsResponses = {
@@ -9131,11 +9118,11 @@ export type AutomationsAddGrantData = {
          * Team ID
          */
         team_id: string;
-        automation_id: WrappedUuidV4;
+        routine_id: WrappedUuidV4;
         plane: ResourceGrantPlane;
     };
     query?: never;
-    url: '/api/v1/team/{team_id}/automations/{automation_id}/{plane}/grants';
+    url: '/api/v1/team/{team_id}/automations/{routine_id}/{plane}/grants';
 };
 
 export type AutomationsAddGrantResponses = {
@@ -9151,13 +9138,13 @@ export type AutomationsRemoveGrantData = {
          * Team ID
          */
         team_id: string;
-        automation_id: WrappedUuidV4;
+        routine_id: WrappedUuidV4;
         plane: ResourceGrantPlane;
         principal_type: ResourcePrincipalType;
         principal_id: string;
     };
     query?: never;
-    url: '/api/v1/team/{team_id}/automations/{automation_id}/{plane}/grants/{principal_type}/{principal_id}';
+    url: '/api/v1/team/{team_id}/automations/{routine_id}/{plane}/grants/{principal_type}/{principal_id}';
 };
 
 export type AutomationsRemoveGrantResponses = {
@@ -9640,6 +9627,40 @@ export type ChatkitUpdateAgentOwnershipResponses = {
 };
 
 export type ChatkitUpdateAgentOwnershipResponse = ChatkitUpdateAgentOwnershipResponses[keyof ChatkitUpdateAgentOwnershipResponses];
+
+export type ChatkitSetAgentPermissionsData = {
+    body: AgentPermissions;
+    path: {
+        /**
+         * Team ID
+         */
+        team_id: string;
+        /**
+         * ChatKit agent inbox ID
+         */
+        agent_id: string;
+    };
+    query?: never;
+    url: '/api/v1/team/{team_id}/chatkit/agents/{agent_id}/permissions';
+};
+
+export type ChatkitSetAgentPermissionsErrors = {
+    400: Error;
+    403: Error;
+    404: Error;
+    500: Error;
+};
+
+export type ChatkitSetAgentPermissionsError = ChatkitSetAgentPermissionsErrors[keyof ChatkitSetAgentPermissionsErrors];
+
+export type ChatkitSetAgentPermissionsResponses = {
+    /**
+     * Update what a ChatKit agent may reach
+     */
+    200: ChatKitAgent;
+};
+
+export type ChatkitSetAgentPermissionsResponse = ChatkitSetAgentPermissionsResponses[keyof ChatkitSetAgentPermissionsResponses];
 
 export type ChatkitGetAgentResourceBundleProvisioningData = {
     body?: never;
@@ -10431,237 +10452,6 @@ export type ChatkitHydrateConvertedMessagesResponses = {
 };
 
 export type ChatkitHydrateConvertedMessagesResponse = ChatkitHydrateConvertedMessagesResponses[keyof ChatkitHydrateConvertedMessagesResponses];
-
-export type ChatkitListRoutinesData = {
-    body?: never;
-    path: {
-        /**
-         * Team ID
-         */
-        team_id: string;
-    };
-    query?: {
-        page_size?: number;
-        next_page_token?: string | null;
-    };
-    url: '/api/v1/team/{team_id}/chatkit/routines';
-};
-
-export type ChatkitListRoutinesResponses = {
-    /**
-     * Routine list
-     */
-    200: RoutinePaginatedResponse;
-};
-
-export type ChatkitListRoutinesResponse = ChatkitListRoutinesResponses[keyof ChatkitListRoutinesResponses];
-
-export type ChatkitCreateRoutineData = {
-    body: CreateRoutineRequestInner;
-    path: {
-        /**
-         * Team ID
-         */
-        team_id: string;
-    };
-    query?: never;
-    url: '/api/v1/team/{team_id}/chatkit/routines';
-};
-
-export type ChatkitCreateRoutineErrors = {
-    /**
-     * Invalid schedule or routine
-     */
-    400: Error;
-    /**
-     * Internal Server Error
-     */
-    500: Error;
-};
-
-export type ChatkitCreateRoutineError = ChatkitCreateRoutineErrors[keyof ChatkitCreateRoutineErrors];
-
-export type ChatkitCreateRoutineResponses = {
-    /**
-     * Created routine
-     */
-    200: Routine;
-};
-
-export type ChatkitCreateRoutineResponse = ChatkitCreateRoutineResponses[keyof ChatkitCreateRoutineResponses];
-
-export type ChatkitDeleteRoutineData = {
-    body?: never;
-    path: {
-        /**
-         * Team ID
-         */
-        team_id: string;
-        /**
-         * Routine ID
-         */
-        routine_id: WrappedUuidV4;
-    };
-    query?: never;
-    url: '/api/v1/team/{team_id}/chatkit/routines/{routine_id}';
-};
-
-export type ChatkitDeleteRoutineResponses = {
-    /**
-     * Deletion result
-     */
-    200: DeleteRoutineResponse;
-};
-
-export type ChatkitDeleteRoutineResponse = ChatkitDeleteRoutineResponses[keyof ChatkitDeleteRoutineResponses];
-
-export type ChatkitGetRoutineData = {
-    body?: never;
-    path: {
-        /**
-         * Team ID
-         */
-        team_id: string;
-        /**
-         * Routine ID
-         */
-        routine_id: WrappedUuidV4;
-    };
-    query?: never;
-    url: '/api/v1/team/{team_id}/chatkit/routines/{routine_id}';
-};
-
-export type ChatkitGetRoutineResponses = {
-    /**
-     * Routine
-     */
-    200: Routine;
-};
-
-export type ChatkitGetRoutineResponse = ChatkitGetRoutineResponses[keyof ChatkitGetRoutineResponses];
-
-export type ChatkitUpdateRoutineData = {
-    body: UpdateRoutineRequestInner;
-    path: {
-        /**
-         * Team ID
-         */
-        team_id: string;
-        /**
-         * Routine ID
-         */
-        routine_id: WrappedUuidV4;
-    };
-    query?: never;
-    url: '/api/v1/team/{team_id}/chatkit/routines/{routine_id}';
-};
-
-export type ChatkitUpdateRoutineResponses = {
-    /**
-     * Updated routine
-     */
-    200: Routine;
-};
-
-export type ChatkitUpdateRoutineResponse = ChatkitUpdateRoutineResponses[keyof ChatkitUpdateRoutineResponses];
-
-export type SetChatkitRoutineOwnershipData = {
-    body: SetResourceAccessModeRequest;
-    path: {
-        /**
-         * Team ID
-         */
-        team_id: string;
-        routine_id: WrappedUuidV4;
-    };
-    query?: never;
-    url: '/api/v1/team/{team_id}/chatkit/routines/{routine_id}/ownership';
-};
-
-export type SetChatkitRoutineOwnershipResponses = {
-    200: ResourceAuthorization;
-};
-
-export type SetChatkitRoutineOwnershipResponse = SetChatkitRoutineOwnershipResponses[keyof SetChatkitRoutineOwnershipResponses];
-
-export type SetChatkitRoutineVisibilityData = {
-    body: SetResourceAccessModeRequest;
-    path: {
-        /**
-         * Team ID
-         */
-        team_id: string;
-        routine_id: WrappedUuidV4;
-    };
-    query?: never;
-    url: '/api/v1/team/{team_id}/chatkit/routines/{routine_id}/visibility';
-};
-
-export type SetChatkitRoutineVisibilityResponses = {
-    200: ResourceAuthorization;
-};
-
-export type SetChatkitRoutineVisibilityResponse = SetChatkitRoutineVisibilityResponses[keyof SetChatkitRoutineVisibilityResponses];
-
-export type ListChatkitRoutineGrantsData = {
-    body?: never;
-    path: {
-        /**
-         * Team ID
-         */
-        team_id: string;
-        routine_id: WrappedUuidV4;
-        plane: ResourceGrantPlane;
-    };
-    query?: never;
-    url: '/api/v1/team/{team_id}/chatkit/routines/{routine_id}/{plane}/grants';
-};
-
-export type ListChatkitRoutineGrantsResponses = {
-    200: Array<ResourceGrant>;
-};
-
-export type ListChatkitRoutineGrantsResponse = ListChatkitRoutineGrantsResponses[keyof ListChatkitRoutineGrantsResponses];
-
-export type AddChatkitRoutineGrantData = {
-    body: CreateResourcePlaneGrantRequest;
-    path: {
-        /**
-         * Team ID
-         */
-        team_id: string;
-        routine_id: WrappedUuidV4;
-        plane: ResourceGrantPlane;
-    };
-    query?: never;
-    url: '/api/v1/team/{team_id}/chatkit/routines/{routine_id}/{plane}/grants';
-};
-
-export type AddChatkitRoutineGrantResponses = {
-    200: ResourceGrant;
-};
-
-export type AddChatkitRoutineGrantResponse = AddChatkitRoutineGrantResponses[keyof AddChatkitRoutineGrantResponses];
-
-export type RemoveChatkitRoutineGrantData = {
-    body?: never;
-    path: {
-        /**
-         * Team ID
-         */
-        team_id: string;
-        routine_id: WrappedUuidV4;
-        plane: ResourceGrantPlane;
-        principal_type: ResourcePrincipalType;
-        principal_id: string;
-    };
-    query?: never;
-    url: '/api/v1/team/{team_id}/chatkit/routines/{routine_id}/{plane}/grants/{principal_type}/{principal_id}';
-};
-
-export type RemoveChatkitRoutineGrantResponses = {
-    200: unknown;
-};
 
 export type ListSessionsData = {
     body?: never;
@@ -17029,7 +16819,7 @@ export type SignalsListDeliveriesData = {
 };
 
 export type SignalsListDeliveriesResponses = {
-    200: Array<SignalDelivery>;
+    200: SignalDeliveryPaginatedResponse;
 };
 
 export type SignalsListDeliveriesResponse = SignalsListDeliveriesResponses[keyof SignalsListDeliveriesResponses];
@@ -17090,7 +16880,7 @@ export type SignalsListProviderInstancesData = {
 };
 
 export type SignalsListProviderInstancesResponses = {
-    200: Array<SignalProviderInstance>;
+    200: SignalProviderInstancePaginatedResponse;
 };
 
 export type SignalsListProviderInstancesResponse = SignalsListProviderInstancesResponses[keyof SignalsListProviderInstancesResponses];
@@ -17303,206 +17093,10 @@ export type SignalsListAvailableProvidersData = {
 };
 
 export type SignalsListAvailableProvidersResponses = {
-    200: Array<SignalProviderSourceSerialized>;
+    200: SignalProviderSourceSerializedPaginatedResponse;
 };
 
 export type SignalsListAvailableProvidersResponse = SignalsListAvailableProvidersResponses[keyof SignalsListAvailableProvidersResponses];
-
-export type SignalsListRulesData = {
-    body?: never;
-    path: {
-        /**
-         * Team ID
-         */
-        team_id: string;
-    };
-    query?: {
-        page_size?: number;
-        next_page_token?: string;
-        instance_id?: string;
-        status?: string;
-    };
-    url: '/api/v1/team/{team_id}/signals/rules';
-};
-
-export type SignalsListRulesResponses = {
-    200: Array<SignalRule>;
-};
-
-export type SignalsListRulesResponse = SignalsListRulesResponses[keyof SignalsListRulesResponses];
-
-export type SignalsCreateRuleData = {
-    body: CreateSignalRuleRequestInner;
-    path: {
-        /**
-         * Team ID
-         */
-        team_id: string;
-    };
-    query?: never;
-    url: '/api/v1/team/{team_id}/signals/rules';
-};
-
-export type SignalsCreateRuleResponses = {
-    200: SignalRule;
-};
-
-export type SignalsCreateRuleResponse = SignalsCreateRuleResponses[keyof SignalsCreateRuleResponses];
-
-export type SetSignalRuleOwnershipData = {
-    body: SetResourceAccessModeRequest;
-    path: {
-        /**
-         * Team ID
-         */
-        team_id: string;
-        id: WrappedUuidV4;
-    };
-    query?: never;
-    url: '/api/v1/team/{team_id}/signals/rules/{id}/ownership';
-};
-
-export type SetSignalRuleOwnershipResponses = {
-    200: ResourceAuthorization;
-};
-
-export type SetSignalRuleOwnershipResponse = SetSignalRuleOwnershipResponses[keyof SetSignalRuleOwnershipResponses];
-
-export type SetSignalRuleVisibilityData = {
-    body: SetResourceAccessModeRequest;
-    path: {
-        /**
-         * Team ID
-         */
-        team_id: string;
-        id: WrappedUuidV4;
-    };
-    query?: never;
-    url: '/api/v1/team/{team_id}/signals/rules/{id}/visibility';
-};
-
-export type SetSignalRuleVisibilityResponses = {
-    200: ResourceAuthorization;
-};
-
-export type SetSignalRuleVisibilityResponse = SetSignalRuleVisibilityResponses[keyof SetSignalRuleVisibilityResponses];
-
-export type ListSignalRuleGrantsData = {
-    body?: never;
-    path: {
-        /**
-         * Team ID
-         */
-        team_id: string;
-        id: WrappedUuidV4;
-        plane: ResourceGrantPlane;
-    };
-    query?: never;
-    url: '/api/v1/team/{team_id}/signals/rules/{id}/{plane}/grants';
-};
-
-export type ListSignalRuleGrantsResponses = {
-    200: Array<ResourceGrant>;
-};
-
-export type ListSignalRuleGrantsResponse = ListSignalRuleGrantsResponses[keyof ListSignalRuleGrantsResponses];
-
-export type AddSignalRuleGrantData = {
-    body: CreateResourcePlaneGrantRequest;
-    path: {
-        /**
-         * Team ID
-         */
-        team_id: string;
-        id: WrappedUuidV4;
-        plane: ResourceGrantPlane;
-    };
-    query?: never;
-    url: '/api/v1/team/{team_id}/signals/rules/{id}/{plane}/grants';
-};
-
-export type AddSignalRuleGrantResponses = {
-    200: ResourceGrant;
-};
-
-export type AddSignalRuleGrantResponse = AddSignalRuleGrantResponses[keyof AddSignalRuleGrantResponses];
-
-export type RemoveSignalRuleGrantData = {
-    body?: never;
-    path: {
-        /**
-         * Team ID
-         */
-        team_id: string;
-        id: WrappedUuidV4;
-        plane: ResourceGrantPlane;
-        principal_type: ResourcePrincipalType;
-        principal_id: string;
-    };
-    query?: never;
-    url: '/api/v1/team/{team_id}/signals/rules/{id}/{plane}/grants/{principal_type}/{principal_id}';
-};
-
-export type RemoveSignalRuleGrantResponses = {
-    200: unknown;
-};
-
-export type SignalsDeleteRuleData = {
-    body?: never;
-    path: {
-        /**
-         * Team ID
-         */
-        team_id: string;
-        rule_id: WrappedUuidV4;
-    };
-    query?: never;
-    url: '/api/v1/team/{team_id}/signals/rules/{rule_id}';
-};
-
-export type SignalsDeleteRuleResponses = {
-    200: DeleteSignalResponse;
-};
-
-export type SignalsDeleteRuleResponse = SignalsDeleteRuleResponses[keyof SignalsDeleteRuleResponses];
-
-export type SignalsGetRuleData = {
-    body?: never;
-    path: {
-        /**
-         * Team ID
-         */
-        team_id: string;
-        rule_id: WrappedUuidV4;
-    };
-    query?: never;
-    url: '/api/v1/team/{team_id}/signals/rules/{rule_id}';
-};
-
-export type SignalsGetRuleResponses = {
-    200: SignalRule;
-};
-
-export type SignalsGetRuleResponse = SignalsGetRuleResponses[keyof SignalsGetRuleResponses];
-
-export type SignalsUpdateRuleData = {
-    body: UpdateSignalRuleRequestInner;
-    path: {
-        /**
-         * Team ID
-         */
-        team_id: string;
-        rule_id: WrappedUuidV4;
-    };
-    query?: never;
-    url: '/api/v1/team/{team_id}/signals/rules/{rule_id}';
-};
-
-export type SignalsUpdateRuleResponses = {
-    200: SignalRule;
-};
-
-export type SignalsUpdateRuleResponse = SignalsUpdateRuleResponses[keyof SignalsUpdateRuleResponses];
 
 export type ListSkillsData = {
     body?: never;
@@ -21271,7 +20865,7 @@ export type SignalsListPersonalDeliveriesData = {
 };
 
 export type SignalsListPersonalDeliveriesResponses = {
-    200: Array<SignalDelivery>;
+    200: SignalDeliveryPaginatedResponse;
 };
 
 export type SignalsListPersonalDeliveriesResponse = SignalsListPersonalDeliveriesResponses[keyof SignalsListPersonalDeliveriesResponses];
@@ -21323,7 +20917,7 @@ export type SignalsListPersonalProviderInstancesData = {
 };
 
 export type SignalsListPersonalProviderInstancesResponses = {
-    200: Array<SignalProviderInstance>;
+    200: SignalProviderInstancePaginatedResponse;
 };
 
 export type SignalsListPersonalProviderInstancesResponse = SignalsListPersonalProviderInstancesResponses[keyof SignalsListPersonalProviderInstancesResponses];
@@ -21487,176 +21081,10 @@ export type SignalsListPersonalAvailableProvidersData = {
 };
 
 export type SignalsListPersonalAvailableProvidersResponses = {
-    200: Array<SignalProviderSourceSerialized>;
+    200: SignalProviderSourceSerializedPaginatedResponse;
 };
 
 export type SignalsListPersonalAvailableProvidersResponse = SignalsListPersonalAvailableProvidersResponses[keyof SignalsListPersonalAvailableProvidersResponses];
-
-export type SignalsListPersonalRulesData = {
-    body?: never;
-    path: {
-        user_id: string;
-    };
-    query?: {
-        page_size?: number;
-        next_page_token?: string;
-        instance_id?: string;
-        status?: string;
-    };
-    url: '/api/v1/user/{user_id}/signals/rules';
-};
-
-export type SignalsListPersonalRulesResponses = {
-    200: Array<SignalRule>;
-};
-
-export type SignalsListPersonalRulesResponse = SignalsListPersonalRulesResponses[keyof SignalsListPersonalRulesResponses];
-
-export type SignalsCreatePersonalRuleData = {
-    body: CreateSignalRuleRequestInner;
-    path: {
-        user_id: string;
-    };
-    query?: never;
-    url: '/api/v1/user/{user_id}/signals/rules';
-};
-
-export type SignalsCreatePersonalRuleResponses = {
-    200: SignalRule;
-};
-
-export type SignalsCreatePersonalRuleResponse = SignalsCreatePersonalRuleResponses[keyof SignalsCreatePersonalRuleResponses];
-
-export type SignalsDeletePersonalRuleData = {
-    body?: never;
-    path: {
-        user_id: string;
-        rule_id: WrappedUuidV4;
-    };
-    query?: never;
-    url: '/api/v1/user/{user_id}/signals/rules/{rule_id}';
-};
-
-export type SignalsDeletePersonalRuleResponses = {
-    200: DeleteSignalResponse;
-};
-
-export type SignalsDeletePersonalRuleResponse = SignalsDeletePersonalRuleResponses[keyof SignalsDeletePersonalRuleResponses];
-
-export type SignalsGetPersonalRuleData = {
-    body?: never;
-    path: {
-        user_id: string;
-        rule_id: WrappedUuidV4;
-    };
-    query?: never;
-    url: '/api/v1/user/{user_id}/signals/rules/{rule_id}';
-};
-
-export type SignalsGetPersonalRuleResponses = {
-    200: SignalRule;
-};
-
-export type SignalsGetPersonalRuleResponse = SignalsGetPersonalRuleResponses[keyof SignalsGetPersonalRuleResponses];
-
-export type SignalsUpdatePersonalRuleData = {
-    body: UpdateSignalRuleRequestInner;
-    path: {
-        user_id: string;
-        rule_id: WrappedUuidV4;
-    };
-    query?: never;
-    url: '/api/v1/user/{user_id}/signals/rules/{rule_id}';
-};
-
-export type SignalsUpdatePersonalRuleResponses = {
-    200: SignalRule;
-};
-
-export type SignalsUpdatePersonalRuleResponse = SignalsUpdatePersonalRuleResponses[keyof SignalsUpdatePersonalRuleResponses];
-
-export type SignalsSetPersonalRuleOwnershipData = {
-    body: SetResourceAccessModeRequest;
-    path: {
-        user_id: string;
-        rule_id: WrappedUuidV4;
-    };
-    query?: never;
-    url: '/api/v1/user/{user_id}/signals/rules/{rule_id}/ownership';
-};
-
-export type SignalsSetPersonalRuleOwnershipResponses = {
-    200: ResourceAuthorization;
-};
-
-export type SignalsSetPersonalRuleOwnershipResponse = SignalsSetPersonalRuleOwnershipResponses[keyof SignalsSetPersonalRuleOwnershipResponses];
-
-export type SignalsSetPersonalRuleVisibilityData = {
-    body: SetResourceAccessModeRequest;
-    path: {
-        user_id: string;
-        rule_id: WrappedUuidV4;
-    };
-    query?: never;
-    url: '/api/v1/user/{user_id}/signals/rules/{rule_id}/visibility';
-};
-
-export type SignalsSetPersonalRuleVisibilityResponses = {
-    200: ResourceAuthorization;
-};
-
-export type SignalsSetPersonalRuleVisibilityResponse = SignalsSetPersonalRuleVisibilityResponses[keyof SignalsSetPersonalRuleVisibilityResponses];
-
-export type SignalsListPersonalRuleGrantsData = {
-    body?: never;
-    path: {
-        user_id: string;
-        rule_id: WrappedUuidV4;
-        plane: ResourceGrantPlane;
-    };
-    query?: never;
-    url: '/api/v1/user/{user_id}/signals/rules/{rule_id}/{plane}/grants';
-};
-
-export type SignalsListPersonalRuleGrantsResponses = {
-    200: Array<ResourceGrant>;
-};
-
-export type SignalsListPersonalRuleGrantsResponse = SignalsListPersonalRuleGrantsResponses[keyof SignalsListPersonalRuleGrantsResponses];
-
-export type SignalsAddPersonalRuleGrantData = {
-    body: CreateResourcePlaneGrantRequest;
-    path: {
-        user_id: string;
-        rule_id: WrappedUuidV4;
-        plane: ResourceGrantPlane;
-    };
-    query?: never;
-    url: '/api/v1/user/{user_id}/signals/rules/{rule_id}/{plane}/grants';
-};
-
-export type SignalsAddPersonalRuleGrantResponses = {
-    200: ResourceGrant;
-};
-
-export type SignalsAddPersonalRuleGrantResponse = SignalsAddPersonalRuleGrantResponses[keyof SignalsAddPersonalRuleGrantResponses];
-
-export type SignalsRemovePersonalRuleGrantData = {
-    body?: never;
-    path: {
-        user_id: string;
-        rule_id: WrappedUuidV4;
-        plane: ResourceGrantPlane;
-        principal_type: ResourcePrincipalType;
-        principal_id: string;
-    };
-    query?: never;
-    url: '/api/v1/user/{user_id}/signals/rules/{rule_id}/{plane}/grants/{principal_type}/{principal_id}';
-};
-
-export type SignalsRemovePersonalRuleGrantResponses = {
-    200: unknown;
-};
 
 export type ListPersonalSkillsData = {
     body?: never;

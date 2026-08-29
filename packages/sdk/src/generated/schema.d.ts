@@ -1332,8 +1332,8 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * List unified automations
-         * @description Lists authoritative automation roots, filterable by agent and reconciliation status.
+         * List unified routines
+         * @description Lists native Routine roots and their schedule or event triggers, filterable by agent.
          */
         get: operations["automations-list"];
         put?: never;
@@ -1344,7 +1344,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/team/{team_id}/automations/{automation_id}": {
+    "/api/v1/team/{team_id}/automations/{routine_id}": {
         parameters: {
             query?: never;
             header?: never;
@@ -1352,19 +1352,19 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Get a unified automation
-         * @description Gets the persisted root, trigger membership, generation, and reconciliation status.
+         * Get a unified routine
+         * @description Gets the native root, trigger configuration, schedule telemetry, and version.
          */
         get: operations["automations-get"];
         /**
-         * Create or replace a unified automation
-         * @description Persists and serially reconciles desired schedule and event triggers. Reconciliation failure remains observable on the root.
+         * Create or replace a unified routine
+         * @description Atomically persists the Routine root and its complete native schedule/event trigger set.
          */
         put: operations["automations-put"];
         post?: never;
         /**
-         * Delete a unified automation
-         * @description Deletes all materialized members before deleting the authoritative root.
+         * Delete a unified routine
+         * @description Deletes the Routine root and cascading triggers when no schedule execution holds a live lease.
          */
         delete: operations["automations-delete"];
         options?: never;
@@ -1372,7 +1372,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/team/{team_id}/automations/{automation_id}/ownership": {
+    "/api/v1/team/{team_id}/automations/{routine_id}/executions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List routine executions
+         * @description Lists durable manual, schedule, and event executions for one visible Routine.
+         */
+        get: operations["automations-list-executions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/team/{team_id}/automations/{routine_id}/ownership": {
         parameters: {
             query?: never;
             header?: never;
@@ -1382,7 +1402,7 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Set automation ownership
+         * Set routine ownership
          * @description Sets the persisted ownership mode and preserves an effective-user grant when made private.
          */
         post: operations["automations-set-ownership"];
@@ -1392,7 +1412,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/team/{team_id}/automations/{automation_id}/run": {
+    "/api/v1/team/{team_id}/automations/{routine_id}/run": {
         parameters: {
             query?: never;
             header?: never;
@@ -1402,7 +1422,7 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Run a unified automation
+         * Run a unified routine
          * @description Runs once for the supplied durable run ID and returns the existing result on retry.
          */
         post: operations["automations-run"];
@@ -1412,7 +1432,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/team/{team_id}/automations/{automation_id}/visibility": {
+    "/api/v1/team/{team_id}/automations/{routine_id}/visibility": {
         parameters: {
             query?: never;
             header?: never;
@@ -1422,7 +1442,7 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Set automation visibility
+         * Set routine visibility
          * @description Sets the persisted visibility mode and preserves an effective-user grant when made private.
          */
         post: operations["automations-set-visibility"];
@@ -1432,7 +1452,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/team/{team_id}/automations/{automation_id}/{plane}/grants": {
+    "/api/v1/team/{team_id}/automations/{routine_id}/{plane}/grants": {
         parameters: {
             query?: never;
             header?: never;
@@ -1440,13 +1460,13 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * List automation grants
-         * @description Lists grants on the selected automation authorization plane.
+         * List routine grants
+         * @description Lists grants on the selected routine authorization plane.
          */
         get: operations["automations-list-grants"];
         put?: never;
         /**
-         * Add an automation grant
+         * Add a routine grant
          * @description Validates and adds a principal grant on the selected authorization plane.
          */
         post: operations["automations-add-grant"];
@@ -1456,7 +1476,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/team/{team_id}/automations/{automation_id}/{plane}/grants/{principal_type}/{principal_id}": {
+    "/api/v1/team/{team_id}/automations/{routine_id}/{plane}/grants/{principal_type}/{principal_id}": {
         parameters: {
             query?: never;
             header?: never;
@@ -1467,7 +1487,7 @@ export interface paths {
         put?: never;
         post?: never;
         /**
-         * Remove an automation grant
+         * Remove a routine grant
          * @description Idempotently removes a principal grant while retaining at least one private ownership grant.
          */
         delete: operations["automations-remove-grant"];
@@ -1706,6 +1726,26 @@ export interface paths {
          * @description Set the agent ownership plane to team or private. Private mode retains a creator ownership grant.
          */
         post: operations["chatkit-update-agent-ownership"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/team/{team_id}/chatkit/agents/{agent_id}/permissions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Update ChatKit agent permissions
+         * @description Sets whether an agent may delegate to other agents and create multi-party sessions, and which agents or users it may reach. Permissions narrow reach: they intersect with the visibility plane and never grant access to an agent the caller cannot already see. An agent with no permissions is offered no delegation tools at all.
+         */
+        put: operations["chatkit-set-agent-permissions"];
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -2163,122 +2203,6 @@ export interface paths {
          */
         post: operations["chatkit-hydrate-converted-messages"];
         delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/team/{team_id}/chatkit/routines": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * List ChatKit routines
-         * @description Lists scheduled prompts for one team.
-         */
-        get: operations["chatkit-list-routines"];
-        put?: never;
-        /**
-         * Create a ChatKit routine
-         * @description Creates a minute-granularity UTC cron schedule that prompts one ChatKit agent.
-         */
-        post: operations["chatkit-create-routine"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/team/{team_id}/chatkit/routines/{routine_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get a ChatKit routine
-         * @description Gets one scheduled prompt.
-         */
-        get: operations["chatkit-get-routine"];
-        put?: never;
-        post?: never;
-        /**
-         * Delete a ChatKit routine
-         * @description Deletes one scheduled prompt.
-         */
-        delete: operations["chatkit-delete-routine"];
-        options?: never;
-        head?: never;
-        /**
-         * Update a ChatKit routine
-         * @description Updates a routine and recomputes its next UTC occurrence.
-         */
-        patch: operations["chatkit-update-routine"];
-        trace?: never;
-    };
-    "/api/v1/team/{team_id}/chatkit/routines/{routine_id}/ownership": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["set-chatkit-routine-ownership"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/team/{team_id}/chatkit/routines/{routine_id}/visibility": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["set-chatkit-routine-visibility"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/team/{team_id}/chatkit/routines/{routine_id}/{plane}/grants": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["list-chatkit-routine-grants"];
-        put?: never;
-        post: operations["add-chatkit-routine-grant"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/team/{team_id}/chatkit/routines/{routine_id}/{plane}/grants/{principal_type}/{principal_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        delete: operations["remove-chatkit-routine-grant"];
         options?: never;
         head?: never;
         patch?: never;
@@ -5810,122 +5734,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/team/{team_id}/signals/rules": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * List SignalRules
-         * @description List SignalRules.
-         */
-        get: operations["signals-list-rules"];
-        put?: never;
-        /**
-         * Create SignalRule
-         * @description Create a SignalRule mapping incoming signals to ChatKit actions.
-         */
-        post: operations["signals-create-rule"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/team/{team_id}/signals/rules/{id}/ownership": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["set-signal-rule-ownership"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/team/{team_id}/signals/rules/{id}/visibility": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["set-signal-rule-visibility"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/team/{team_id}/signals/rules/{id}/{plane}/grants": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["list-signal-rule-grants"];
-        put?: never;
-        post: operations["add-signal-rule-grant"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/team/{team_id}/signals/rules/{id}/{plane}/grants/{principal_type}/{principal_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        delete: operations["remove-signal-rule-grant"];
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/team/{team_id}/signals/rules/{rule_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get SignalRule
-         * @description Get a SignalRule.
-         */
-        get: operations["signals-get-rule"];
-        put?: never;
-        post?: never;
-        /**
-         * Delete SignalRule
-         * @description Delete a SignalRule.
-         */
-        delete: operations["signals-delete-rule"];
-        options?: never;
-        head?: never;
-        /**
-         * Update SignalRule
-         * @description Update a SignalRule.
-         */
-        patch: operations["signals-update-rule"];
-        trace?: never;
-    };
     "/api/v1/team/{team_id}/skill": {
         parameters: {
             query?: never;
@@ -8390,122 +8198,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/user/{user_id}/signals/rules": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["signals-list-personal-rules"];
-        put?: never;
-        post: operations["signals-create-personal-rule"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/user/{user_id}/signals/rules/{rule_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["signals-get-personal-rule"];
-        put?: never;
-        post?: never;
-        delete: operations["signals-delete-personal-rule"];
-        options?: never;
-        head?: never;
-        patch: operations["signals-update-personal-rule"];
-        trace?: never;
-    };
-    "/api/v1/user/{user_id}/signals/rules/{rule_id}/ownership": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Set personal signal rule ownership
-         * @description Set the persisted ownership mode for a personal signal rule. Personal rules cannot be widened to team ownership.
-         */
-        post: operations["signals-set-personal-rule-ownership"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/user/{user_id}/signals/rules/{rule_id}/visibility": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Set personal signal rule visibility
-         * @description Set the persisted visibility mode for a personal signal rule. Personal rules cannot be widened to team visibility.
-         */
-        post: operations["signals-set-personal-rule-visibility"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/user/{user_id}/signals/rules/{rule_id}/{plane}/grants": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * List personal signal rule grants
-         * @description List persisted grants for one authorization plane on a personal signal rule.
-         */
-        get: operations["signals-list-personal-rule-grants"];
-        put?: never;
-        /**
-         * Add personal signal rule grant
-         * @description Add a principal grant to the URL-selected authorization plane on a personal signal rule.
-         */
-        post: operations["signals-add-personal-rule-grant"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/user/{user_id}/signals/rules/{rule_id}/{plane}/grants/{principal_type}/{principal_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        /**
-         * Remove personal signal rule grant
-         * @description Remove a principal grant from the URL-selected authorization plane on a personal signal rule.
-         */
-        delete: operations["signals-remove-personal-rule-grant"];
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/user/{user_id}/skill": {
         parameters: {
             query?: never;
@@ -9085,6 +8777,13 @@ export interface components {
         };
         /** @enum {string} */
         AgentEventVisibility: "hidden" | "summary" | "details";
+        /** @description Who an agent may pull into a session it creates. */
+        AgentMultiplayerPermissions: {
+            /** @description Agents the agent may add. */
+            with_agents?: components["schemas"]["AgentReachScope"];
+            /** @description Tilde users the agent may add. */
+            with_users?: components["schemas"]["AgentReachScope"];
+        };
         AgentObservabilityConfiguration: {
             policy: components["schemas"]["AgentObservabilityPolicy"];
             tools: components["schemas"]["AgentToolCatalogEntry"][];
@@ -9098,6 +8797,19 @@ export interface components {
             thinking_visibility: components["schemas"]["AgentEventVisibility"];
             tool_visibility: components["schemas"]["AgentEventVisibility"];
             updated_at: components["schemas"]["WrappedChronoDateTime"];
+        };
+        /** @description The reach recorded on an agent record. */
+        AgentPermissions: {
+            /**
+             * @description Whether the agent may create a session with more than two parties, and
+             *     who it may add.
+             */
+            create_multiplayer_sessions?: components["schemas"]["AgentMultiplayerPermissions"];
+            /**
+             * @description Whether the agent may open a private child conversation with another
+             *     agent, and with which agents.
+             */
+            delegate_to_other_agents?: components["schemas"]["AgentReachScope"];
         };
         AgentProvisioningOperation: {
             agent_id: string;
@@ -9123,6 +8835,19 @@ export interface components {
         };
         /** @enum {string} */
         AgentProvisioningStatus: "queued" | "running" | "active" | "error" | "deprovisioning";
+        /** @description Who an agent may reach for one kind of action. */
+        AgentReachScope: {
+            /** @enum {string} */
+            mode: "none";
+        } | {
+            /** @enum {string} */
+            mode: "any";
+        } | {
+            /** @description Agent inbox ids or Tilde user ids, depending on the field. */
+            ids: string[];
+            /** @enum {string} */
+            mode: "only";
+        };
         AgentSpec: {
             credential_strategy?: components["schemas"]["AgentCredentialStrategy"];
             display_name: string;
@@ -9220,64 +8945,6 @@ export interface components {
             broker_response?: null | components["schemas"]["UserCredentialBrokeringResponse"];
             provider_provisioning_response: components["schemas"]["ProviderAppProvisioningResponse"];
             tool_group_instance?: null | components["schemas"]["ToolGroupInstanceSerialized"];
-        };
-        Automation: {
-            agent_id: string;
-            /** Format: int64 */
-            applied_generation: number;
-            authorization: components["schemas"]["ResourceAuthorizationModes"];
-            created_at: components["schemas"]["WrappedChronoDateTime"];
-            created_by_user_id: string;
-            enabled: boolean;
-            error_message?: string | null;
-            /** Format: int64 */
-            generation: number;
-            id: components["schemas"]["WrappedUuidV4"];
-            instruction: string;
-            /** @description Execution error paired with the latest materialized schedule execution. */
-            last_error?: string | null;
-            last_run_at?: null | components["schemas"]["WrappedChronoDateTime"];
-            last_session_id?: null | components["schemas"]["WrappedUuidV4"];
-            name: string;
-            org_id: string;
-            status: components["schemas"]["AutomationStatus"];
-            team_id: string;
-            triggers: components["schemas"]["AutomationTrigger"][];
-            updated_at: components["schemas"]["WrappedChronoDateTime"];
-        };
-        AutomationPaginatedResponse: {
-            items: components["schemas"]["Automation"][];
-            next_page_token?: string;
-        };
-        /** @enum {string} */
-        AutomationStatus: "reconciling" | "active" | "error" | "deleting";
-        AutomationTrigger: components["schemas"]["AutomationTriggerSpec"] & {
-            created_at: components["schemas"]["WrappedChronoDateTime"];
-            id: components["schemas"]["WrappedUuidV4"];
-            /** @description Schedule-only live projection from the materialized ChatKit routine. */
-            last_error?: string | null;
-            last_run_at?: null | components["schemas"]["WrappedChronoDateTime"];
-            last_session_id?: null | components["schemas"]["WrappedUuidV4"];
-            materialized_resource_id?: null | components["schemas"]["WrappedUuidV4"];
-            next_run_at?: null | components["schemas"]["WrappedChronoDateTime"];
-            /** @description Schedule-only live projection from the materialized ChatKit routine. */
-            schedule_description?: string | null;
-            updated_at: components["schemas"]["WrappedChronoDateTime"];
-        };
-        AutomationTriggerInput: components["schemas"]["AutomationTriggerSpec"] & {
-            id: components["schemas"]["WrappedUuidV4"];
-        };
-        AutomationTriggerSpec: {
-            /** @enum {string} */
-            kind: "schedule";
-            schedule: string;
-        } | {
-            filter?: components["schemas"]["SignalRuleFilter"];
-            /** @enum {string} */
-            kind: "event";
-            session_policy?: null | components["schemas"]["SignalSessionPolicy"];
-            signal_provider_instance_id: string;
-            signal_type: string;
         };
         /** @description Typed billing bootstrap response for the selected organization. */
         BillingContext: {
@@ -10112,17 +9779,6 @@ export interface components {
             resource_server_credential_id?: null | components["schemas"]["WrappedUuidV4"];
             user_credential_id?: null | components["schemas"]["WrappedUuidV4"];
         };
-        /** @description User-authored fields for a new routine. */
-        CreateRoutineRequestInner: {
-            agent_inbox_id: string;
-            authorization?: components["schemas"]["ResourceAuthorizationModes"];
-            enabled?: boolean;
-            initial_grants?: components["schemas"]["ResourceGrantRequest"][];
-            metadata?: null | components["schemas"]["WrappedJsonValue"];
-            prompt: string;
-            schedule: string;
-            title: string;
-        };
         /** @description Inner create fields for a ChatKit session. */
         CreateSessionInner: {
             authorization?: components["schemas"]["ResourceAuthorizationModes"];
@@ -10179,19 +9835,6 @@ export interface components {
             signal_provider_source_type_id: string;
             user_credential_id?: null | components["schemas"]["WrappedUuidV4"];
             webhook_endpoint_id?: string | null;
-        };
-        CreateSignalRuleRequestInner: {
-            action: components["schemas"]["SignalAction"];
-            authorization?: components["schemas"]["ResourceAuthorizationModes"];
-            display_name: string;
-            filter?: components["schemas"]["SignalRuleFilter"];
-            id?: null | components["schemas"]["WrappedUuidV4"];
-            initial_grants?: components["schemas"]["ResourceGrantRequest"][];
-            metadata?: null | components["schemas"]["WrappedJsonValue"];
-            session_policy: components["schemas"]["SignalSessionPolicy"];
-            signal_provider_instance_id: string;
-            signal_type: string;
-            target_team_id?: string | null;
         };
         /** @description Inner create-skill payload with tenant fields supplied by the wrapper. */
         CreateSkillInner: {
@@ -10475,9 +10118,6 @@ export interface components {
         DebugAuthProfilesResponse: {
             profiles: string[];
         };
-        DeleteAutomationResponse: {
-            deleted: boolean;
-        };
         DeleteChatKitAgentTurnQueueItemResponse: {
             deleted: boolean;
         };
@@ -10492,7 +10132,6 @@ export interface components {
         DeleteMessageResponse: {
             success: boolean;
         };
-        /** @description Routine deletion response. */
         DeleteRoutineResponse: {
             deleted: boolean;
         };
@@ -10882,19 +10521,30 @@ export interface components {
         };
         /** @description Cross-crate public inbox view. */
         Inbox: {
+            agent_permissions?: null | components["schemas"]["AgentPermissions"];
+            api_key_id?: string | null;
             authorization: components["schemas"]["ResourceAuthorizationModes"];
             common_provider_installation_id?: string | null;
+            concurrency_policy?: string | null;
             configuration: components["schemas"]["WrappedJsonValue"];
             created_at: components["schemas"]["WrappedChronoDateTime"];
             created_by_user_id?: string | null;
+            /** @description Human-readable name. Unique per team and inbox type. */
+            display_name?: string | null;
+            /** @description Agent HTTP endpoint. `None` for anything that is not an agent. */
+            endpoint_url?: string | null;
             id: string;
             inbox_type?: components["schemas"]["InboxType"];
+            local_running_endpoint?: boolean | null;
             lookup_key?: string | null;
             message_format?: null | components["schemas"]["MessageFormatConfig"];
             org_id: string;
             provider_id: string;
             status: components["schemas"]["InboxStatus"];
+            streaming?: boolean | null;
             team_id: string;
+            /** Format: int64 */
+            timeout_ms?: number | null;
             updated_at: components["schemas"]["WrappedChronoDateTime"];
         };
         /** @description Stored inbox instance representation. */
@@ -12000,14 +11650,17 @@ export interface components {
             /** @enum {string} */
             kind: "query_param";
         };
-        PutAutomationBody: {
+        PutRoutineBody: {
             agent_id: string;
             authorization?: components["schemas"]["ResourceAuthorizationModes"];
             enabled?: boolean;
+            /** Format: int64 */
+            expected_version?: number | null;
             initial_grants?: components["schemas"]["ResourceGrantRequest"][];
             instruction: string;
+            metadata?: null | components["schemas"]["WrappedJsonValue"];
             name: string;
-            triggers: components["schemas"]["AutomationTriggerInput"][];
+            triggers: components["schemas"]["RoutineTriggerInput"][];
         };
         /** @description Reasoning UI part - represents model reasoning/thinking */
         ReasoningUIPart: {
@@ -12417,38 +12070,84 @@ export interface components {
             signing_key: string;
             signing_key_metadata: components["schemas"]["WebhookSigningKeyMetadata"];
         };
-        /** @description A recurring prompt scheduled against one ChatKit agent. */
         Routine: {
-            agent_inbox_id: string;
+            agent_id: string;
             authorization: components["schemas"]["ResourceAuthorizationModes"];
             created_at: components["schemas"]["WrappedChronoDateTime"];
-            created_by_user_id?: string | null;
+            created_by_user_id: string;
+            enabled: boolean;
+            id: components["schemas"]["WrappedUuidV4"];
+            instruction: string;
+            last_error?: string | null;
+            last_run_at?: null | components["schemas"]["WrappedChronoDateTime"];
+            last_session_id?: null | components["schemas"]["WrappedUuidV4"];
+            metadata?: null | components["schemas"]["WrappedJsonValue"];
+            name: string;
+            org_id: string;
+            team_id: string;
+            triggers: components["schemas"]["RoutineTrigger"][];
+            updated_at: components["schemas"]["WrappedChronoDateTime"];
+            /** Format: int64 */
+            version: number;
+        };
+        /** @enum {string} */
+        RoutineEventInstructionPolicy: "signal_only" | "signal_and_instruction";
+        RoutineExecution: {
+            completed_at?: null | components["schemas"]["WrappedChronoDateTime"];
+            error?: string | null;
+            id: components["schemas"]["WrappedUuidV4"];
+            org_id: string;
+            routine_id: components["schemas"]["WrappedUuidV4"];
+            session_id?: null | components["schemas"]["WrappedUuidV4"];
+            signal_delivery_id?: null | components["schemas"]["WrappedUuidV4"];
+            started_at: components["schemas"]["WrappedChronoDateTime"];
+            status: string;
+            team_id: string;
+            trigger_id?: null | components["schemas"]["WrappedUuidV4"];
+        };
+        RoutineExecutionPaginatedResponse: {
+            items: components["schemas"]["RoutineExecution"][];
+            next_page_token?: string;
+        };
+        RoutinePaginatedResponse: {
+            items: components["schemas"]["Routine"][];
+            next_page_token?: string;
+        };
+        RoutineTrigger: components["schemas"]["RoutineTriggerSpec"] & {
+            created_at: components["schemas"]["WrappedChronoDateTime"];
             enabled: boolean;
             id: components["schemas"]["WrappedUuidV4"];
             last_error?: string | null;
             last_run_at?: null | components["schemas"]["WrappedChronoDateTime"];
             last_session_id?: null | components["schemas"]["WrappedUuidV4"];
             metadata?: null | components["schemas"]["WrappedJsonValue"];
-            next_run_at: components["schemas"]["WrappedChronoDateTime"];
-            org_id: string;
-            prompt: string;
-            /** @description Minute-granularity cron expression evaluated in UTC. */
-            schedule: string;
-            /** @description Human-readable rendering of `schedule`. */
-            schedule_description: string;
-            team_id: string;
-            title: string;
+            next_run_at?: null | components["schemas"]["WrappedChronoDateTime"];
+            schedule_description?: string | null;
             updated_at: components["schemas"]["WrappedChronoDateTime"];
         };
-        RoutinePaginatedResponse: {
-            items: components["schemas"]["Routine"][];
-            next_page_token?: string;
+        RoutineTriggerInput: components["schemas"]["RoutineTriggerSpec"] & {
+            enabled?: boolean;
+            id: components["schemas"]["WrappedUuidV4"];
+            metadata?: null | components["schemas"]["WrappedJsonValue"];
         };
-        RunAutomationBody: {
-            /** @description Stable client run identity used for deduplication. */
+        RoutineTriggerSpec: {
+            /** @enum {string} */
+            kind: "schedule";
+            schedule: string;
+        } | {
+            action?: null | components["schemas"]["SignalAction"];
+            filter?: components["schemas"]["SignalRuleFilter"];
+            instruction_policy?: components["schemas"]["RoutineEventInstructionPolicy"];
+            /** @enum {string} */
+            kind: "event";
+            session_policy?: null | components["schemas"]["SignalSessionPolicy"];
+            signal_provider_instance_id: string;
+            signal_type: string;
+        };
+        RunRoutineBody: {
             run_id: components["schemas"]["WrappedUuidV4"];
         };
-        RunAutomationResponse: {
+        RunRoutineResponse: {
             duplicate: boolean;
             run_id: components["schemas"]["WrappedUuidV4"];
             session_id: components["schemas"]["WrappedUuidV4"];
@@ -12583,7 +12282,7 @@ export interface components {
             error_message?: string | null;
             headers: Record<string, never>;
             id: components["schemas"]["WrappedUuidV4"];
-            matched_rule_ids: string[];
+            matched_trigger_ids: string[];
             org_id: string;
             provider_delivery_id: string;
             provider_endpoint: string;
@@ -12595,6 +12294,10 @@ export interface components {
             summary?: string | null;
             team_id?: string | null;
             updated_at: components["schemas"]["WrappedChronoDateTime"];
+        };
+        SignalDeliveryPaginatedResponse: {
+            items: components["schemas"]["SignalDelivery"][];
+            next_page_token?: string;
         };
         /** @enum {string} */
         SignalDeliveryStatus: "pending" | "processing" | "completed" | "failed_retryable" | "failed_terminal";
@@ -12663,6 +12366,10 @@ export interface components {
             user_credential_id?: null | components["schemas"]["WrappedUuidV4"];
             webhook_endpoint_id?: string | null;
         };
+        SignalProviderInstancePaginatedResponse: {
+            items: components["schemas"]["SignalProviderInstance"][];
+            next_page_token?: string;
+        };
         /** @enum {string} */
         SignalProviderInstanceStatus: "enabled" | "disabled";
         SignalProviderRouteDescriptor: {
@@ -12685,33 +12392,13 @@ export interface components {
             type_id: string;
             webhook_verification?: null | components["schemas"]["SignalWebhookVerificationDescriptor"];
         };
-        SignalRule: {
-            action: components["schemas"]["SignalAction"];
-            authorization?: components["schemas"]["ResourceAuthorizationModes"];
-            created_at: components["schemas"]["WrappedChronoDateTime"];
-            created_by_user_id?: string | null;
-            display_name: string;
-            filter: components["schemas"]["SignalRuleFilter"];
-            id: components["schemas"]["WrappedUuidV4"];
-            metadata?: null | components["schemas"]["WrappedJsonValue"];
-            org_id: string;
-            session_policy: components["schemas"]["SignalSessionPolicy"];
-            signal_provider_instance_id: string;
-            signal_type: string;
-            status: components["schemas"]["SignalRuleStatus"];
-            /**
-             * @description Team in which ChatKit sessions and agent actions execute. Personal
-             *     rules require this explicit target and create user_team sessions.
-             */
-            target_team_id: string;
-            team_id?: string | null;
-            updated_at: components["schemas"]["WrappedChronoDateTime"];
+        SignalProviderSourceSerializedPaginatedResponse: {
+            items: components["schemas"]["SignalProviderSourceSerialized"][];
+            next_page_token?: string;
         };
         SignalRuleFilter: {
             json_equals?: components["schemas"]["JsonEqualsPredicate"][];
         };
-        /** @enum {string} */
-        SignalRuleStatus: "enabled" | "disabled";
         SignalSessionPolicy: {
             session_id: components["schemas"]["WrappedUuidV4"];
             /** @enum {string} */
@@ -13139,12 +12826,12 @@ export interface components {
             next_page_token?: string;
         };
         ToolDeploymentWithGroupSerialized: {
-            categories: components["schemas"]["WrappedJsonValue"];
+            categories: string[];
             created_at: components["schemas"]["WrappedChronoDateTime"];
             documentation: string;
             metadata: components["schemas"]["Metadata"];
             name: string;
-            tool_group_categories: components["schemas"]["WrappedJsonValue"];
+            tool_group_categories: string[];
             tool_group_deployment_deployment_id: string;
             tool_group_deployment_type_id: string;
             tool_group_documentation: string;
@@ -13506,15 +13193,6 @@ export interface components {
             resource_server_credential_id?: null | components["schemas"]["WrappedUuidV4"];
             user_credential_id?: null | components["schemas"]["WrappedUuidV4"];
         };
-        /** @description User-authored fields for editing a routine. */
-        UpdateRoutineRequestInner: {
-            agent_inbox_id?: string | null;
-            enabled?: boolean | null;
-            metadata?: null | components["schemas"]["WrappedJsonValue"];
-            prompt?: string | null;
-            schedule?: string | null;
-            title?: string | null;
-        };
         UpdateSelfProfileRequest: {
             display_name?: string | null;
         };
@@ -13527,14 +13205,6 @@ export interface components {
             poll_interval_seconds?: number | null;
             polling_state: Record<string, never>;
             status: components["schemas"]["SignalProviderInstanceStatus"];
-        };
-        UpdateSignalRuleRequestInner: {
-            action: components["schemas"]["SignalAction"];
-            display_name: string;
-            filter?: components["schemas"]["SignalRuleFilter"];
-            metadata?: null | components["schemas"]["WrappedJsonValue"];
-            session_policy: components["schemas"]["SignalSessionPolicy"];
-            status: components["schemas"]["SignalRuleStatus"];
         };
         UpdateSkillBody: {
             content?: string | null;
@@ -17748,7 +17418,6 @@ export interface operations {
         parameters: {
             query?: {
                 agent_id?: string | null;
-                status?: null | components["schemas"]["AutomationStatus"];
                 page_size?: number;
                 next_page_token?: string | null;
             };
@@ -17766,7 +17435,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["AutomationPaginatedResponse"];
+                    "application/json": components["schemas"]["RoutinePaginatedResponse"];
                 };
             };
         };
@@ -17778,7 +17447,7 @@ export interface operations {
             path: {
                 /** @description Team ID */
                 team_id: string;
-                automation_id: components["schemas"]["WrappedUuidV4"];
+                routine_id: components["schemas"]["WrappedUuidV4"];
             };
             cookie?: never;
         };
@@ -17789,7 +17458,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Automation"];
+                    "application/json": components["schemas"]["Routine"];
                 };
             };
             404: {
@@ -17809,13 +17478,13 @@ export interface operations {
             path: {
                 /** @description Team ID */
                 team_id: string;
-                automation_id: components["schemas"]["WrappedUuidV4"];
+                routine_id: components["schemas"]["WrappedUuidV4"];
             };
             cookie?: never;
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["PutAutomationBody"];
+                "application/json": components["schemas"]["PutRoutineBody"];
             };
         };
         responses: {
@@ -17824,7 +17493,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Automation"];
+                    "application/json": components["schemas"]["Routine"];
                 };
             };
             400: {
@@ -17844,7 +17513,7 @@ export interface operations {
             path: {
                 /** @description Team ID */
                 team_id: string;
-                automation_id: components["schemas"]["WrappedUuidV4"];
+                routine_id: components["schemas"]["WrappedUuidV4"];
             };
             cookie?: never;
         };
@@ -17855,7 +17524,34 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["DeleteAutomationResponse"];
+                    "application/json": components["schemas"]["DeleteRoutineResponse"];
+                };
+            };
+        };
+    };
+    "automations-list-executions": {
+        parameters: {
+            query?: {
+                agent_id?: string | null;
+                page_size?: number;
+                next_page_token?: string | null;
+            };
+            header?: never;
+            path: {
+                /** @description Team ID */
+                team_id: string;
+                routine_id: components["schemas"]["WrappedUuidV4"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RoutineExecutionPaginatedResponse"];
                 };
             };
         };
@@ -17867,7 +17563,7 @@ export interface operations {
             path: {
                 /** @description Team ID */
                 team_id: string;
-                automation_id: components["schemas"]["WrappedUuidV4"];
+                routine_id: components["schemas"]["WrappedUuidV4"];
             };
             cookie?: never;
         };
@@ -17894,13 +17590,13 @@ export interface operations {
             path: {
                 /** @description Team ID */
                 team_id: string;
-                automation_id: components["schemas"]["WrappedUuidV4"];
+                routine_id: components["schemas"]["WrappedUuidV4"];
             };
             cookie?: never;
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["RunAutomationBody"];
+                "application/json": components["schemas"]["RunRoutineBody"];
             };
         };
         responses: {
@@ -17909,7 +17605,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["RunAutomationResponse"];
+                    "application/json": components["schemas"]["RunRoutineResponse"];
                 };
             };
         };
@@ -17921,7 +17617,7 @@ export interface operations {
             path: {
                 /** @description Team ID */
                 team_id: string;
-                automation_id: components["schemas"]["WrappedUuidV4"];
+                routine_id: components["schemas"]["WrappedUuidV4"];
             };
             cookie?: never;
         };
@@ -17948,7 +17644,7 @@ export interface operations {
             path: {
                 /** @description Team ID */
                 team_id: string;
-                automation_id: components["schemas"]["WrappedUuidV4"];
+                routine_id: components["schemas"]["WrappedUuidV4"];
                 plane: components["schemas"]["ResourceGrantPlane"];
             };
             cookie?: never;
@@ -17972,7 +17668,7 @@ export interface operations {
             path: {
                 /** @description Team ID */
                 team_id: string;
-                automation_id: components["schemas"]["WrappedUuidV4"];
+                routine_id: components["schemas"]["WrappedUuidV4"];
                 plane: components["schemas"]["ResourceGrantPlane"];
             };
             cookie?: never;
@@ -18000,7 +17696,7 @@ export interface operations {
             path: {
                 /** @description Team ID */
                 team_id: string;
-                automation_id: components["schemas"]["WrappedUuidV4"];
+                routine_id: components["schemas"]["WrappedUuidV4"];
                 plane: components["schemas"]["ResourceGrantPlane"];
                 principal_type: components["schemas"]["ResourcePrincipalType"];
                 principal_id: string;
@@ -18682,6 +18378,67 @@ export interface operations {
                 };
             };
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "chatkit-set-agent-permissions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Team ID */
+                team_id: string;
+                /** @description ChatKit agent inbox ID */
+                agent_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AgentPermissions"];
+            };
+        };
+        responses: {
+            /** @description Update what a ChatKit agent may reach */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChatKitAgent"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            500: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -19793,286 +19550,6 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["Error"];
                 };
-            };
-        };
-    };
-    "chatkit-list-routines": {
-        parameters: {
-            query?: {
-                page_size?: number;
-                next_page_token?: string | null;
-            };
-            header?: never;
-            path: {
-                /** @description Team ID */
-                team_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Routine list */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["RoutinePaginatedResponse"];
-                };
-            };
-        };
-    };
-    "chatkit-create-routine": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Team ID */
-                team_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["CreateRoutineRequestInner"];
-            };
-        };
-        responses: {
-            /** @description Created routine */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Routine"];
-                };
-            };
-            /** @description Invalid schedule or routine */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Error"];
-                };
-            };
-            /** @description Internal Server Error */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Error"];
-                };
-            };
-        };
-    };
-    "chatkit-get-routine": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Team ID */
-                team_id: string;
-                /** @description Routine ID */
-                routine_id: components["schemas"]["WrappedUuidV4"];
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Routine */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Routine"];
-                };
-            };
-        };
-    };
-    "chatkit-delete-routine": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Team ID */
-                team_id: string;
-                /** @description Routine ID */
-                routine_id: components["schemas"]["WrappedUuidV4"];
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Deletion result */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["DeleteRoutineResponse"];
-                };
-            };
-        };
-    };
-    "chatkit-update-routine": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Team ID */
-                team_id: string;
-                /** @description Routine ID */
-                routine_id: components["schemas"]["WrappedUuidV4"];
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["UpdateRoutineRequestInner"];
-            };
-        };
-        responses: {
-            /** @description Updated routine */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Routine"];
-                };
-            };
-        };
-    };
-    "set-chatkit-routine-ownership": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Team ID */
-                team_id: string;
-                routine_id: components["schemas"]["WrappedUuidV4"];
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["SetResourceAccessModeRequest"];
-            };
-        };
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ResourceAuthorization"];
-                };
-            };
-        };
-    };
-    "set-chatkit-routine-visibility": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Team ID */
-                team_id: string;
-                routine_id: components["schemas"]["WrappedUuidV4"];
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["SetResourceAccessModeRequest"];
-            };
-        };
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ResourceAuthorization"];
-                };
-            };
-        };
-    };
-    "list-chatkit-routine-grants": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Team ID */
-                team_id: string;
-                routine_id: components["schemas"]["WrappedUuidV4"];
-                plane: components["schemas"]["ResourceGrantPlane"];
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ResourceGrant"][];
-                };
-            };
-        };
-    };
-    "add-chatkit-routine-grant": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Team ID */
-                team_id: string;
-                routine_id: components["schemas"]["WrappedUuidV4"];
-                plane: components["schemas"]["ResourceGrantPlane"];
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["CreateResourcePlaneGrantRequest"];
-            };
-        };
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ResourceGrant"];
-                };
-            };
-        };
-    };
-    "remove-chatkit-routine-grant": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Team ID */
-                team_id: string;
-                routine_id: components["schemas"]["WrappedUuidV4"];
-                plane: components["schemas"]["ResourceGrantPlane"];
-                principal_type: components["schemas"]["ResourcePrincipalType"];
-                principal_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
             };
         };
     };
@@ -28166,7 +27643,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["SignalDelivery"][];
+                    "application/json": components["schemas"]["SignalDeliveryPaginatedResponse"];
                 };
             };
         };
@@ -28239,7 +27716,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["SignalProviderInstance"][];
+                    "application/json": components["schemas"]["SignalProviderInstancePaginatedResponse"];
                 };
             };
         };
@@ -28520,263 +27997,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["SignalProviderSourceSerialized"][];
-                };
-            };
-        };
-    };
-    "signals-list-rules": {
-        parameters: {
-            query?: {
-                page_size?: number;
-                next_page_token?: string;
-                instance_id?: string;
-                status?: string;
-            };
-            header?: never;
-            path: {
-                /** @description Team ID */
-                team_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SignalRule"][];
-                };
-            };
-        };
-    };
-    "signals-create-rule": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Team ID */
-                team_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["CreateSignalRuleRequestInner"];
-            };
-        };
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SignalRule"];
-                };
-            };
-        };
-    };
-    "set-signal-rule-ownership": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Team ID */
-                team_id: string;
-                id: components["schemas"]["WrappedUuidV4"];
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["SetResourceAccessModeRequest"];
-            };
-        };
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ResourceAuthorization"];
-                };
-            };
-        };
-    };
-    "set-signal-rule-visibility": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Team ID */
-                team_id: string;
-                id: components["schemas"]["WrappedUuidV4"];
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["SetResourceAccessModeRequest"];
-            };
-        };
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ResourceAuthorization"];
-                };
-            };
-        };
-    };
-    "list-signal-rule-grants": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Team ID */
-                team_id: string;
-                id: components["schemas"]["WrappedUuidV4"];
-                plane: components["schemas"]["ResourceGrantPlane"];
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ResourceGrant"][];
-                };
-            };
-        };
-    };
-    "add-signal-rule-grant": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Team ID */
-                team_id: string;
-                id: components["schemas"]["WrappedUuidV4"];
-                plane: components["schemas"]["ResourceGrantPlane"];
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["CreateResourcePlaneGrantRequest"];
-            };
-        };
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ResourceGrant"];
-                };
-            };
-        };
-    };
-    "remove-signal-rule-grant": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Team ID */
-                team_id: string;
-                id: components["schemas"]["WrappedUuidV4"];
-                plane: components["schemas"]["ResourceGrantPlane"];
-                principal_type: components["schemas"]["ResourcePrincipalType"];
-                principal_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    "signals-get-rule": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Team ID */
-                team_id: string;
-                rule_id: components["schemas"]["WrappedUuidV4"];
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SignalRule"];
-                };
-            };
-        };
-    };
-    "signals-delete-rule": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Team ID */
-                team_id: string;
-                rule_id: components["schemas"]["WrappedUuidV4"];
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["DeleteSignalResponse"];
-                };
-            };
-        };
-    };
-    "signals-update-rule": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Team ID */
-                team_id: string;
-                rule_id: components["schemas"]["WrappedUuidV4"];
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["UpdateSignalRuleRequestInner"];
-            };
-        };
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SignalRule"];
+                    "application/json": components["schemas"]["SignalProviderSourceSerializedPaginatedResponse"];
                 };
             };
         };
@@ -33672,7 +32893,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["SignalDelivery"][];
+                    "application/json": components["schemas"]["SignalDeliveryPaginatedResponse"];
                 };
             };
         };
@@ -33742,7 +32963,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["SignalProviderInstance"][];
+                    "application/json": components["schemas"]["SignalProviderInstancePaginatedResponse"];
                 };
             };
         };
@@ -33986,254 +33207,8 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["SignalProviderSourceSerialized"][];
+                    "application/json": components["schemas"]["SignalProviderSourceSerializedPaginatedResponse"];
                 };
-            };
-        };
-    };
-    "signals-list-personal-rules": {
-        parameters: {
-            query?: {
-                page_size?: number;
-                next_page_token?: string;
-                instance_id?: string;
-                status?: string;
-            };
-            header?: never;
-            path: {
-                user_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SignalRule"][];
-                };
-            };
-        };
-    };
-    "signals-create-personal-rule": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                user_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["CreateSignalRuleRequestInner"];
-            };
-        };
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SignalRule"];
-                };
-            };
-        };
-    };
-    "signals-get-personal-rule": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                user_id: string;
-                rule_id: components["schemas"]["WrappedUuidV4"];
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SignalRule"];
-                };
-            };
-        };
-    };
-    "signals-delete-personal-rule": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                user_id: string;
-                rule_id: components["schemas"]["WrappedUuidV4"];
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["DeleteSignalResponse"];
-                };
-            };
-        };
-    };
-    "signals-update-personal-rule": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                user_id: string;
-                rule_id: components["schemas"]["WrappedUuidV4"];
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["UpdateSignalRuleRequestInner"];
-            };
-        };
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SignalRule"];
-                };
-            };
-        };
-    };
-    "signals-set-personal-rule-ownership": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                user_id: string;
-                rule_id: components["schemas"]["WrappedUuidV4"];
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["SetResourceAccessModeRequest"];
-            };
-        };
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ResourceAuthorization"];
-                };
-            };
-        };
-    };
-    "signals-set-personal-rule-visibility": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                user_id: string;
-                rule_id: components["schemas"]["WrappedUuidV4"];
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["SetResourceAccessModeRequest"];
-            };
-        };
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ResourceAuthorization"];
-                };
-            };
-        };
-    };
-    "signals-list-personal-rule-grants": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                user_id: string;
-                rule_id: components["schemas"]["WrappedUuidV4"];
-                plane: components["schemas"]["ResourceGrantPlane"];
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ResourceGrant"][];
-                };
-            };
-        };
-    };
-    "signals-add-personal-rule-grant": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                user_id: string;
-                rule_id: components["schemas"]["WrappedUuidV4"];
-                plane: components["schemas"]["ResourceGrantPlane"];
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["CreateResourcePlaneGrantRequest"];
-            };
-        };
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ResourceGrant"];
-                };
-            };
-        };
-    };
-    "signals-remove-personal-rule-grant": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                user_id: string;
-                rule_id: components["schemas"]["WrappedUuidV4"];
-                plane: components["schemas"]["ResourceGrantPlane"];
-                principal_type: components["schemas"]["ResourcePrincipalType"];
-                principal_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
             };
         };
     };
