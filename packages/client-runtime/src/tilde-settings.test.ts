@@ -7,6 +7,8 @@ const automation = {
   name: "Deploy watchdog",
   instruction: "Check deploy health",
   enabled: true,
+  version: 4,
+  metadata: { source: "openbot" },
   status: "active",
   generation: 3,
   applied_generation: 3,
@@ -19,7 +21,9 @@ const automation = {
     {
       id: "schedule-1",
       kind: "schedule",
+      enabled: true,
       schedule: "0 7 * * *",
+      metadata: { color: "blue" },
       schedule_description: "Daily at 07:00 UTC",
       next_run_at: "2026-08-27T07:00:00Z",
       materialized_resource_id: "routine-1",
@@ -27,10 +31,13 @@ const automation = {
     {
       id: "event-1",
       kind: "event",
+      enabled: true,
       signal_provider_instance_id: "spi_abc",
       signal_type: "github.pull_request.opened",
       filter: { json_equals: [{ path: "pull_request.draft", value: false }] },
       session_policy: { type: "session_key_template", template: "repo#{{name}}" },
+      action: { type: "invoke_chatkit_agent", agent_inbox_id: "inbox-1" },
+      instruction_policy: "signal_only",
       materialized_resource_id: "rule-1",
     },
   ],
@@ -61,13 +68,13 @@ describe("Tilde settings clients", () => {
       agent_id: "inbox-1",
       status: "active",
       triggers: [
-        { id: "schedule-1", kind: "schedule", routine_id: "routine-1" },
-        { id: "event-1", kind: "event", instance_id: "spi_abc", rule_id: "rule-1" },
+        { id: "schedule-1", kind: "schedule" },
+        { id: "event-1", kind: "event", instance_id: "spi_abc" },
       ],
     });
   });
 
-  it("preserves event session policy while replacing an automation", async () => {
+  it("preserves native trigger configuration and optimistic version while replacing a Routine", async () => {
     const requestJson = vi
       .fn()
       .mockResolvedValueOnce(automation)
@@ -77,14 +84,25 @@ describe("Tilde settings clients", () => {
 
     await client.updateRoutine(automation.id, "inbox-1", { name: "Renamed" });
 
+    const [, request] = requestJson.mock.calls[1] ?? [];
     expect(requestJson).toHaveBeenNthCalledWith(
       2,
       `/api/tilde/automations/${automation.id}`,
-      expect.objectContaining({
-        method: "PUT",
-        body: expect.stringContaining('"session_policy":{"type":"session_key_template"'),
-      }),
+      expect.objectContaining({ method: "PUT" }),
     );
+    expect(JSON.parse(String(request?.body))).toMatchObject({
+      expected_version: 4,
+      metadata: { source: "openbot" },
+      triggers: [
+        { id: "schedule-1", enabled: true, metadata: { color: "blue" } },
+        {
+          id: "event-1",
+          action: { type: "invoke_chatkit_agent", agent_inbox_id: "inbox-1" },
+          instruction_policy: "signal_only",
+          session_policy: { type: "session_key_template", template: "repo#{{name}}" },
+        },
+      ],
+    });
   });
 
   it("projects native signal resources and never returns configuration secrets", async () => {
@@ -107,11 +125,16 @@ describe("Tilde settings clients", () => {
       created_at: "2026-08-01T00:00:00Z",
       updated_at: "2026-08-20T00:00:00Z",
     };
-    const requestJson = vi.fn(async (path: string) =>
-      path.includes("/providers")
-        ? { items: [provider] }
-        : { items: [instance], next_page_token: null },
-    );
+    const secondInstance = { ...instance, id: "spi_second", display_name: "Backup GitHub" };
+    const requestJson = vi.fn(async (path: string) => {
+      if (path === "/api/tilde/signals/providers?page_size=100")
+        return { items: [provider], next_page_token: null };
+      if (path === "/api/tilde/signals/instances?page_size=100")
+        return { items: [instance], next_page_token: "instances-2" };
+      if (path === "/api/tilde/signals/instances?page_size=100&next_page_token=instances-2")
+        return { items: [secondInstance], next_page_token: null };
+      throw new Error(`Unexpected request ${path}`);
+    });
     const client = createTildeSignalClient({ requestJson, apiBaseUrl: "https://tilde.test" });
 
     const instances = await client.listSignalInstances();
@@ -121,6 +144,7 @@ describe("Tilde settings clients", () => {
         id: "spi_existing",
         webhook_url: "https://tilde.test/api/v1/webhooks/github-signals-spi_existing/events",
       }),
+      expect.objectContaining({ id: "spi_second" }),
     ]);
     expect(instances[0]).not.toHaveProperty("configuration");
   });
@@ -169,5 +193,30 @@ describe("Tilde settings clients", () => {
         }),
       }),
     );
+  });
+
+  it("projects native Routine trigger progress and accepts pre-migration rule ids", async () => {
+    const requestJson = vi.fn().mockResolvedValue({
+      items: [
+        {
+          id: "delivery-native",
+          matched_trigger_ids: ["trigger-1"],
+          created_at: "2026-08-29T00:00:00Z",
+        },
+        {
+          id: "delivery-legacy",
+          matched_rule_ids: ["legacy-rule-1"],
+          created_at: "2026-08-28T00:00:00Z",
+        },
+      ],
+    });
+    const client = createTildeSignalClient({ requestJson });
+
+    const deliveries = await client.listSignalDeliveries("spi_existing");
+
+    expect(deliveries.map((delivery) => delivery.matched_trigger_ids)).toEqual([
+      ["trigger-1"],
+      ["legacy-rule-1"],
+    ]);
   });
 });

@@ -24,6 +24,8 @@ Use native Tilde plugin, connector, routine, and signal resources through one au
 
 Plugin inventory now pages Tilde's native MCP, skill, provider, and registry collections directly; it no longer depends on Tilde's OpenBot-specific aggregate catalogue or its first-page limit.
 
+Routines now consume Tilde's native trigger/version contract, and signal history uses native trigger IDs while accepting legacy rule IDs during the migration window. Signal provider and instance inventories follow every continuation token.
+
 Migration:
 - Replace direct calls to `/api/plugins`, `/api/connectors`, `/api/routines`, and `/api/signals` with `@tryopenbot/client-runtime`.
 - Replace `registerConnectorRoutes` with `registerConnectorAuthorizedRoute` when constructing a custom control service.

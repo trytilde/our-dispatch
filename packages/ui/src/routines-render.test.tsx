@@ -60,7 +60,6 @@ const scheduled: Routine = {
       schedule: "0 7 * * *",
       description: "Daily at 07:00 UTC",
       next_run_at: null,
-      routine_id: "routine-1",
     },
   ],
   created_at: "2026-08-24T07:00:00Z",
@@ -80,7 +79,6 @@ const paused: Routine = {
       provider_type: "github",
       signal_type: "github.pull_request.opened",
       filters: [{ path: "repository.full_name", value: "acme/web" }],
-      rule_id: "rule-1",
     },
   ],
 };

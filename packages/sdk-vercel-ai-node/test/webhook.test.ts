@@ -1878,7 +1878,7 @@ describe("ChatKit AI SDK converters", () => {
             signal.metadata.signal_type,
             signal.metadata.signal_delivery_id,
             signal.metadata.signal_provider_instance_id,
-            signal.metadata.signal_rule_id,
+            signal.metadata.routine_trigger_id,
             signal.from_inbox_type_id,
             signal.user_display_name,
           ].join("|"),
@@ -1903,7 +1903,7 @@ describe("ChatKit AI SDK converters", () => {
               signal_type: "sentry.issue.created",
               signal_delivery_id: "del_1",
               signal_provider_instance_id: "spi_1",
-              signal_rule_id: "rule_1",
+              routine_trigger_id: "trigger_1",
             },
           },
         ],
@@ -1918,7 +1918,7 @@ describe("ChatKit AI SDK converters", () => {
         parts: [
           {
             type: "text",
-            text: "sentry.issue.created|del_1|spi_1|rule_1|sentry|Sentry",
+            text: "sentry.issue.created|del_1|spi_1|trigger_1|sentry|Sentry",
           },
         ],
       },

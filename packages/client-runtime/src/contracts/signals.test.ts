@@ -64,7 +64,7 @@ const delivery = {
   status: "completed",
   session_id: "session-one",
   error_message: null,
-  matched_rule_ids: ["rule-1"],
+  matched_trigger_ids: ["trigger-1"],
   created_at: "2026-08-24T00:00:00Z",
 };
 
@@ -80,9 +80,9 @@ describe("signal contracts", () => {
     expect(SignalInstanceSchema.parse(instance).webhook_url).toContain("spi_1");
     expect(SignalInstanceListSchema.parse({ items: [instance] }).items[0]?.status).toBe("enabled");
     expect(SignalDeliverySchema.parse(delivery).summary).toBe("PR #1 opened");
-    expect(SignalDeliverySchema.parse(delivery).matched_rule_ids).toEqual(["rule-1"]);
-    const { matched_rule_ids: _matched, ...withoutRules } = delivery;
-    expect(SignalDeliverySchema.parse(withoutRules).matched_rule_ids).toBeUndefined();
+    expect(SignalDeliverySchema.parse(delivery).matched_trigger_ids).toEqual(["trigger-1"]);
+    const { matched_trigger_ids: _matched, ...withoutTriggers } = delivery;
+    expect(SignalDeliverySchema.parse(withoutTriggers).matched_trigger_ids).toBeUndefined();
     expect(SignalDeliveryListSchema.parse({ items: [delivery] }).items).toHaveLength(1);
     expect(TestSignalInstanceResultSchema.parse({ accepted: 1, delivery_ids: ["del-1"] })).toEqual({
       accepted: 1,

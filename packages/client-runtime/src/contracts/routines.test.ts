@@ -24,7 +24,6 @@ const scheduleTrigger = {
   schedule: "0 7 * * *",
   description: "Daily at 07:00 UTC",
   next_run_at: "2026-08-25T07:00:00Z",
-  routine_id: "rt-1",
 } satisfies RoutineScheduleTrigger;
 
 const eventTrigger = {
@@ -34,7 +33,6 @@ const eventTrigger = {
   provider_type: "github",
   signal_type: "github.pull_request.opened",
   filters: [{ path: "repository.full_name", value: "acme/web" }],
-  rule_id: "rule-1",
 } satisfies RoutineEventTrigger;
 
 const routine = {
