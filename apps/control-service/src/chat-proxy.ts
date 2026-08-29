@@ -14,6 +14,61 @@ const hopByHopHeaders = new Set([
   "upgrade",
 ]);
 
+type AllowedMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
+
+interface AllowedRoute {
+  methods: ReadonlySet<AllowedMethod>;
+  pattern: RegExp;
+}
+
+const methods = (...values: AllowedMethod[]): ReadonlySet<AllowedMethod> => new Set(values);
+
+/** Exact ChatKit operations consumed by Client Runtime. */
+const allowedTeamRoutes: readonly AllowedRoute[] = [
+  { pattern: /^workspace\/sidebar$/, methods: methods("GET") },
+  { pattern: /^workspace\/bootstrap$/, methods: methods("GET") },
+  { pattern: /^workspace\/search$/, methods: methods("GET") },
+  { pattern: /^workspace\/agents\/[^/]+\/sessions$/, methods: methods("GET", "POST") },
+  {
+    pattern: /^workspace\/agents\/[^/]+\/sessions\/[^/]+\/messages$/,
+    methods: methods("POST"),
+  },
+  { pattern: /^workspace\/agents\/[^/]+\/turns$/, methods: methods("POST") },
+  { pattern: /^workspace\/sessions\/[^/]+\/snapshot$/, methods: methods("GET") },
+  { pattern: /^workspace\/sessions\/[^/]+\/messages$/, methods: methods("GET") },
+  { pattern: /^workspace\/sessions\/[^/]+\/rename$/, methods: methods("PATCH") },
+  { pattern: /^workspace\/sessions\/[^/]+\/read-state$/, methods: methods("PUT") },
+  { pattern: /^workspace\/sessions\/[^/]+\/interrupt$/, methods: methods("POST") },
+  { pattern: /^session\/[^/]+\/observe$/, methods: methods("GET") },
+  { pattern: /^agent-turn-queue$/, methods: methods("GET") },
+  { pattern: /^agent-turn-queue\/[^/]+$/, methods: methods("DELETE") },
+  { pattern: /^agent-turn-queue\/[^/]+\/steer$/, methods: methods("POST") },
+  { pattern: /^agent-turn-queue\/[^/]+\/order$/, methods: methods("PATCH") },
+  { pattern: /^session\/[^/]+\/attachment\/upload$/, methods: methods("POST") },
+  { pattern: /^session\/[^/]+\/attachments\/upload$/, methods: methods("POST") },
+  {
+    pattern: /^session\/[^/]+\/attachment\/[^/]+\/complete$/,
+    methods: methods("POST"),
+  },
+  {
+    pattern: /^session\/[^/]+\/attachment\/[^/]+\/content$/,
+    methods: methods("GET", "PUT"),
+  },
+  {
+    pattern: /^session\/[^/]+\/attachment\/[^/]+\/download-url$/,
+    methods: methods("GET"),
+  },
+  { pattern: /^session\/[^/]+\/attachment\/[^/]+$/, methods: methods("DELETE") },
+];
+
+/** Object-store attachment keys returned by Tilde in API-origin URLs. */
+const allowedRootRoutes: readonly AllowedRoute[] = [
+  {
+    pattern: /^org\/[^/]+\/team\/[^/]+\/session\/[^/]+\/attachment\/[^/]+\/[^/]+$/,
+    methods: methods("GET", "PUT"),
+  },
+];
+
 export interface TildeChatProxyOptions {
   apiKey: string;
   orgId: string;
@@ -99,6 +154,10 @@ export function registerTildeChatProxy(app: Hono, configuredOptions?: TildeChatP
     if (!isSafeChatKitPath(relativePath)) {
       return context.json({ error: "Invalid Tilde ChatKit path" }, 400);
     }
+
+    const method = context.req.method as AllowedMethod;
+    if (!isAllowedChatKitOperation(relativePath, method))
+      return context.json({ error: "Unsupported Tilde ChatKit operation" }, 404);
 
     const incomingUrl = new URL(context.req.url);
     const upstreamPath = resolveUpstreamPath(relativePath, options);
@@ -275,6 +334,14 @@ function isSafeChatKitPath(value: string): boolean {
   }
   if (!decoded || decoded.startsWith("/") || decoded.includes("\\")) return false;
   return decoded.split("/").every((segment) => segment !== "." && segment !== "..");
+}
+
+function isAllowedChatKitOperation(path: string, method: AllowedMethod): boolean {
+  const routes = path.startsWith(rootChatKitPrefix) ? allowedRootRoutes : allowedTeamRoutes;
+  const candidate = path.startsWith(rootChatKitPrefix)
+    ? path.slice(rootChatKitPrefix.length)
+    : path;
+  return routes.some((route) => route.methods.has(method) && route.pattern.test(candidate));
 }
 
 function upstreamHeaders(context: Context, options: TildeChatProxyOptions): Headers {

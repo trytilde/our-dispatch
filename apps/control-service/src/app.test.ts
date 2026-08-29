@@ -768,6 +768,31 @@ describe("bare OpenBot server", () => {
     expect(invalid.status).toBe(400);
   });
 
+  it("rejects ChatKit operations outside the client allowlist", async () => {
+    let upstreamCalls = 0;
+    const chatApp = createApp({
+      tildeChatProxy: {
+        apiKey: "secret-api-key",
+        orgId: "openbot-org",
+        teamId: "openbot-team",
+        fetch: async () => {
+          upstreamCalls += 1;
+          return new Response(null, { status: 204 });
+        },
+      },
+    });
+
+    const response = await chatApp.request("https://openbot.test/api/chat/agents/agent-one", {
+      method: "DELETE",
+    });
+
+    expect(response.status).toBe(404);
+    await expect(response.json()).resolves.toEqual({
+      error: "Unsupported Tilde ChatKit operation",
+    });
+    expect(upstreamCalls).toBe(0);
+  });
+
   it("proxies root ChatKit attachment content only for the configured org and team", async () => {
     const calls: string[] = [];
     const chatApp = createApp({
