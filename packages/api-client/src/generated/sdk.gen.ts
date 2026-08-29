@@ -85,7 +85,7 @@ export const billingMemoryBankReservationRelease = <ThrowOnError extends boolean
 /**
  * Enroll current human in a product
  *
- * Creates one deduplicated human Core or Pay seat, synchronizes the exact organization quantity with Autumn, and never bills machine or API-key identities.
+ * Creates one deduplicated human Core or Pay seat, synchronizes the exact organization quantity with Autumn, and never bills agent identities.
  */
 export const billingProductEnrollCurrentHuman = <ThrowOnError extends boolean = false>(options: Options<BillingProductEnrollCurrentHumanData, ThrowOnError>): RequestResult<BillingProductEnrollCurrentHumanResponses, BillingProductEnrollCurrentHumanErrors, ThrowOnError> => (options.client ?? client).post<BillingProductEnrollCurrentHumanResponses, BillingProductEnrollCurrentHumanErrors, ThrowOnError>({ url: '/api/v1/billing/products/{product_id}/enroll', ...options });
 
@@ -1169,7 +1169,7 @@ export const chatkitUpdateAgent = <ThrowOnError extends boolean = false>(options
 /**
  * Download a ChatKit agent avatar
  *
- * Returns the canonical avatar bytes from the agent's stable machine-user profile.
+ * Returns the canonical avatar bytes from the stable agent-user profile.
  */
 export const chatkitGetAgentAvatar = <ThrowOnError extends boolean = false>(options: Options<ChatkitGetAgentAvatarData, ThrowOnError>): RequestResult<ChatkitGetAgentAvatarResponses, ChatkitGetAgentAvatarErrors, ThrowOnError> => (options.client ?? client).get<ChatkitGetAgentAvatarResponses, ChatkitGetAgentAvatarErrors, ThrowOnError>({
     security: [{ name: 'x-api-key', type: 'apiKey' }, { scheme: 'bearer', type: 'http' }],
@@ -1180,7 +1180,7 @@ export const chatkitGetAgentAvatar = <ThrowOnError extends boolean = false>(opti
 /**
  * Upload a ChatKit agent avatar
  *
- * Stores a PNG, JPEG, or WebP avatar on the agent's stable machine-user profile.
+ * Stores a PNG, JPEG, or WebP avatar on the stable agent-user profile.
  */
 export const chatkitUpdateAgentAvatar = <ThrowOnError extends boolean = false>(options: Options<ChatkitUpdateAgentAvatarData, ThrowOnError>): RequestResult<ChatkitUpdateAgentAvatarResponses, ChatkitUpdateAgentAvatarErrors, ThrowOnError> => (options.client ?? client).put<ChatkitUpdateAgentAvatarResponses, ChatkitUpdateAgentAvatarErrors, ThrowOnError>({
     bodySerializer: null,

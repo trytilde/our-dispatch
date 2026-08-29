@@ -135,7 +135,7 @@ export interface paths {
         put?: never;
         /**
          * Enroll current human in a product
-         * @description Creates one deduplicated human Core or Pay seat, synchronizes the exact organization quantity with Autumn, and never bills machine or API-key identities.
+         * @description Creates one deduplicated human Core or Pay seat, synchronizes the exact organization quantity with Autumn, and never bills agent identities.
          */
         post: operations["billing-product-enroll-current-human"];
         delete?: never;
@@ -1673,12 +1673,12 @@ export interface paths {
         };
         /**
          * Download a ChatKit agent avatar
-         * @description Returns the canonical avatar bytes from the agent's stable machine-user profile.
+         * @description Returns the canonical avatar bytes from the stable agent-user profile.
          */
         get: operations["chatkit-get-agent-avatar"];
         /**
          * Upload a ChatKit agent avatar
-         * @description Stores a PNG, JPEG, or WebP avatar on the agent's stable machine-user profile.
+         * @description Stores a PNG, JPEG, or WebP avatar on the stable agent-user profile.
          */
         put: operations["chatkit-update-agent-avatar"];
         post?: never;
@@ -8765,6 +8765,17 @@ export interface components {
             role: string;
             user_id: string;
         };
+        /**
+         * @description Authenticated agent identity.
+         *
+         *     Represents an agent user that authenticated via an API key.
+         */
+        Agent: {
+            /** @description Groups the agent belongs to. */
+            groups?: string[];
+            /** @description Subject identifier (user ID) of the agent account. */
+            sub: string;
+        };
         /** @enum {string} */
         AgentCredentialStrategy: "preserve" | "rotate";
         AgentEndpointSpec: {
@@ -10081,7 +10092,7 @@ export interface components {
             type_id: string;
         };
         /**
-         * @description Current caller's seat state. Machine identities never consume seats.
+         * @description Current caller's seat state. Agent identities never consume seats.
          * @enum {string}
          */
         CurrentSeatStatus: "active" | "not_assigned" | "not_billable";
@@ -10489,18 +10500,13 @@ export interface components {
          *     This is the result of authentication and is used throughout the system
          *     for authorization decisions.
          */
-        Identity: (components["schemas"]["Machine"] & {
+        Identity: (components["schemas"]["Agent"] & {
             /** @enum {string} */
-            type: "machine";
+            type: "agent";
         }) | (components["schemas"]["Human"] & {
             /** @enum {string} */
             type: "human";
         }) | {
-            human: components["schemas"]["Human"];
-            machine: components["schemas"]["Machine"];
-            /** @enum {string} */
-            type: "machine_on_behalf_of_human";
-        } | {
             /** @enum {string} */
             type: "unauthenticated";
         };
@@ -10745,17 +10751,6 @@ export interface components {
             provider_id: string;
             /** @enum {string} */
             type: "custom_oidc";
-        };
-        /**
-         * @description Authenticated machine identity.
-         *
-         *     Represents an API client or automated service that authenticated via API key.
-         */
-        Machine: {
-            /** @description System groups the machine belongs to (e.g. `["tilde_system:admin"]`) */
-            groups?: string[];
-            /** @description Subject identifier (user ID) of the machine account */
-            sub: string;
         };
         ManagedSkillSelection: {
             provider_id: string;
@@ -13294,7 +13289,7 @@ export interface components {
         /**
          * @description A user entity in the system.
          *
-         *     Represents both human users and machine accounts with their associated metadata.
+         *     Represents both human and agent users with their associated metadata.
          */
         User: {
             avatar?: null | components["schemas"]["UserAvatar"];
@@ -13304,16 +13299,16 @@ export interface components {
             description?: string | null;
             /** @description Human-readable profile name shared across product surfaces. */
             display_name?: string | null;
-            /** @description Email address (required for human users, optional for machines) */
+            /** @description Email address (required for human users, optional for agents). */
             email?: string | null;
             /** @description Unique identifier (UUID format) */
             id: string;
             /** @description Timestamp when the user was last modified (UTC) */
             updated_at: components["schemas"]["WrappedChronoDateTime"];
-            /** @description Whether this is a machine or human user */
+            /** @description Whether this is an agent or human user. */
             user_type: components["schemas"]["UserType"];
         };
-        /** @description Uploaded profile image metadata for a human or machine user. */
+        /** @description Uploaded profile image metadata for a human or agent user. */
         UserAvatar: {
             bucket: string;
             media_type: string;
@@ -13393,10 +13388,10 @@ export interface components {
         /**
          * @description Type of user identity in the system.
          *
-         *     Distinguishes between automated services and real users.
+         *     Distinguishes first-class agent users from human users.
          * @enum {string}
          */
-        UserType: "machine" | "human";
+        UserType: "agent" | "human";
         ValidatePageTypeDataBody: {
             data: unknown;
             page_type_version_id: components["schemas"]["WrappedUuidV4"];
@@ -14019,7 +14014,7 @@ export interface operations {
                     "application/json": components["schemas"]["BillingContext"];
                 };
             };
-            /** @description Unknown product or machine caller */
+            /** @description Unknown product or agent caller */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -15341,7 +15336,7 @@ export interface operations {
             query?: {
                 page_size?: number;
                 next_page_token?: string;
-                /** @description Filter to `human` users or `machine` agents. */
+                /** @description Filter to `human` or `agent` users. */
                 user_type?: string;
             };
             header?: never;
@@ -16133,7 +16128,7 @@ export interface operations {
             query?: {
                 page_size?: number;
                 next_page_token?: string;
-                /** @description Filter to `human` users or `machine` agents. */
+                /** @description Filter to `human` or `agent` users. */
                 user_type?: string;
             };
             header?: never;
@@ -16592,7 +16587,7 @@ export interface operations {
             query?: {
                 page_size?: number;
                 next_page_token?: string;
-                /** @description Filter to `human` users or `machine` agents. */
+                /** @description Filter to `human` or `agent` users. */
                 user_type?: string;
             };
             header?: never;
@@ -16769,7 +16764,7 @@ export interface operations {
             query?: {
                 page_size?: number;
                 next_page_token?: string;
-                /** @description Filter to `human` users or `machine` agents. */
+                /** @description Filter to `human` or `agent` users. */
                 user_type?: string;
             };
             header?: never;
@@ -16947,7 +16942,7 @@ export interface operations {
             query?: {
                 page_size?: number;
                 next_page_token?: string;
-                /** @description Filter to `human` users or `machine` agents. */
+                /** @description Filter to `human` or `agent` users. */
                 user_type?: string;
             };
             header?: never;
