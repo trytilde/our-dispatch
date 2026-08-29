@@ -88,7 +88,8 @@ describe("TildeAgentProvider", () => {
             "AGENT_SCOUT_WEBHOOK_SIGNING_KEY",
           ]);
           expect(context.environment.AGENT_SCOUT_API_KEY).toBe("agent-api-key");
-          expect(request.headers.get("authorization")).toBe("Bearer agent-api-key");
+          expect(request.headers.get("x-api-key")).toBe("secret");
+          expect(request.headers.get("authorization")).toBeNull();
           expect(request.headers.get("content-type")).toBe("image/png");
           const bytes = new Uint8Array(await request.arrayBuffer());
           expect(Array.from(bytes.slice(0, 8))).toEqual([137, 80, 78, 71, 13, 10, 26, 10]);
@@ -156,7 +157,8 @@ describe("TildeAgentProvider", () => {
           return Response.json(operation("active", false, "legacy-mcp"));
         }
         if (request.method === "PUT" && path.endsWith("/agents/scout/avatar")) {
-          expect(request.headers.get("authorization")).toBe("Bearer existing-key");
+          expect(request.headers.get("x-api-key")).toBe("secret");
+          expect(request.headers.get("authorization")).toBeNull();
           return Response.json({ principal_user_id: "machine-scout", avatar: {} });
         }
         if (request.method === "GET" && path.endsWith("/channels"))

@@ -99,7 +99,7 @@ export class TildeAgentProvider implements AgentProvider {
         "Create missing ChatKit agents",
         "Create the shared OpenBot ChatKit workspace channel when missing",
         "Reconcile Vercel AI SDK endpoint URLs and enabled status",
-        "Upload the agent's canonical machine-user avatar",
+        "Upload the agent's canonical avatar",
         "Synchronize authored skills and exact registry membership",
         "Reconcile dynamic MCP, Tilde control-plane, and deployment-platform tools",
         context.devMode
@@ -225,19 +225,12 @@ export class TildeAgentProvider implements AgentProvider {
     if (!agentApiKey)
       throw new AgentProviderError(
         "invalid_configuration",
-        `The stable machine-user API key is unavailable for ${slug}`,
+        `The stable agent API key is unavailable for ${slug}`,
       );
-    const platform = this.platform.connection();
-    const agentApi = createTildeApiClient({
-      baseUrl: platform.baseUrl,
-      apiKey: agentApiKey,
-      orgId: platform.orgId,
-      throwOnError: false,
-    });
     const avatar = renderAgentAvatarPng(slug);
     await this.#generated(`upload avatar for "${slug}"`, (signal) =>
       chatkitUpdateAgentAvatar({
-        client: agentApi,
+        client: this.#api,
         path: { team_id: this.#teamId, agent_id: slug },
         // The generated OpenAPI type uses number[] for binary bodies, while fetch requires a
         // BodyInit. Preserve the Uint8Array at runtime until the generator models binary input.

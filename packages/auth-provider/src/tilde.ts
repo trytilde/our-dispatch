@@ -42,6 +42,7 @@ interface TildeWhoami {
     role?: string;
   }>;
   teams?: Array<{ team_id?: string; name?: string | null; role?: string; org_id?: string }>;
+  groups?: Array<{ group_id?: string; name?: string | null }>;
 }
 
 export class TildeAuthProvider implements AuthProvider, InitializableProvider {
@@ -142,6 +143,8 @@ export class TildeAuthProvider implements AuthProvider, InitializableProvider {
 
   async verify(accessToken: string): Promise<OwnerPrincipal> {
     const [encodedHeader, encodedPayload, encodedSignature, extra] = accessToken.split(".");
+    if (!encodedHeader || !encodedPayload || !encodedSignature)
+      return this.#verifyApiKey(accessToken);
     if (!encodedHeader || !encodedPayload || !encodedSignature || extra)
       throw new AuthProviderError("invalid_token", "Malformed access token");
     const header = decodeJson<{ alg?: string; kid?: string }>(encodedHeader);
@@ -189,21 +192,19 @@ export class TildeAuthProvider implements AuthProvider, InitializableProvider {
         "invalid_token",
         "Access token is not valid for this OpenBot installation",
       );
-    return { subject: claims.sub, email: claims.email, groups: claims.groups ?? [], scope };
+    return {
+      subject: claims.sub,
+      email: claims.email,
+      actorType: "human",
+      credentialType: "bearer_token",
+      groups: claims.groups ?? [],
+      scope,
+    };
   }
 
   async account(accessToken: string, principal: OwnerPrincipal): Promise<OwnerAccount> {
     const connection = platformConnection(this.#platform, this.#environment);
-    const response = await this.#request(
-      `${connection.baseUrl.replace(/\/$/, "")}/api/v1/identity/auth/whoami`,
-      { headers: { authorization: `Bearer ${accessToken}` } },
-    );
-    if (!response.ok)
-      throw new AuthProviderError(
-        "invalid_token",
-        `Tilde account lookup failed (${response.status})`,
-      );
-    const whoami = (await response.json()) as TildeWhoami;
+    const whoami = await this.#whoami(accessToken);
     const identity = whoami.identity;
     const email = identity?.email?.trim() || principal.email?.trim();
     const organization = whoami.organizations?.find(
@@ -232,6 +233,45 @@ export class TildeAuthProvider implements AuthProvider, InitializableProvider {
           }
         : {}),
     };
+  }
+
+  async #verifyApiKey(apiKey: string): Promise<OwnerPrincipal> {
+    const whoami = await this.#whoami(apiKey);
+    const identity = whoami.identity;
+    const actorType = identity?.type;
+    const subject = identity?.sub?.trim();
+    const connection = platformConnection(this.#platform, this.#environment);
+    if (
+      (actorType !== "human" && actorType !== "agent") ||
+      !subject ||
+      !whoami.teams?.some(({ team_id }) => team_id === connection.teamId)
+    )
+      throw new AuthProviderError(
+        "invalid_token",
+        "API key is not valid for this OpenBot installation",
+      );
+    return {
+      subject,
+      ...(identity?.email?.trim() ? { email: identity.email.trim() } : {}),
+      actorType,
+      credentialType: "api_key",
+      groups: whoami.groups?.flatMap(({ group_id }) => (group_id ? [group_id] : [])) ?? [],
+      scope: [requiredScope],
+    };
+  }
+
+  async #whoami(accessToken: string): Promise<TildeWhoami> {
+    const connection = platformConnection(this.#platform, this.#environment);
+    const response = await this.#request(
+      `${connection.baseUrl.replace(/\/$/, "")}/api/v1/identity/auth/whoami`,
+      { headers: { authorization: `Bearer ${accessToken}` } },
+    );
+    if (!response.ok)
+      throw new AuthProviderError(
+        "invalid_token",
+        `Tilde account lookup failed (${response.status})`,
+      );
+    return (await response.json()) as TildeWhoami;
   }
 
   async #register(
