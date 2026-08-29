@@ -50,6 +50,22 @@ export type AddTeamMemberBody = {
     user_id: string;
 };
 
+/**
+ * Authenticated agent identity.
+ *
+ * Represents an agent user that authenticated via an API key.
+ */
+export type Agent = {
+    /**
+     * Groups the agent belongs to.
+     */
+    groups?: Array<string>;
+    /**
+     * Subject identifier (user ID) of the agent account.
+     */
+    sub: string;
+};
+
 export enum AgentCredentialStrategy {
     PRESERVE = 'preserve',
     ROTATE = 'rotate'
@@ -1729,7 +1745,7 @@ export type CredentialSourceSerialized = {
 };
 
 /**
- * Current caller's seat state. Machine identities never consume seats.
+ * Current caller's seat state. Agent identities never consume seats.
  */
 export enum CurrentSeatStatus {
     ACTIVE = 'active',
@@ -2257,15 +2273,11 @@ export type HydrateConvertedMessagesResponse = {
  * This is the result of authentication and is used throughout the system
  * for authorization decisions.
  */
-export type Identity = (Machine & {
-    type: 'machine';
+export type Identity = (Agent & {
+    type: 'agent';
 }) | (Human & {
     type: 'human';
 }) | {
-    human: Human;
-    machine: Machine;
-    type: 'machine_on_behalf_of_human';
-} | {
     type: 'unauthenticated';
 };
 
@@ -2572,22 +2584,6 @@ export type LoginProviderResolution = {
     org_id: string;
     provider_id: string;
     type: 'custom_oidc';
-};
-
-/**
- * Authenticated machine identity.
- *
- * Represents an API client or automated service that authenticated via API key.
- */
-export type Machine = {
-    /**
-     * System groups the machine belongs to (e.g. `["tilde_system:admin"]`)
-     */
-    groups?: Array<string>;
-    /**
-     * Subject identifier (user ID) of the machine account
-     */
-    sub: string;
 };
 
 export type ManagedSkillSelection = {
@@ -5698,7 +5694,7 @@ export type UpsertWikiPageBody = {
 /**
  * A user entity in the system.
  *
- * Represents both human users and machine accounts with their associated metadata.
+ * Represents both human and agent users with their associated metadata.
  */
 export type User = {
     avatar?: null | UserAvatar;
@@ -5715,7 +5711,7 @@ export type User = {
      */
     display_name?: string | null;
     /**
-     * Email address (required for human users, optional for machines)
+     * Email address (required for human users, optional for agents).
      */
     email?: string | null;
     /**
@@ -5727,13 +5723,13 @@ export type User = {
      */
     updated_at: WrappedChronoDateTime;
     /**
-     * Whether this is a machine or human user
+     * Whether this is an agent or human user.
      */
     user_type: UserType;
 };
 
 /**
- * Uploaded profile image metadata for a human or machine user.
+ * Uploaded profile image metadata for a human or agent user.
  */
 export type UserAvatar = {
     bucket: string;
@@ -5825,10 +5821,10 @@ export type UserToolFederationSelection = {
 /**
  * Type of user identity in the system.
  *
- * Distinguishes between automated services and real users.
+ * Distinguishes first-class agent users from human users.
  */
 export enum UserType {
-    MACHINE = 'machine',
+    AGENT = 'agent',
     HUMAN = 'human'
 }
 
@@ -6372,7 +6368,7 @@ export type BillingProductEnrollCurrentHumanData = {
 
 export type BillingProductEnrollCurrentHumanErrors = {
     /**
-     * Unknown product or machine caller
+     * Unknown product or agent caller
      */
     400: Error;
     /**
@@ -7332,7 +7328,7 @@ export type ListOrganizationMembersData = {
         page_size?: number;
         next_page_token?: string;
         /**
-         * Filter to `human` users or `machine` agents.
+         * Filter to `human` or `agent` users.
          */
         user_type?: string;
     };
@@ -7917,7 +7913,7 @@ export type ListOrganizationTeamGroupsData = {
         page_size?: number;
         next_page_token?: string;
         /**
-         * Filter to `human` users or `machine` agents.
+         * Filter to `human` or `agent` users.
          */
         user_type?: string;
     };
@@ -8280,7 +8276,7 @@ export type ListTeamGroupsData = {
         page_size?: number;
         next_page_token?: string;
         /**
-         * Filter to `human` users or `machine` agents.
+         * Filter to `human` or `agent` users.
          */
         user_type?: string;
     };
@@ -8446,7 +8442,7 @@ export type ListTeamGroupMembersData = {
         page_size?: number;
         next_page_token?: string;
         /**
-         * Filter to `human` users or `machine` agents.
+         * Filter to `human` or `agent` users.
          */
         user_type?: string;
     };
@@ -8603,7 +8599,7 @@ export type ListTeamMembersData = {
         page_size?: number;
         next_page_token?: string;
         /**
-         * Filter to `human` users or `machine` agents.
+         * Filter to `human` or `agent` users.
          */
         user_type?: string;
     };

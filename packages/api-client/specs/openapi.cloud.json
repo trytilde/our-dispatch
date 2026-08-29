@@ -437,7 +437,7 @@
           "v1"
         ],
         "summary": "Enroll current human in a product",
-        "description": "Creates one deduplicated human Core or Pay seat, synchronizes the exact organization quantity with Autumn, and never bills machine or API-key identities.",
+        "description": "Creates one deduplicated human Core or Pay seat, synchronizes the exact organization quantity with Autumn, and never bills agent identities.",
         "operationId": "billing-product-enroll-current-human",
         "parameters": [
           {
@@ -462,7 +462,7 @@
             }
           },
           "400": {
-            "description": "Unknown product or machine caller",
+            "description": "Unknown product or agent caller",
             "content": {
               "application/json": {
                 "schema": {
@@ -2388,7 +2388,7 @@
           {
             "name": "user_type",
             "in": "query",
-            "description": "Filter to `human` users or `machine` agents.",
+            "description": "Filter to `human` or `agent` users.",
             "required": false,
             "schema": {
               "type": "string"
@@ -3549,7 +3549,7 @@
           {
             "name": "user_type",
             "in": "query",
-            "description": "Filter to `human` users or `machine` agents.",
+            "description": "Filter to `human` or `agent` users.",
             "required": false,
             "schema": {
               "type": "string"
@@ -4304,7 +4304,7 @@
           {
             "name": "user_type",
             "in": "query",
-            "description": "Filter to `human` users or `machine` agents.",
+            "description": "Filter to `human` or `agent` users.",
             "required": false,
             "schema": {
               "type": "string"
@@ -4596,7 +4596,7 @@
           {
             "name": "user_type",
             "in": "query",
-            "description": "Filter to `human` users or `machine` agents.",
+            "description": "Filter to `human` or `agent` users.",
             "required": false,
             "schema": {
               "type": "string"
@@ -4905,7 +4905,7 @@
           {
             "name": "user_type",
             "in": "query",
-            "description": "Filter to `human` users or `machine` agents.",
+            "description": "Filter to `human` or `agent` users.",
             "required": false,
             "schema": {
               "type": "string"
@@ -7331,7 +7331,7 @@
           "v1"
         ],
         "summary": "Download a ChatKit agent avatar",
-        "description": "Returns the canonical avatar bytes from the agent's stable machine-user profile.",
+        "description": "Returns the canonical avatar bytes from the stable agent-user profile.",
         "operationId": "chatkit-get-agent-avatar",
         "parameters": [
           {
@@ -7403,7 +7403,7 @@
           "v1"
         ],
         "summary": "Upload a ChatKit agent avatar",
-        "description": "Stores a PNG, JPEG, or WebP avatar on the agent's stable machine-user profile.",
+        "description": "Stores a PNG, JPEG, or WebP avatar on the stable agent-user profile.",
         "operationId": "chatkit-update-agent-avatar",
         "parameters": [
           {
@@ -40155,6 +40155,26 @@
           }
         }
       },
+      "Agent": {
+        "type": "object",
+        "description": "Authenticated agent identity.\n\nRepresents an agent user that authenticated via an API key.",
+        "required": [
+          "sub"
+        ],
+        "properties": {
+          "groups": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Groups the agent belongs to."
+          },
+          "sub": {
+            "type": "string",
+            "description": "Subject identifier (user ID) of the agent account."
+          }
+        }
+      },
       "AgentCredentialStrategy": {
         "type": "string",
         "enum": [
@@ -45444,7 +45464,7 @@
       },
       "CurrentSeatStatus": {
         "type": "string",
-        "description": "Current caller's seat state. Machine identities never consume seats.",
+        "description": "Current caller's seat state. Agent identities never consume seats.",
         "enum": [
           "active",
           "not_assigned",
@@ -46882,8 +46902,8 @@
           {
             "allOf": [
               {
-                "$ref": "#/components/schemas/Machine",
-                "description": "Machine identity (API key authentication)"
+                "$ref": "#/components/schemas/Agent",
+                "description": "Agent identity."
               },
               {
                 "type": "object",
@@ -46894,19 +46914,19 @@
                   "type": {
                     "type": "string",
                     "enum": [
-                      "machine"
+                      "agent"
                     ]
                   }
                 }
               }
             ],
-            "description": "Machine identity (API key authentication)"
+            "description": "Agent identity."
           },
           {
             "allOf": [
               {
                 "$ref": "#/components/schemas/Human",
-                "description": "Human identity (STS token authentication)"
+                "description": "Human identity."
               },
               {
                 "type": "object",
@@ -46923,30 +46943,7 @@
                 }
               }
             ],
-            "description": "Human identity (STS token authentication)"
-          },
-          {
-            "type": "object",
-            "description": "Machine acting on behalf of a human (both credentials provided)",
-            "required": [
-              "machine",
-              "human",
-              "type"
-            ],
-            "properties": {
-              "human": {
-                "$ref": "#/components/schemas/Human"
-              },
-              "machine": {
-                "$ref": "#/components/schemas/Machine"
-              },
-              "type": {
-                "type": "string",
-                "enum": [
-                  "machine_on_behalf_of_human"
-                ]
-              }
-            }
+            "description": "Human identity."
           },
           {
             "type": "object",
@@ -47878,26 +47875,6 @@
             }
           }
         ]
-      },
-      "Machine": {
-        "type": "object",
-        "description": "Authenticated machine identity.\n\nRepresents an API client or automated service that authenticated via API key.",
-        "required": [
-          "sub"
-        ],
-        "properties": {
-          "groups": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            },
-            "description": "System groups the machine belongs to (e.g. `[\"tilde_system:admin\"]`)"
-          },
-          "sub": {
-            "type": "string",
-            "description": "Subject identifier (user ID) of the machine account"
-          }
-        }
       },
       "ManagedSkillSelection": {
         "type": "object",
@@ -58644,7 +58621,7 @@
       },
       "User": {
         "type": "object",
-        "description": "A user entity in the system.\n\nRepresents both human users and machine accounts with their associated metadata.",
+        "description": "A user entity in the system.\n\nRepresents both human and agent users with their associated metadata.",
         "required": [
           "id",
           "user_type",
@@ -58686,7 +58663,7 @@
               "string",
               "null"
             ],
-            "description": "Email address (required for human users, optional for machines)"
+            "description": "Email address (required for human users, optional for agents)."
           },
           "id": {
             "type": "string",
@@ -58698,13 +58675,13 @@
           },
           "user_type": {
             "$ref": "#/components/schemas/UserType",
-            "description": "Whether this is a machine or human user"
+            "description": "Whether this is an agent or human user."
           }
         }
       },
       "UserAvatar": {
         "type": "object",
-        "description": "Uploaded profile image metadata for a human or machine user.",
+        "description": "Uploaded profile image metadata for a human or agent user.",
         "required": [
           "bucket",
           "object_key",
@@ -59043,9 +59020,9 @@
       },
       "UserType": {
         "type": "string",
-        "description": "Type of user identity in the system.\n\nDistinguishes between automated services and real users.",
+        "description": "Type of user identity in the system.\n\nDistinguishes first-class agent users from human users.",
         "enum": [
-          "machine",
+          "agent",
           "human"
         ]
       },
