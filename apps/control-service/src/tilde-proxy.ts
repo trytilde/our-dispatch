@@ -29,10 +29,7 @@ const methods = (...values: AllowedMethod[]): ReadonlySet<AllowedMethod> => new 
  * deliberately an operation allowlist rather than an unrestricted API proxy.
  */
 const allowedRoutes: readonly AllowedRoute[] = [
-  { pattern: /^openbot\/plugins\/catalog$/, methods: methods("GET") },
-  { pattern: /^provider-setup\/catalog$/, methods: methods("GET") },
   { pattern: /^provider-setup\/start$/, methods: methods("POST") },
-  { pattern: /^provider-setup\/[^/]+\/resume$/, methods: methods("POST") },
   { pattern: /^automations$/, methods: methods("GET") },
   { pattern: /^automations\/[^/]+$/, methods: methods("GET", "PUT", "DELETE") },
   { pattern: /^automations\/[^/]+\/run$/, methods: methods("POST") },
@@ -41,23 +38,27 @@ const allowedRoutes: readonly AllowedRoute[] = [
   { pattern: /^signals\/instances\/[^/]+$/, methods: methods("GET", "PATCH", "DELETE") },
   { pattern: /^signals\/instances\/[^/]+\/test$/, methods: methods("POST") },
   { pattern: /^signals\/deliveries$/, methods: methods("GET") },
-  { pattern: /^signals\/deliveries\/[^/]+$/, methods: methods("GET") },
-  { pattern: /^signals\/deliveries\/[^/]+\/retry$/, methods: methods("POST") },
+  { pattern: /^mcp\/available-tool-groups$/, methods: methods("GET") },
   { pattern: /^mcp\/provider-catalog$/, methods: methods("GET") },
   { pattern: /^mcp\/provider-catalog\/[^/]+\/connect$/, methods: methods("POST") },
   { pattern: /^mcp\/proxied-mcp-servers$/, methods: methods("GET", "POST") },
   { pattern: /^mcp\/proxied-mcp-servers\/oauth\/start$/, methods: methods("POST") },
-  { pattern: /^mcp\/proxied-mcp-servers\/[^/]+$/, methods: methods("GET", "DELETE") },
+  { pattern: /^mcp\/proxied-mcp-servers\/[^/]+$/, methods: methods("DELETE") },
+  { pattern: /^mcp\/tool-group$/, methods: methods("GET") },
   { pattern: /^mcp\/tool-group\/[^/]+$/, methods: methods("GET", "DELETE") },
   {
     pattern: /^mcp\/tool-group\/[^/]+\/tools\/enable-and-bind$/,
     methods: methods("POST"),
   },
+  { pattern: /^mcp\/mcp-server$/, methods: methods("GET") },
   { pattern: /^mcp\/mcp-server\/[^/]+\/tool-group\/[^/]+$/, methods: methods("DELETE") },
+  { pattern: /^skill$/, methods: methods("GET") },
+  { pattern: /^skill-providers$/, methods: methods("GET") },
+  { pattern: /^skill-registry$/, methods: methods("GET") },
   { pattern: /^skill-registry\/[^/]+\/provider-skills$/, methods: methods("POST") },
   { pattern: /^skill-registry\/[^/]+$/, methods: methods("PATCH") },
   {
-    pattern: /^credential\/source\/[^/]+\/resource-server(?:\/encrypt)?$/,
+    pattern: /^credential\/source\/api_key\/resource-server(?:\/encrypt)?$/,
     methods: methods("POST"),
   },
 ];

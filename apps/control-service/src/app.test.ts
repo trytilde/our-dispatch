@@ -120,11 +120,19 @@ describe("bare OpenBot server", () => {
       },
     });
 
-    const response = await tildeApp.request("https://openbot.test/api/tilde/identity/api-key", {
-      method: "POST",
-    });
-
-    expect(response.status).toBe(404);
+    const unsupported = [
+      ["/api/tilde/identity/api-key", "POST"],
+      ["/api/tilde/openbot/plugins/catalog", "GET"],
+      ["/api/tilde/provider-setup/catalog", "GET"],
+      ["/api/tilde/provider-setup/setup-one/resume", "POST"],
+      ["/api/tilde/signals/deliveries/delivery-one/retry", "POST"],
+      ["/api/tilde/mcp/proxied-mcp-servers/server-one", "GET"],
+      ["/api/tilde/credential/source/oauth/resource-server", "POST"],
+    ] as const;
+    for (const [path, method] of unsupported) {
+      const response = await tildeApp.request(`https://openbot.test${path}`, { method });
+      expect(response.status, `${method} ${path}`).toBe(404);
+    }
     expect(tildeFetch).not.toHaveBeenCalled();
   });
 

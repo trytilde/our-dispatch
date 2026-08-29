@@ -2,6 +2,33 @@ import { describe, expect, it, vi } from "vite-plus/test";
 import { createTildePluginsClient } from "./tilde-plugins.js";
 
 describe("Tilde plugin client", () => {
+  it("loads and exhausts native Tilde resource pages", async () => {
+    const requestJson = vi.fn(async (path: string) => {
+      if (path.startsWith("/api/tilde/mcp/available-tool-groups?"))
+        return path.includes("next_page_token=providers-2")
+          ? { items: [{ type_id: "google_mail", name: "Google Mail" }] }
+          : {
+              items: [{ type_id: "github", name: "GitHub" }],
+              next_page_token: "providers-2",
+            };
+      if (path === "/api/tilde/skill-providers") return { items: [] };
+      if (path === "/api/tilde/mcp/provider-catalog") return { items: [] };
+      return { items: [] };
+    });
+    const client = createTildePluginsClient(requestJson);
+
+    await expect(client.getPluginsCatalog()).resolves.toMatchObject({
+      tools: [{ provider: { type_id: "github" } }, { provider: { type_id: "google_mail" } }],
+    });
+    expect(requestJson).toHaveBeenCalledWith(
+      "/api/tilde/mcp/available-tool-groups?deployment_alias=latest&include_global=true&page_size=100",
+    );
+    expect(requestJson).toHaveBeenCalledWith(
+      "/api/tilde/mcp/available-tool-groups?deployment_alias=latest&include_global=true&page_size=100&next_page_token=providers-2",
+    );
+    expect(requestJson).not.toHaveBeenCalledWith("/api/tilde/openbot/plugins/catalog");
+  });
+
   it("uses provider setup directly for ordinary connectors", async () => {
     const requestJson = vi.fn().mockResolvedValue({
       resource: {

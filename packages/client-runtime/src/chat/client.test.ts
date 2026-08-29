@@ -437,7 +437,8 @@ describe("OpenBot client", () => {
       fetch: async (input, init) => {
         const url = requestUrl(input);
         calls.push({ method: init?.method ?? "GET", url });
-        if (url === "/api/tilde/openbot/plugins/catalog") return Response.json(catalog);
+        const nativePage = nativePluginCatalogPage(url, catalog);
+        if (nativePage) return Response.json(nativePage);
         if (url === "/api/tilde/mcp/provider-catalog") return Response.json({ items: [] });
         if (url.includes("enable-and-bind")) return Response.json({ complete: true });
         return Response.json({ ok: true });
@@ -450,20 +451,23 @@ describe("OpenBot client", () => {
     await client.deleteConnectorAccounts(["github/work", "github-personal"]);
     await client.setToolAccountForAgent("github-work", "agent-two", true);
     await client.setSkillForAgent("skill-one", "agent-one", false);
-    expect(calls).toEqual([
-      { method: "GET", url: "/api/tilde/openbot/plugins/catalog" },
-      { method: "GET", url: "/api/tilde/mcp/provider-catalog" },
-      { method: "GET", url: "/api/tilde/openbot/plugins/catalog" },
-      { method: "DELETE", url: "/api/tilde/mcp/tool-group/github%2Fwork" },
-      { method: "DELETE", url: "/api/tilde/mcp/tool-group/github-personal" },
-      { method: "GET", url: "/api/tilde/openbot/plugins/catalog" },
-      {
-        method: "POST",
-        url: "/api/tilde/mcp/tool-group/github-work/tools/enable-and-bind",
-      },
-      { method: "GET", url: "/api/tilde/openbot/plugins/catalog" },
-      { method: "PATCH", url: "/api/tilde/skill-registry/registry-one" },
-    ]);
+    expect(calls).toEqual(
+      expect.arrayContaining([
+        {
+          method: "GET",
+          url: "/api/tilde/mcp/available-tool-groups?deployment_alias=latest&include_global=true&page_size=100",
+        },
+        { method: "GET", url: "/api/tilde/mcp/provider-catalog" },
+        { method: "DELETE", url: "/api/tilde/mcp/tool-group/github%2Fwork" },
+        { method: "DELETE", url: "/api/tilde/mcp/tool-group/github-personal" },
+        {
+          method: "POST",
+          url: "/api/tilde/mcp/tool-group/github-work/tools/enable-and-bind",
+        },
+        { method: "PATCH", url: "/api/tilde/skill-registry/registry-one" },
+      ]),
+    );
+    expect(calls.some(({ url }) => url.includes("/openbot/plugins/catalog"))).toBe(false);
   });
 
   it("rewrites Tilde attachment URLs through the configured bridge", () => {
@@ -492,4 +496,36 @@ function socketTicket(): ChatKitRealtimeSocketTicket {
 
 function requestUrl(input: RequestInfo | URL): string {
   return typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+}
+
+function nativePluginCatalogPage(
+  url: string,
+  catalog: {
+    tool_providers: unknown[];
+    tool_accounts: unknown[];
+    mcp_servers: unknown[];
+    proxied_mcp_servers: unknown[];
+    skills: unknown[];
+    skill_providers: unknown[];
+    skill_registries: unknown[];
+  },
+): { items: unknown[] } | undefined {
+  const path = url.split("?", 1)[0];
+  const items =
+    path === "/api/tilde/mcp/available-tool-groups"
+      ? catalog.tool_providers
+      : path === "/api/tilde/mcp/tool-group"
+        ? catalog.tool_accounts
+        : path === "/api/tilde/mcp/mcp-server"
+          ? catalog.mcp_servers
+          : path === "/api/tilde/mcp/proxied-mcp-servers"
+            ? catalog.proxied_mcp_servers
+            : path === "/api/tilde/skill"
+              ? catalog.skills
+              : path === "/api/tilde/skill-providers"
+                ? catalog.skill_providers
+                : path === "/api/tilde/skill-registry"
+                  ? catalog.skill_registries
+                  : undefined;
+  return items ? { items } : undefined;
 }

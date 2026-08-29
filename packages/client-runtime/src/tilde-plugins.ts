@@ -1,4 +1,14 @@
 import { z } from "zod";
+import type {
+  McpProviderCatalogEntry,
+  McpServerInstanceSerializedWithFunctions,
+  ProxiedMcpServerListItem,
+  ProxiedSkillProvider,
+  Skill,
+  SkillRegistry,
+  ToolGroupInstanceListItem,
+  ToolGroupSourceSerialized,
+} from "@trytilde/api-client/generated";
 import { PluginsCatalogSchema, type PluginsCatalog } from "./contracts/plugins.js";
 import {
   ConnectorAccountSchema,
@@ -9,20 +19,83 @@ import {
 type RequestJson = (path: string, init?: RequestInit) => Promise<unknown>;
 
 const RecordSchema = z.record(z.string(), z.unknown());
-const OpenBotCatalogSchema = z.object({
-  tool_providers: z.array(RecordSchema),
-  tool_accounts: z.array(RecordSchema),
-  mcp_servers: z.array(RecordSchema),
-  proxied_mcp_servers: z.array(RecordSchema),
-  skills: z.array(RecordSchema),
-  skill_providers: z.array(RecordSchema),
-  skill_registries: z.array(RecordSchema),
+const NativeResourcePageSchema = z.object({
+  items: z.array(RecordSchema),
+  next_page_token: z.string().nullish(),
 });
 const ManagedProviderPageSchema = z.object({ items: z.array(RecordSchema) });
 
+type NativeResource<T> = T & Record<string, unknown>;
+
+interface TildePluginResources {
+  tool_providers: NativeResource<ToolGroupSourceSerialized>[];
+  tool_accounts: NativeResource<ToolGroupInstanceListItem>[];
+  mcp_servers: NativeResource<McpServerInstanceSerializedWithFunctions>[];
+  proxied_mcp_servers: NativeResource<ProxiedMcpServerListItem>[];
+  skills: NativeResource<Skill>[];
+  skill_providers: NativeResource<ProxiedSkillProvider>[];
+  skill_registries: NativeResource<SkillRegistry>[];
+}
+
 export function createTildePluginsClient(requestJson: RequestJson) {
+  const listToolProviders = () =>
+    listNativeResources<ToolGroupSourceSerialized>(
+      requestJson,
+      "/api/tilde/mcp/available-tool-groups",
+      {
+        deployment_alias: "latest",
+        include_global: "true",
+      },
+    );
+  const listToolAccounts = () =>
+    listNativeResources<ToolGroupInstanceListItem>(requestJson, "/api/tilde/mcp/tool-group", {
+      include_global: "false",
+    });
+  const listMcpServers = () =>
+    listNativeResources<McpServerInstanceSerializedWithFunctions>(
+      requestJson,
+      "/api/tilde/mcp/mcp-server",
+      { include_global: "false" },
+    );
+  const listProxiedMcpServers = () =>
+    listNativeResources<ProxiedMcpServerListItem>(
+      requestJson,
+      "/api/tilde/mcp/proxied-mcp-servers",
+      { include_catalog_managed: "false" },
+    );
+  const listSkills = () => listNativeResources<Skill>(requestJson, "/api/tilde/skill");
+  const listSkillProviders = () =>
+    listNativeResources<ProxiedSkillProvider>(requestJson, "/api/tilde/skill-providers", {}, false);
+  const listSkillRegistries = () =>
+    listNativeResources<SkillRegistry>(requestJson, "/api/tilde/skill-registry");
+
   async function catalog() {
-    return OpenBotCatalogSchema.parse(await requestJson("/api/tilde/openbot/plugins/catalog"));
+    const [
+      toolProviders,
+      toolAccounts,
+      mcpServers,
+      proxiedMcpServers,
+      skills,
+      skillProviders,
+      skillRegistries,
+    ] = await Promise.all([
+      listToolProviders(),
+      listToolAccounts(),
+      listMcpServers(),
+      listProxiedMcpServers(),
+      listSkills(),
+      listSkillProviders(),
+      listSkillRegistries(),
+    ]);
+    return {
+      tool_providers: toolProviders,
+      tool_accounts: toolAccounts,
+      mcp_servers: mcpServers,
+      proxied_mcp_servers: proxiedMcpServers,
+      skills,
+      skill_providers: skillProviders,
+      skill_registries: skillRegistries,
+    } satisfies TildePluginResources;
   }
 
   async function getPluginsCatalog(): Promise<PluginsCatalog> {
@@ -31,7 +104,10 @@ export function createTildePluginsClient(requestJson: RequestJson) {
       requestJson("/api/tilde/mcp/provider-catalog"),
     ]);
     return PluginsCatalogSchema.parse(
-      projectPlugins(resources, ManagedProviderPageSchema.parse(managed).items),
+      projectPlugins(
+        resources,
+        ManagedProviderPageSchema.parse(managed).items as NativeResource<McpProviderCatalogEntry>[],
+      ),
     );
   }
 
@@ -90,10 +166,8 @@ export function createTildePluginsClient(requestJson: RequestJson) {
     },
 
     async deleteConnectorAccounts(accountIds: readonly string[]): Promise<void> {
-      const resources = await catalog();
-      const proxiedIds = new Set(
-        resources.proxied_mcp_servers.map((item) => text(record(item.tool_group_instance)?.id)),
-      );
+      const proxied = await listProxiedMcpServers();
+      const proxiedIds = new Set(proxied.map((item) => text(record(item.tool_group_instance)?.id)));
       await Promise.all(
         accountIds.map((accountId) =>
           requestJson(
@@ -111,8 +185,7 @@ export function createTildePluginsClient(requestJson: RequestJson) {
       agentId: string,
       enabled: boolean,
     ): Promise<void> {
-      const resources = await catalog();
-      const server = resources.mcp_servers.find(
+      const server = (await listMcpServers()).find(
         (candidate) => text(candidate.agent_id) === agentId,
       );
       const serverId = text(server?.id);
@@ -141,10 +214,12 @@ export function createTildePluginsClient(requestJson: RequestJson) {
     },
 
     async setSkillForAgent(skillId: string, agentId: string, enabled: boolean): Promise<void> {
-      const resources = await catalog();
-      const registry = resources.skill_registries.find(
-        (candidate) => text(candidate.agent_id) === agentId,
-      );
+      const [availableSkills, providers, registries] = await Promise.all([
+        listSkills(),
+        listSkillProviders(),
+        listSkillRegistries(),
+      ]);
+      const registry = registries.find((candidate) => text(candidate.agent_id) === agentId);
       const registryId = text(registry?.id);
       if (!registryId) throw new Error("This bot has no Tilde skill registry");
       const currentIds = records(registry?.skills)
@@ -152,14 +227,12 @@ export function createTildePluginsClient(requestJson: RequestJson) {
         .filter(Boolean);
       const trusted = parseTrustedCatalogSkillId(skillId);
       if (trusted) {
-        const provider = resources.skill_providers.find(
-          (candidate) => text(candidate.id) === trusted.providerId,
-        );
+        const provider = providers.find((candidate) => text(candidate.id) === trusted.providerId);
         const providerSkill = records(provider?.skills).find(
           (candidate) => text(candidate.id) === trusted.skillId,
         );
         if (!provider || !providerSkill) throw new Error("Unknown skill");
-        const materialized = resources.skills.find(
+        const materialized = availableSkills.find(
           (candidate) =>
             text(candidate.source_provider_id) === trusted.providerId &&
             text(candidate.source_path) === text(providerSkill.source_path),
@@ -187,7 +260,7 @@ export function createTildePluginsClient(requestJson: RequestJson) {
         );
         return;
       }
-      if (!resources.skills.some((candidate) => text(candidate.id) === skillId))
+      if (!availableSkills.some((candidate) => text(candidate.id) === skillId))
         throw new Error("Unknown skill");
       await replaceRegistrySkills(
         requestJson,
@@ -198,6 +271,28 @@ export function createTildePluginsClient(requestJson: RequestJson) {
       );
     },
   };
+}
+
+async function listNativeResources<T extends object>(
+  requestJson: RequestJson,
+  path: string,
+  filters: Readonly<Record<string, string>> = {},
+  paginated = true,
+): Promise<NativeResource<T>[]> {
+  const items: Record<string, unknown>[] = [];
+  let nextPageToken: string | undefined;
+  for (let page = 0; page < 100; page += 1) {
+    const query = new URLSearchParams(filters);
+    if (paginated) query.set("page_size", "100");
+    if (nextPageToken) query.set("next_page_token", nextPageToken);
+    const response = NativeResourcePageSchema.parse(
+      await requestJson(query.size > 0 ? `${path}?${query.toString()}` : path),
+    );
+    items.push(...response.items);
+    if (!paginated || !response.next_page_token) return items as NativeResource<T>[];
+    nextPageToken = response.next_page_token;
+  }
+  throw new Error(`Tilde pagination exceeded 100 pages for ${path}`);
 }
 
 async function createManagedConnectorAccount(
@@ -340,8 +435,8 @@ async function replaceRegistrySkills(
 }
 
 function projectPlugins(
-  catalog: z.infer<typeof OpenBotCatalogSchema>,
-  managedProviders: Record<string, unknown>[],
+  catalog: TildePluginResources,
+  managedProviders: NativeResource<McpProviderCatalogEntry>[],
 ): PluginsCatalog {
   const agentServers = new Map(
     catalog.mcp_servers.flatMap((server) => {
@@ -441,7 +536,7 @@ function projectPlugins(
 }
 
 function serializeSkills(
-  catalog: z.infer<typeof OpenBotCatalogSchema>,
+  catalog: TildePluginResources,
   agentIds: string[],
   agentRegistries: ReadonlyMap<string, Record<string, unknown>>,
 ) {

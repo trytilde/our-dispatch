@@ -22,6 +22,8 @@
 
 Use native Tilde plugin, connector, routine, and signal resources through one authenticated allowlisted bridge, and remove the corresponding control-service route APIs.
 
+Plugin inventory now pages Tilde's native MCP, skill, provider, and registry collections directly; it no longer depends on Tilde's OpenBot-specific aggregate catalogue or its first-page limit.
+
 Migration:
 - Replace direct calls to `/api/plugins`, `/api/connectors`, `/api/routines`, and `/api/signals` with `@tryopenbot/client-runtime`.
 - Replace `registerConnectorRoutes` with `registerConnectorAuthorizedRoute` when constructing a custom control service.

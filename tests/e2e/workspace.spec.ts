@@ -5,6 +5,17 @@ function chatKitRealtimeBootstrap(items: unknown[]) {
   return { sidebar: { items } };
 }
 
+function nativePluginResourceKey(path: string) {
+  if (path.endsWith("/api/tilde/mcp/available-tool-groups")) return "tool_providers";
+  if (path.endsWith("/api/tilde/mcp/tool-group")) return "tool_accounts";
+  if (path.endsWith("/api/tilde/mcp/mcp-server")) return "mcp_servers";
+  if (path.endsWith("/api/tilde/mcp/proxied-mcp-servers")) return "proxied_mcp_servers";
+  if (path.endsWith("/api/tilde/skill")) return "skills";
+  if (path.endsWith("/api/tilde/skill-providers")) return "skill_providers";
+  if (path.endsWith("/api/tilde/skill-registry")) return "skill_registries";
+  return undefined;
+}
+
 // Every test but the first-run one wants the workspace, so skip onboarding by seeding
 // the persisted state the client runtime reads.
 test.beforeEach(async ({ page }) => {
@@ -1388,50 +1399,52 @@ test("configures a connector through the in-chat account picker", async ({ page 
       tool_group_source_type_id: "tavily",
       credential_source_type_id: "tavily_api_key",
     });
-    if (path.endsWith("/api/tilde/openbot/plugins/catalog") && method === "GET") {
-      await route.fulfill({
-        json: {
-          tool_providers: [
-            {
-              type_id: "tavily",
-              name: "Tavily",
-              categories: [],
-              credential_sources: [
-                {
-                  type_id: "tavily_api_key",
-                  display_name: "Use an API key",
-                  requires_brokering: false,
-                  configuration_schema: {
-                    resource_server: null,
-                    user_credential: {
-                      type: "object",
-                      required: ["api_key"],
-                      properties: { api_key: { type: "string", format: "password" } },
-                    },
+    const resourceKey = nativePluginResourceKey(path);
+    if (resourceKey && method === "GET") {
+      const catalog = {
+        tool_providers: [
+          {
+            type_id: "tavily",
+            name: "Tavily",
+            categories: [],
+            credential_sources: [
+              {
+                type_id: "tavily_api_key",
+                display_name: "Use an API key",
+                requires_brokering: false,
+                configuration_schema: {
+                  resource_server: null,
+                  user_credential: {
+                    type: "object",
+                    required: ["api_key"],
+                    properties: { api_key: { type: "string", format: "password" } },
                   },
                 },
-              ],
-            },
-          ],
-          tool_accounts: [
-            tavilyAccount("tgi-work", "Work account"),
-            tavilyAccount("tgi-personal", "Personal"),
-            ...(connectorCreated ? [tavilyAccount("tgi-new", "Research key")] : []),
-          ],
-          mcp_servers: [
-            {
-              id: "openbot-hello-world",
-              agent_id: "hello-world",
-              tools: connectorBindRequests.map(({ account_id }) => ({
-                tool_group_instance_id: account_id,
-              })),
-            },
-          ],
-          proxied_mcp_servers: [],
-          skills: [],
-          skill_providers: [],
-          skill_registries: [],
-        },
+              },
+            ],
+          },
+        ],
+        tool_accounts: [
+          tavilyAccount("tgi-work", "Work account"),
+          tavilyAccount("tgi-personal", "Personal"),
+          ...(connectorCreated ? [tavilyAccount("tgi-new", "Research key")] : []),
+        ],
+        mcp_servers: [
+          {
+            id: "openbot-hello-world",
+            agent_id: "hello-world",
+            tools: connectorBindRequests.map(({ account_id }) => ({
+              tool_group_instance_id: account_id,
+            })),
+          },
+        ],
+        proxied_mcp_servers: [],
+        skills: [],
+        skill_providers: [],
+        skill_registries: [],
+      };
+      await route.fulfill({
+        json: { items: catalog[resourceKey] },
       });
       return;
     }

@@ -98,12 +98,12 @@ describe("owner authentication", () => {
     const provider = stubProvider();
     const app = createApp({ authProvider: provider, webRoot: "/missing" });
     expect((await app.request("/api/computer/missing/preview")).status).toBe(401);
-    expect((await app.request("/api/tilde/openbot/plugins/catalog")).status).toBe(401);
+    expect((await app.request("/api/tilde/mcp/available-tool-groups")).status).toBe(401);
     const authorized = await app.request("/api/computer/missing/preview", {
       headers: { authorization: "Bearer valid-token" },
     });
     expect(authorized.status).toBe(503);
-    const authorizedTilde = await app.request("/api/tilde/openbot/plugins/catalog", {
+    const authorizedTilde = await app.request("/api/tilde/mcp/available-tool-groups", {
       headers: { authorization: "Bearer valid-token" },
     });
     expect(authorizedTilde.status).toBe(503);
