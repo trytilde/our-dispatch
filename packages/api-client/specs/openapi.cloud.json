@@ -41767,6 +41767,67 @@
           "native"
         ]
       },
+      "ChatKitRequestAgent": {
+        "type": "object",
+        "description": "Public agent snapshot included in every signed HTTP-agent request.",
+        "required": [
+          "id",
+          "displayName",
+          "providerId",
+          "status",
+          "createdAt",
+          "updatedAt"
+        ],
+        "properties": {
+          "avatar": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ChatKitRequestAgentAvatar"
+              }
+            ]
+          },
+          "createdAt": {
+            "$ref": "#/components/schemas/WrappedChronoDateTime"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "principalUserId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "providerId": {
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/InboxStatus"
+          },
+          "updatedAt": {
+            "$ref": "#/components/schemas/WrappedChronoDateTime"
+          }
+        }
+      },
+      "ChatKitRequestAgentAvatar": {
+        "type": "object",
+        "description": "Agent avatar resource included in the signed HTTP-agent request context.",
+        "required": [
+          "url"
+        ],
+        "properties": {
+          "url": {
+            "type": "string",
+            "description": "Authenticated Tilde API path that serves the current avatar bytes."
+          }
+        }
+      },
       "ChatKitSearchAgent": {
         "type": "object",
         "description": "Agent context included when an agent identity or display name matched.",
@@ -42460,6 +42521,17 @@
           "messages"
         ],
         "properties": {
+          "agent": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ChatKitRequestAgent",
+                "description": "Canonical public metadata for the agent receiving this turn."
+              }
+            ]
+          },
           "chatId": {
             "type": [
               "string",
