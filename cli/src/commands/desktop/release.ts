@@ -1,6 +1,6 @@
 // Publication of the OpenBot desktop app to the shared app-updates bucket.
 //
-// Publishing is upstream-only for the same reason store publication is (ADR-0027).
+// Official publication is upstream-only; forks select their own bucket (ADR-0028).
 // A fork inherits every tracked file, so the official bucket name sitting in this
 // file is precisely why the refusal has to be code here rather than a comment in a
 // config file. A fork publishes its own builds by setting the bucket override.
@@ -29,9 +29,8 @@ import { repositoryRoot } from "../../workspace.js";
  */
 const officialUpdatesBucket = "tilde-app-updates-prod";
 /**
- * Reverse-DNS of the publisher, not of the product or the platform, matching the mobile
- * identifier for the reason ADR-0027 gives. Overridable through the same OPENBOT_APP_ID a
- * fork already sets for Expo, so one variable renames both clients.
+ * Reverse-DNS of the publisher, not of the product or platform. A fork may override it
+ * through OPENBOT_APP_ID.
  */
 const officialAppId = "ai.trytilde.openbot";
 const officialUpdatesPrefix = "desktop/openbot";

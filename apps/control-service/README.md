@@ -11,12 +11,12 @@ The portable Hono control application. It serves health, exposes raw allowlisted
 - `registerTildeChatProxy(app, options)` preserves Tilde ChatKit request, response, and attachment semantics for an exact Client Runtime operation allowlist and exposes only the short-lived ChatKit realtime ticket needed for a direct browser WebSocket.
 - `registerTildeProxy(app, options)` preserves request and response bodies for a strict allowlist of Tilde-owned settings operations while keeping the installation API key out of clients.
 - `registerComputerPreview(app, provider, options)` exposes the narrow owner preview redirect without making Computer service browser-accessible.
-- `registerConnectorAuthorizedRoute(app)` serves only the public OAuth completion page that bounces desktop and mobile flows to the `openbot://` deep link. Connector resources and setup use native Tilde APIs through `registerTildeProxy`.
+- `registerConnectorAuthorizedRoute(app)` serves only the public OAuth completion page that bounces desktop flows to the `openbot://` deep link. Connector resources and setup use native Tilde APIs through `registerTildeProxy`.
 
 The package default application also exposes `GET /healthz`. There is no owner-facing ConnectRPC surface or pairing-code setup route.
 
 Owner-authenticated `POST /api/agents` starts `openbot new-agent` inside the trusted development
 Computer as a background job. `GET /api/agents/setup/:jobId` reports that job without exposing the
-Computer API key or shell output to the browser. When Tilde is configured, the status route also
-establishes the new ChatKit Agent Resource Bundle with the deployment API key delegated by the
-signed-in human, so later machine-only deployments preserve that individual lifecycle owner.
+Computer API key or shell output to the browser. The command owns source creation and idempotent
+Tilde reconciliation; the status route does not provision a second time or require a separate
+human credential.

@@ -20,7 +20,6 @@ import { runSecrets } from "./secrets.js";
 import { runDevelopmentServer } from "./serve.js";
 import { runConnect } from "./connect.js";
 import { runDesktop } from "./desktop/index.js";
-import { runMobile } from "./mobile/index.js";
 import { runRemote } from "./remote.js";
 import { runTildeCommand } from "./tilde.js";
 import { runTildePlugin } from "./plugin.js";
@@ -124,7 +123,6 @@ export async function runCommand(command: string, args: readonly string[]): Prom
   // These delegate to a child with inherited stdio, or print their own explanation.
   // A non-zero result is therefore already reported, so the run-log crash notice
   // would only point at a log holding nothing but the run's start and finish.
-  if (command === "mobile") return reportedExit(await runMobile(args));
   if (command === "connect") return reportedExit(await runConnect(args));
   if (command === "remote") return reportedExit(await runRemote(args));
   throw new Error(`Unknown command: ${[command, ...args].join(" ")}`);
@@ -148,15 +146,6 @@ function show(view: ReactElement): void {
 async function delegate(script: string, args: readonly string[]): Promise<void> {
   if (process.stdout.isTTY) show(<Success title={`Starting pnpm ${script}`} />);
   return spawnPnpm([script, ...args]);
-}
-
-// Package-filtered delegation for workflows that are not root scripts.
-async function delegateFilter(
-  packageName: string,
-  script: string,
-  args: readonly string[],
-): Promise<void> {
-  return spawnPnpm(["--filter", packageName, script, ...args]);
 }
 
 async function spawnPnpm(pnpmArguments: readonly string[]): Promise<void> {

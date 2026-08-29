@@ -159,13 +159,6 @@ export class TildeAgentProvider implements AgentProvider {
             description: `Skills available to the ${slug} OpenBot agent.`,
             enabled_skills: enabledSkills,
           },
-          memory: {
-            bank: {
-              enabled: true,
-              name: `OpenBot ${slug} memory`,
-              description: `Memory owned by the ${slug} OpenBot agent.`,
-            },
-          },
         },
         signal,
       }),

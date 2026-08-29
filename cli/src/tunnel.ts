@@ -3,36 +3,21 @@
 import { defaultPorts, type DevHost } from "./hosts.js";
 
 export interface TunnelOptions {
-  vnc?: boolean;
   desktop?: boolean;
-  metro?: boolean;
-  adb?: boolean;
 }
 
 export function tunnelArguments(host: DevHost, options: TunnelOptions = {}): string[] {
   const forwards: string[] = [];
   const forward = (port: number) => forwards.push("-L", `${port}:127.0.0.1:${port}`);
-  if (options.vnc !== false) forward(host.vncPort ?? defaultPorts.vnc);
   if (options.desktop !== false) forward(host.desktopVncPort ?? defaultPorts.desktopVnc);
-  if (options.metro !== false) forward(host.metroPort ?? defaultPorts.metro);
-  if (options.adb !== false) forward(host.adbPort ?? defaultPorts.adb);
   return ["-N", ...forwards, host.ssh];
 }
 
 export function connectionHints(host: DevHost, options: TunnelOptions = {}): string[] {
   const hints: string[] = [];
-  if (options.vnc !== false)
-    hints.push(
-      `emulator: open vnc://localhost:${host.vncPort ?? defaultPorts.vnc}` +
-        (host.platform === "mac" ? " (macOS Screen Sharing on the remote)" : ""),
-    );
   if (options.desktop !== false)
     hints.push(
       `desktop: open vnc://localhost:${host.desktopVncPort ?? defaultPorts.desktopVnc} for the Electron shell`,
     );
-  if (options.metro !== false)
-    hints.push(`metro:  http://localhost:${host.metroPort ?? defaultPorts.metro}`);
-  if (options.adb !== false)
-    hints.push(`adb:    adb connect localhost:${host.adbPort ?? defaultPorts.adb}`);
   return hints;
 }

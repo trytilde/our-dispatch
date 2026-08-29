@@ -1,6 +1,6 @@
 # @tryopenbot/client-runtime
 
-Framework-neutral client behavior shared by OpenBot web, Electron, and Expo clients.
+Framework-neutral client behavior shared by OpenBot web and Electron clients.
 
 ## Public API
 
@@ -33,7 +33,7 @@ Framework-neutral client behavior shared by OpenBot web, Electron, and Expo clie
   `resetOnboarding` own persisted first-run state through a platform-supplied storage port.
 - `contracts/platform` owns the narrow Electron renderer bridge.
 
-The runtime has no React, DOM, Electron, Expo, or Node dependency. Applications provide authentication, fetch, storage, lifecycle, and native file capabilities at their platform boundary. Tilde remains authoritative for chat resources; these schemas validate only the resource subset consumed by OpenBot clients.
+The runtime has no React, DOM, Electron, or Node dependency. Applications provide authentication, fetch, storage, lifecycle, and file capabilities at their platform boundary. Tilde remains authoritative for chat resources; these schemas validate only the resource subset consumed by OpenBot clients.
 
 The runtime maintains one team-wide ChatKit realtime observer so inactive sessions keep their busy,
 preview, per-user unread, queue, turn, and streamed-message state current. Platform-supplied `agentSetupPersistence` may
@@ -44,7 +44,7 @@ Agent, session, read-state, message, queue, and turn events reduce directly from
 payloads; no recursive payload inspection or event-name substring matching is retained.
 
 Initial load, conversation selection, and turn submission consume server-authored aggregate
-responses. Web, Electron, and Expo therefore reconcile identical authoritative snapshots without
+responses. Web and Electron therefore reconcile identical authoritative snapshots without
 issuing per-session fan-out reads after each user action or realtime event.
 
 `searchChatKit` searches session titles, associated bots, and messages across the workspace, or

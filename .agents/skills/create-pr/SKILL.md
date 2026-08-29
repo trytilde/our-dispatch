@@ -13,9 +13,9 @@ Use when the user asks to open, publish, prepare, or update a PR for the current
 2. Review the full diff against the actual default branch. Preserve unrelated user changes.
 3. Run `pre-commit-checks` and fix in-scope failures.
 4. Review protobuf, Tilde API reconciliation, environment, deployment, package README, public documentation, and Changesets impact.
-5. Run the cross-client parity gate for `apps/mobile`, `apps/desktop`, and `apps/web`. Confirm the port/no-port decision with the user before publishing.
+5. Run the cross-client parity gate for `apps/desktop` and `apps/web`. Confirm the port/no-port decision with the user before publishing.
 6. Run the CLI ownership gate: every developer workflow and operator behavior belongs in the `openbot` CLI. Refactor before publishing.
-7. Run the external dependency gate: if a contributor must install something new or different, update the setup instructions and `mobile doctor` in the same PR.
+7. Run the external dependency gate: if a contributor must install something new or different, update the setup instructions in the same PR.
 8. Run the architecture and ADR gate. Resolve any user decision before publishing.
 9. Use a Conventional Commits title and intentional file selection; commit the validated implementation.
 10. Push the branch and open or update the draft PR so its stable PR number is known.
@@ -53,7 +53,6 @@ Add focused checks by surface:
 - browser flow: `pnpm test:e2e`
 - Electron packaging: `pnpm --filter @tryopenbot/desktop package`
 - shared client contracts: `pnpm --filter @tryopenbot/client-runtime test`
-- Expo bundles: `pnpm --filter @tryopenbot/mobile build`, which exports the iOS and Android bundles and fails on a platform-unsafe import
 
 Record exact commands and failures. Do not claim checks that did not run.
 
@@ -89,14 +88,14 @@ For an upstream PR, `git ls-files configuration` must print only the sentinel. F
 
 ## Cross-Client Parity Gate
 
-OpenBot has three owner clients: `apps/mobile` (Expo and React Native), `apps/desktop` (Electron), and `apps/web` (React DOM). This gate is mandatory and never skipped, including for PRs that touch only one of them.
+OpenBot has two owner clients: `apps/desktop` (Electron) and `apps/web` (React DOM). This gate is mandatory and never skipped, including for PRs that touch only one of them.
 
-Ask and answer explicitly: **has this PR added or changed functionality in the Expo mobile, Electron desktop, or web app that needs to be ported to the others?**
+Ask and answer explicitly: **has this PR added or changed functionality in Electron desktop or the web app that needs to be ported to the other client?**
 
 Determine the answer from evidence, not assumption:
 
 ```bash
-git diff --stat "$(git merge-base HEAD <base>)"..HEAD -- apps/web apps/mobile apps/desktop packages/ui packages/client-runtime
+git diff --stat "$(git merge-base HEAD <base>)"..HEAD -- apps/web apps/desktop packages/ui packages/client-runtime
 git diff "$(git merge-base HEAD <base>)"..HEAD -- packages/client-runtime/src/contracts
 ```
 
@@ -110,8 +109,7 @@ Rules:
 
 - Shared behavior belongs in `packages/client-runtime` before it is rendered anywhere, so a runtime contract change is a parity signal for all three clients by default. A contract or slice change that only one client consumes needs a stated reason.
 - Presentation-only work — hover, focus, transitions, tooltips, menu visibility, scroll position, drafts, layout sizing — is out of scope for this gate and needs no parity entry.
-- Native-only capability (SecureStore, PKCE redirect handling, native file pickers, push, background delivery) and desktop-only capability (privileged main-process work, packaging, native credential stores, same-origin proxying) are legitimately not portable. Say which one applies.
-- Web DOM implementation detail does not port as JSX. Expo receives native components sharing the same runtime contract, per ADR-0017.
+- Desktop-only capability (privileged main-process work, packaging, native credential stores, same-origin proxying) is legitimately not portable. Say which one applies.
 - Do not silently ship a one-client feature. An unclassified capability blocks the PR.
 
 Confirm the classification with the user before publishing when anything falls in **To port, not in this PR**. Do not infer approval of a deferral.
@@ -135,21 +133,20 @@ An out-of-date setup instruction costs every future contributor and agent the ti
 
 ```bash
 git diff "$(git merge-base HEAD <base>)"..HEAD -- '**/package.json' pnpm-workspace.yaml .nvmrc
-git diff "$(git merge-base HEAD <base>)"..HEAD -- cli/src/toolchain.ts cli/src/commands/mobile
-git diff "$(git merge-base HEAD <base>)"..HEAD -- '**/*.hbs' 'apps/*/app.config.ts' 'apps/*/eas.json' 'apps/*/Containerfile*'
+git diff "$(git merge-base HEAD <base>)"..HEAD -- cli/src/toolchain.ts
+git diff "$(git merge-base HEAD <base>)"..HEAD -- '**/*.hbs' 'apps/*/Containerfile*'
 ```
 
 Treat all of these as external dependency changes:
 
 - a Node or pnpm version pin, or a new `engines` constraint
-- a new or changed tool a contributor installs outside `pnpm install`: a JDK major, Xcode or a simulator runtime, CocoaPods, an Android SDK package or system image, a system library, Microsandbox, SOPS, age, Docker, Playwright browsers, an authenticated EAS session or a paid store account
+- a new or changed tool a contributor installs outside `pnpm install`: a system library, Microsandbox, SOPS, age, Docker, or Playwright browsers
 - a new native module in a client that forces a rebuild or a new platform capability
 - a changed minimum operating system, CPU architecture, or virtualization requirement such as KVM
 
 When any apply, the same PR must:
 
 - update the prerequisite tables and both the Linux and macOS setup sections in `CONTRIBUTING.md`, and the developer workflow list in `README.md` when a command changed
-- extend `openbot mobile doctor` so the requirement is checked rather than only documented, with a `warn` for a soft requirement and a `FAIL` for a hard one, and name the remedy in the detail text
 - state in the PR body which platforms were verified and which were not; a requirement proven on one operating system is not proven on the other
 
 Record the result under an `External dependencies` heading. When nothing changed, record `External dependencies: unchanged`.
@@ -160,7 +157,7 @@ Always inspect the complete diff for major architecture, strongly opinionated co
 
 Review at least:
 
-- ownership and boundaries across OpenBot, Tilde, providers, database, sandbox, client runtime, web, mobile, and desktop
+- ownership and boundaries across OpenBot, Tilde, providers, database, sandbox, client runtime, web, and desktop
 - public protocols, compatibility, authentication, secrets, deployment, and failure policy
 - framework, storage, provider, or platform choices with meaningful switching cost
 - cross-package layering and strong coding conventions future maintainers may otherwise undo
@@ -246,8 +243,6 @@ The update diff must show exactly `docs/updates/<pr-number>.md` for the current 
 ## Frontend Verification
 
 Use `e2e-debug-and-qa` when the user requests browser proof or the acceptance condition is visual. Keep screenshots, traces, videos, HAR files, and browser profiles outside git. GitHub-hosted attachments may be used in PR comments; never commit generated artifacts.
-
-For `apps/mobile`, Playwright does not apply. Verify Expo changes with `pnpm --filter @tryopenbot/mobile build` plus a device or emulator run through `run-expo`, and capture a screenshot when the acceptance condition is visual. State plainly which client each piece of evidence came from and name any client that was not exercised; never present a web screenshot as mobile proof.
 
 ## Interactive Review
 

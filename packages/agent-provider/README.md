@@ -22,8 +22,9 @@ the control service's allowlisted same-origin bridge.
 
 Reconciliation now submits one typed Tilde Agent Resource Bundle and polls its
 durable status. Tilde owns the agent, dynamic MCP server, control-plane toolkit,
-exact managed/custom skill registry, default per-agent memory bank, bindings,
-credential rotation, and cleanup. OpenBot claims endpoint secrets once and
+exact managed/custom skill registry, credential rotation, and cleanup. Memory is
+opt-in on Tilde; omitting it preserves any existing agent-owned bank without
+making a paid bank a prerequisite for new-agent creation. OpenBot claims endpoint secrets once and
 uploads a deterministic canonical avatar to the stable machine-user profile,
 then retains its ChatKit realtime channel plus credential-bearing
 deployment-platform integrations.

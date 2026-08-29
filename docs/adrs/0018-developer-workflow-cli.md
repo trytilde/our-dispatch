@@ -87,6 +87,7 @@ flowchart LR
 
 ## Updates
 
+- 2026-08-29T07:28:00+02:00: ADR-0033 removed the mobile command group, Android/iOS toolchain resolution, Metro/adb tunnels, and EAS release surface. `connect` and `remote` now serve Electron desktop development only.
 - 2026-08-18T13:30:00+02:00: Initial decision as a separate published `@tryopenbot/dev-cli`.
 - 2026-08-18T14:20:00+02:00: Grouped every mobile command under `mobile <subcommand>` and added `avd`, `setup`, `screenshot`, and `logs`.
 - 2026-08-18T15:00:00+02:00: Repository gates became commands; every developer workflow must land as a command; `create-pr` gained the CLI ownership gate.

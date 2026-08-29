@@ -423,6 +423,23 @@ test("keeps the chat composition inside a mobile viewport", async ({ page }) => 
   await page.goto("/");
 
   await expect(page.locator(".rail")).toBeHidden();
+  const navigation = page.getByRole("button", { name: "Open navigation" });
+  await expect(navigation).toBeVisible();
+  const navigationBounds = await navigation.boundingBox();
+  if (!navigationBounds) throw new Error("Mobile navigation trigger is not visible");
+  expect(navigationBounds.width).toBeGreaterThanOrEqual(44);
+  expect(navigationBounds.height).toBeGreaterThanOrEqual(44);
+
+  await navigation.click();
+  const drawer = page.getByRole("dialog", { name: "Bots and workspace" });
+  await expect(drawer).toBeVisible();
+  await expect(drawer.getByRole("navigation", { name: "Bots" })).toBeVisible();
+  const searchBounds = await drawer.getByRole("button", { name: "Search" }).boundingBox();
+  if (!searchBounds) throw new Error("Mobile navigation search is not visible");
+  expect(searchBounds.height).toBeGreaterThanOrEqual(44);
+  await drawer.getByRole("button", { name: /Hello World/ }).click();
+  await expect(drawer).toBeHidden();
+
   const chat = await page.locator(".chat-pane").boundingBox();
   const conversation = await page.locator(".conversation").boundingBox();
   const composer = await page.locator(".composer").boundingBox();
@@ -435,6 +452,16 @@ test("keeps the chat composition inside a mobile viewport", async ({ page }) => 
   expect(conversation.x + conversation.width).toBeLessThanOrEqual(390);
   expect(composer.x).toBeGreaterThanOrEqual(0);
   expect(composer.x + composer.width).toBeLessThanOrEqual(390);
+  await expect(page.getByRole("textbox", { name: "Message" })).toHaveCSS("font-size", "16px");
+  for (const control of [
+    page.getByRole("button", { name: "Add photos and files" }),
+    page.getByRole("button", { name: "Send message" }),
+  ]) {
+    const bounds = await control.boundingBox();
+    if (!bounds) throw new Error("Mobile composer control is not visible");
+    expect(bounds.width).toBeGreaterThanOrEqual(44);
+    expect(bounds.height).toBeGreaterThanOrEqual(44);
+  }
   await expect(page.locator("body")).toHaveJSProperty("scrollWidth", 390);
 });
 

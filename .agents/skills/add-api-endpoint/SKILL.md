@@ -22,7 +22,7 @@ OpenBot uses ConnectRPC for authenticated control operations and Hono for protoc
 5. Apply the existing authorization mechanism before business work.
 6. Delegate external behavior to the owning provider package's `src/core.ts` or `src/core/index.ts` contract and matching adapter. Keep route code provider-neutral.
 7. Preserve `Request.signal` through `ProviderCallContext`.
-8. When an OpenBot client consumes the endpoint, add or extend the grouped contract and client call in `packages/client-runtime` in the same change. Web, Expo, and Electron consume it from there; they never declare the request, response, or event shape themselves.
+8. When an OpenBot client consumes the endpoint, add or extend the grouped contract and client call in `packages/client-runtime` in the same change. Web and Electron consume it from there; they never declare the request, response, or event shape themselves.
 9. Add focused tests beside the server surface. Test status/code, response shape, authorization, and the owning provider call.
 
 ## Authentication And Scope
@@ -46,7 +46,7 @@ Add pagination only when the backing provider supports a stable cursor contract.
 - [ ] Authentication or signature verification preserved.
 - [ ] Provider work stays behind the contract defined in `src/core.ts` or `src/core/index.ts` inside its domain provider package.
 - [ ] Computer tool requests are validated by computer-service and default to `/workspace/<agent-id>` without claiming OS isolation.
-- [ ] Client-consumed shapes live in `packages/client-runtime` contracts, not re-declared in `apps/web`, `apps/mobile`, or `apps/desktop`.
+- [ ] Client-consumed shapes live in `packages/client-runtime` contracts, not re-declared in `apps/web` or `apps/desktop`.
 - [ ] Proto regenerated when changed; generated files not hand-edited.
 - [ ] Local routing and the owning provider's rendered Vercel routing assets still agree.
 - [ ] Focused server/provider tests pass.

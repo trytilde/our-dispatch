@@ -60,7 +60,7 @@ _Avoid_: credentials, runtime state
 
 **Client Runtime**:
 The framework-neutral layer in `packages/client-runtime` that owns every UI contract, remote
-snapshot, and live-state reconciliation shared by the web, mobile, and desktop clients. Required for
+snapshot, and live-state reconciliation shared by the web and desktop clients. Required for
 major UX surfaces and state interactions; presentation-only component state is excluded.
 _Avoid_: frontend state library, shared components, or server SDK
 

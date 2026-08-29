@@ -129,7 +129,7 @@ function asText(value: unknown): string {
 
 export interface ConnectorAccountGridProps {
   selection: ConnectorSelectionView;
-  /** Absent handlers render the grid inert (history replay, mobile preview). */
+  /** Absent handlers render the grid inert, such as during history replay. */
   onSelectAccount?: (account: ConnectorAccountView) => void;
   onAddAccount?: () => void;
   /** Marks the account the owner already picked so replays stay legible. */

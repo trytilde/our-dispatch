@@ -8253,3 +8253,117 @@ button.system-event-chip {
     margin: 0 12px -12px;
   }
 }
+
+/* Mobile web keeps navigation available as a shadcn Sheet instead of removing it. */
+.mobile-sidebar-trigger {
+  display: none;
+}
+
+.workspace-mobile-sidebar {
+  overflow: hidden;
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
+  background: var(--rail-surface);
+}
+
+.workspace-mobile-sidebar .mobile-sidebar-rail {
+  position: relative;
+  width: 100%;
+  min-width: 0;
+  height: 100%;
+  padding: 0;
+  display: flex;
+  gap: 0;
+  border: 0;
+  background: var(--rail-surface);
+}
+
+.workspace-mobile-sidebar .mobile-sidebar-rail .sidebar-titlebar {
+  flex-basis: 52px;
+  height: 52px;
+  padding-right: 56px;
+}
+
+.workspace-mobile-sidebar .mobile-sidebar-rail .sidebar-agent-row,
+.workspace-mobile-sidebar .mobile-sidebar-rail .sidebar-utility-row {
+  min-height: 48px;
+}
+
+.workspace-mobile-sidebar .mobile-sidebar-rail .sidebar-search button {
+  height: 44px;
+}
+
+@media (max-width: 720px) {
+  .rich-chat .chat-pane > .chat-header {
+    height: 56px;
+    min-height: 56px;
+    padding: 6px 8px;
+    gap: 4px;
+  }
+
+  .mobile-sidebar-trigger {
+    display: inline-flex;
+    flex: 0 0 44px;
+    color: var(--ink-2);
+    background: transparent;
+    -webkit-app-region: no-drag;
+  }
+
+  .mobile-sidebar-trigger:hover,
+  .mobile-sidebar-trigger:focus-visible {
+    color: var(--ink);
+    background: var(--hover);
+  }
+
+  .rich-chat .chat-identity {
+    min-width: 0;
+    flex: 1;
+  }
+
+  .rich-chat .chat-actions > button {
+    width: 44px;
+    height: 44px;
+  }
+
+  .rich-chat .composer-shell,
+  .rich-chat.workspace-shell.computer-floating.workspace-open .chat-pane > .composer-shell {
+    width: calc(100% - 16px);
+    max-width: calc(100% - 16px);
+    margin: 0 8px max(8px, env(safe-area-inset-bottom));
+  }
+
+  .rich-chat .composer {
+    padding: 6px;
+    border-radius: 22px;
+  }
+
+  .rich-chat .composer > .composer-input-grid,
+  .rich-chat .composer.expanded .composer-input-grid {
+    grid-template-columns: 44px minmax(0, 1fr) 44px;
+    gap: 2px;
+  }
+
+  .rich-chat .composer textarea,
+  .rich-chat .composer.expanded textarea {
+    min-height: 44px;
+    padding: 10px 6px;
+    font-size: 16px;
+    line-height: 22px;
+  }
+
+  .rich-chat .composer .attach-button,
+  .rich-chat .composer .composer-actions > button {
+    width: 44px;
+    height: 44px;
+  }
+
+  .rich-chat .composer-attachment-control,
+  .rich-chat .composer-actions {
+    min-height: 44px;
+  }
+
+  .composer-attachment-menu {
+    left: -2px;
+    right: -46px;
+  }
+}

@@ -49,6 +49,22 @@ export interface ChatComposerProps {
   onStop: () => void;
 }
 
+export interface ComposerKeySubmission {
+  key: string;
+  shiftKey: boolean;
+  metaKey: boolean;
+  ctrlKey: boolean;
+  composing: boolean;
+  coarsePointer: boolean;
+}
+
+/** Desktop Enter sends; touch keyboards keep Return available for multiline drafting. */
+export function shouldSubmitComposerKey(input: ComposerKeySubmission): boolean {
+  if (input.key !== "Enter" || input.composing) return false;
+  if (input.metaKey || input.ctrlKey) return true;
+  return !input.shiftKey && !input.coarsePointer;
+}
+
 export function ChatComposer({
   agentAvailable,
   busy,
@@ -222,14 +238,19 @@ export function ChatComposer({
             onBlur={onBlur}
             onFocus={onFocus}
             onKeyDown={(event) => {
-              const modEnter = event.key === "Enter" && (event.metaKey || event.ctrlKey);
-              const plainEnter =
-                event.key === "Enter" &&
-                !event.shiftKey &&
-                !event.metaKey &&
-                !event.ctrlKey &&
-                !event.nativeEvent.isComposing;
-              if (modEnter || plainEnter) {
+              const coarsePointer =
+                event.currentTarget.ownerDocument.defaultView?.matchMedia?.("(pointer: coarse)")
+                  .matches ?? false;
+              if (
+                shouldSubmitComposerKey({
+                  key: event.key,
+                  shiftKey: event.shiftKey,
+                  metaKey: event.metaKey,
+                  ctrlKey: event.ctrlKey,
+                  composing: event.nativeEvent.isComposing,
+                  coarsePointer,
+                })
+              ) {
                 event.preventDefault();
                 event.currentTarget.form?.requestSubmit();
               }

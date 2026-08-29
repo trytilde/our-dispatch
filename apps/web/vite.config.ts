@@ -23,8 +23,11 @@ export default defineConfig({
             },
           }
         : {}),
-      "/api": controlProxy(),
       "/healthz": controlProxy(),
+      "/api/chat": controlProxy(),
+      "/api/tilde": controlProxy(),
+      "/api/computer": controlProxy(),
+      "/api/agents": controlProxy(),
       "/connectors": controlProxy(),
       "/auth": controlProxy(),
     },

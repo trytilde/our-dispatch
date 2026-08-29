@@ -2,7 +2,7 @@
 
 Everything in this repository is driven by one CLI. `openbot` operates an installation —
 `init`, `dev`, `deploy`, `secrets`, `env` — and carries the developer workflow: repository
-gates, the Expo mobile toolchain, and remote development hosts. Prefer a CLI command over a
+gates and remote desktop hosts. Prefer a CLI command over a
 hand-written script or a remembered command line; see [ADR-0018](docs/adrs/0018-developer-workflow-cli.md).
 
 Run it as `pnpm openbot <command>` inside the repository, or `openbot <command>` from a global
@@ -23,20 +23,9 @@ Needed only for the surfaces you touch:
 
 | Surface | Dependency | Notes |
 | --- | --- | --- |
-| Mobile, Android | JDK **17 or 21** | the Android Gradle Plugin does not support newer majors. Gradle resolves its JDK from `JAVA_HOME`, so setting that matters more than which `javac` is on `PATH`; `mobile doctor` reports whichever one Gradle will actually use |
-| Mobile, Android | Android SDK, NDK, CMake | provisioned by `openbot mobile setup`; the system image matches your CPU, `arm64-v8a` on Apple Silicon and `x86_64` elsewhere, and the NDK matches the version React Native pins |
-| Mobile, iOS | Xcode **16.1 or newer** + command line tools, an iOS 15.1+ simulator runtime, CocoaPods. Local builds are verified on Xcode 26.6; a build that fails inside the simulator SDK usually means a stale generated `ios/`, see `.agents/skills/run-expo/SKILL.md` | macOS only. React Native 0.86 enforces the Xcode minimum inside `pod install`, which fails with `Please upgrade XCode`; `mobile doctor` reads that minimum from the installed React Native and checks it up front |
-| Headless Android emulator | `/dev/kvm`, Xvfb, x11vnc | Linux only; without KVM the emulator is too slow to use |
 | Browser end-to-end | Playwright browsers | `pnpm exec playwright install chromium` |
-| Store publication | an authenticated EAS session, paid Apple Developer and Google Play accounts | upstream only, see ADR-0027; `eas-cli` runs through `npx eas-cli@latest` and needs network access |
 | Desktop publication | the AWS CLI, a Developer ID Application certificate, an App Store Connect API key | upstream only, see ADR-0028. Only `openbot desktop release publish|manifest|status` needs them; building and packaging locally does not. Without the Apple credentials the build still succeeds and produces unsigned artifacts |
 | Local Computer, deployment | Microsandbox, SOPS, age | see [docs/sandbox.md](docs/sandbox.md) and [docs/configuration.md](docs/configuration.md) |
-
-Confirm the mobile toolchain at any time — it prints one line per check and names the remedy:
-
-```bash
-pnpm openbot mobile doctor
-```
 
 ## Setup on Linux
 
@@ -51,22 +40,8 @@ pnpm install
 pnpm openbot check
 ```
 
-For mobile work, add the JDK and the emulator's system libraries, then let the CLI provision
-the SDK. System packages need root, so the CLI reports them instead of installing them:
-
-```bash
-sudo apt-get install -y openjdk-21-jdk-headless xvfb x11vnc libpulse0 \
-  libnss3 libxcursor1 libxrandr2 libxi6 libxtst6 libgl1 libglx-mesa0 libegl1 libasound2t64 libc++1
-pnpm openbot mobile setup
-pnpm openbot mobile avd
-pnpm openbot mobile doctor
-```
-
-A Linux host without a display runs both the emulator and the Electron shell headless behind
-Xvfb with x11vnc bound to loopback — the emulator on `:1` and VNC 5900, Electron on `:2` and
-VNC 5901, so they coexist. `pnpm openbot connect -- <host>` forwards both screens plus Metro
-and adb. Run a task on a remote with `pnpm dev:remote -- <host> <task>`; see
-[.agents/skills/run-expo/SKILL.md](.agents/skills/run-expo/SKILL.md).
+A Linux host without a display runs the Electron shell behind Xvfb with x11vnc bound to
+loopback on VNC 5901. `pnpm openbot connect -- <host>` forwards that desktop.
 
 ## Setup on macOS
 
@@ -81,70 +56,6 @@ pnpm install
 pnpm openbot check
 ```
 
-For mobile work:
-
-```bash
-# Android: JDK 21 specifically — a bare `brew install openjdk` gives an unsupported major
-brew install openjdk@21
-sudo ln -sfn /opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk \
-  /Library/Java/JavaVirtualMachines/openjdk-21.jdk
-
-# openjdk@21 is keg-only, so a linked `openjdk` keeps shadowing javac on PATH.
-# Gradle follows JAVA_HOME, so point that at 21 and persist it:
-echo 'export JAVA_HOME=$(/usr/libexec/java_home -v 21)' >> ~/.zshrc
-export JAVA_HOME=$(/usr/libexec/java_home -v 21)
-
-# iOS — Xcode 16.1 or newer
-xcode-select --install    # skip if Xcode is already installed
-sudo xcode-select --switch /Applications/Xcode.app/Contents/Developer
-brew install cocoapods
-
-pnpm openbot mobile setup
-pnpm openbot mobile avd
-pnpm openbot mobile doctor
-```
-
-Installing a specific Xcode is the awkward part. Your macOS version caps which Xcode you can
-run — Xcode 16.1 and 16.2 need macOS 14.5 or newer, and 16.3 and newer need macOS 15 — so pick
-the newest that your OS supports rather than the newest that exists. Two routes work:
-
-- Download the `.xip` for that exact version from <https://developer.apple.com/download/all>
-  with a free Apple ID, then `xip --expand Xcode_<version>.xip`,
-  `sudo mv Xcode.app /Applications/Xcode-<version>.app`, and `sudo xcode-select --switch` to it.
-- Or `brew install --cask xcodes`, a prebuilt release manager that installs and switches
-  between versions.
-
-Do not use the `xcodesorg/made/xcodes` **formula** to escape an outdated Xcode: it builds from
-source with Swift 6 tools, which require Xcode 16, so it cannot install on the machine that
-needs it. The cask is prebuilt and has no such constraint.
-
-Finish with `sudo xcodebuild -license accept` and `sudo xcodebuild -runFirstLaunch`. Xcode 16
-no longer bundles simulator runtimes; if `xcrun simctl list runtimes` is empty, run
-`xcodebuild -downloadPlatform iOS`.
-
-`mobile doctor` warns rather than fails when the JDK major is unsupported, because iOS work
-does not need Gradle. It fails on an Xcode below the React Native minimum, because
-`pod install` will refuse regardless. The emulator opens a real window on macOS, so Xvfb and
-x11vnc are not used and not required.
-
-A global `CPPFLAGS`, `C_INCLUDE_PATH`, or similar in your shell profile breaks Xcode module
-builds: Homebrew suggests them for compiling against its own libraries, and Homebrew LLVM's
-include directory carries a C standard library that shadows the SDK's. `openbot mobile doctor`
-warns when your shell carries them; scope them to the shells that need them rather than
-exporting them globally. The repository reports these and does not change them — your
-environment is yours.
-
-A Gradle failure reading `Execution failed for task ':react-native-worklets:configureCMakeDebug'`
-with `WARNING: A restricted method in java.lang.System has been called` is the unsupported JDK,
-not a broken checkout: Java 24 and newer restrict the native-access calls that React Native's
-CMake configuration makes. Install `openjdk@21`, point `JAVA_HOME` at it, and rebuild. Nothing
-in the message names the JDK, which is why `mobile doctor` warns about the major version.
-
-If the simulator refuses to boot with `launchd failed to respond` or
-`Failed to start launchd_sim`, that is a simulator-host problem rather than a repository one.
-Clear it with `xcrun simctl shutdown all && killall -9 Simulator`, and reboot if it
-persists.
-
 ## Working on a change
 
 ```bash
@@ -154,7 +65,6 @@ pnpm openbot test                      # repository tests
 pnpm openbot e2e                       # browser Playwright suite
 pnpm openbot desktop dev               # launch the Electron shell
 pnpm openbot desktop package           # Electron packaging
-pnpm openbot mobile expo start --dev-client
 pnpm --filter <package> test           # narrowest useful check while iterating
 ```
 
@@ -173,76 +83,11 @@ prompts and execution belong in the primary `configuration/agent/` tree or one o
 `subagents/<id>/`, not the server router.
 
 Shared client behavior belongs in `packages/client-runtime` before any client renders it; a
-capability added to one of the web, mobile, or desktop clients requires an explicit decision
-about the other two, per [ADR-0017](docs/adrs/0017-shared-client-runtime-and-expo-mobile.md).
+capability added to the web or desktop client requires an explicit decision about the other.
 
 Never commit `.env`, deployment state, generated credentials, or machine-specific paths.
 Development host names and addresses belong in fork-owned `configuration/dev-hosts.json`,
 which stays untracked upstream.
-
-## Publishing the app
-
-Tilde publishes the app; OpenBot is the app. The official EAS project, the
-`ai.trytilde.openbot` identifier, and both store listings belong to `trytilde/openbot`, and
-`openbot mobile release` refuses to use the official EAS project from any other remote
-(ADR-0027). `openbot init` never asks about EAS and never requires it, because almost no fork
-publishes its own mobile app:
-
-```bash
-pnpm openbot mobile release status
-pnpm openbot mobile release build --platform ios --profile production --yes
-pnpm openbot mobile release submit --platform ios --yes
-```
-
-`build` and `submit` require `--yes` because the first spends EAS build minutes and the second
-changes a public listing. Build numbers live in EAS, not in a tracked file.
-
-### Automated releases
-
-Pushing a `mobile-v*` tag builds both platforms on EAS and submits them, through
-`.github/workflows/mobile-release.yml`:
-
-```bash
-git tag mobile-v0.1.0
-git push origin mobile-v0.1.0
-```
-
-The same workflow runs from the Actions tab with `workflow_dispatch` when a single platform,
-the `preview` profile, or a build without submission is wanted. It runs `openbot check` before
-spending build minutes, and it is skipped on any repository other than `trytilde/openbot`.
-
-Automation needs three things set up once, none of which live in this repository:
-
-| What | Where | Why |
-| --- | --- | --- |
-| `EXPO_TOKEN` repository secret | a robot access token from expo.dev, added under Settings → Secrets and variables → Actions | the only credential CI holds; EAS CLI reads it from the environment |
-| iOS signing credentials | generated once by an interactive `pnpm openbot mobile release build --platform ios --profile production --yes`, then held by EAS | a first build needs a terminal to create the distribution certificate and provisioning profile; after that CI can build unattended |
-| App Store Connect API key | created in App Store Connect under Users and Access → Integrations, uploaded through `pnpm openbot mobile release credentials` | `eas submit` cannot authenticate to App Store Connect without it in a non-interactive run |
-
-For Android, EAS additionally needs a Google Play service account key, and the very first AAB
-has to be uploaded by hand through the Play Console before any API submission is accepted. Play
-also requires the developer account to be verified from a real Android device; an emulator fails
-that check, because it is an attested device-access proof rather than a login.
-
-To exercise a build on a device without involving Play at all, use the `preview` profile, which
-distributes internally and builds an APK rather than the AAB Play wants:
-
-```bash
-pnpm openbot mobile release build --platform android --profile preview --yes
-pnpm openbot mobile release install --platform android
-```
-
-`install` puts the finished build on a running emulator or a connected device and never touches
-a store listing.
-
-A submitted iOS build reaches TestFlight automatically. Releasing it to the public App Store
-stays a human step in App Store Connect, as does the beta review for external testers.
-
-A fork that wants to publish its own app creates its own EAS project and sets
-`OPENBOT_EAS_PROJECT_ID`, `OPENBOT_APP_ID`, and `OPENBOT_EXPO_OWNER` in `configuration/.env`.
-Store identity is read from the environment in `apps/mobile/app.config.ts`, so no tracked file
-needs editing. Never commit signing credentials, service account keys, or App Store Connect API
-keys; they stay in EAS and in the Apple and Google consoles.
 
 ## Publishing the desktop app
 
@@ -286,11 +131,8 @@ certificate or an App Store Connect key.
 
 ## Changing an external dependency
 
-If your change adds, removes, or bumps a tool a contributor must install — a JDK major, an
-Android package, an Xcode requirement, a system library, a Node or pnpm version — update the
-prerequisite tables and the setup section above in the same PR, and extend
-`openbot mobile doctor` so the requirement is verifiable rather than merely documented. The
-`create-pr` skill gates this.
+If your change adds, removes, or bumps a tool a contributor must install, update the prerequisite
+table and setup section above in the same PR. The `create-pr` skill gates this.
 
 ## Fork contributions and release notes
 

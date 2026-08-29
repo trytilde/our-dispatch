@@ -9,6 +9,7 @@ import {
   WorkspaceAccount,
 } from "./sidebar-components.js";
 import GlideMenu from "./beautiful-ui/atoms/glide-menu.js";
+import { Sheet, SheetContent, SheetTitle } from "./components/ui/sheet.js";
 import { FeedbackIcon, PlusIcon, SearchIcon } from "./workspace-icons.js";
 
 export type WorkspaceSidebarAgent = SidebarAgent;
@@ -21,6 +22,8 @@ const collapsedIcon = "size-6 shrink-0 fill-none stroke-current stroke-[1.4]";
 export interface WorkspaceSidebarProps {
   agents: readonly WorkspaceSidebarAgent[];
   collapsed?: boolean;
+  mobileOpen?: boolean;
+  onMobileOpenChange?: (open: boolean) => void;
   selectedAgentId: string;
   loading?: boolean;
   hasMore?: boolean;
@@ -54,6 +57,8 @@ export interface WorkspaceSidebarProps {
 export function WorkspaceSidebar({
   agents,
   collapsed = false,
+  mobileOpen = false,
+  onMobileOpenChange,
   selectedAgentId,
   loading = false,
   hasMore = false,
@@ -79,16 +84,21 @@ export function WorkspaceSidebar({
   useSearchShortcut(onSearchOpen);
   const showAgentSkeletons = loading && agents.length === 0;
 
-  return (
-    <>
-      <aside className="rail">
+  const renderRail = (collapsed: boolean, mobile: boolean) => {
+    const runAction = (action: (() => void) | undefined): void => {
+      action?.();
+      if (mobile) onMobileOpenChange?.(false);
+    };
+
+    return (
+      <aside className={mobile ? "rail mobile-sidebar-rail" : "rail desktop-sidebar-rail"}>
         <div className="sidebar-titlebar">
           {onCreateAgent && !collapsed ? (
             <button
               aria-label="Add bot"
               className="flex size-7 items-center justify-center rounded-control text-ink
                 transition-[background-color] duration-150 hover:bg-hover"
-              onClick={onCreateAgent}
+              onClick={() => runAction(onCreateAgent)}
               title="Add bot"
               type="button"
             >
@@ -110,7 +120,7 @@ export function WorkspaceSidebar({
                 aria-label="Search"
                 className="flex h-8 w-full items-center gap-2 rounded-control border border-line bg-inset px-2.5 text-left text-[13px] leading-[18px]
               transition-[background-color] duration-150 hover:bg-hover"
-                onClick={onSearchOpen}
+                onClick={() => runAction(onSearchOpen)}
                 onKeyDown={(event) => {
                   if (
                     !event.defaultPrevented &&
@@ -121,7 +131,7 @@ export function WorkspaceSidebar({
                     !event.altKey
                   ) {
                     event.preventDefault();
-                    onSearchOpen();
+                    runAction(onSearchOpen);
                   }
                 }}
                 type="button"
@@ -161,7 +171,10 @@ export function WorkspaceSidebar({
                 <AgentListItem
                   agent={agent}
                   key={agent.id}
-                  onSelect={onSelectAgent}
+                  onSelect={(id) => {
+                    onSelectAgent(id);
+                    if (mobile) onMobileOpenChange?.(false);
+                  }}
                   selected={agent.id === selectedAgentId}
                 />
               ))}
@@ -184,7 +197,7 @@ export function WorkspaceSidebar({
               collapsed={collapsed}
               icon={<PlusIcon className={collapsedIcon} />}
               label="Add bot"
-              onClick={onCreateAgent}
+              onClick={() => runAction(onCreateAgent)}
             />
           ) : null}
           <SidebarUtilityRow
@@ -197,18 +210,33 @@ export function WorkspaceSidebar({
         <WorkspaceAccount
           account={account}
           collapsed={collapsed}
-          onOpenPlugins={onOpenPlugins}
-          onOpenSettings={onOpenSettings}
-          onSignOut={onSignOut}
-          onSwitchWorkspace={onSwitchWorkspace}
+          onOpenPlugins={onOpenPlugins ? () => runAction(onOpenPlugins) : undefined}
+          onOpenSettings={onOpenSettings ? () => runAction(onOpenSettings) : undefined}
+          onSignOut={onSignOut ? () => runAction(onSignOut) : undefined}
+          onSwitchWorkspace={onSwitchWorkspace ? () => runAction(onSwitchWorkspace) : undefined}
         />
-        <div
-          aria-label="Drag to resize the sidebar"
-          className="sidebar-resize-handle"
-          onPointerDown={onResize}
-          role="separator"
-        />
+        {mobile ? null : (
+          <div
+            aria-label="Drag to resize the sidebar"
+            className="sidebar-resize-handle"
+            onPointerDown={onResize}
+            role="separator"
+          />
+        )}
       </aside>
+    );
+  };
+
+  return (
+    <>
+      {renderRail(collapsed, false)}
+
+      <Sheet open={mobileOpen} onOpenChange={onMobileOpenChange}>
+        <SheetContent className="workspace-mobile-sidebar p-0" side="left">
+          <SheetTitle className="sr-only">Bots and workspace</SheetTitle>
+          {renderRail(false, true)}
+        </SheetContent>
+      </Sheet>
 
       <AgentSearchDialog
         agents={agents}
@@ -218,7 +246,10 @@ export function WorkspaceSidebar({
         open={searchOpen}
         onChange={onSearchChange}
         onClose={onSearchClose}
-        onSelect={onSelectAgent}
+        onSelect={(id) => {
+          onSelectAgent(id);
+          onMobileOpenChange?.(false);
+        }}
         onSelectResult={onSelectSearchResult}
         value={searchValue}
       />

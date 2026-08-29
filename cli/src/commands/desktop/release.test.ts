@@ -61,8 +61,7 @@ describe("resolveAppId", () => {
     expect(resolveAppId()).toBe("ai.trytilde.openbot");
   });
 
-  // One variable renames both clients, matching what app.config.ts already reads for Expo.
-  it("honours the same OPENBOT_APP_ID a fork sets for Expo", () => {
+  it("honours the OPENBOT_APP_ID a fork sets for desktop", () => {
     process.env.OPENBOT_APP_ID = "com.example.fork";
     try {
       expect(resolveAppId()).toBe("com.example.fork");

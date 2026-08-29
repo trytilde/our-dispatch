@@ -1,5 +1,7 @@
 # ADR-0017: Shared client runtime and Expo mobile
 
+> Historical mobile decision. ADR-0033 removes the Expo client from current main and preserves this implementation only on the DO NOT MERGE archive branch.
+
 ## In brief
 
 - One `client-runtime`. Group UI contracts by installation, auth, sidebar, messages, events, queue, attachments, platform.
@@ -115,6 +117,7 @@ flowchart TD
 
 ## Updates
 
+- 2026-08-29T07:28:00+02:00: ADR-0033 removed the Expo renderer from main while preserving it on the `codex/mobile-archive` DO NOT MERGE branch. Client Runtime remains framework-neutral but currently serves web and Electron only.
 - 2026-08-20T15:36:25Z: Expanded Expo from the initial regular-chat slice to desktop-parity onboarding, assistant-ui native transcript/composer behavior, rich attachments, prompt queues, and guarded Computer take-over while retaining client-runtime and Tilde ownership.
 - 2026-08-20T11:45:00+01:00: Modelled control-service connections as a persisted client workspace
   registry owned by `client-runtime`. Web stores only public origins, labels, avatar colours, and the

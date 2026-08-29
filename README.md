@@ -42,18 +42,12 @@ pnpm openbot test                   # repository tests
 pnpm openbot e2e                    # browser Playwright suite
 pnpm openbot desktop dev            # Electron shell, headless with VNC on a display-less host
 pnpm openbot desktop package        # Electron packaging
-pnpm openbot mobile doctor          # verify the mobile toolchain
-pnpm openbot mobile emulator        # Android emulator, headless on a display-less Linux host
-pnpm openbot mobile expo run:ios    # iOS simulator, macOS only
-pnpm openbot mobile release status  # EAS store builds, upstream only; a mobile-v* tag releases
-pnpm openbot connect -- <host>      # tunnel a remote dev host's emulator, Metro, and adb
+pnpm openbot connect -- <host>      # tunnel a remote host's Electron desktop
 pnpm openbot sdk refresh            # regenerate, build, and test the Tilde SDK
 ```
 
-Prerequisites differ per platform and per surface — a JDK 17 or 21 for Android, Xcode 16.1 or
-newer with CocoaPods for iOS, KVM with Xvfb and x11vnc for a headless Linux emulator. See
-[CONTRIBUTING.md](CONTRIBUTING.md) for Linux and macOS setup from scratch, and run
-`pnpm openbot mobile doctor` to check the current machine.
+Prerequisites differ per platform and surface. See [CONTRIBUTING.md](CONTRIBUTING.md) for Linux
+and macOS setup from scratch.
 
 ## Deploy
 
@@ -126,13 +120,12 @@ The production build stages the web app in the control provider's `.vercel/outpu
 
 ## Current application boundary
 
-- `cli` owns the React Ink `openbot` CLI: operator commands, development process supervision, provider deployment coordination, and the developer workflow — repository gates, Expo runs across local and remote mac/Linux hosts, headless emulators, ssh tunnels, and toolchain doctor — for humans and sandboxed agents alike.
+- `cli` owns the React Ink `openbot` CLI: operator commands, development process supervision, provider deployment coordination, repository gates, remote desktop runs, and ssh tunnels for humans and sandboxed agents alike.
 - `packages/api-client` and `packages/sdk*` own the public Tilde TypeScript integration surface and remain usable outside OpenBot; coding-agent plugin setup belongs to `openbot plugin`.
 - `packages/runtime-provider` owns the optional provider deployment contract and runtime-last coordinator.
 - `packages/control-service-provider` owns local and Vercel control/web builds and deployment.
 - `packages/agent-service-provider` owns Eve-compatible agent-directory discovery, instrumentation startup, concurrent per-agent Vercel bundles, the local agent server, and deployment.
 - `apps/web` owns the workspace, agent selection, conversation composer, and frontend routes.
-- `apps/mobile` owns the Expo and React Native owner surface for authentication, sidebar navigation, and regular chat, built on BNA UI components copied into `apps/mobile/src/components/ui`.
 - `packages/client-runtime` owns grouped UI contracts, Tilde REST/SSE parsing, live-event reducers, and shared Zustand vanilla state without platform APIs. Every major UX surface and state interaction goes through it; renderers keep only presentation-only state.
 - `apps/control-service` owns the portable Hono application, built web UI fallback, `/healthz`, raw operation-allowlisted Tilde bridges under `/api/chat/*` and `/api/tilde/*`, and the local control-service entrypoint. Plugin, connector, routine, and signal projections belong to Client Runtime rather than control-service domain facades.
 - `packages/computer-service-proto` owns the API-key-protected internal computer API.

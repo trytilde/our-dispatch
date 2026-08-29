@@ -1,6 +1,6 @@
 # OpenBot — AGENTS.md
 
-OpenBot is a TypeScript monorepo for a local or Vercel-hosted agent workspace. It combines React/Vite web and Expo mobile apps, an Electron desktop shell, Hono and ConnectRPC services, provider adapters, Tilde ChatKit, and local or Vercel sandboxes.
+OpenBot is a TypeScript monorepo for a local or Vercel-hosted agent workspace. It combines a React/Vite web app, an Electron desktop shell, Hono and ConnectRPC services, provider adapters, Tilde ChatKit, and local or Vercel sandboxes.
 
 ## Start here
 
@@ -12,7 +12,7 @@ OpenBot is a TypeScript monorepo for a local or Vercel-hosted agent workspace. I
 
 ## Toolchain and commands
 
-- Node.js 24, pnpm 10, TypeScript ESM, strict mode. `CONTRIBUTING.md` carries the per-platform prerequisites and setup; keep it and `openbot mobile doctor` current when an external dependency changes.
+- Node.js 24, pnpm 10, TypeScript ESM, strict mode. `CONTRIBUTING.md` carries the per-platform prerequisites and setup.
 - Use repository-pinned tools through `pnpm`; do not install global substitutes.
 - Do not hand-edit generated files under `packages/computer-service-proto/src/gen/` or `apps/web/src/routeTree.gen.ts`.
 
@@ -34,28 +34,23 @@ pnpm --filter @tryopenbot/control-service test
 pnpm --filter openbot test
 ```
 
-Expo client, per `run-expo`. Root scripts follow a verb:target taxonomy and delegate to `openbot`:
+Root scripts follow a verb:target taxonomy and delegate to `openbot`:
 
 ```bash
-pnpm dev:mobile
-pnpm dev:mobile:android
-pnpm dev:mobile:emulator
-pnpm doctor
 pnpm connect -- <host>
-pnpm dev:remote -- <host> emulator
+pnpm dev:remote -- <host> desktop
 pnpm dev:desktop
 pnpm desktop:package
 ```
 
-`openbot` resolves the Android SDK and a real Node binary in `cli/src/toolchain.ts`, so no command needs an `export PATH=...` prefix. Extend that module rather than prefixing a command. Remote hosts live in fork-owned `configuration/dev-hosts.json`.
+`openbot` resolves a real Node binary in `cli/src/toolchain.ts`, so no command needs a `PATH` prefix. Extend that module rather than prefixing a command. Remote hosts live in fork-owned `configuration/dev-hosts.json`.
 
-Per ADR-0018, every developer workflow is an `openbot` command — repository gates (`check`, `build`, `test`, `e2e`, `desktop package`), the `mobile` group, `connect`, and `remote`. Do not add loose `scripts/*.mjs`, package-local helper scripts, or repeat-use command lines that live only in docs; promote them to CLI commands. Root scripts stay thin plumbing the CLI delegates to.
+Per ADR-0018, every developer workflow is an `openbot` command — repository gates (`check`, `build`, `test`, `e2e`, `desktop package`), `connect`, and `remote`. Do not add loose `scripts/*.mjs`, package-local helper scripts, or repeat-use command lines that live only in docs; promote them to CLI commands. Root scripts stay thin plumbing the CLI delegates to.
 
 ## Repository map
 
-- `cli`: React Ink CLI (`openbot`) owning both operator commands for installations and the developer workflow for humans and sandboxed agents — repository gates, the `mobile` group, and remote dev hosts. Command entrypoints live under `cli/src/commands/`, while shared process, environment, initialization, and UI helpers remain at `cli/src/`. Remote host identity stays in fork-owned `configuration/dev-hosts.json`. See ADR-0018.
+- `cli`: React Ink CLI (`openbot`) owning both operator commands for installations and the developer workflow for humans and sandboxed agents — repository gates and remote desktop hosts. Command entrypoints live under `cli/src/commands/`, while shared process, environment, initialization, and UI helpers remain at `cli/src/`. Remote host identity stays in fork-owned `configuration/dev-hosts.json`. See ADR-0018.
 - `apps/web`: React 19, Vite, TanStack Router, and the browser adapter for the shared client runtime.
-- `apps/mobile`: Expo and React Native owner client.
 - `apps/control-service`: Hono HTTP routes, the allowlisted Tilde ChatKit REST/SSE bridge, and the local control-service entrypoint.
 - `apps/desktop`: Electron main/preload shell and packaged local server.
 - `apps/computer-service`: API-key-protected ConnectRPC service inside computers.
@@ -84,7 +79,7 @@ Per ADR-0018, every developer workflow is an `openbot` command — repository ga
 
 - Preserve Tilde's native REST/SSE shapes for owner chat through the allowlisted same-origin bridge.
 - Client-consumed request, response, and event shapes belong in `packages/client-runtime` contracts, validated where data enters the client. Apps must not re-declare them per surface.
-- Keep `/auth/native-config` public, no-store, and limited to provider-owned public PKCE metadata for a selected mobile installation.
+- Keep `/auth/native-config` public, no-store, and limited to provider-owned public PKCE metadata for the desktop installation.
 - Keep Hono routes for protocol-native HTTP surfaces: setup unlock, ChatKit compatibility, signed Tilde callbacks/tools, and health.
 - Edit `packages/computer-service-proto/proto/openbot/computer/v1/computer.proto` for the internal Computer API, then run `pnpm contracts:generate`.
 - Keep handlers thin: validate input, authorize, call the owning provider/store, map to protobuf or HTTP response.
@@ -110,23 +105,17 @@ Per ADR-0018, every developer workflow is an `openbot` command — repository ga
 - Add focused contract tests for each adapter change.
 - Treat every lifecycle hook as idempotent. Repeated `check`, `build`, `plan`, `configure`, and `deploy` calls must converge without duplicate resources. Keep vendor reconciliation and configuration persistence inside provider implementations; the CLI only schedules hooks. Deployment results contain named handoff outputs only.
 
-### Web, mobile, and desktop
+### Web and desktop
 
-- `packages/client-runtime` is the mandatory contract layer for every major UX surface and state interaction. Web, Expo, and Electron renderers consume its grouped contracts, client, reducers, and Zustand slices; they do not define their own wire types, fetch/SSE calls, or parallel snapshots.
+- `packages/client-runtime` is the mandatory contract layer for every major UX surface and state interaction. Web and Electron renderers consume its grouped contracts, client, reducers, and Zustand slices; they do not define their own wire types, fetch/SSE calls, or parallel snapshots.
 - Major means the state crosses the network, must survive navigation or reload, has to behave identically on more than one client, or is read by another surface: installation and control-service selection, authentication and credentials, sidebar and session navigation, conversation and message state, event streams, queues, attachments, and platform bridges.
 - Minor presentation-only state stays local to the component: hover, focus, and active styling, transitions, tooltips, menu open/closed, scroll position, input drafts, and layout sizing. Do not push these into the runtime.
 - When a new UX surface needs state the runtime does not model yet, add or extend the grouped contract in `client-runtime` first, then render against it. Do not ship the behavior in a renderer and promise to extract it later.
 - Avoid duplicating remote snapshots or SSE reconciliation in renderers; conversation state keeps one reconciliation owner.
-- Keep `client-runtime` free of React, DOM, Expo, React Native, Electron, and Node imports. Platform adapters own credentials, uploads, navigation, and presentation-only state.
-- Reuse `packages/ui` for web and Electron; keep direct Beautiful UI modifications documented in its provenance files. `packages/ui` is React DOM and must never be imported by `apps/mobile`.
-- `apps/mobile` uses BNA UI (`https://ui.ahmedbna.com`) as its React Native component library. Add components with `pnpm dlx bna-ui add <name>` from `apps/mobile`, which copies source into `src/components/ui` and installs its dependencies. The copied source is repository-owned: edit it in place, review it like any other code, and record retrievals in `apps/mobile/src/components/ui/PROVENANCE.md`.
-- Read every Expo color through `useColor` against `apps/mobile/src/theme/colors.ts`. No hardcoded color values in Expo screens, and every surface resolves in both light and dark.
-- The `@/*` alias in `apps/mobile/tsconfig.json` resolves to `apps/mobile/src` and the BNA UI CLI depends on it. Do not remove or repoint it.
-- Expo renders native components and reuses runtime contracts and behavior, not DOM JSX.
-- `apps/mobile` uses continuous native generation. `apps/mobile/android/` and `apps/mobile/ios/` are gitignored build output: never commit or hand-edit them. Change `app.config.ts`, config plugins, or dependencies and let prebuild regenerate.
-- Store publication is upstream-only: Tilde is the publisher and OpenBot the app, so the official EAS project, the `ai.trytilde.openbot` identifier, and both store listings belong to `trytilde/openbot`, and `openbot mobile release` refuses the official project from another remote. `openbot init` must never ask about EAS or require it. Expo store identity is overridable through the environment in `apps/mobile/app.config.ts`; never hardcode a fork's identity into it, and never commit signing credentials. See ADR-0027.
+- Keep `client-runtime` free of React, DOM, Electron, and Node imports. Platform adapters own credentials, uploads, navigation, and presentation-only state.
+- Reuse `packages/ui` for web and Electron; keep direct Beautiful UI modifications documented in its provenance files.
 - Desktop publication is upstream-only too: signed builds go to `desktop/openbot/<channel>/` in the shared `tilde-app-updates-prod` bucket, and `openbot desktop release` refuses the official bucket from another remote. A fork publishes its own builds by setting `OPENBOT_DESKTOP_UPDATES_BUCKET`. `version.json` is the client update contract; `latest-*.yml` is published unused so electron-updater can be adopted later without a re-release. Never commit an Apple certificate or App Store Connect key. See ADR-0028.
-- Adding or changing a user-facing capability in one client obliges an explicit decision about the other two. `create-pr` blocks on the cross-client parity gate, so state per capability whether it is ported here, deferred with a `<FOLLOW UP>` block, or genuinely not portable with the platform reason.
+- Adding or changing a user-facing capability in web or desktop obliges an explicit decision about the other client. `create-pr` blocks on the cross-client parity gate, so state per capability whether it is ported, deferred with a `<FOLLOW UP>` block, or genuinely not portable with the platform reason.
 - Electron renderer must not gain direct Node.js access. Keep privileged work in main/preload with a narrow bridge.
 - Preserve same-origin proxying between packaged web assets and the local control server.
 
@@ -202,10 +191,7 @@ For browser-visible changes, verify the real route, console, network, and visibl
 - `add-changeset`, `setup-changesets`: unified workspace version notes and release automation.
 - `add-api-endpoint`: Hono or ConnectRPC endpoint changes.
 - `e2e-debug-and-qa`: running browser evidence.
-- `run-expo`: Expo bundle checks, the headless Android emulator on this display-less host, and remote access from a workstation.
-- `frontend-design`: visual direction across the web, Expo, and Electron clients.
-- `expo-router`, `expo-ui`, `expo-native-ui`, `expo-web-to-native`, `expo-design-system`, `expo-dev-client`, `expo-project-structure`, `expo-module`, `expo-upgrade`, and the other vendored `expo-*` skills: current Expo and React Native API guidance. Prefer them over recalled Expo APIs.
-- `eas-workflows`, `eas-app-stores`, `eas-simulator`, `eas-hosting`, `eas-observe`, `eas-update-insights`: Expo Application Services work. OpenBot has no EAS project configured yet, so treat these as reference rather than an established pipeline.
+- `frontend-design`: visual direction across the web and Electron clients.
 - `diagnose`: evidence-led debugging.
 - `implement-provider`: provider implementation structure, assets, lifecycles, and tests.
 - `edit-openbot-configuration`: fork-owned composition, custom providers, and future-agent templates.

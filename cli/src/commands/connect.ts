@@ -1,5 +1,4 @@
-// Opens the ssh tunnel that carries the remote development stack — emulator
-// screen over VNC, Metro, and adb — to this workstation's loopback.
+// Opens the ssh tunnel that carries the remote Electron desktop to this workstation.
 import { spawn } from "node:child_process";
 import arg from "arg";
 import { loadHosts, resolveHost } from "../hosts.js";
@@ -10,26 +9,18 @@ export async function runConnect(argv: readonly string[]): Promise<number> {
   const options = arg(
     {
       "--print": Boolean,
-      "--no-vnc": Boolean,
       "--no-desktop": Boolean,
-      "--no-metro": Boolean,
-      "--no-adb": Boolean,
     },
     { argv: [...argv] },
   );
   const [name] = options._;
   if (!name) {
-    console.error(
-      "Usage: openbot connect <host> [--print] [--no-vnc] [--no-desktop] [--no-metro] [--no-adb]",
-    );
+    console.error("Usage: openbot connect <host> [--print] [--no-desktop]");
     return 1;
   }
   const host = resolveHost(name, loadHosts(repositoryRoot()));
   const tunnel: TunnelOptions = {
-    vnc: !options["--no-vnc"],
     desktop: !options["--no-desktop"],
-    metro: !options["--no-metro"],
-    adb: !options["--no-adb"],
   };
   const sshArguments = tunnelArguments(host, tunnel);
 

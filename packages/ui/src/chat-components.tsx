@@ -1,7 +1,8 @@
 import type { ReactNode } from "react";
-import { WaypointsIcon } from "lucide-react";
+import { MenuIcon, WaypointsIcon } from "lucide-react";
 import { AgentAvatar } from "./agent-avatar.js";
 import { LoaderGrid, useElapsed } from "./beautiful-ui/blocks/loader-grid.js";
+import { Button } from "./components/ui/button.js";
 import { ComputerIcon, MoreIcon, ReplyIcon } from "./workspace-icons.js";
 
 export interface ChatHeaderProps {
@@ -9,8 +10,9 @@ export interface ChatHeaderProps {
   agentName: string;
   /** Agent is mid-turn — the avatar spins its orbit. */
   busy?: boolean;
-  computerOpen: boolean;
-  onToggleComputer: () => void;
+  computerOpen?: boolean;
+  onToggleComputer?: () => void;
+  onOpenSidebar?: () => void;
   detailsOpen?: boolean;
   onToggleDetails?: (() => void) | undefined;
 }
@@ -21,11 +23,24 @@ export function ChatHeader({
   busy = false,
   computerOpen,
   onToggleComputer,
+  onOpenSidebar,
   detailsOpen = false,
   onToggleDetails,
 }: ChatHeaderProps) {
   return (
     <header className="chat-header">
+      {onOpenSidebar ? (
+        <Button
+          aria-label="Open navigation"
+          className="mobile-sidebar-trigger size-11 rounded-control"
+          onClick={onOpenSidebar}
+          size="icon"
+          type="button"
+          variant="ghost"
+        >
+          <MenuIcon aria-hidden className="size-5" />
+        </Button>
+      ) : null}
       <div className="chat-identity">
         {agentId ? (
           <AgentAvatar id={agentId} state={busy ? "working" : "idle"} />
@@ -48,15 +63,17 @@ export function ChatHeader({
             <WaypointsIcon aria-hidden />
           </button>
         ) : null}
-        <button
-          aria-expanded={computerOpen}
-          aria-label="Toggle Computer pane"
-          className={computerOpen ? "active" : ""}
-          onClick={onToggleComputer}
-          title="Toggle Computer pane (Ctrl+Alt+B)"
-        >
-          <ComputerIcon />
-        </button>
+        {onToggleComputer ? (
+          <button
+            aria-expanded={computerOpen}
+            aria-label="Toggle Computer pane"
+            className={computerOpen ? "active" : ""}
+            onClick={onToggleComputer}
+            title="Toggle Computer pane (Ctrl+Alt+B)"
+          >
+            <ComputerIcon />
+          </button>
+        ) : null}
       </div>
     </header>
   );

@@ -1,7 +1,7 @@
 import { createElement, createRef } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vite-plus/test";
-import { ChatComposer, type ChatComposerProps } from "./chat-composer.js";
+import { ChatComposer, type ChatComposerProps, shouldSubmitComposerKey } from "./chat-composer.js";
 
 function renderComposer(busy: boolean): string {
   const props: ChatComposerProps = {
@@ -39,5 +39,38 @@ describe("ChatComposer actions", () => {
 
     expect(markup).toContain('aria-label="Send message"');
     expect(markup).not.toContain('aria-label="Stop"');
+  });
+
+  it("keeps touch-keyboard Return available for multiline drafting", () => {
+    expect(
+      shouldSubmitComposerKey({
+        key: "Enter",
+        shiftKey: false,
+        metaKey: false,
+        ctrlKey: false,
+        composing: false,
+        coarsePointer: true,
+      }),
+    ).toBe(false);
+    expect(
+      shouldSubmitComposerKey({
+        key: "Enter",
+        shiftKey: false,
+        metaKey: false,
+        ctrlKey: false,
+        composing: false,
+        coarsePointer: false,
+      }),
+    ).toBe(true);
+    expect(
+      shouldSubmitComposerKey({
+        key: "Enter",
+        shiftKey: false,
+        metaKey: false,
+        ctrlKey: true,
+        composing: false,
+        coarsePointer: true,
+      }),
+    ).toBe(true);
   });
 });

@@ -11,15 +11,11 @@ export interface DevHost {
   platform: "linux" | "mac";
   /** Repository path on the host. Defaults to "~/openbot". */
   path?: string;
-  /** Android emulator screen. */
-  vncPort?: number;
-  /** Electron shell screen, separate so both can run at once. */
+  /** Electron shell screen. */
   desktopVncPort?: number;
-  metroPort?: number;
-  adbPort?: number;
 }
 
-export const defaultPorts = { vnc: 5900, desktopVnc: 5901, metro: 8081, adb: 5555 } as const;
+export const defaultPorts = { desktopVnc: 5901 } as const;
 
 export function loadHosts(repositoryRoot: string): Record<string, DevHost> {
   const configPath = join(repositoryRoot, "configuration", "dev-hosts.json");

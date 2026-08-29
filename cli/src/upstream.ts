@@ -1,8 +1,7 @@
 // Identifies the canonical OpenBot repository.
 //
-// Store publication is upstream-only: the official EAS project, bundle identifier, and
-// store listings belong to trytilde/openbot. A fork inherits the tracked configuration,
-// so the guard has to be in code — a comment in a config file does not stop a release.
+// Official publication targets belong to trytilde/openbot. A fork inherits tracked
+// configuration, so publication guards must live in code.
 import { spawnSync } from "node:child_process";
 
 export const upstreamRepository = "trytilde/openbot";

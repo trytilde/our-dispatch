@@ -79,4 +79,4 @@ OpenBot uses Changesets with one fixed group for every workspace package. Follow
 - Diff contains no secrets, local state, generated noise, or unrelated edits.
 - A valid changeset is present when release impact requires one, or the handoff explains why none is needed.
 - Changed provider contract interfaces are defined in `src/core.ts` or `src/core/index.ts`, re-exported by the package root, and reflected in the package README's `Public API` section.
-- New or changed major UX surfaces and state interactions consume `packages/client-runtime` contracts. `apps/web`, `apps/mobile`, and `apps/desktop` added no local wire types, fetch/SSE parsing, or duplicate snapshots; only presentation-only state is component-local.
+- New or changed major UX surfaces and state interactions consume `packages/client-runtime` contracts. `apps/web` and `apps/desktop` added no local wire types, fetch/SSE parsing, or duplicate snapshots; only presentation-only state is component-local.
