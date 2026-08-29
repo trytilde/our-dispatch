@@ -5,6 +5,17 @@ function chatKitRealtimeBootstrap(sidebar: { items: unknown[]; next_page_token?:
   return { sidebar };
 }
 
+function nativePluginResourceKey(path: string) {
+  if (path.endsWith("/api/tilde/mcp/available-tool-groups")) return "tool_providers";
+  if (path.endsWith("/api/tilde/mcp/tool-group")) return "tool_accounts";
+  if (path.endsWith("/api/tilde/mcp/mcp-server")) return "mcp_servers";
+  if (path.endsWith("/api/tilde/mcp/proxied-mcp-servers")) return "proxied_mcp_servers";
+  if (path.endsWith("/api/tilde/skill")) return "skills";
+  if (path.endsWith("/api/tilde/skill-providers")) return "skill_providers";
+  if (path.endsWith("/api/tilde/skill-registry")) return "skill_registries";
+  return undefined;
+}
+
 test.beforeEach(async ({ page }) => {
   await seedCompletedOnboarding(page);
   await page.route("https://thesvg.org/icons/**", async (route) => {
@@ -438,7 +449,8 @@ test.beforeEach(async ({ page }) => {
         .filter(([, assigned]) => assigned.includes(agentId))
         .map(([id]) => ({ id }));
 
-    if (path.endsWith("/api/tilde/openbot/plugins/catalog") && method === "GET") {
+    const resourceKey = nativePluginResourceKey(path);
+    if (resourceKey && method === "GET") {
       const githubIcon =
         "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 32'%3E%3Crect width='64' height='32' rx='8' fill='%23181717'/%3E%3C/svg%3E";
       const googleIcon =
@@ -463,162 +475,161 @@ test.beforeEach(async ({ page }) => {
           category: "productivity",
         })),
       ];
-      await route.fulfill({
-        json: {
-          tool_providers: [
-            provider("github", "GitHub", ["Development"], {
-              documentation: "Issues, pull requests, repositories, and code search.",
-              icon_url: githubIcon,
-            }),
-            provider("google_mail", "Google Mail", ["Productivity"], {
-              documentation: "Search and manage mail.",
-              icon_url: googleIcon,
-              credential_sources: [
-                {
-                  type_id: "google_mail_managed_oauth",
-                  display_name: "Sign in with your browser",
-                  documentation: "Platform-managed OAuth 2.0 — sign in with your provider account.",
-                  requires_brokering: true,
-                  supports_auto_display_name: true,
-                  configuration_schema: { resource_server: null, user_credential: null },
-                },
-              ],
-            }),
-            provider("managed_mcp:apollo", "Apollo.io", ["sales", "productivity"], {
-              documentation: "Search and enrich sales intelligence.",
-              icon_slug: "apollo",
-              credential_sources: [
-                {
-                  type_id: "managed_mcp_oauth",
-                  display_name: "Sign in with your browser",
-                  documentation: "Sign in with your provider account.",
-                  requires_brokering: true,
-                  display_name_description:
-                    "Used to identify this account when choosing it for a bot.",
-                  configuration_schema: {
-                    resource_server: {
-                      type: "object",
-                      properties: {
-                        api_base_url: {
-                          type: "string",
-                          title: "Api base url",
-                          description: "Base URL for your workspace.",
-                        },
+      const catalog = {
+        tool_providers: [
+          provider("github", "GitHub", ["Development"], {
+            documentation: "Issues, pull requests, repositories, and code search.",
+            icon_url: githubIcon,
+          }),
+          provider("google_mail", "Google Mail", ["Productivity"], {
+            documentation: "Search and manage mail.",
+            icon_url: googleIcon,
+            credential_sources: [
+              {
+                type_id: "google_mail_managed_oauth",
+                display_name: "Sign in with your browser",
+                documentation: "Platform-managed OAuth 2.0 — sign in with your provider account.",
+                requires_brokering: true,
+                supports_auto_display_name: true,
+                configuration_schema: { resource_server: null, user_credential: null },
+              },
+            ],
+          }),
+          provider("managed_mcp:apollo", "Apollo.io", ["sales", "productivity"], {
+            documentation: "Search and enrich sales intelligence.",
+            icon_slug: "apollo",
+            credential_sources: [
+              {
+                type_id: "managed_mcp_oauth",
+                display_name: "Sign in with your browser",
+                documentation: "Sign in with your provider account.",
+                requires_brokering: true,
+                display_name_description:
+                  "Used to identify this account when choosing it for a bot.",
+                configuration_schema: {
+                  resource_server: {
+                    type: "object",
+                    properties: {
+                      api_base_url: {
+                        type: "string",
+                        title: "Api base url",
+                        description: "Base URL for your workspace.",
                       },
-                      required: ["api_base_url"],
                     },
-                    user_credential: null,
+                    required: ["api_base_url"],
                   },
+                  user_credential: null,
                 },
-              ],
-            }),
-            provider("sentry", "Sentry", ["Observability"], {
-              documentation: "Inspect production errors, traces, and releases.",
-              icon_slug: "sentry",
-            }),
-            provider("modal-sandbox", "Modal", ["Development"], {
-              documentation: "Run workloads in Modal sandboxes.",
-              icon_slug: "modal sandbox",
-            }),
-            provider("e2b", "E2B", ["Development"], {
-              documentation: "Run workloads in E2B sandboxes.",
-              icon_slug: "e2b",
-            }),
-            provider("tilde_control_plane", "Tilde Control Plane", ["system"]),
-            provider("tilde_skill_registry", "Tilde Skill Registry", ["system"]),
-            provider("tilde_wallet", "Tilde Pay", ["system"]),
-            provider("tilde_browser", "Tilde Browser", ["system"]),
-            provider("chatkit_internal_agent", "Message internal agent", ["system"]),
-          ],
-          tool_accounts: [
-            account("github-work", "Work", "github"),
-            account("github-personal", "Personal", "github"),
-            ...(googleAccountCreated
-              ? [
-                  account(
-                    "google-mail-work",
-                    "Work Gmail",
-                    "google_mail",
-                    "google_mail_managed_oauth",
-                  ),
-                ]
-              : []),
-          ].filter((item) => !deletedToolAccountIds.has(item.id)),
-          mcp_servers: agentIds.map((agentId) => ({
-            id: `openbot-${agentId}`,
-            agent_id: agentId,
-            tools: Object.entries(toolAssignments).flatMap(([id, assigned]) =>
-              assigned.includes(agentId) && !deletedToolAccountIds.has(id)
-                ? [{ tool_group_instance_id: id }]
-                : [],
-            ),
-          })),
-          proxied_mcp_servers: agentIds.map((agentId) => ({
-            server: {
-              id: `vercel-${agentId}`,
-              display_name: `OpenBot ${agentId} Vercel`,
-              endpoint_configuration: { url: "https://mcp.vercel.com" },
-              status: "active",
-              tool_group_instance_id: `vercel-${agentId}`,
-              tool_group_source_type_id: "proxied-vercel",
-            },
-            tool_group_instance: account(
-              `vercel-${agentId}`,
-              `OpenBot ${agentId} Vercel`,
-              "proxied-vercel",
-            ),
-            tool_count: 1,
-          })),
-          skills: [
-            {
-              id: "code-review",
-              name: "Code review",
-              description: "Review changes for correctness, clarity, and risk.",
-              category: "developer_tools",
-              provider_icon_key: "github",
-            },
-            ...researchSkills,
-          ],
-          skill_providers: [
-            {
-              id: "provider-cloudflare",
-              name: "Cloudflare",
-              description: "Cloudflare hosted skills.",
-              categories: ["infrastructure", "developer_tools"],
-              repository_url: "https://github.com/cloudflare/skills",
-              skills: [
-                {
-                  id: "cloudflare-workers",
-                  name: "Workers",
-                  description: "Build and deploy Cloudflare Workers.",
-                  source_path: "workers/SKILL.md",
-                },
-              ],
-            },
-            {
-              id: "provider-aws",
-              name: "AWS",
-              description: "Official AWS agent skills.",
-              categories: ["cloud_infrastructure", "developer_tools"],
-              repository_url: "https://github.com/aws/skills",
-              skills: [
-                {
-                  id: "aws-cdk",
-                  name: "AWS CDK",
-                  description: "Build cloud infrastructure with CDK.",
-                  source_path: "cdk/SKILL.md",
-                },
-              ],
-            },
-          ],
-          skill_registries: agentIds.map((agentId) => ({
-            id: `registry-${agentId}`,
-            agent_id: agentId,
-            name: `OpenBot ${agentId}`,
-            skills: registrySkills(agentId),
-          })),
-        },
-      });
+              },
+            ],
+          }),
+          provider("sentry", "Sentry", ["Observability"], {
+            documentation: "Inspect production errors, traces, and releases.",
+            icon_slug: "sentry",
+          }),
+          provider("modal-sandbox", "Modal", ["Development"], {
+            documentation: "Run workloads in Modal sandboxes.",
+            icon_slug: "modal sandbox",
+          }),
+          provider("e2b", "E2B", ["Development"], {
+            documentation: "Run workloads in E2B sandboxes.",
+            icon_slug: "e2b",
+          }),
+          provider("tilde_control_plane", "Tilde Control Plane", ["system"]),
+          provider("tilde_skill_registry", "Tilde Skill Registry", ["system"]),
+          provider("tilde_wallet", "Tilde Pay", ["system"]),
+          provider("tilde_browser", "Tilde Browser", ["system"]),
+          provider("chatkit_internal_agent", "Message internal agent", ["system"]),
+        ],
+        tool_accounts: [
+          account("github-work", "Work", "github"),
+          account("github-personal", "Personal", "github"),
+          ...(googleAccountCreated
+            ? [
+                account(
+                  "google-mail-work",
+                  "Work Gmail",
+                  "google_mail",
+                  "google_mail_managed_oauth",
+                ),
+              ]
+            : []),
+        ].filter((item) => !deletedToolAccountIds.has(item.id)),
+        mcp_servers: agentIds.map((agentId) => ({
+          id: `openbot-${agentId}`,
+          agent_id: agentId,
+          tools: Object.entries(toolAssignments).flatMap(([id, assigned]) =>
+            assigned.includes(agentId) && !deletedToolAccountIds.has(id)
+              ? [{ tool_group_instance_id: id }]
+              : [],
+          ),
+        })),
+        proxied_mcp_servers: agentIds.map((agentId) => ({
+          server: {
+            id: `vercel-${agentId}`,
+            display_name: `OpenBot ${agentId} Vercel`,
+            endpoint_configuration: { url: "https://mcp.vercel.com" },
+            status: "active",
+            tool_group_instance_id: `vercel-${agentId}`,
+            tool_group_source_type_id: "proxied-vercel",
+          },
+          tool_group_instance: account(
+            `vercel-${agentId}`,
+            `OpenBot ${agentId} Vercel`,
+            "proxied-vercel",
+          ),
+          tool_count: 1,
+        })),
+        skills: [
+          {
+            id: "code-review",
+            name: "Code review",
+            description: "Review changes for correctness, clarity, and risk.",
+            category: "developer_tools",
+            provider_icon_key: "github",
+          },
+          ...researchSkills,
+        ],
+        skill_providers: [
+          {
+            id: "provider-cloudflare",
+            name: "Cloudflare",
+            description: "Cloudflare hosted skills.",
+            categories: ["infrastructure", "developer_tools"],
+            repository_url: "https://github.com/cloudflare/skills",
+            skills: [
+              {
+                id: "cloudflare-workers",
+                name: "Workers",
+                description: "Build and deploy Cloudflare Workers.",
+                source_path: "workers/SKILL.md",
+              },
+            ],
+          },
+          {
+            id: "provider-aws",
+            name: "AWS",
+            description: "Official AWS agent skills.",
+            categories: ["cloud_infrastructure", "developer_tools"],
+            repository_url: "https://github.com/aws/skills",
+            skills: [
+              {
+                id: "aws-cdk",
+                name: "AWS CDK",
+                description: "Build cloud infrastructure with CDK.",
+                source_path: "cdk/SKILL.md",
+              },
+            ],
+          },
+        ],
+        skill_registries: agentIds.map((agentId) => ({
+          id: `registry-${agentId}`,
+          agent_id: agentId,
+          name: `OpenBot ${agentId}`,
+          skills: registrySkills(agentId),
+        })),
+      };
+      await route.fulfill({ json: { items: catalog[resourceKey] } });
       return;
     }
     if (path.endsWith("/api/tilde/mcp/provider-catalog") && method === "GET") {

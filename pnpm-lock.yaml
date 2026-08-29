@@ -622,6 +622,9 @@ importers:
 
   packages/client-runtime:
     dependencies:
+      '@trytilde/api-client':
+        specifier: workspace:*
+        version: link:../api-client
       zod:
         specifier: 4.4.3
         version: 4.4.3
