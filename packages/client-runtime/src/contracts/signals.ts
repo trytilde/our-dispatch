@@ -2,9 +2,9 @@ import { z } from "zod";
 
 /**
  * Signal provider management contracts shared by every client surface. The
- * control-service `/api/signals` routes project the Tilde signals catalog,
- * provider instances, and delivery history; signing secrets are write-only and
- * never echoed back.
+ * The client runtime projects Tilde's signals catalog, provider instances, and
+ * delivery history through the installation's allowlisted credential bridge;
+ * signing secrets are write-only and never echoed back.
  */
 
 export const SignalTypeSchema = z
@@ -81,8 +81,8 @@ export const SignalDeliverySchema = z
     status: z.string(),
     session_id: z.string().nullable().optional(),
     error_message: z.string().nullable().optional(),
-    /** Rules this delivery fired; run history filters on it. */
-    matched_rule_ids: z.array(z.string()).optional(),
+    /** Native Routine triggers this delivery fired; run history filters on it. */
+    matched_trigger_ids: z.array(z.string()).optional(),
     created_at: z.string(),
   })
   .passthrough();

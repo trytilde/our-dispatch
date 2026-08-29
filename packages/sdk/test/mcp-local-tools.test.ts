@@ -517,6 +517,28 @@ describe("local MCP tools wrapper", () => {
     expect(callTool).not.toHaveBeenCalled();
   });
 
+  it("reports a failed terminal wrapper state when completion reporting fails", async () => {
+    const states: string[] = [];
+    const wrapped = wrapMcpClientWithLocalTools({
+      client: {},
+      serverId: "server_1",
+      tools: [localEchoTool()],
+      observeMultiExecute: async (event) => {
+        states.push(event.state);
+        if (event.state === "completed") {
+          throw new Error("completion audit unavailable");
+        }
+      },
+    });
+
+    await expect(
+      wrapped.callTool(MULTI_EXECUTE_TOOL_NAME, {
+        invocations: [{ tool_name: "LOCAL_ECHO" }],
+      }),
+    ).rejects.toThrow("completion audit unavailable");
+    expect(states).toEqual(["started", "completed", "failed"]);
+  });
+
   it("forwards remote-only MULTI_EXECUTE_TOOL calls unchanged", async () => {
     const callTool = vi.fn(async () => ({
       results: [

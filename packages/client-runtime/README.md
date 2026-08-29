@@ -19,6 +19,11 @@ Framework-neutral client behavior shared by OpenBot web, Electron, and Expo clie
 - `contracts/attachments` owns attachment metadata and upload handshakes.
 - `contracts/queue` owns queued agent turns.
 - `contracts/connectors` owns connector (Tilde tool-provider) configuration: the `configure_connector` tool's `connector_selection` payload, provider and account schemas, `connectorSetupFields` schema-to-form flattening, `connectorAuthorizedReturnUrl`, `waitForConnectorAccountActive` polling, and the structured hand-back message builders.
+- `contracts/plugins`, `contracts/routines`, and `contracts/signals` own the client projections of
+  native Tilde settings resources. Their transport uses the installation's operation-allowlisted
+  `/api/tilde/*` credential bridge; the control service defines no parallel domain APIs. Plugin
+  inventory is assembled from Tilde's generated MCP and Skills resource contracts, with every
+  native continuation token exhausted rather than relying on an OpenBot-specific aggregate.
 - `contracts/workspaces` and the workspace registry helpers own persisted public control-service
   origins, display metadata, and active-workspace selection without moving credentials between
   installations.

@@ -88,6 +88,9 @@ export function registerOwnerAuth(
     }
     return context.json({
       authenticated: true,
+      ...(tildePublicContext(options.environment ?? process.env)
+        ? { tilde: tildePublicContext(options.environment ?? process.env) }
+        : {}),
       user: {
         subject: session.principal.subject,
         name: account.name,
@@ -105,6 +108,17 @@ export function registerOwnerAuth(
     clearCookie(context, refreshCookie);
     return context.json({ authenticated: false });
   });
+}
+
+function tildePublicContext(
+  environment: NodeJS.ProcessEnv,
+): { team_id: string; api_base_url: string } | undefined {
+  const teamId = environment.TILDE_TEAM_ID?.trim();
+  if (!teamId) return undefined;
+  return {
+    team_id: teamId,
+    api_base_url: environment.TILDE_BASE_URL?.trim() || "https://api.trytilde.ai",
+  };
 }
 
 export function requireOwner(

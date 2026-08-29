@@ -20,6 +20,11 @@ export type ProviderToolDefinition = {
 export type ToolRegistry<TTool = ProviderToolDefinition> = Record<string, TTool>;
 
 export type LocalMcpToolContext = {
+  execution?: {
+    parentExecutionId: string;
+    batchId: string;
+    batchIndex: number;
+  };
   callTool<TResult extends ToolResult = ToolResult>(
     name: string,
     input?: JsonObject,
@@ -68,6 +73,14 @@ export type LocalMcpToolWrapperOptions<TClient extends object> = {
   tools: LocalMcpTool[];
   registerWithServer?: boolean;
   registerLocalTools?: (request: RegisterLocalMcpToolsRequest) => Promise<ToolResult>;
+  observeMultiExecute?: (event: {
+    executionId: string;
+    batchId: string;
+    state: "started" | "completed" | "failed";
+    input: JsonObject;
+    output?: MultiExecuteToolResult;
+    errorMessage?: string;
+  }) => Promise<void>;
 };
 
 export type ToolInvocationRequest = {
@@ -165,7 +178,13 @@ export function wrapMcpClientWithLocalTools<TClient extends object>(
     }
     if (normalizeToolName(name) === MULTI_EXECUTE_TOOL_NAME) {
       return typedToolResult<TResult>(
-        await routeMultiExecute(input, byName, context, callRemoteTool),
+        await routeMultiExecute(
+          input,
+          byName,
+          context,
+          callRemoteTool,
+          options.observeMultiExecute,
+        ),
       );
     }
     const entry = byName.get(normalizeToolName(name));
@@ -337,67 +356,102 @@ async function routeMultiExecute(
     name: string,
     input?: JsonObject,
   ) => Promise<TResult>,
+  observe?: LocalMcpToolWrapperOptions<object>["observeMultiExecute"],
 ): Promise<MultiExecuteToolResult> {
   const request = parseMultiExecuteRequest(input);
-  const results: Array<ToolInvocationResult | undefined> = Array.from({
-    length: request.invocations.length,
+  const executionId = `tilde-sdk-execution-${crypto.randomUUID()}`;
+  const batchId = `tilde-sdk-batch-${crypto.randomUUID()}`;
+  await observe?.({
+    executionId,
+    batchId,
+    state: "started",
+    input: input ?? {},
   });
-  const remoteInvocations: ToolInvocationRequest[] = [];
-  const remoteIndexes: number[] = [];
-  const localInvocations: Array<{
-    entry: LocalToolEntry;
-    invocation: ToolInvocationRequest;
-    index: number;
-  }> = [];
+  try {
+    const results: Array<ToolInvocationResult | undefined> = Array.from({
+      length: request.invocations.length,
+    });
+    const remoteInvocations: ToolInvocationRequest[] = [];
+    const remoteIndexes: number[] = [];
+    const localInvocations: Array<{
+      entry: LocalToolEntry;
+      invocation: ToolInvocationRequest;
+      index: number;
+    }> = [];
 
-  request.invocations.forEach((invocation, index) => {
-    const entry = localTools.get(normalizeToolName(invocation.tool_name));
-    if (!entry) {
-      remoteInvocations.push(invocation);
-      remoteIndexes.push(index);
-      return;
-    }
-    localInvocations.push({ entry, invocation, index });
-  });
-
-  const localPromise = Promise.all(
-    localInvocations.map(async ({ entry, invocation, index }) => ({
-      index,
-      result: await executeLocalInvocation(entry.tool, invocation, context),
-    })),
-  );
-  const remotePromise =
-    remoteInvocations.length > 0
-      ? executeRemoteMultiExecute(remoteInvocations, callRemoteTool)
-      : Promise.resolve<MultiExecuteToolResult>({ results: [] });
-
-  const [localResults, normalizedRemote] = await Promise.all([localPromise, remotePromise]);
-
-  for (const { index, result } of localResults) {
-    results[index] = result;
-  }
-  for (let i = 0; i < remoteIndexes.length; i += 1) {
-    const result = normalizedRemote.results[i];
-    const index = remoteIndexes[i];
-    if (result === undefined || index === undefined) {
-      continue;
-    }
-    results[index] = result;
-  }
-
-  return {
-    results: results.map((result, index) => {
-      if (result) {
-        return result;
+    request.invocations.forEach((invocation, index) => {
+      const entry = localTools.get(normalizeToolName(invocation.tool_name));
+      if (!entry) {
+        remoteInvocations.push(invocation);
+        remoteIndexes.push(index);
+        return;
       }
-      const invocation = request.invocations[index];
-      return {
-        tool_name: invocation?.tool_name ?? "",
-        success: false,
-        error: "Tool invocation did not produce a result",
-      };
-    }),
-  };
+      localInvocations.push({ entry, invocation, index });
+    });
+
+    const localPromise = Promise.all(
+      localInvocations.map(async ({ entry, invocation, index }) => ({
+        index,
+        result: await executeLocalInvocation(entry.tool, invocation, {
+          ...context,
+          execution: {
+            parentExecutionId: executionId,
+            batchId,
+            batchIndex: index,
+          },
+        }),
+      })),
+    );
+    const remotePromise =
+      remoteInvocations.length > 0
+        ? executeRemoteMultiExecute(remoteInvocations, callRemoteTool)
+        : Promise.resolve<MultiExecuteToolResult>({ results: [] });
+
+    const [localResults, normalizedRemote] = await Promise.all([localPromise, remotePromise]);
+
+    for (const { index, result } of localResults) {
+      results[index] = result;
+    }
+    for (let i = 0; i < remoteIndexes.length; i += 1) {
+      const result = normalizedRemote.results[i];
+      const index = remoteIndexes[i];
+      if (result === undefined || index === undefined) {
+        continue;
+      }
+      results[index] = result;
+    }
+
+    const result: MultiExecuteToolResult = {
+      results: results.map((toolResult, index) => {
+        if (toolResult) {
+          return toolResult;
+        }
+        const invocation = request.invocations[index];
+        return {
+          tool_name: invocation?.tool_name ?? "",
+          success: false,
+          error: "Tool invocation did not produce a result",
+        };
+      }),
+    };
+    await observe?.({
+      executionId,
+      batchId,
+      state: "completed",
+      input: input ?? {},
+      output: result,
+    });
+    return result;
+  } catch (error) {
+    await observe?.({
+      executionId,
+      batchId,
+      state: "failed",
+      input: input ?? {},
+      errorMessage: error instanceof Error ? error.message : String(error),
+    });
+    throw error;
+  }
 }
 
 async function routeSearchTools(

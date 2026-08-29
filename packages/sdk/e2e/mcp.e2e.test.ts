@@ -2,7 +2,7 @@ import { createMCPClient, type TildeMCPClientHandle } from "@trytilde/sdk-vercel
 import { isRecord } from "@trytilde/sdk/json";
 import { jsonSchema, type ToolSet, tool } from "ai";
 import { afterEach, describe, expect, it } from "vite-plus/test";
-import { createE2EClient } from "./helpers/env";
+import { createE2EClient, readE2EAgentId } from "./helpers/env";
 import {
   createDebugMcpFixture,
   DEBUG_HELLO_WORLD_TOOL_TYPE_ID,
@@ -160,6 +160,7 @@ describe("MCP e2e", () => {
 
     const mcpClient = await createMCPClient({
       client,
+      agentId: readE2EAgentId(),
       serverId: fixture.serverId,
       tools: {
         localEcho,

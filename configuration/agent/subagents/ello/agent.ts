@@ -97,6 +97,7 @@ function queuedRequestCutoff(messages: readonly { metadata?: unknown }[]): strin
 
 export default chatKitEndpoint({
   client,
+  responseMode: "agentLoop",
   webhookSigningKey: process.env.AGENT_ELLO_WEBHOOK_SIGNING_KEY!,
   requestTimeoutMs: 285_000,
   async handler(request, context) {

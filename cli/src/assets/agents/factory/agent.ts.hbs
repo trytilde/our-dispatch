@@ -72,7 +72,9 @@ async function managedMcpTools(
 ): Promise<{ tools: ToolSet; closeMcp: () => Promise<void> }> {
   const handle = await createMCPClient({
     client,
+    agentId: {{{AGENT_ID_JSON}}},
     serverId: mcpServerId,
+    chatkit: { sessionId },
     tools: await localTools(sessionId),
   });
   const tools: Record<string, unknown> = await handle.mcp.tools();

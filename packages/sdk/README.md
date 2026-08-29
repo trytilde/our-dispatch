@@ -13,6 +13,12 @@ pnpm add @trytilde/sdk
 - `createClient(config?)` creates the core client with ChatKit, MCP, messages, and skills APIs.
 - `createTildeGrpcReverseProxy(options)` exposes a credential-injecting gRPC reverse proxy.
 - `wrapMcpClientWithLocalTools(options)` combines remote MCP tools with process-local tools.
+- `ChatKitClient.registerAgentTools(input)` reconciles an agent's process-local tool catalog.
+- `ChatKitClient.reportToolExecution(input)` records canonical local-tool execution lifecycle events.
+- `ChatKitClient.sendSessionMessage(input)` persists a visible message through the provider and
+  active turn bound by ChatKit.
+- `ChatKitClient.invokeSessionProviderTool(input)` invokes a reaction, thread, or poll action using
+  trusted session routing rather than model-supplied provider identifiers.
 - `McpClient.addFunctions(input)` and `McpClient.removeFunctions(input)` atomically reconcile up to 500 function mappings from one tool provider instance.
 - `SkillPackage` and `SkillsClient` discover, download, verify, and materialize managed skills.
 - `@trytilde/sdk/api` exposes the generated API client when a stable wrapper does not yet exist.

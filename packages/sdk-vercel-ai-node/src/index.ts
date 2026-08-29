@@ -154,11 +154,14 @@ export {
   type ChatKitConvertedMessage,
   type ChatKitEndpointContext,
   type ChatKitEndpointOptions,
+  type ChatKitResponseMode,
   type ChatKitSessionClient,
   type ChatKitSessionHistory,
   type ChatKitSessionHistoryOptions,
   chatKitEndpoint,
+  TILDE_CHATKIT_RESPONSE_MODE_HEADER,
 } from "./handler";
+export { type ChatKitToolSession, createChatKitSessionTools } from "./chatkit-session-tools";
 export {
   type ChatKitConnectionOptions,
   chatkitConnectionHeaders,

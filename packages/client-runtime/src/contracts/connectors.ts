@@ -4,9 +4,9 @@ import { z } from "zod";
  * Connector (Tilde tool-provider) configuration contracts shared by every
  * client surface. The agent's `configure_connector` tool emits a
  * `connector_selection` payload inside its tool output; clients render it as
- * an account picker and drive new-account setup through the control-service
- * `/api/connectors` routes so credentials never travel through the chat
- * transcript.
+ * an account picker and drive new-account setup through native Tilde resources
+ * behind the installation's allowlisted credential bridge, so credentials
+ * never travel through the chat transcript.
  */
 
 export const CONNECTOR_SELECTION_TOOL_NAME = "configure_connector";

@@ -17,6 +17,9 @@ import {
   parseChatKitRequestBody,
 } from "./chatkit-request";
 import type { Client } from "./client";
+import type { ToolSet } from "ai";
+import { createMCPClient, type CreateMCPClientOptions, type TildeMCPClientHandle } from "./mcp";
+import { createChatKitSessionTools, type ChatKitToolSession } from "./chatkit-session-tools";
 import {
   type VerifiedWebhookRequest,
   type VerifyWebhookOptions,
@@ -30,6 +33,13 @@ const TILDE_SESSION_ID_HEADER = "x-tilde-session-id";
 const TILDE_USER_ID_HEADER = "x-tilde-user-id";
 const EXTERNAL_USER_ID_HEADER = "x-external-user-id";
 const EXTERNAL_USER_PROVIDER_HEADER = "x-external-user-provider";
+const TILDE_CHATKIT_AGENT_INSTANCE_ID_HEADER = "x-tilde-agent-instance-id";
+const TILDE_CHATKIT_TARGET_INSTANCE_ID_HEADER = "x-tilde-target-instance-id";
+const TILDE_CHATKIT_TRIGGER_MESSAGE_ID_HEADER = "x-tilde-trigger-message-id";
+const TILDE_CHATKIT_PROVIDER_ID_HEADER = "x-tilde-chat-provider-id";
+
+export type ChatKitResponseMode = "tool" | "agentLoop";
+export const TILDE_CHATKIT_RESPONSE_MODE_HEADER = "x-tilde-chatkit-response-mode";
 
 export type { ChatKitContextClient, ChatKitConvertedMessage };
 
@@ -45,10 +55,16 @@ export type ChatKitSessionHistory = {
 
 export type ChatKitSessionClient = {
   id: string;
+  providerId?: string;
+  tools?: ToolSet;
+  createMCPClient?(
+    options: Omit<CreateMCPClientOptions, "client" | "chatkit">,
+  ): Promise<TildeMCPClientHandle>;
   history(options?: ChatKitSessionHistoryOptions): Promise<ChatKitSessionHistory>;
 };
 
 export type ChatKitEndpointContext = ChatKitEndpointProviderContext & {
+  responseMode: ChatKitResponseMode;
   rawBody: Uint8Array;
   body: ChatKitRequestBody;
   messages: ChatKitRequestMessage[];
@@ -64,9 +80,11 @@ export type ChatKitEndpointContext = ChatKitEndpointProviderContext & {
   skills: SkillsClient;
   session: ChatKitSessionClient;
   chatkit: ChatKitContextClient;
+  $provider?: { id: string; tools: ToolSet };
 };
 
 export type ChatKitEndpointOptions = VerifyWebhookOptions & {
+  responseMode: ChatKitResponseMode;
   client: Client;
   logger?: ChatKitEndpointLogger | false;
   /** Maximum handler duration in milliseconds, while preserving incoming aborts. */
@@ -175,6 +193,33 @@ export function chatKitEndpoint(
       return jsonError(400, sessionId.error);
     }
 
+    let toolSession: ChatKitToolSession | undefined;
+    if (options.responseMode === "tool") {
+      const agentInboxInstanceId = optionalHeader(
+        request.headers,
+        TILDE_CHATKIT_AGENT_INSTANCE_ID_HEADER,
+      );
+      const targetInboxInstanceId = optionalHeader(
+        request.headers,
+        TILDE_CHATKIT_TARGET_INSTANCE_ID_HEADER,
+      );
+      const triggerMessageId = optionalHeader(
+        request.headers,
+        TILDE_CHATKIT_TRIGGER_MESSAGE_ID_HEADER,
+      );
+      const providerId = optionalHeader(request.headers, TILDE_CHATKIT_PROVIDER_ID_HEADER);
+      if (!agentInboxInstanceId || !targetInboxInstanceId || !triggerMessageId || !providerId) {
+        return jsonError(400, "Missing ChatKit participant or active-turn routing context");
+      }
+      toolSession = {
+        id: sessionId.value,
+        providerId,
+        agentInboxInstanceId,
+        targetInboxInstanceId,
+        triggerMessageId,
+      };
+    }
+
     const requestFields = {
       ...baseFields,
       webhookId: verified.webhookId,
@@ -194,9 +239,25 @@ export function chatKitEndpoint(
     });
 
     const client = options.client;
+    const sessionTools = toolSession ? createChatKitSessionTools(client, toolSession) : undefined;
     const currentRequestMessageIds = messageIds(body.messages);
     const session: ChatKitSessionClient = {
       id: sessionId.value,
+      ...(toolSession && sessionTools
+        ? {
+            providerId: toolSession.providerId,
+            tools: sessionTools,
+            createMCPClient: (mcpOptions: Omit<CreateMCPClientOptions, "client" | "chatkit">) =>
+              createMCPClient({
+                ...mcpOptions,
+                client,
+                chatkit: {
+                  sessionId: toolSession.id,
+                  boundTools: sessionTools,
+                },
+              }),
+          }
+        : {}),
       async history(historyOptions = {}) {
         if (historyOptions.pageSize === undefined && historyOptions.nextPageToken === undefined) {
           const items: JsonValue[] = [];
@@ -284,6 +345,12 @@ export function chatKitEndpoint(
       },
     };
 
+    const endpointBody =
+      options.responseMode === "tool" ? withToolModeInstructions(body, verified.webhookId) : body;
+    const forwardedBody =
+      options.responseMode === "tool"
+        ? new TextEncoder().encode(JSON.stringify(endpointBody))
+        : verified.rawBody;
     const signal =
       options.requestTimeoutMs === undefined
         ? request.signal
@@ -291,21 +358,22 @@ export function chatKitEndpoint(
     const forwarded = new Request(request.url, {
       method: request.method,
       headers: request.headers,
-      body: verified.rawBody,
+      body: forwardedBody,
       signal,
       duplex: "half",
     } as RequestInit);
 
     const context: ChatKitEndpointContext = {
       rawBody: verified.rawBody,
-      body,
-      messages: body.messages,
+      body: endpointBody,
+      messages: endpointBody.messages,
       ...chatKitProviderContext(body.messages),
       webhookId: verified.webhookId,
       timestamp: verified.timestamp,
       orgId: orgId.value,
       teamId: teamId.value,
       sessionId: sessionId.value,
+      responseMode: options.responseMode,
       ...(actorContext.userId ? { userId: actorContext.userId } : {}),
       ...(actorContext.externalUserId ? { externalUserId: actorContext.externalUserId } : {}),
       ...(actorContext.externalUserProvider
@@ -315,6 +383,9 @@ export function chatKitEndpoint(
       skills: client.skills,
       session,
       chatkit,
+      ...(toolSession && sessionTools
+        ? { $provider: { id: toolSession.providerId, tools: sessionTools } }
+        : {}),
     };
 
     try {
@@ -326,6 +397,7 @@ export function chatKitEndpoint(
         status: response.status,
         elapsedMs: elapsedMs(startedAt),
       });
+      response.headers.set(TILDE_CHATKIT_RESPONSE_MODE_HEADER, options.responseMode);
       return response;
     } catch (error) {
       log("error", "handler failed", {
@@ -335,6 +407,25 @@ export function chatKitEndpoint(
       });
       throw error;
     }
+  };
+}
+
+function withToolModeInstructions(body: ChatKitRequestBody, webhookId: string): ChatKitRequestBody {
+  return {
+    ...body,
+    messages: [
+      {
+        id: `chatkit-tool-mode-${webhookId}`,
+        role: "system",
+        parts: [
+          {
+            type: "text",
+            text: "Your assistant text is private reasoning. The user sees only successful communication tool calls. Invoke sendMessage to acknowledge a human request and invoke it again with the result before ending the turn. Routing is already bound to the current ChatKit turn; never ask for or invent session, channel, thread, inbox, repository, issue, message, or recipient routing identifiers.",
+          },
+        ],
+      },
+      ...body.messages,
+    ],
   };
 }
 

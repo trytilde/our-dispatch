@@ -17,12 +17,14 @@ import {
 const key = "whsec--test";
 
 function testChatKitEndpoint(
-  options: Omit<ChatKitEndpointOptions, "client"> & {
+  options: Omit<ChatKitEndpointOptions, "client" | "responseMode"> & {
     client?: Config;
+    responseMode?: ChatKitEndpointOptions["responseMode"];
   },
 ) {
-  const { client: clientConfig, ...endpointOptions } = options;
+  const { client: clientConfig, responseMode = "agentLoop", ...endpointOptions } = options;
   return chatKitEndpoint({
+    responseMode,
     ...endpointOptions,
     client: createClient({
       apiKey: "test-key",
@@ -97,6 +99,43 @@ describe("verifyWebhookRequest", () => {
 });
 
 describe("chatKitEndpoint", () => {
+  it("injects active-turn communication tools in tool response mode", async () => {
+    const handler = vi.fn(async (request: Request, context) => {
+      expect(context.responseMode).toBe("tool");
+      expect(context.session.tools).toHaveProperty("sendMessage");
+      expect(context.session.tools).toHaveProperty("addReaction");
+      expect(context.session.tools).toHaveProperty("removeReaction");
+      expect(context.session.tools).toHaveProperty("getThread");
+      expect(context.$provider?.tools).toBe(context.session.tools);
+      expect(context.session.createMCPClient).toBeTypeOf("function");
+      const forwarded = (await request.json()) as {
+        messages: Array<{ role?: string }>;
+      };
+      expect(forwarded.messages[0]?.role).toBe("system");
+      return new Response("ok");
+    });
+    const endpoint = testChatKitEndpoint({
+      webhookSigningKey: key,
+      responseMode: "tool",
+      client: { apiKey: "test-key" },
+      handler,
+    });
+    const response = await endpoint(
+      signedRequest({ messages: [] }, Math.floor(Date.now() / 1000), {
+        "x-tilde-org-id": "org-123",
+        "x-tilde-team-id": "team_123",
+        "x-tilde-session-id": "session_1",
+        "x-tilde-agent-instance-id": "agent_instance",
+        "x-tilde-target-instance-id": "target_instance",
+        "x-tilde-trigger-message-id": "trigger_1",
+        "x-tilde-chat-provider-id": "chatkit.channel.slack",
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("x-tilde-chatkit-response-mode")).toBe("tool");
+  });
+
   it("adds the configured request timeout to the forwarded signal", async () => {
     const handler = vi.fn(async (request: Request) => {
       await new Promise<void>((resolve) => {
@@ -1793,7 +1832,7 @@ describe("ChatKit AI SDK converters", () => {
             signal.metadata.signal_type,
             signal.metadata.signal_delivery_id,
             signal.metadata.signal_provider_instance_id,
-            signal.metadata.signal_rule_id,
+            signal.metadata.routine_trigger_id,
             signal.from_inbox_type_id,
             signal.user_display_name,
           ].join("|"),
@@ -1818,7 +1857,7 @@ describe("ChatKit AI SDK converters", () => {
               signal_type: "sentry.issue.created",
               signal_delivery_id: "del_1",
               signal_provider_instance_id: "spi_1",
-              signal_rule_id: "rule_1",
+              routine_trigger_id: "trigger_1",
             },
           },
         ],
@@ -1833,7 +1872,7 @@ describe("ChatKit AI SDK converters", () => {
         parts: [
           {
             type: "text",
-            text: "sentry.issue.created|del_1|spi_1|rule_1|sentry|Sentry",
+            text: "sentry.issue.created|del_1|spi_1|trigger_1|sentry|Sentry",
           },
         ],
       },

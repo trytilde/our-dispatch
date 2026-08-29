@@ -9,9 +9,6 @@ import {
 } from "../contracts/attachments.js";
 import { AuthenticatedSessionSchema, type AuthenticatedSession } from "../contracts/auth.js";
 import {
-  ConnectorAccountPageSchema,
-  ConnectorProviderPageSchema,
-  CreateConnectorAccountResultSchema,
   type ConnectorAccount,
   type ConnectorProvider,
   type CreateConnectorAccountInput,
@@ -19,11 +16,7 @@ import {
 } from "../contracts/connectors.js";
 import type { ChatEvent, SessionEvent, SessionUserState } from "../contracts/events.js";
 import { SessionUserStateSchema } from "../contracts/events.js";
-import {
-  PluginMutationResultSchema,
-  PluginsCatalogSchema,
-  type PluginsCatalog,
-} from "../contracts/plugins.js";
+import type { PluginsCatalog } from "../contracts/plugins.js";
 import {
   AgentSetupStartedSchema,
   AgentSetupStatusSchema,
@@ -43,20 +36,11 @@ import {
   type SubmitTurnResponse,
 } from "../contracts/workspace.js";
 import {
-  RoutineListSchema,
-  RunRoutineResponseSchema,
   type CreateRoutineInput,
   type Routine,
-  type RoutineTriggerSpec,
   type UpdateRoutineInput,
 } from "../contracts/routines.js";
 import {
-  DeleteSignalInstanceResultSchema,
-  SignalDeliveryListSchema,
-  SignalInstanceListSchema,
-  SignalInstanceSchema,
-  SignalProviderListSchema,
-  TestSignalInstanceResultSchema,
   type CreateSignalInstanceInput,
   type SignalDelivery,
   type SignalInstance,
@@ -65,6 +49,8 @@ import {
   type TestSignalInstanceResult,
   type UpdateSignalInstanceInput,
 } from "../contracts/signals.js";
+import { createTildeRoutineClient, createTildeSignalClient } from "../tilde-settings.js";
+import { createTildePluginsClient } from "../tilde-plugins.js";
 import { QueuedTurnPageSchema, type QueuedTurnPage } from "../contracts/queue.js";
 import {
   ChatSessionPageSchema,
@@ -94,6 +80,8 @@ export interface OpenBotClientOptions {
   createWebSocket?: WebSocketFactory;
   /** Browser by default. Native adapters must opt into Origin-free socket tickets. */
   realtimeTransport?: "browser" | "native";
+  /** Public Tilde origin used only to render signal webhook URLs. */
+  tildeApiBaseUrl?: string;
 }
 
 export interface OpenBotClient {
@@ -169,7 +157,7 @@ export interface OpenBotClient {
   createConnectorAccount(input: CreateConnectorAccountInput): Promise<CreateConnectorAccountResult>;
   bindConnector(agentId: string, accountId: string): Promise<void>;
   deleteConnectorAccounts(accountIds: readonly string[]): Promise<void>;
-  getPluginsCatalog(agentIds: readonly string[]): Promise<PluginsCatalog>;
+  getPluginsCatalog(): Promise<PluginsCatalog>;
   setToolAccountForAgent(accountId: string, agentId: string, enabled: boolean): Promise<void>;
   setSkillForAgent(skillId: string, agentId: string, enabled: boolean): Promise<void>;
   createAttachment(sessionId: string, input: CreateAttachmentInput): Promise<AttachmentUpload>;
@@ -198,6 +186,7 @@ const ErrorBodySchema = z.object({
 export function createOpenBotClient(options: OpenBotClientOptions = {}): OpenBotClient {
   const fetchImplementation = options.fetch ?? globalThis.fetch.bind(globalThis);
   const baseUrl = options.baseUrl?.replace(/\/$/, "") ?? "";
+  let tildeApiBaseUrl = options.tildeApiBaseUrl;
 
   const resolve = (path: string): string => `${baseUrl}${path}`;
 
@@ -229,6 +218,14 @@ export function createOpenBotClient(options: OpenBotClientOptions = {}): OpenBot
   function chatPath(path: string): string {
     return `/api/chat/${path}`;
   }
+
+  const tildeSettingsTransport = {
+    requestJson: (path: string, init?: RequestInit) => json(path, z.unknown(), init),
+    apiBaseUrl: () => tildeApiBaseUrl,
+  };
+  const routines = createTildeRoutineClient(tildeSettingsTransport);
+  const signals = createTildeSignalClient(tildeSettingsTransport);
+  const plugins = createTildePluginsClient(tildeSettingsTransport.requestJson);
 
   function rewriteTildeUrl(value: string): string {
     try {
@@ -273,7 +270,9 @@ export function createOpenBotClient(options: OpenBotClientOptions = {}): OpenBot
       const response = await request("/auth/session", { headers: { accept: "application/json" } });
       if (response.status === 401) return null;
       if (!response.ok) throw await responseError(response);
-      return AuthenticatedSessionSchema.parse(await response.json());
+      const session = AuthenticatedSessionSchema.parse(await response.json());
+      tildeApiBaseUrl = session.tilde?.api_base_url ?? tildeApiBaseUrl;
+      return session;
     },
     logout: () => empty("/auth/logout", { method: "POST" }),
     async startAgentSetup(name) {
@@ -471,189 +470,13 @@ export function createOpenBotClient(options: OpenBotClientOptions = {}): OpenBot
         body: JSON.stringify({ queue_position: queuePosition }),
         headers: { "content-type": "application/json" },
       }),
-    async listRoutines(agentId) {
-      const parameters = new URLSearchParams({ agent_id: agentId });
-      const response = await json(`/api/routines?${parameters}`, RoutineListSchema);
-      return response.items;
+    ...routines,
+    ...signals,
+    async createConnectorAccount(input) {
+      return await plugins.createNativeConnectorAccount(input);
     },
-    async createRoutine(input) {
-      const response = await json("/api/routines", RoutineListSchema, {
-        method: "POST",
-        body: JSON.stringify({
-          agent_id: input.agentId,
-          name: input.name,
-          instruction: input.instruction,
-          ...(input.enabled === undefined ? {} : { enabled: input.enabled }),
-          triggers: input.triggers.map(routineTriggerBody),
-        }),
-      });
-      return response.items;
-    },
-    async updateRoutine(groupId, agentId, input) {
-      const parameters = new URLSearchParams({ agent_id: agentId });
-      const response = await json(
-        `/api/routines/${encodeURIComponent(groupId)}?${parameters}`,
-        RoutineListSchema,
-        {
-          method: "PATCH",
-          body: JSON.stringify({
-            ...(input.name === undefined ? {} : { name: input.name }),
-            ...(input.instruction === undefined ? {} : { instruction: input.instruction }),
-            ...(input.enabled === undefined ? {} : { enabled: input.enabled }),
-            ...(input.triggers === undefined
-              ? {}
-              : { triggers: input.triggers.map(routineTriggerBody) }),
-          }),
-        },
-      );
-      return response.items;
-    },
-    async deleteRoutine(groupId, agentId) {
-      const parameters = new URLSearchParams({ agent_id: agentId });
-      const response = await json(
-        `/api/routines/${encodeURIComponent(groupId)}?${parameters}`,
-        RoutineListSchema,
-        { method: "DELETE" },
-      );
-      return response.items;
-    },
-    async runRoutine(groupId, agentId) {
-      const parameters = new URLSearchParams({ agent_id: agentId });
-      const response = await json(
-        `/api/routines/${encodeURIComponent(groupId)}/run?${parameters}`,
-        RunRoutineResponseSchema,
-        { method: "POST" },
-      );
-      return response.session_id;
-    },
-    async listSignalProviders() {
-      const response = await json("/api/signals/providers", SignalProviderListSchema);
-      return response.items;
-    },
-    async listSignalInstances() {
-      const response = await json("/api/signals/instances", SignalInstanceListSchema);
-      return response.items;
-    },
-    createSignalInstance: (input) =>
-      json("/api/signals/instances", SignalInstanceSchema, {
-        method: "POST",
-        body: JSON.stringify({
-          provider_type: input.providerType,
-          display_name: input.displayName,
-          ...(input.signingSecret === undefined ? {} : { signing_secret: input.signingSecret }),
-          ...(input.credentialSourceTypeId === undefined
-            ? {}
-            : { credential_source_type_id: input.credentialSourceTypeId }),
-          ...(input.configuration === undefined ? {} : { configuration: input.configuration }),
-          ...(input.ingressMode === undefined ? {} : { ingress_mode: input.ingressMode }),
-        }),
-      }),
-    updateSignalInstance: (id, input) =>
-      json(`/api/signals/instances/${encodeURIComponent(id)}`, SignalInstanceSchema, {
-        method: "PATCH",
-        body: JSON.stringify({
-          ...(input.displayName === undefined ? {} : { display_name: input.displayName }),
-          ...(input.status === undefined ? {} : { status: input.status }),
-          ...(input.signingSecret === undefined ? {} : { signing_secret: input.signingSecret }),
-          ...(input.configuration === undefined ? {} : { configuration: input.configuration }),
-        }),
-      }),
-    async deleteSignalInstance(id) {
-      await json(
-        `/api/signals/instances/${encodeURIComponent(id)}`,
-        DeleteSignalInstanceResultSchema,
-        {
-          method: "DELETE",
-        },
-      );
-    },
-    testSignalInstance: (id, input = {}) =>
-      json(
-        `/api/signals/instances/${encodeURIComponent(id)}/test`,
-        TestSignalInstanceResultSchema,
-        {
-          method: "POST",
-          body: JSON.stringify({
-            ...(input.signalType === undefined ? {} : { signal_type: input.signalType }),
-            ...(input.summary === undefined ? {} : { summary: input.summary }),
-            ...(input.data === undefined ? {} : { data: input.data }),
-          }),
-        },
-      ),
-    async listSignalDeliveries(instanceId) {
-      const parameters = new URLSearchParams({ instance_id: instanceId });
-      const response = await json(
-        `/api/signals/deliveries?${parameters}`,
-        SignalDeliveryListSchema,
-      );
-      return response.items;
-    },
-    async listConnectorProviders() {
-      const response = await json("/api/connectors/providers", ConnectorProviderPageSchema);
-      return response.items;
-    },
-    async listConnectorAccounts(providerTypeId) {
-      const parameters = new URLSearchParams();
-      if (providerTypeId) parameters.set("provider", providerTypeId);
-      const query = parameters.size > 0 ? `?${parameters}` : "";
-      const response = await json(`/api/connectors/accounts${query}`, ConnectorAccountPageSchema);
-      return response.items;
-    },
-    waitForConnectorAccount: (accountId) =>
-      json(
-        `/api/connectors/accounts/${encodeURIComponent(accountId)}/wait`,
-        z.object({
-          id: z.string(),
-          display_name: z.string(),
-          status: z.string(),
-          provider_type_id: z.string().optional(),
-          credential_source_type_id: z.string().optional(),
-        }),
-      ),
-    createConnectorAccount: (input) =>
-      json("/api/connectors/accounts", CreateConnectorAccountResultSchema, {
-        method: "POST",
-        body: JSON.stringify({
-          provider_type_id: input.providerTypeId,
-          credential_source_type_id: input.credentialSourceTypeId,
-          display_name: input.displayName,
-          resource_server_values: input.resourceServerValues ?? null,
-          user_credential_values: input.userCredentialValues ?? null,
-          return_url: input.returnUrl ?? null,
-        }),
-      }),
-    bindConnector: (agentId, accountId) =>
-      empty("/api/connectors/bind", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ agent_id: agentId, account_id: accountId }),
-      }),
-    async deleteConnectorAccounts(accountIds) {
-      await json("/api/connectors/accounts", PluginMutationResultSchema, {
-        method: "DELETE",
-        body: JSON.stringify({ account_ids: accountIds }),
-      });
-    },
-    getPluginsCatalog(agentIds) {
-      const parameters = new URLSearchParams();
-      for (const agentId of agentIds) parameters.append("agent_id", agentId);
-      const query = parameters.size > 0 ? `?${parameters}` : "";
-      return json(`/api/plugins${query}`, PluginsCatalogSchema);
-    },
-    async setToolAccountForAgent(accountId, agentId, enabled) {
-      await json(
-        `/api/plugins/tools/${encodeURIComponent(accountId)}/agents/${encodeURIComponent(agentId)}`,
-        PluginMutationResultSchema,
-        { method: enabled ? "POST" : "DELETE" },
-      );
-    },
-    async setSkillForAgent(skillId, agentId, enabled) {
-      await json(
-        `/api/plugins/skills/${encodeURIComponent(skillId)}/agents/${encodeURIComponent(agentId)}`,
-        PluginMutationResultSchema,
-        { method: enabled ? "POST" : "DELETE" },
-      );
-    },
+    bindConnector: (agentId, accountId) => plugins.setToolAccountForAgent(accountId, agentId, true),
+    ...plugins,
     createAttachment: (sessionId, input) =>
       json(
         chatPath(`session/${encodeURIComponent(sessionId)}/attachment/upload`),
@@ -730,19 +553,6 @@ async function waitForReconnect(signal: AbortSignal, attempt: number): Promise<v
     }
     signal.addEventListener("abort", done, { once: true });
   });
-}
-
-function routineTriggerBody(spec: RoutineTriggerSpec): Record<string, unknown> {
-  const identity = spec.id === undefined ? {} : { id: spec.id };
-  return spec.kind === "schedule"
-    ? { ...identity, kind: "schedule", schedule: spec.schedule }
-    : {
-        ...identity,
-        kind: "event",
-        instance_id: spec.instanceId,
-        signal_type: spec.signalType,
-        ...(spec.filters === undefined ? {} : { filters: spec.filters }),
-      };
 }
 
 async function responseError(response: Response): Promise<ClientRequestError> {

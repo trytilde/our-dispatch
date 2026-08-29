@@ -19,6 +19,12 @@ export type AuthenticatedUser = z.infer<typeof AuthenticatedUserSchema>;
 export const AuthenticatedSessionSchema = z.object({
   authenticated: z.literal(true),
   user: AuthenticatedUserSchema,
+  tilde: z
+    .object({
+      team_id: z.string().min(1),
+      api_base_url: z.string().url(),
+    })
+    .optional(),
 });
 export type AuthenticatedSession = z.infer<typeof AuthenticatedSessionSchema>;
 
