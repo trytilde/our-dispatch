@@ -93,3 +93,7 @@ git work.
 - 2026-08-27T15:15:00+02:00: Added the optional exe.dev mode from ADR-0032, where the trusted
   development lifecycle is itself the continuously running deployment and therefore never flips
   back to a separately built runtime.
+- 2026-08-29T14:12:00+02:00: Made `openbot new-agent` the sole source and remote-resource
+  reconciliation lifecycle for owner-facing creation. The control service now reports the
+  background command result instead of repeating Tilde bundle provisioning with a separate human
+  bearer token; an authorized installation agent API key may establish the new agent lifecycle.
