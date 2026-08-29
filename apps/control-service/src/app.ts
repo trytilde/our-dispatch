@@ -26,10 +26,7 @@ export interface AppOptions {
   tildeChatProxy?: TildeChatProxyOptions;
   tildeProxy?: TildeProxyOptions;
   authProvider?: AuthProvider;
-  agentCreation?: Pick<
-    AgentCreationOptions,
-    "repositoryRoot" | "execute" | "awaitExecution" | "tildeFetch"
-  >;
+  agentCreation?: Pick<AgentCreationOptions, "repositoryRoot" | "execute" | "awaitExecution">;
 }
 
 export function createApp(options: AppOptions = {}): Hono {
