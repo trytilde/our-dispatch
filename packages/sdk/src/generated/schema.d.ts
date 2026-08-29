@@ -9218,6 +9218,22 @@ export interface components {
         };
         /** @enum {string} */
         ChatKitRealtimeTicketTransport: "browser" | "native";
+        /** @description Public agent snapshot included in every signed HTTP-agent request. */
+        ChatKitRequestAgent: {
+            avatar?: null | components["schemas"]["ChatKitRequestAgentAvatar"];
+            createdAt: components["schemas"]["WrappedChronoDateTime"];
+            displayName: string;
+            id: string;
+            principalUserId?: string | null;
+            providerId: string;
+            status: components["schemas"]["InboxStatus"];
+            updatedAt: components["schemas"]["WrappedChronoDateTime"];
+        };
+        /** @description Agent avatar resource included in the signed HTTP-agent request context. */
+        ChatKitRequestAgentAvatar: {
+            /** @description Authenticated Tilde API path that serves the current avatar bytes. */
+            url: string;
+        };
         /** @description Agent context included when an agent identity or display name matched. */
         ChatKitSearchAgent: {
             display_name: string;
@@ -9375,6 +9391,7 @@ export interface components {
         };
         /** @description Request body for chat completion in Vercel AI SDK format. */
         ChatRequest: {
+            agent?: null | components["schemas"]["ChatKitRequestAgent"];
             chatId?: string | null;
             messages: components["schemas"]["ChatMessage"][];
             session?: null | components["schemas"]["ChatSessionContext"];

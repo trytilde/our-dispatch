@@ -670,6 +670,30 @@ export enum ChatKitRealtimeTicketTransport {
 }
 
 /**
+ * Public agent snapshot included in every signed HTTP-agent request.
+ */
+export type ChatKitRequestAgent = {
+    avatar?: null | ChatKitRequestAgentAvatar;
+    createdAt: WrappedChronoDateTime;
+    displayName: string;
+    id: string;
+    principalUserId?: string | null;
+    providerId: string;
+    status: InboxStatus;
+    updatedAt: WrappedChronoDateTime;
+};
+
+/**
+ * Agent avatar resource included in the signed HTTP-agent request context.
+ */
+export type ChatKitRequestAgentAvatar = {
+    /**
+     * Authenticated Tilde API path that serves the current avatar bytes.
+     */
+    url: string;
+};
+
+/**
  * Agent context included when an agent identity or display name matched.
  */
 export type ChatKitSearchAgent = {
@@ -868,6 +892,7 @@ export type ChatMessagePart = {
  * Request body for chat completion in Vercel AI SDK format.
  */
 export type ChatRequest = {
+    agent?: null | ChatKitRequestAgent;
     chatId?: string | null;
     messages: Array<ChatMessage>;
     session?: null | ChatSessionContext;
