@@ -109,7 +109,13 @@ describe("owner authentication", () => {
     const provider = stubProvider();
     provider.verify.mockImplementation(async (token) => {
       if (token === "expired") throw new Error("expired");
-      return { subject: "human-one", groups: [], scope: ["openbot:control"] };
+      return {
+        subject: "human-one",
+        actorType: "human",
+        credentialType: "bearer_token",
+        groups: [],
+        scope: ["openbot:control"],
+      };
     });
     const app = createApp({ authProvider: provider, webRoot: "/missing" });
     const response = await app.request("/auth/session", {
@@ -251,7 +257,13 @@ function stubProvider() {
       refreshToken: "refresh-one",
       expiresIn: 3600,
     })),
-    verify: vi.fn(async () => ({ subject: "human-one", groups: [], scope: ["openbot:control"] })),
+    verify: vi.fn(async () => ({
+      subject: "human-one",
+      actorType: "human",
+      credentialType: "bearer_token",
+      groups: [],
+      scope: ["openbot:control"],
+    })),
   } as unknown as AuthProvider & {
     account: ReturnType<typeof vi.fn> | undefined;
     authorizationUrl: ReturnType<typeof vi.fn>;

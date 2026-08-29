@@ -48,6 +48,8 @@ describe("TildeAuthProvider", () => {
     await expect(provider.verify(token)).resolves.toMatchObject({
       subject: "human-one",
       email: "owner@example.com",
+      actorType: "human",
+      credentialType: "bearer_token",
     });
     const wrongAudience = jwt(privateKey, {
       sub: "human-one",
@@ -59,6 +61,48 @@ describe("TildeAuthProvider", () => {
       exp: Math.floor(Date.now() / 1000) + 300,
     });
     await expect(provider.verify(wrongAudience)).rejects.toThrow("not valid for this OpenBot");
+  });
+
+  it.each(["human", "agent"] as const)(
+    "authenticates a team-linked %s API key without treating it as an OIDC token",
+    async (actorType) => {
+      const request = vi.fn<typeof fetch>(async (_input, init) => {
+        expect(new Headers(init?.headers).get("authorization")).toBe("Bearer sk-installation");
+        return Response.json({
+          identity: {
+            type: actorType,
+            sub: `${actorType}-one`,
+            ...(actorType === "human" ? { email: "owner@example.com" } : {}),
+          },
+          teams: [{ team_id: "team-one", org_id: "org-one" }],
+          groups: [{ group_id: "group-one" }],
+        });
+      });
+
+      await expect(
+        providerWith({ request, environment }).verify("sk-installation"),
+      ).resolves.toEqual({
+        subject: `${actorType}-one`,
+        ...(actorType === "human" ? { email: "owner@example.com" } : {}),
+        actorType,
+        credentialType: "api_key",
+        groups: ["group-one"],
+        scope: ["openbot:control"],
+      });
+    },
+  );
+
+  it("rejects an API key that is not linked to the installation team", async () => {
+    const request = vi.fn<typeof fetch>(async () =>
+      Response.json({
+        identity: { type: "human", sub: "human-one" },
+        teams: [{ team_id: "team-other", org_id: "org-one" }],
+      }),
+    );
+
+    await expect(providerWith({ request, environment }).verify("sk-other-team")).rejects.toThrow(
+      "not valid for this OpenBot installation",
+    );
   });
 
   it("loads the signed-in account and selected workspace from whoami", async () => {
@@ -78,6 +122,8 @@ describe("TildeAuthProvider", () => {
       providerWith({ request, environment }).account("owner-token", {
         subject: "human-one",
         email: "token@example.com",
+        actorType: "human",
+        credentialType: "bearer_token",
         groups: [],
         scope: ["openbot:control"],
       }),

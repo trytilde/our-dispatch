@@ -30,6 +30,8 @@ const authProvider: AuthProvider = {
     return {
       subject: "e2e-owner",
       email: "owner@example.com",
+      actorType: "human",
+      credentialType: "bearer_token",
       groups: ["e2e-team-member"],
       scope: ["openbot:control"],
     };
