@@ -3,9 +3,9 @@
 ## In brief
 
 - One user concept: Routine. Name, instruction, 1–8 triggers.
-- Trigger is schedule or provider event; Tilde persists one authoritative Automation root and
-  reconciles its ChatKit routine and signal-rule members.
-- Legacy `metadata.openbot` groups are adopted idempotently by Tilde during listing.
+- Trigger is schedule or provider event; Tilde persists one native Routine root with native
+  triggers and durable executions.
+- Tilde migrates prior Automation, ChatKit Routine, and SignalRule state into the native root.
 - Client Runtime projects native Tilde Automation and Signals responses through the installation's
   operation-allowlisted `/api/tilde/*` credential bridge; there is no domain facade.
 - Web renders an agent details pane; mobile is deferred.
@@ -13,35 +13,33 @@
 
 ## Decision
 
-Tilde persists an Automation root containing the name, instruction, enabled state,
-authorization planes, generation, reconciliation status, and 1–8 OR'd schedule or event
-triggers. ChatKit routines and signal rules are materialized members rather than the public
-source of truth. OpenBot retains the Routine product name and its existing client contract.
+Tilde persists a Routine root containing the name, instruction, enabled state,
+authorization planes, optimistic version, and 1–8 OR'd native schedule or event triggers.
+Schedule leases, event retry progress, and durable executions belong to that root. ChatKit
+and Signals remain execution substrates rather than derived authorization resources.
 
-### Authoritative Tilde aggregate and legacy adoption
+### Authoritative Tilde root and legacy migration
 
-OpenBot creates or replaces one Automation with one PUT. Tilde validates the complete desired
-state, persists it with a generation, creates or updates desired members before deleting obsolete
-ones, and records partial failure on the root for retry. List/get return authoritative trigger
-membership and schedule/run projections; run uses a durable client run ID.
+OpenBot creates or replaces one Routine through the compatibility `/automations` path. Tilde
+validates the complete trigger set and atomically persists the root and children. OpenBot sends the
+current `version` as `expected_version`, and preserves server-owned action/session/metadata fields
+when editing the presentation subset. List/get return native trigger membership; run uses a durable
+client run ID.
 
-Resources created by the previous implementation retain
-`metadata.openbot = { group, trigger, instruction? }`. Tilde performs a bounded legacy scan during
-Automation listing and atomically adopts each group as a generation-1 root. Concurrent or repeated
-listing cannot duplicate the root or its materialized members. OpenBot does not retain a metadata
-scan or a mapping database.
+Tilde's data migration copies prior Automation roots/members and standalone SignalRules before the
+native API starts. OpenBot has no metadata scan or mapping database.
 
 ```mermaid
 flowchart LR
     UI[Routine card] --> CR[Client Runtime projection]
     CR --> B[allowlisted credential bridge]
-    B --> A[Tilde Automation API]
-    A -->|schedule trigger| R[Tilde ChatKit routine]
-    A -->|event trigger| SR[Tilde signal rule]
-    SR --> SPI[signal provider instance]
+    B --> A[Tilde Routine API]
+    A -->|schedule trigger| R[schedule lease]
+    A -->|event trigger| E[event matcher]
+    E --> SPI[signal provider instance]
     SPI --> WH[/api/v1/webhooks/... ingress/]
-    R -->|cron fire| S1[new chatkit-workspace session]
-    SR -->|delivery| S2[session via session_policy]
+    R -->|cron fire| S1[new ChatKit session]
+    E -->|delivery| S2[session via session_policy]
 ```
 
 ### Contracts and state
@@ -55,21 +53,20 @@ never patch caches.
 
 ### Semantics
 
-- Unified `enabled`, reconciliation status, generation, and error are authoritative root fields.
-  Tilde ensures disabled event members are created disabled rather than briefly firing.
-- Updates are full desired-state PUTs. Tilde preserves member identity where possible and
-  safely replaces members whose immutable upstream identity changes.
+- Root and per-trigger `enabled` state are authoritative. There is no reconciliation generation or
+  derived member that can briefly fire.
+- Updates are full desired-state PUTs. Stable native trigger IDs preserve telemetry and retry
+  progress; `expected_version` rejects concurrent replacement.
 - Test run calls the Automation run endpoint with a durable UUID, making retries idempotent.
 - Root run history projects the latest scheduled run and its paired session/error. Signal delivery
   history remains available through the existing Signals API.
-- One event trigger maps to exactly one signal rule and one signal type; filters are
+- One event trigger selects one provider instance and signal type; filters are
   `filter.json_equals` equality on the provider's normalized payload.
 
 ### Pagination
 
-Client Runtime follows Tilde Automation continuation tokens until exhausted and never rebuilds
-the aggregate from independently paginated routine/rule collections. Legacy adoption is bounded and
-fails visibly on overflow rather than silently producing an incomplete root.
+Client Runtime follows Tilde Routine and Signals continuation tokens until exhausted and never
+rebuilds the root from derived ChatKit/SignalRule collections.
 
 ### Provider connections
 
@@ -101,8 +98,8 @@ Work: render the routines list, editor, and provider connect flow natively again
 
 ## Upstream dependencies
 
-- `trytilde/api`: persisted Automations API, bounded legacy metadata adoption, schedule/run
-  projections, authorization/grants, ownership lifecycle participation, and the serialized
+- `trytilde/api`: native Routine API, data-preserving migration, schedule/event execution,
+  authorization/grants, ownership lifecycle participation, and the serialized
   `webhook_verification` descriptor in the signals provider catalog.
 - `@trytilde/api-client`: generated routines, signals, metadata, and webhook
   verification contracts. Stable hand-authored behavior remains owned by
@@ -112,3 +109,4 @@ Work: render the routines list, editor, and provider connect flow natively again
 
 - 2026-08-26T16:18:13+01:00: Replaced OpenBot's stateless metadata composition and mutation fan-out with Tilde's persisted Automation aggregate, retaining a thin owner-authenticated compatibility facade and automatic legacy adoption.
 - 2026-08-29T00:34:00+02:00: Removed the Routines and Signals domain facades. Client Runtime now validates and projects the native Tilde resources through one operation-allowlisted credential bridge, retaining the HttpOnly installation session without duplicating Tilde APIs.
+- 2026-08-29T03:18:00+02:00: Replaced materialized ChatKit Routine and SignalRule members with Tilde's native Routine triggers. Client Runtime now preserves optimistic versions and native trigger metadata, pages Signals completely, and uses trigger IDs for delivery history.

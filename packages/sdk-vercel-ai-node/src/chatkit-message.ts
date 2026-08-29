@@ -74,6 +74,8 @@ export type SignalMetadata = JsonObject & {
   signal_type: string;
   signal_delivery_id?: string;
   signal_provider_instance_id?: string;
+  routine_trigger_id?: string;
+  /** Present only on signal messages persisted before native Routine triggers. */
   signal_rule_id?: string;
 };
 

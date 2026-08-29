@@ -14,7 +14,6 @@ const routine: Routine = {
       id: "t-1",
       kind: "schedule",
       schedule: "0 7 * * *",
-      routine_id: "routine-1",
     },
     {
       id: "t-2",
@@ -22,7 +21,6 @@ const routine: Routine = {
       instance_id: "spi_1",
       provider_type: "github",
       signal_type: "github.pull_request.opened",
-      rule_id: "rule-1",
     },
   ],
   last_run_at: "2026-08-20T07:00:00Z",
@@ -32,12 +30,12 @@ const routine: Routine = {
   updated_at: "2026-08-20T07:00:00Z",
 };
 
-// The control service always sends matched_rule_ids, empty until rules matched.
+// Tilde sends matched_trigger_ids empty until event triggers finish matching.
 const delivery = (overrides: Partial<SignalDelivery> & { id: string }): SignalDelivery => ({
   instance_id: "spi_1",
   signal_type: "github.pull_request.opened",
   status: "completed",
-  matched_rule_ids: [],
+  matched_trigger_ids: [],
   created_at: "2026-08-22T10:00:00Z",
   ...overrides,
 });
@@ -46,13 +44,13 @@ describe("routineRunHistory", () => {
   it("merges matched deliveries with the schedule snapshot, newest first", () => {
     const history = routineRunHistory(routine, {
       spi_1: [
-        delivery({ id: "d-1", session_id: "session-1", matched_rule_ids: ["rule-1"] }),
-        delivery({ id: "d-2", status: "failed_terminal", matched_rule_ids: ["other-rule"] }),
+        delivery({ id: "d-1", session_id: "session-1", matched_trigger_ids: ["t-2"] }),
+        delivery({ id: "d-2", status: "failed_terminal", matched_trigger_ids: ["other-trigger"] }),
         delivery({
           id: "d-3",
           status: "pending",
           created_at: "2026-08-23T10:00:00Z",
-          matched_rule_ids: ["rule-1"],
+          matched_trigger_ids: ["t-2"],
         }),
       ],
     });

@@ -16,6 +16,19 @@ import type {
 } from "./contracts/signals.js";
 
 type RequestJson = (path: string, init?: RequestInit) => Promise<unknown>;
+type RoutineTriggerWrite = RoutineTriggerSpec & {
+  enabled?: boolean;
+  metadata?: unknown;
+  sessionPolicy?: unknown;
+  action?: unknown;
+  instructionPolicy?: string;
+};
+type RoutineWrite = Omit<CreateRoutineInput, "triggers"> & {
+  triggers: RoutineTriggerWrite[];
+  authorization?: unknown;
+  metadata?: unknown;
+  expectedVersion?: number;
+};
 
 export interface TildeSettingsTransport {
   requestJson: RequestJson;
@@ -27,6 +40,7 @@ const UpstreamTriggerSchema = z
   .object({
     id: z.string(),
     kind: z.enum(["schedule", "event"]),
+    enabled: z.boolean().optional(),
     schedule: z.string().optional(),
     signal_provider_instance_id: z.string().optional(),
     signal_type: z.string().optional(),
@@ -38,6 +52,9 @@ const UpstreamTriggerSchema = z
     schedule_description: z.string().nullable().optional(),
     next_run_at: z.string().nullable().optional(),
     session_policy: z.unknown().optional(),
+    action: z.unknown().optional(),
+    instruction_policy: z.string().optional(),
+    metadata: z.unknown().optional(),
   })
   .passthrough();
 const UpstreamAutomationSchema = z
@@ -47,6 +64,8 @@ const UpstreamAutomationSchema = z
     name: z.string(),
     instruction: z.string(),
     enabled: z.boolean(),
+    version: z.number().optional(),
+    metadata: z.unknown().optional(),
     status: z.enum(["reconciling", "active", "error", "deleting"]).optional(),
     generation: z.number().optional(),
     applied_generation: z.number().optional(),
@@ -147,11 +166,18 @@ const UpstreamSignalDeliverySchema = z
     chatkit_session_id: z.string().nullable().optional(),
     error_message: z.string().nullable().optional(),
     matched_rule_ids: z.array(z.string()).optional(),
+    matched_trigger_ids: z.array(z.string()).optional(),
     created_at: z.string().optional(),
   })
   .passthrough();
-const SignalProviderPageSchema = z.object({ items: z.array(UpstreamSignalProviderSchema) });
-const SignalInstancePageSchema = z.object({ items: z.array(UpstreamSignalInstanceSchema) });
+const SignalProviderPageSchema = z.object({
+  items: z.array(UpstreamSignalProviderSchema),
+  next_page_token: z.string().nullable().optional(),
+});
+const SignalInstancePageSchema = z.object({
+  items: z.array(UpstreamSignalInstanceSchema),
+  next_page_token: z.string().nullable().optional(),
+});
 const SignalDeliveryPageSchema = z.object({ items: z.array(UpstreamSignalDeliverySchema) });
 const SignalTestResultSchema = z.object({
   accepted: z.number().optional(),
@@ -177,10 +203,7 @@ export function createTildeRoutineClient(transport: TildeSettingsTransport) {
     throw new Error("Tilde automation pagination exceeded 100 pages");
   }
 
-  async function putAutomation(
-    id: string,
-    body: CreateRoutineInput & { authorization?: unknown },
-  ): Promise<void> {
+  async function putAutomation(id: string, body: RoutineWrite): Promise<void> {
     await request(`/api/tilde/automations/${encodeURIComponent(id)}`, {
       method: "PUT",
       body: JSON.stringify({
@@ -189,6 +212,8 @@ export function createTildeRoutineClient(transport: TildeSettingsTransport) {
         instruction: body.instruction,
         enabled: body.enabled ?? true,
         ...(body.authorization === undefined ? {} : { authorization: body.authorization }),
+        ...(body.metadata === undefined ? {} : { metadata: body.metadata }),
+        ...(body.expectedVersion === undefined ? {} : { expected_version: body.expectedVersion }),
         triggers: body.triggers.map(upstreamTriggerBody),
       }),
     });
@@ -217,8 +242,10 @@ export function createTildeRoutineClient(transport: TildeSettingsTransport) {
         triggers:
           input.triggers === undefined
             ? current.triggers.map(upstreamTriggerSpec)
-            : preserveSessionPolicies(input.triggers, current.triggers),
+            : preserveTriggerConfiguration(input.triggers, current.triggers),
         authorization: current.authorization,
+        metadata: current.metadata,
+        expectedVersion: current.version,
       });
       return await listRoutines(agentId);
     },
@@ -254,11 +281,35 @@ export function createTildeSignalClient(transport: TildeSettingsTransport) {
   };
 
   async function upstreamProviders() {
-    const items = SignalProviderPageSchema.parse(
-      await request("/api/tilde/signals/providers?page_size=1000"),
-    ).items;
-    assertUnpagedLimit(items, "signals/providers");
-    return items;
+    const items: z.infer<typeof UpstreamSignalProviderSchema>[] = [];
+    let token: string | undefined;
+    for (let page = 0; page < 100; page += 1) {
+      const query = new URLSearchParams({ page_size: "100" });
+      if (token) query.set("next_page_token", token);
+      const response = SignalProviderPageSchema.parse(
+        await request(`/api/tilde/signals/providers?${query.toString()}`),
+      );
+      items.push(...response.items);
+      if (!response.next_page_token) return items;
+      token = response.next_page_token;
+    }
+    throw new Error("Tilde signal provider pagination exceeded 100 pages");
+  }
+
+  async function upstreamInstances() {
+    const items: z.infer<typeof UpstreamSignalInstanceSchema>[] = [];
+    let token: string | undefined;
+    for (let page = 0; page < 100; page += 1) {
+      const query = new URLSearchParams({ page_size: "100" });
+      if (token) query.set("next_page_token", token);
+      const response = SignalInstancePageSchema.parse(
+        await request(`/api/tilde/signals/instances?${query.toString()}`),
+      );
+      items.push(...response.items);
+      if (!response.next_page_token) return items;
+      token = response.next_page_token;
+    }
+    throw new Error("Tilde signal instance pagination exceeded 100 pages");
   }
 
   return {
@@ -266,13 +317,8 @@ export function createTildeSignalClient(transport: TildeSettingsTransport) {
       return (await upstreamProviders()).map(serializeSignalProvider);
     },
     async listSignalInstances(): Promise<SignalInstance[]> {
-      const [page, providers] = await Promise.all([
-        request("/api/tilde/signals/instances?page_size=1000"),
-        upstreamProviders(),
-      ]);
+      const [items, providers] = await Promise.all([upstreamInstances(), upstreamProviders()]);
       const routes = routePathsByProvider(providers);
-      const items = SignalInstancePageSchema.parse(page).items;
-      assertUnpagedLimit(items, "signals/instances");
       return items.map((instance) => serializeSignalInstance(apiBaseUrl(), instance, routes));
     },
     async createSignalInstance(input: CreateSignalInstanceInput): Promise<SignalInstance> {
@@ -358,13 +404,6 @@ export function createTildeSignalClient(transport: TildeSettingsTransport) {
   };
 }
 
-function assertUnpagedLimit(items: readonly unknown[], path: string): void {
-  if (items.length > 1000)
-    throw new Error(
-      `Tilde returned more than the maximum 1000 results for /${path}, which OpenBot cannot page past`,
-    );
-}
-
 function serializeRoutine(automation: z.infer<typeof UpstreamAutomationSchema>): Routine {
   return {
     id: automation.id,
@@ -373,7 +412,6 @@ function serializeRoutine(automation: z.infer<typeof UpstreamAutomationSchema>):
     instruction: automation.instruction,
     enabled: automation.enabled,
     triggers: automation.triggers.map((trigger) => {
-      const resourceId = trigger.materialized_resource_id ?? trigger.id;
       if (trigger.kind === "schedule")
         return {
           id: trigger.id,
@@ -381,7 +419,6 @@ function serializeRoutine(automation: z.infer<typeof UpstreamAutomationSchema>):
           schedule: trigger.schedule ?? "",
           ...(trigger.schedule_description ? { description: trigger.schedule_description } : {}),
           next_run_at: trigger.next_run_at ?? null,
-          routine_id: resourceId,
         };
       const signalType = trigger.signal_type ?? "";
       return {
@@ -391,7 +428,6 @@ function serializeRoutine(automation: z.infer<typeof UpstreamAutomationSchema>):
         provider_type: signalType.split(".")[0] ?? "",
         signal_type: signalType,
         filters: trigger.filter?.json_equals ?? [],
-        rule_id: resourceId,
       };
     }),
     last_run_at: automation.last_run_at ?? null,
@@ -408,9 +444,11 @@ function serializeRoutine(automation: z.infer<typeof UpstreamAutomationSchema>):
   };
 }
 
-function upstreamTriggerBody(trigger: RoutineTriggerSpec & { sessionPolicy?: unknown }) {
+function upstreamTriggerBody(trigger: RoutineTriggerWrite) {
   return {
     id: trigger.id ?? crypto.randomUUID(),
+    ...(trigger.enabled === undefined ? {} : { enabled: trigger.enabled }),
+    ...(trigger.metadata === undefined ? {} : { metadata: trigger.metadata }),
     ...(trigger.kind === "schedule"
       ? { kind: "schedule", schedule: trigger.schedule }
       : {
@@ -419,41 +457,67 @@ function upstreamTriggerBody(trigger: RoutineTriggerSpec & { sessionPolicy?: unk
           signal_type: trigger.signalType,
           filter: { json_equals: trigger.filters ?? [] },
           ...(trigger.sessionPolicy === undefined ? {} : { session_policy: trigger.sessionPolicy }),
+          ...(trigger.action === undefined ? {} : { action: trigger.action }),
+          ...(trigger.instructionPolicy === undefined
+            ? {}
+            : { instruction_policy: trigger.instructionPolicy }),
         }),
   };
 }
 
-function upstreamTriggerSpec(
-  trigger: z.infer<typeof UpstreamTriggerSchema>,
-): RoutineTriggerSpec & { sessionPolicy?: unknown } {
+function upstreamTriggerSpec(trigger: z.infer<typeof UpstreamTriggerSchema>): RoutineTriggerWrite {
   if (trigger.kind === "schedule")
-    return { id: trigger.id, kind: "schedule", schedule: trigger.schedule ?? "" };
+    return {
+      id: trigger.id,
+      kind: "schedule",
+      schedule: trigger.schedule ?? "",
+      ...(trigger.enabled === undefined ? {} : { enabled: trigger.enabled }),
+      ...(trigger.metadata === undefined ? {} : { metadata: trigger.metadata }),
+    };
   return {
     id: trigger.id,
     kind: "event",
     instanceId: trigger.signal_provider_instance_id ?? "",
     signalType: trigger.signal_type ?? "",
     filters: trigger.filter?.json_equals ?? [],
+    ...(trigger.enabled === undefined ? {} : { enabled: trigger.enabled }),
+    ...(trigger.metadata === undefined ? {} : { metadata: trigger.metadata }),
     ...(trigger.session_policy === undefined ? {} : { sessionPolicy: trigger.session_policy }),
+    ...(trigger.action === undefined ? {} : { action: trigger.action }),
+    ...(trigger.instruction_policy === undefined
+      ? {}
+      : { instructionPolicy: trigger.instruction_policy }),
   };
 }
 
-function preserveSessionPolicies(
+function preserveTriggerConfiguration(
   desired: RoutineTriggerSpec[],
   current: z.infer<typeof UpstreamTriggerSchema>[],
-): Array<RoutineTriggerSpec & { sessionPolicy?: unknown }> {
+): RoutineTriggerWrite[] {
   const currentById = new Map(current.map((trigger) => [trigger.id, trigger]));
   return desired.map((trigger) => {
-    if (trigger.kind !== "event" || !trigger.id) return trigger;
+    if (!trigger.id) return trigger;
     const existing = currentById.get(trigger.id);
+    if (existing?.kind !== trigger.kind) return trigger;
+    const common = {
+      ...(existing.enabled === undefined ? {} : { enabled: existing.enabled }),
+      ...(existing.metadata === undefined ? {} : { metadata: existing.metadata }),
+    };
+    if (trigger.kind === "schedule") return { ...trigger, ...common };
     if (
-      existing?.kind !== "event" ||
       existing.signal_provider_instance_id !== trigger.instanceId ||
-      existing.signal_type !== trigger.signalType ||
-      existing.session_policy === undefined
+      existing.signal_type !== trigger.signalType
     )
-      return trigger;
-    return { ...trigger, sessionPolicy: existing.session_policy };
+      return { ...trigger, ...common };
+    return {
+      ...trigger,
+      ...common,
+      ...(existing.session_policy === undefined ? {} : { sessionPolicy: existing.session_policy }),
+      ...(existing.action === undefined ? {} : { action: existing.action }),
+      ...(existing.instruction_policy === undefined
+        ? {}
+        : { instructionPolicy: existing.instruction_policy }),
+    };
   });
 }
 
@@ -548,7 +612,7 @@ function serializeSignalDelivery(
     status: delivery.status ?? "pending",
     session_id: delivery.chatkit_session_id ?? null,
     error_message: delivery.error_message ?? null,
-    matched_rule_ids: delivery.matched_rule_ids ?? [],
+    matched_trigger_ids: delivery.matched_trigger_ids ?? delivery.matched_rule_ids ?? [],
     created_at: delivery.created_at ?? "",
   };
 }
