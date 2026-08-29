@@ -329,6 +329,57 @@ describe("bare OpenBot server", () => {
     expect(status).toEqual({ status: "ready", agent: { id: "tasa", name: "Tasa" } });
   });
 
+  it("retains a completed local job while durable Tilde provisioning is pending", async () => {
+    const root = await mkdtemp(join(tmpdir(), "openbot-agent-provision-"));
+    temporaryRoots.push(root);
+    const pnpm = join(root, "pnpm");
+    await writeFile(
+      pnpm,
+      '#!/bin/sh\nprintf \'%s\\n\' \'{"ok":true,"agent":{"id":"reviewer","name":"Reviewer"}}\'\n',
+    );
+    await chmod(pnpm, 0o700);
+    const tildeFetch = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(Response.json({ status: "queued" }, { status: 202 }))
+      .mockResolvedValueOnce(Response.json({ status: "active" }, { status: 202 }));
+    const agentApp = createApp({
+      environment: {
+        PATH: root,
+        AGENT_SERVICE_ORIGIN: "https://agents.openbot.test",
+        TILDE_API_KEY: "tilde-key",
+        TILDE_ORG_ID: "org-one",
+        TILDE_TEAM_ID: "team-one",
+        TILDE_BASE_URL: "https://tilde.test",
+      },
+      agentCreation: { repositoryRoot: root, tildeFetch },
+    });
+    const started = await agentApp.request("https://openbot.test/api/agents", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ name: "Reviewer" }),
+    });
+    const { job_id: jobId } = (await started.json()) as { job_id: string };
+
+    let pending: Response | undefined;
+    for (let attempt = 0; attempt < 50 && tildeFetch.mock.calls.length === 0; attempt += 1) {
+      await new Promise((resolvePromise) => setTimeout(resolvePromise, 10));
+      pending = await agentApp.request(`https://openbot.test/api/agents/setup/${jobId}`, {
+        headers: { authorization: "Bearer owner-token" },
+      });
+    }
+    expect(tildeFetch).toHaveBeenCalledOnce();
+    await expect(pending?.json()).resolves.toMatchObject({ status: "setting_up", job_id: jobId });
+
+    const ready = await agentApp.request(`https://openbot.test/api/agents/setup/${jobId}`, {
+      headers: { authorization: "Bearer owner-token" },
+    });
+    await expect(ready.json()).resolves.toEqual({
+      status: "ready",
+      agent: { id: "reviewer", name: "Reviewer" },
+    });
+    expect(tildeFetch).toHaveBeenCalledTimes(2);
+  });
+
   it("forwards a verified cookie access token when establishing bundle ownership", async () => {
     const jobId = "33333333-3333-4333-8333-333333333333";
     const tildeFetch = vi.fn<typeof fetch>(async (input, init) => {
