@@ -202,6 +202,7 @@ describe("chatKitEndpoint", () => {
     const handler = vi.fn(async (request: Request, context) => {
       expect(context.body).toEqual({ messages: [] });
       expect(context.messages).toEqual([]);
+      expect(context.agent).toBeUndefined();
       expect(await request.json()).toEqual({ messages: [] });
       expect(context.orgId).toBe("org-123");
       expect(context.teamId).toBe("team_123");
@@ -227,6 +228,37 @@ describe("chatKitEndpoint", () => {
     const response = await endpoint(signedRequest({ messages: [] }));
     expect(response.status).toBe(200);
     expect(await response.text()).toBe("ok");
+    expect(handler).toHaveBeenCalledOnce();
+  });
+
+  it("exposes canonical receiving-agent metadata on the endpoint context", async () => {
+    const agent = {
+      id: "agent-one",
+      displayName: "Agent One",
+      providerId: "chatkit.agent.http-vercel-ai-sdk",
+      status: "enabled",
+      principalUserId: "agent-principal",
+      avatar: {
+        url: "/api/v1/team/team_123/chatkit/agents/agent-one/avatar",
+      },
+      createdAt: "2026-08-29T04:00:00Z",
+      updatedAt: "2026-08-29T04:30:00Z",
+    } as const;
+    const handler = vi.fn(async (request: Request, context) => {
+      expect(context.agent).toEqual(agent);
+      expect(context.body.agent).toEqual(agent);
+      expect(await request.json()).toEqual({ messages: [], agent });
+      return new Response("ok");
+    });
+    const endpoint = testChatKitEndpoint({
+      webhookSigningKey: key,
+      client: { apiKey: "test-key" },
+      handler,
+    });
+
+    const response = await endpoint(signedRequest({ messages: [], agent }));
+
+    expect(response.status).toBe(200);
     expect(handler).toHaveBeenCalledOnce();
   });
 
@@ -519,6 +551,20 @@ describe("chatKitEndpoint", () => {
 
   it.each([
     [{}, "body.messages must be an array"],
+    [
+      {
+        messages: [],
+        agent: {
+          id: "agent-one",
+          displayName: "Agent One",
+          providerId: "chatkit.agent.http-vercel-ai-sdk",
+          status: "retired",
+          createdAt: "2026-08-29T04:00:00Z",
+          updatedAt: "2026-08-29T04:30:00Z",
+        },
+      },
+      "body.agent.status",
+    ],
     [{ messages: [{ id: "message-1", role: "invalid", parts: [] }] }, "body.messages[0].role"],
     [
       {

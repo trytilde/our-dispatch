@@ -25,7 +25,10 @@ pnpm add @trytilde/sdk @trytilde/sdk-vercel-ai-node zod
 - AgentMail, GitHub, and Slack provider metadata is promoted into typed endpoint context, and
   AgentMail Signals can be handled through the discriminated `AgentMailSignalByType` map.
 - `ChatKitEndpointContext` exposes validated provider metadata through typed `github`, `slack`, and
-  `linq` fields. `LinqChatKitMessageMetadata` describes inbound Linq chats, handles, and parts.
+  `linq` fields, plus canonical receiving-agent metadata through optional `context.agent`.
+  `ChatKitRequestAgent` includes the agent ID, display name, provider, status, principal, avatar
+  path, and lifecycle timestamps. `LinqChatKitMessageMetadata` describes inbound Linq chats,
+  handles, and parts.
 - `LinqSignalType`, `LinqSignalByType`, and `LinqWebhookEnvelope` strongly type every supported Linq
   webhook event. Register event-specific conversion handlers under `onUnprocessed.linq`.
 - `createChatKitAttachmentFilePartHandler(options)` resolves ChatKit attachments for model input.

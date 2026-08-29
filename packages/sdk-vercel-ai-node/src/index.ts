@@ -120,6 +120,8 @@ export {
   type SlackChatKitMessageMetadata,
 } from "./chatkit-provider-metadata";
 export {
+  type ChatKitRequestAgent,
+  type ChatKitRequestAgentAvatar,
   type ChatKitRequestApproval,
   type ChatKitRequestBody,
   type ChatKitRequestDataPart,
@@ -136,6 +138,7 @@ export {
   type ChatKitRequestToolState,
   ChatKitRequestValidationError,
   isChatKitRequestMessage,
+  parseChatKitRequestAgent,
   parseChatKitRequestBody,
 } from "./chatkit-request";
 export {

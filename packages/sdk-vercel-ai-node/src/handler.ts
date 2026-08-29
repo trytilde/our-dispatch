@@ -11,6 +11,7 @@ import {
   chatKitProviderContext,
 } from "./chatkit-provider-metadata";
 import {
+  type ChatKitRequestAgent,
   type ChatKitRequestBody,
   type ChatKitRequestMessage,
   ChatKitRequestValidationError,
@@ -68,6 +69,8 @@ export type ChatKitEndpointContext = ChatKitEndpointProviderContext & {
   rawBody: Uint8Array;
   body: ChatKitRequestBody;
   messages: ChatKitRequestMessage[];
+  /** Canonical public metadata for the agent receiving this turn. */
+  agent?: ChatKitRequestAgent;
   webhookId: string;
   timestamp: number;
   orgId: string;
@@ -367,6 +370,7 @@ export function chatKitEndpoint(
       rawBody: verified.rawBody,
       body: endpointBody,
       messages: endpointBody.messages,
+      ...(endpointBody.agent ? { agent: endpointBody.agent } : {}),
       ...chatKitProviderContext(body.messages),
       webhookId: verified.webhookId,
       timestamp: verified.timestamp,
