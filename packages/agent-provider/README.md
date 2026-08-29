@@ -25,6 +25,6 @@ durable status. Tilde owns the agent, dynamic MCP server, control-plane toolkit,
 exact managed/custom skill registry, credential rotation, and cleanup. Memory is
 opt-in on Tilde; omitting it preserves any existing agent-owned bank without
 making a paid bank a prerequisite for new-agent creation. OpenBot claims endpoint secrets once and
-uploads a deterministic canonical avatar to the stable machine-user profile,
+uploads a deterministic canonical avatar to the stable agent profile,
 then retains its ChatKit realtime channel plus credential-bearing
 deployment-platform integrations.
