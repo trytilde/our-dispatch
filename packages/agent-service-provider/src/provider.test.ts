@@ -41,6 +41,24 @@ describe("agent service artifacts", () => {
     await expect(discoverAgents(root)).rejects.toThrow("missing a required source file");
   });
 
+  it("discovers an explicitly tool-less computer-use specialist", async () => {
+    const root = await temporaryRoot();
+    await createMinimalAgent(join(root, "configuration/agent"));
+    const directory = join(root, "configuration/agent/subagents/computer");
+    await mkdir(directory, { recursive: true });
+    await writeFile(join(directory, "agent.ts"), "export default {}\n");
+    await writeFile(
+      join(directory, "agent-profile.json"),
+      `${JSON.stringify({ tool_profile: "computer-use-only" })}\n`,
+    );
+
+    const agents = await discoverAgents(root);
+    expect(agents.map(({ slug }) => slug)).toEqual(["factory", "computer"]);
+
+    await mkdir(join(directory, "skills"));
+    await expect(discoverAgents(root)).rejects.toThrow("must not contain skills/");
+  });
+
   it("discovers stable slugs and emits one independently bundled Vercel function per agent", async () => {
     const root = await temporaryRoot();
     await mkdir(join(root, "configuration/agent/tools"), { recursive: true });

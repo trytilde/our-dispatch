@@ -1,4 +1,4 @@
-import { access, lstat, readdir } from "node:fs/promises";
+import { access, lstat, readFile, readdir } from "node:fs/promises";
 import { resolve } from "node:path";
 
 export interface AgentSource {
@@ -8,6 +8,8 @@ export interface AgentSource {
   path: string;
   instrumentationPath?: string;
 }
+
+type AgentToolProfile = "standard" | "computer-use-only";
 
 export const requiredComputerToolFiles = [
   "await_shell.ts",
@@ -69,11 +71,19 @@ async function agentSource(
   directory: string,
 ): Promise<AgentSource> {
   const path = resolve(directory, "agent.ts");
+  const toolProfile = await readToolProfile(directory, slug);
   try {
     await access(path);
-    await Promise.all(
-      requiredComputerToolFiles.map((name) => access(resolve(directory, "tools", name))),
-    );
+    if (toolProfile === "standard")
+      await Promise.all(
+        requiredComputerToolFiles.map((name) => access(resolve(directory, "tools", name))),
+      );
+    else
+      for (const name of ["tools", "skills"])
+        if (await exists(resolve(directory, name)))
+          throw new Error(
+            `Agent ${slug} uses the computer-use-only profile and must not contain ${name}/`,
+          );
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT")
       throw new Error(
@@ -89,6 +99,24 @@ async function agentSource(
     path,
     ...((await exists(instrumentationPath)) ? { instrumentationPath } : {}),
   };
+}
+
+async function readToolProfile(directory: string, slug: string): Promise<AgentToolProfile> {
+  const path = resolve(directory, "agent-profile.json");
+  if (!(await exists(path))) return "standard";
+  let value: unknown;
+  try {
+    value = JSON.parse(await readFile(path, "utf8"));
+  } catch (error) {
+    throw new Error(`Agent ${slug} has invalid agent-profile.json`, { cause: error });
+  }
+  const profile =
+    value && typeof value === "object" && !Array.isArray(value)
+      ? (value as Record<string, unknown>).tool_profile
+      : undefined;
+  if (profile !== "computer-use-only")
+    throw new Error(`Agent ${slug} has unsupported tool profile: ${String(profile)}`);
+  return profile;
 }
 
 export function globalInstrumentationPath(repositoryRoot: string): string {
