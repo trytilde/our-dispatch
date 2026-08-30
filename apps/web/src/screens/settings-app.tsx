@@ -15,9 +15,13 @@ import {
   ClockIcon,
   ConnectorSetupDialog,
   getThemePreference,
+  MenuIcon,
   PluginsIcon,
   PluginsCatalog,
   resolvePluginIconUrl,
+  Sheet,
+  SheetContent,
+  SheetTitle,
   SettingsIcon,
   setThemePreference,
   type ConnectorSetupSubmit,
@@ -61,7 +65,7 @@ function SettingsContent({ children, width }: SettingsContentProps) {
   const maxWidth = width === "wide" ? "max-w-[1280px]" : "max-w-[640px]";
   return (
     <div
-      className={`${maxWidth} mx-auto w-full px-8 py-10 max-[720px]:px-[18px] max-[720px]:pt-11
+      className={`${maxWidth} mx-auto w-full px-8 py-10 max-[720px]:px-[18px] max-[720px]:pt-5
         max-[720px]:pb-9`}
       data-settings-width={width}
     >
@@ -384,76 +388,72 @@ function PluginsSettings({
 export function SettingsApp({ section = "general" }: SettingsAppProps = {}) {
   const navigate = useNavigate();
   const [theme, setTheme] = useState<ThemePreference>(() => getThemePreference());
+  const [mobileNavigationOpen, setMobileNavigationOpen] = useState(false);
   const agents = useStore(openBotRuntime.store, (state) => state.sidebar.agents);
   const macDesktop = window.openbotDesktop?.platform === "mac";
 
   return (
     <motion.main
       animate={{ opacity: 1 }}
-      className="flex h-screen w-full bg-page text-ink"
+      className="flex h-screen w-full bg-page text-ink max-[720px]:flex-col"
       initial={{ opacity: 0 }}
       transition={pageTransition}
     >
       <div
         aria-hidden="true"
-        className="fixed inset-x-0 top-0 z-[3] h-8"
+        className="pointer-events-none fixed inset-x-0 top-0 z-[3] h-8 max-[720px]:hidden"
         style={{ WebkitAppRegion: "drag" } as CSSProperties}
       />
-      <aside
-        className={`flex w-[248px] shrink-0 flex-col gap-1 border-r border-line bg-surface px-3
-          pb-3 ${macDesktop ? "pt-[42px]" : "pt-3"}`}
+      <div
+        className="hidden h-14 shrink-0 items-center gap-2 border-b border-line bg-surface px-2
+          pt-[env(safe-area-inset-top)] max-[720px]:flex"
       >
         <button
           aria-label="Back to workspace"
-          className="relative z-[4] mb-2 flex h-8 w-full items-center gap-2 rounded-control px-2.5 text-left
-            text-[12.5px] font-medium text-ink-2 transition-[background-color,color] duration-150
-            hover:bg-hover hover:text-ink"
+          className="grid size-11 place-items-center rounded-control text-ink-2 hover:bg-hover
+            hover:text-ink"
           onClick={() => void navigate({ to: "/" })}
-          style={{ WebkitAppRegion: "no-drag" } as CSSProperties}
           type="button"
         >
           <BackIcon className="size-4 shrink-0 fill-none stroke-current stroke-[1.3]" />
-          Back
         </button>
-        <h1 className="px-2.5 pb-1 text-[13px] font-semibold text-ink">Settings</h1>
-        {settingsSections.map((item) => {
-          const Icon = item.icon;
-          const selected = item.id === section;
-          return (
-            <button
-              aria-current={selected ? "page" : undefined}
-              className={`flex h-8 w-full items-center gap-2 rounded-control px-2.5 text-left
-                text-[12.5px] font-medium transition-[background-color,color] duration-150
-                hover:bg-hover hover:text-ink ${selected ? "bg-hover-2 text-ink" : "text-ink-2"}`}
-              key={item.id}
-              onClick={() => void navigate({ to: item.to })}
-              type="button"
-            >
-              <Icon className="size-4 shrink-0 fill-none stroke-current stroke-[1.3]" />
-              {item.label}
-            </button>
-          );
-        })}
-        <h2 className="px-2.5 pt-4 pb-1 text-[13px] font-semibold text-ink">Plugins</h2>
-        {pluginSections.map((item) => {
-          const Icon = item.icon;
-          const selected = item.id === section;
-          return (
-            <button
-              aria-current={selected ? "page" : undefined}
-              className={`flex h-8 w-full items-center gap-2 rounded-control px-2.5 text-left
-                text-[12.5px] font-medium transition-[background-color,color] duration-150
-                hover:bg-hover hover:text-ink ${selected ? "bg-hover-2 text-ink" : "text-ink-2"}`}
-              key={item.id}
-              onClick={() => void navigate({ to: item.to })}
-              type="button"
-            >
-              <Icon className="size-4 shrink-0 fill-none stroke-current stroke-[1.3]" />
-              {item.label}
-            </button>
-          );
-        })}
-      </aside>
+        <strong className="min-w-0 flex-1 text-[15px] font-semibold text-ink">Settings</strong>
+        <button
+          aria-label="Open settings navigation"
+          className="grid size-11 place-items-center rounded-control text-ink-2 hover:bg-hover
+            hover:text-ink"
+          onClick={() => setMobileNavigationOpen(true)}
+          type="button"
+        >
+          <MenuIcon aria-hidden className="size-5" />
+        </button>
+      </div>
+
+      <SettingsNavigation
+        className={`flex w-[248px] shrink-0 ${macDesktop ? "pt-[42px]" : "pt-3"}
+          max-[720px]:hidden`}
+        onBack={() => void navigate({ to: "/" })}
+        onNavigate={(to) => void navigate({ to })}
+        section={section}
+      />
+
+      <Sheet open={mobileNavigationOpen} onOpenChange={setMobileNavigationOpen}>
+        <SheetContent
+          className="max-h-[min(72dvh,620px)] overflow-hidden bg-surface pb-[env(safe-area-inset-bottom)]"
+          side="bottom"
+        >
+          <SheetTitle className="sr-only">Settings navigation</SheetTitle>
+          <SettingsNavigation
+            className="min-h-0 w-full overflow-y-auto pt-5"
+            onBack={() => void navigate({ to: "/" })}
+            onNavigate={(to) => {
+              setMobileNavigationOpen(false);
+              void navigate({ to });
+            }}
+            section={section}
+          />
+        </SheetContent>
+      </Sheet>
 
       <section className="min-w-0 flex-1 overflow-y-auto">
         {section === "tools" || section === "skills" ? (
@@ -496,6 +496,76 @@ export function SettingsApp({ section = "general" }: SettingsAppProps = {}) {
         )}
       </section>
     </motion.main>
+  );
+}
+
+function SettingsNavigation({
+  className,
+  onBack,
+  onNavigate,
+  section,
+}: {
+  className?: string;
+  onBack: () => void;
+  onNavigate: (to: (typeof sections)[number]["to"]) => void;
+  section: (typeof sections)[number]["id"];
+}) {
+  return (
+    <aside
+      className={`${className ?? ""} flex-col gap-1 border-r border-line bg-surface px-3 pb-3
+        max-[720px]:border-0`}
+    >
+      <button
+        aria-label="Back to workspace"
+        className="relative z-[4] mb-2 flex h-8 w-full items-center gap-2 rounded-control px-2.5 text-left
+          text-[12.5px] font-medium text-ink-2 transition-[background-color,color] duration-150
+          hover:bg-hover hover:text-ink max-[720px]:hidden"
+        onClick={onBack}
+        style={{ WebkitAppRegion: "no-drag" } as CSSProperties}
+        type="button"
+      >
+        <BackIcon className="size-4 shrink-0 fill-none stroke-current stroke-[1.3]" />
+        Back
+      </button>
+      <h1 className="px-2.5 pb-1 text-[13px] font-semibold text-ink">Settings</h1>
+      {settingsSections.map((item) => {
+        const Icon = item.icon;
+        const selected = item.id === section;
+        return (
+          <button
+            aria-current={selected ? "page" : undefined}
+            className={`flex h-8 w-full items-center gap-2 rounded-control px-2.5 text-left
+                text-[12.5px] font-medium transition-[background-color,color] duration-150
+                hover:bg-hover hover:text-ink ${selected ? "bg-hover-2 text-ink" : "text-ink-2"}`}
+            key={item.id}
+            onClick={() => onNavigate(item.to)}
+            type="button"
+          >
+            <Icon className="size-4 shrink-0 fill-none stroke-current stroke-[1.3]" />
+            {item.label}
+          </button>
+        );
+      })}
+      <h2 className="px-2.5 pt-4 pb-1 text-[13px] font-semibold text-ink">Plugins</h2>
+      {pluginSections.map((item) => {
+        const Icon = item.icon;
+        const selected = item.id === section;
+        return (
+          <button
+            aria-current={selected ? "page" : undefined}
+            className={`flex h-8 w-full items-center gap-2 rounded-control px-2.5 text-left
+                text-[12.5px] font-medium transition-[background-color,color] duration-150
+                hover:bg-hover hover:text-ink ${selected ? "bg-hover-2 text-ink" : "text-ink-2"}`}
+            key={item.id}
+            onClick={() => onNavigate(item.to)}
+            type="button"
+          >
+            <Icon className="size-4 shrink-0 fill-none stroke-current stroke-[1.3]" />
+            {item.label}
+          </button>
+        );
+      })}
+    </aside>
   );
 }
 

@@ -433,12 +433,25 @@ test("keeps the chat composition inside a mobile viewport", async ({ page }) => 
   await navigation.click();
   const drawer = page.getByRole("dialog", { name: "Bots and workspace" });
   await expect(drawer).toBeVisible();
+  const drawerBounds = await drawer.boundingBox();
+  expect(drawerBounds?.x).toBe(0);
+  expect(drawerBounds?.width).toBe(390);
+  await expect(drawer.getByRole("button", { name: "Close navigation" })).toBeVisible();
   await expect(drawer.getByRole("navigation", { name: "Bots" })).toBeVisible();
   const searchBounds = await drawer.getByRole("button", { name: "Search" }).boundingBox();
   if (!searchBounds) throw new Error("Mobile navigation search is not visible");
   expect(searchBounds.height).toBeGreaterThanOrEqual(44);
   await drawer.getByRole("button", { name: /Hello World/ }).click();
   await expect(drawer).toBeHidden();
+
+  await navigation.click();
+  await drawer.getByRole("button", { name: "Search" }).click();
+  const searchDialog = page.getByRole("dialog", { name: "Search" });
+  await expect(searchDialog).toBeVisible();
+  const searchDialogBounds = await searchDialog.boundingBox();
+  expect(searchDialogBounds).toEqual({ x: 0, y: 0, width: 390, height: 844 });
+  await expect(page.getByPlaceholder("Search")).toHaveCSS("font-size", "16px");
+  await page.keyboard.press("Escape");
 
   const chat = await page.locator(".chat-pane").boundingBox();
   const conversation = await page.locator(".conversation").boundingBox();
@@ -453,6 +466,7 @@ test("keeps the chat composition inside a mobile viewport", async ({ page }) => 
   expect(composer.x).toBeGreaterThanOrEqual(0);
   expect(composer.x + composer.width).toBeLessThanOrEqual(390);
   await expect(page.getByRole("textbox", { name: "Message" })).toHaveCSS("font-size", "16px");
+  await expect(page.locator(".composer-shell")).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
   for (const control of [
     page.getByRole("button", { name: "Add photos and files" }),
     page.getByRole("button", { name: "Send message" }),
@@ -1236,10 +1250,46 @@ test("queues another turn while the agent is busy", async ({ page }) => {
         json: {
           items: [
             {
+              kind: "message",
+              session: {
+                id: "busy-session",
+                title: "Busy session",
+                created_at: now,
+                updated_at: now,
+              },
+              message: {
+                id: "busy-message",
+                type: "ui",
+                role: "assistant",
+                session_id: "busy-session",
+                created_at: now,
+                parts: [{ type: "text", text: "Busy Agent is working" }],
+              },
+            },
+            {
+              kind: "session_title",
+              session: {
+                id: "busy-session",
+                title: "Busy session",
+                created_at: now,
+                updated_at: now,
+              },
+            },
+            {
               kind: "agent",
               session: {
                 id: "busy-session",
                 title: "Busy session",
+                created_at: now,
+                updated_at: now,
+              },
+              agent: { id: "busy-agent", display_name: "Busy Agent" },
+            },
+            {
+              kind: "agent",
+              session: {
+                id: "duplicate-session",
+                title: "Duplicate route",
                 created_at: now,
                 updated_at: now,
               },
@@ -1301,7 +1351,14 @@ test("queues another turn while the agent is busy", async ({ page }) => {
   await page.getByRole("button", { name: "Search", exact: true }).click();
   await expect(page.getByRole("dialog", { name: "Search" })).toBeVisible();
   await page.getByPlaceholder("Search").fill("Busy");
-  await expect(page.getByRole("dialog").getByRole("option", { name: /Busy Agent/ })).toBeVisible();
+  const searchDialog = page.getByRole("dialog", { name: "Search" });
+  await expect(searchDialog.getByText("Bots", { exact: true })).toBeVisible();
+  await expect(searchDialog.getByText("Chats", { exact: true })).toBeVisible();
+  await expect(searchDialog.getByText("Messages", { exact: true })).toBeVisible();
+  const botResult = searchDialog.getByRole("option", { name: /Bot Busy Agent/ });
+  await expect(botResult).toHaveCount(1);
+  await expect(searchDialog.getByRole("option").first()).toContainText("Busy Agent");
+  await expect(botResult.locator("mark").first()).toHaveText("Busy");
   await page.keyboard.press("Escape");
   await expect(page.getByRole("dialog", { name: "Search" })).toHaveCount(0);
 });

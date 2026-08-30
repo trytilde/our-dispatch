@@ -938,7 +938,7 @@ function PluginDetailDialog({
           className={cn(
             "p-[22px]",
             skillProvider
-              ? `flex h-[calc(100dvh-32px)] w-[calc(100vw-32px)] max-w-[calc(100vw-32px)]
+              ? `mobile-fullscreen-dialog flex h-[calc(100dvh-32px)] w-[calc(100vw-32px)] max-w-[calc(100vw-32px)]
               flex-col overflow-hidden`
               : "max-w-[520px]",
           )}

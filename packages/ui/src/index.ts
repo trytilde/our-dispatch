@@ -73,6 +73,14 @@ export {
   DialogTrigger,
 } from "./components/ui/dialog.js";
 export {
+  Sheet,
+  SheetClose,
+  SheetContent,
+  SheetDescription,
+  SheetTitle,
+  SheetTrigger,
+} from "./components/ui/sheet.js";
+export {
   DropdownMenu,
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
@@ -98,6 +106,7 @@ export {
   type PluginsCatalogToolProvider,
 } from "./plugins-catalog.js";
 export { cn } from "./lib/utils.js";
+export { MenuIcon } from "lucide-react";
 export { Shimmer, type ShimmerProps } from "./beautiful-ui/atoms/shimmer.js";
 export { StreamText, type StreamTextProps } from "./beautiful-ui/atoms/stream-text.js";
 export { AgentWorkspacePanel, type AgentWorkspacePanelProps } from "./agent-workspace-panel.js";

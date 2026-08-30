@@ -70,7 +70,7 @@ function CommandInput({
       </svg>
       <CommandPrimitive.Input
         className={cn(
-          "h-12 min-w-0 flex-1 bg-transparent text-[14px] text-ink outline-none",
+          "h-12 min-w-0 flex-1 bg-transparent text-[14px] text-ink outline-none max-[720px]:text-[16px]",
           "placeholder:text-ink-3",
           className,
         )}

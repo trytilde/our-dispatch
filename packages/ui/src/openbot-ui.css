@@ -5926,12 +5926,18 @@ body.resizing-workspace .rich-chat.workspace-shell {
 
 @media (max-width: 560px) {
   .dialog-layer {
-    padding: 8px;
+    padding: 20px 0 0;
+    place-items: end stretch;
   }
 
   .dialog-surface {
-    width: calc(100vw - 16px) !important;
-    max-height: calc(100dvh - 16px);
+    width: 100vw !important;
+    max-height: calc(100dvh - 20px);
+    padding-bottom: env(safe-area-inset-bottom);
+    border-right: 0;
+    border-bottom: 0;
+    border-left: 0;
+    border-radius: var(--ob-radius-xl) var(--ob-radius-xl) 0 0;
   }
 
   .permission-card-heading {
@@ -8294,6 +8300,28 @@ button.system-event-chip {
 }
 
 @media (max-width: 720px) {
+  html,
+  body {
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+
+  .workspace-mobile-sidebar {
+    width: 100vw;
+    max-width: none;
+  }
+
+  .mobile-fullscreen-dialog {
+    inset: 0 !important;
+    width: 100vw !important;
+    height: 100dvh !important;
+    max-width: none !important;
+    max-height: none !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    transform: none !important;
+  }
+
   .rich-chat .chat-pane > .chat-header {
     height: 56px;
     min-height: 56px;
@@ -8327,9 +8355,15 @@ button.system-event-chip {
 
   .rich-chat .composer-shell,
   .rich-chat.workspace-shell.computer-floating.workspace-open .chat-pane > .composer-shell {
+    position: sticky;
+    z-index: 10;
+    bottom: 0;
     width: calc(100% - 16px);
     max-width: calc(100% - 16px);
     margin: 0 8px max(8px, env(safe-area-inset-bottom));
+    padding: 0;
+    align-self: end;
+    background: transparent;
   }
 
   .rich-chat .composer {
@@ -8347,7 +8381,7 @@ button.system-event-chip {
   .rich-chat .composer.expanded textarea {
     min-height: 44px;
     padding: 10px 6px;
-    font-size: 16px;
+    font-size: 16px !important;
     line-height: 22px;
   }
 

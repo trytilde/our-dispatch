@@ -11,7 +11,6 @@ import {
   type AttachmentCompletion,
   type ChatAgent,
   type ChatMessage,
-  type ChatKitSearchHit,
   connectorAuthorizedReturnUrl,
   type ConnectorProvider,
   type CreateConnectorAccountResult,
@@ -59,6 +58,7 @@ import { openBotRuntime } from "../runtime.js";
 import { optimisticParts, type PendingFile, uploadAttachments } from "../web-attachments.js";
 import { useClientWorkspace } from "../workspaces.js";
 import { shouldExpandComposer } from "./composer-layout.js";
+import { rankWorkspaceSearchHits, searchHitId } from "./search-results.js";
 
 export function OpenBotApp() {
   useEffect(() => {
@@ -266,13 +266,17 @@ export function OpenBotApp() {
     return () => window.clearTimeout(handle);
   }, [search, searchOpen]);
 
+  const rankedSearchHits = useMemo(
+    () => rankWorkspaceSearchHits(chatSearch.items, search),
+    [chatSearch.items, search],
+  );
   const searchHitsById = useMemo(
-    () => new Map(chatSearch.items.map((hit) => [searchHitId(hit), hit])),
-    [chatSearch.items],
+    () => new Map(rankedSearchHits.map((hit) => [searchHitId(hit), hit])),
+    [rankedSearchHits],
   );
   const searchResults = useMemo<WorkspaceSearchResult[]>(
     () =>
-      chatSearch.items.map((hit) => ({
+      rankedSearchHits.map((hit) => ({
         id: searchHitId(hit),
         kind: hit.kind === "agent" ? "agent" : hit.kind,
         title:
@@ -286,7 +290,7 @@ export function OpenBotApp() {
               ? "Conversation title"
               : hit.agent?.id,
       })),
-    [chatSearch.items],
+    [rankedSearchHits],
   );
 
   function selectAgent(agent: ChatAgent): void {
@@ -1026,10 +1030,6 @@ export function OpenBotApp() {
       />
     </WorkspaceShell>
   );
-}
-
-function searchHitId(hit: ChatKitSearchHit): string {
-  return `${hit.kind}:${hit.session.id}:${hit.message?.id ?? hit.agent?.id ?? hit.session.id}`;
 }
 
 const SCROLL_STORAGE_KEY = "openbot:chat-scroll";
