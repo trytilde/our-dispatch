@@ -74,8 +74,18 @@ export function requiresComputerDelegation(
       return [part.text];
     })
     .join(" ");
-  return /(?:\b(?:browser|website|webpage|web page|graphical|desktop app|on[- ]screen|click|navigate)\b|\bopen\s+https?:\/\/)/i.test(
-    text,
+  const graphicalSurface =
+    /\b(?:browser|website|webpage|web page|desktop|desktop app|screen|window|dialog|button|menu|form|tab|toolbar|address bar)\b/i;
+  const graphicalAction =
+    /\b(?:open|visit|navigate|go to|launch|inspect|read|summarize|check|interact|fill|submit|select|choose|upload|download|close|dismiss|switch to|find)\b/i;
+  const urlAction =
+    /\b(?:open|visit|navigate to|go to|inspect|read|summarize|check)\s+(?:the\s+)?https?:\/\//i;
+  const imperativeInput =
+    /(?:^|[.!?]\s*|\b(?:please|can you|could you|would you)\s+)(?:click|tap|scroll|drag|type into|press|take a screenshot)\b/i;
+  return (
+    urlAction.test(text) ||
+    (graphicalAction.test(text) && graphicalSurface.test(text)) ||
+    imperativeInput.test(text)
   );
 }
 

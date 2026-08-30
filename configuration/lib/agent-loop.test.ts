@@ -55,20 +55,28 @@ describe("prepareChatKitAgentStep", () => {
 });
 
 describe("requiresComputerDelegation", () => {
-  it("routes explicit browser and desktop work but leaves ordinary questions local", () => {
-    expect(
-      requiresComputerDelegation([
-        {
-          role: "user",
-          parts: [{ type: "text", text: "Open https://example.com in the browser" }],
-        },
-      ]),
-    ).toBe(true);
-    expect(
-      requiresComputerDelegation([
-        { role: "user", parts: [{ type: "text", text: "What is two plus two?" }] },
-      ]),
-    ).toBe(false);
+  it.each([
+    "Open https://example.com in the browser",
+    "Summarize the web page currently open in the browser",
+    "Find my calendar tab and click the next-event button",
+    "Please scroll down and take a screenshot",
+    "Launch the desktop app and dismiss its dialog",
+  ])("routes explicit graphical work: %s", (text) => {
+    expect(requiresComputerDelegation([{ role: "user", parts: [{ type: "text", text }] }])).toBe(
+      true,
+    );
+  });
+
+  it.each([
+    "What is two plus two?",
+    "Explain how browser cookies work",
+    "What does click-through rate mean?",
+    "I clicked the browser yesterday",
+    "Find the latest sales figures in the connected CRM",
+  ])("leaves non-graphical questions and discussion local: %s", (text) => {
+    expect(requiresComputerDelegation([{ role: "user", parts: [{ type: "text", text }] }])).toBe(
+      false,
+    );
   });
 });
 
