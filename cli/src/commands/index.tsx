@@ -24,6 +24,7 @@ import { runRemote } from "./remote.js";
 import { runTildeCommand } from "./tilde.js";
 import { runTildePlugin } from "./plugin.js";
 import { runSdk } from "./sdk.js";
+import { runEvaluation } from "./eval.js";
 
 export interface CliInvocation {
   command: string;
@@ -96,6 +97,15 @@ export async function runCommand(command: string, args: readonly string[]): Prom
     return runDevelopmentServer();
   }
   if (command === "deploy") return runProductionDeploy(args);
+  if (command === "eval") {
+    const report = await runEvaluation(args);
+    process.stdout.write(`${JSON.stringify(report, null, args.includes("--json") ? 0 : 2)}\n`);
+    if (!report.ok) {
+      process.exitCode = 1;
+      markDiagnosticExit();
+    }
+    return;
+  }
   if (command === "secrets") {
     const result = await runSecrets(args);
     if (result.json)
