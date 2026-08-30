@@ -15,7 +15,7 @@ import { convertToModelMessages, stepCountIs, streamText } from "ai";
 import type { ToolSet } from "@ai-sdk/provider-utils";
 import { prepareInference } from "./inference.js";
 import instructions from "./instructions.js";
-import { prepareChatKitAgentStep } from "../lib/agent-loop.js";
+import { prepareChatKitAgentStep, stopAfterChatKitMessage } from "../lib/agent-loop.js";
 import awaitShell from "./tools/await_shell.js";
 import bash from "./tools/bash.js";
 import configureConnector from "./tools/configure_connector.js";
@@ -129,7 +129,7 @@ export default chatKitEndpoint({
       instructions,
       messages: await convertToModelMessages(messages),
       prepareStep: prepareChatKitAgentStep(tools),
-      stopWhen: stepCountIs(20),
+      stopWhen: [stopAfterChatKitMessage, stepCountIs(20)],
       onFinish: () => void closeMcp(),
     });
     return result.toUIMessageStreamResponse({

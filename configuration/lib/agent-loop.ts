@@ -1,4 +1,4 @@
-import type { PrepareStepFunction, ToolSet } from "ai";
+import type { PrepareStepFunction, StopCondition, ToolSet } from "ai";
 
 const DELEGATE_TOOL = "chatkit_delegate";
 const WAIT_TOOL = "chatkit_wait_for_response";
@@ -42,3 +42,7 @@ export function prepareChatKitAgentStep(tools: ToolSet): PrepareStepFunction<Too
     return undefined;
   };
 }
+
+/** End the reasoning loop after the first successfully persisted user-facing message. */
+export const stopAfterChatKitMessage: StopCondition<ToolSet> = ({ steps }) =>
+  completedToolResult(steps, SEND_MESSAGE_TOOL);
