@@ -700,6 +700,10 @@ describe("computer image lifecycle", () => {
     );
     expect(desktopSession).toContain('touch "$desktop_ready_file"');
     expect(desktopSession).toContain("xprop -root _XROOTPMAP_ID");
+    const browser = await readFile(computerImageAssets.openbotBrowser, "utf8");
+    expect(browser).toContain("--no-first-run");
+    expect(browser).toContain("--no-default-browser-check");
+    expect(browser).toContain("--disable-features=SigninPromo");
   });
 });
 

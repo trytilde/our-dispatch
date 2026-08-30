@@ -31,7 +31,7 @@ export function prepareChatKitAgentStep(
   tools: ToolSet,
   options: ChatKitAgentStepOptions = {},
 ): PrepareStepFunction<ToolSet> {
-  return ({ steps }) => {
+  return ({ steps, initialInstructions }) => {
     if (options.requireDelegationFirst && steps.length === 0) {
       requireTool(tools, DELEGATE_TOOL);
       return {
@@ -50,6 +50,12 @@ export function prepareChatKitAgentStep(
       requireTool(tools, SEND_MESSAGE_TOOL);
       return {
         activeTools: [SEND_MESSAGE_TOOL],
+        instructions: [
+          typeof initialInstructions === "string" ? initialInstructions : undefined,
+          "The delegated task is complete. Call sendMessage exactly once, using the completed response in the immediately preceding chatkit_wait_for_response tool result as the answer. Preserve its concrete result and caveats. Never send an acknowledgement, future-tense promise, or status update at this step.",
+        ]
+          .filter(Boolean)
+          .join("\n\n"),
         toolChoice: { type: "tool", toolName: SEND_MESSAGE_TOOL },
       };
     }

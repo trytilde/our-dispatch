@@ -42,6 +42,7 @@ describe("prepareChatKitAgentStep", () => {
       prepareChatKitAgentStep(tools)(options("chatkit_wait_for_response", { status: "completed" })),
     ).toEqual({
       activeTools: ["sendMessage"],
+      instructions: expect.stringContaining("using the completed response"),
       toolChoice: { type: "tool", toolName: "sendMessage" },
     });
   });

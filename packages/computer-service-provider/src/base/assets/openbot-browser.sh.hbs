@@ -9,7 +9,11 @@ if command -v google-chrome-stable >/dev/null 2>&1; then
     --no-sandbox \
     --disable-dev-shm-usage \
     --disable-gpu \
+    --disable-sync \
+    --disable-features=SigninPromo \
     --force-renderer-accessibility \
+    --no-default-browser-check \
+    --no-first-run \
     --user-data-dir="$profile_directory"
 fi
 
@@ -17,5 +21,9 @@ exec chromium \
   --no-sandbox \
   --disable-dev-shm-usage \
   --disable-gpu \
+  --disable-sync \
+  --disable-features=SigninPromo \
   --force-renderer-accessibility \
+  --no-default-browser-check \
+  --no-first-run \
   --user-data-dir="$profile_directory"

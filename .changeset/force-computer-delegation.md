@@ -20,4 +20,4 @@
 "@tryopenbot/git-provider": patch
 ---
 
-Force explicit graphical requests through the team-visible Computer specialist before any user-visible response.
+Force explicit graphical requests through the team-visible Computer specialist before any user-visible response, and suppress browser first-run overlays that block visual work.
