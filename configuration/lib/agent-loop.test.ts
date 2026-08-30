@@ -70,6 +70,7 @@ describe("requiresImmediateAnswer", () => {
     "Explain browser cookies in one sentence",
     "Define OAuth",
     "How do I open a browser in Python?",
+    "ChatKit workspace (891cab9c-e84b-4811-ad62-45e36f510e5e): How do I open a browser in Python?",
   ])("answers self-contained informational requests immediately: %s", (text) => {
     expect(requiresImmediateAnswer([{ role: "user", parts: [{ type: "text", text }] }])).toBe(true);
   });
@@ -94,6 +95,7 @@ describe("requiresComputerDelegation", () => {
     "Please scroll down and take a screenshot",
     "Launch the desktop app and dismiss its dialog",
     "Can you open the browser and visit example.com?",
+    "ChatKit workspace (891cab9c-e84b-4811-ad62-45e36f510e5e): Can you open the browser and visit example.com?",
   ])("routes explicit graphical work: %s", (text) => {
     expect(requiresComputerDelegation([{ role: "user", parts: [{ type: "text", text }] }])).toBe(
       true,
@@ -106,6 +108,7 @@ describe("requiresComputerDelegation", () => {
     "What does click-through rate mean?",
     "I clicked the browser yesterday",
     "How do I open a browser in Python?",
+    "ChatKit workspace (891cab9c-e84b-4811-ad62-45e36f510e5e): How do I open a browser in Python?",
     "How can I open the desktop app myself?",
     "Find the latest sales figures in the connected CRM",
   ])("leaves non-graphical questions and discussion local: %s", (text) => {

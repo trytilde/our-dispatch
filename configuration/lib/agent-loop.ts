@@ -13,6 +13,15 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
 
+function normalizeUserText(text: string): string {
+  return text
+    .replace(
+      /^[^:\n]{1,100}\s+\([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\):\s*/i,
+      "",
+    )
+    .trim();
+}
+
 function completedToolResult(
   steps: Parameters<PrepareStepFunction<ToolSet>>[0]["steps"],
   toolName: string,
@@ -84,10 +93,11 @@ export function requiresImmediateAnswer(
   const latest = [...messages].reverse().find((message) => message.role === "user");
   if (!latest?.parts?.length) return false;
   if (latest.parts.some((part) => !isRecord(part) || part.type !== "text")) return false;
-  const text = latest.parts
-    .map((part) => (isRecord(part) && typeof part.text === "string" ? part.text : ""))
-    .join(" ")
-    .trim();
+  const text = normalizeUserText(
+    latest.parts
+      .map((part) => (isRecord(part) && typeof part.text === "string" ? part.text : ""))
+      .join(" "),
+  );
   if (!text || text.length > 300) return false;
   const informational = /^(?:what|who|when|where|why|how|explain|define|describe)\b/i.test(text);
   const externalContext =
@@ -106,12 +116,14 @@ export function requiresComputerDelegation(
   messages: readonly { role?: string; parts?: readonly unknown[] }[],
 ): boolean {
   const latest = [...messages].reverse().find((message) => message.role === "user");
-  const text = (latest?.parts ?? [])
-    .flatMap((part) => {
-      if (!isRecord(part) || part.type !== "text" || typeof part.text !== "string") return [];
-      return [part.text];
-    })
-    .join(" ");
+  const text = normalizeUserText(
+    (latest?.parts ?? [])
+      .flatMap((part) => {
+        if (!isRecord(part) || part.type !== "text" || typeof part.text !== "string") return [];
+        return [part.text];
+      })
+      .join(" "),
+  );
   const graphicalSurface =
     /\b(?:browser|website|webpage|web page|desktop|desktop app|screen|window|dialog|button|menu|form|tab|toolbar|address bar)\b/i;
   const graphicalAction =
