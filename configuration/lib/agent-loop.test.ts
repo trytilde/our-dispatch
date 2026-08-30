@@ -3,6 +3,7 @@ import type { PrepareStepFunction, ToolSet } from "ai";
 import {
   prepareChatKitAgentStep,
   requiresComputerDelegation,
+  requiresImmediateAnswer,
   stopAfterChatKitMessage,
 } from "./agent-loop.js";
 
@@ -28,6 +29,15 @@ describe("prepareChatKitAgentStep", () => {
       toolChoice: { type: "tool", toolName: "chatkit_delegate" },
     });
   });
+
+  it("forces a complete answer for a self-contained informational request", () => {
+    const prepare = prepareChatKitAgentStep(tools, { requireFinalMessageFirst: true });
+    expect(prepare({ steps: [] } as unknown as StepOptions)).toEqual({
+      activeTools: ["sendMessage"],
+      instructions: expect.stringContaining("actual answer"),
+      toolChoice: { type: "tool", toolName: "sendMessage" },
+    });
+  });
   it("forces the wait immediately after delegation", () => {
     expect(prepareChatKitAgentStep(tools)(options("chatkit_delegate", { isError: false }))).toEqual(
       {
@@ -51,6 +61,28 @@ describe("prepareChatKitAgentStep", () => {
     const prepare = prepareChatKitAgentStep(tools);
     expect(prepare(options("chatkit_delegate", { isError: true }))).toBeUndefined();
     expect(prepare(options("SEARCH_TOOLS", { tools: [] }))).toBeUndefined();
+  });
+});
+
+describe("requiresImmediateAnswer", () => {
+  it.each(["What is two plus two?", "Explain browser cookies in one sentence", "Define OAuth"])(
+    "answers self-contained informational requests immediately: %s",
+    (text) => {
+      expect(requiresImmediateAnswer([{ role: "user", parts: [{ type: "text", text }] }])).toBe(
+        true,
+      );
+    },
+  );
+
+  it.each([
+    "What is on my calendar today?",
+    "How many open GitHub issues are current?",
+    "Find the latest sales figures in the CRM",
+    "Send an email to Daniel",
+  ])("keeps external-action requests tool-directed: %s", (text) => {
+    expect(requiresImmediateAnswer([{ role: "user", parts: [{ type: "text", text }] }])).toBe(
+      false,
+    );
   });
 });
 

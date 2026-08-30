@@ -6,6 +6,7 @@ const SEND_MESSAGE_TOOL = "sendMessage";
 
 export interface ChatKitAgentStepOptions {
   requireDelegationFirst?: boolean;
+  requireFinalMessageFirst?: boolean;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -39,6 +40,19 @@ export function prepareChatKitAgentStep(
         toolChoice: { type: "tool", toolName: DELEGATE_TOOL },
       };
     }
+    if (options.requireFinalMessageFirst && steps.length === 0) {
+      requireTool(tools, SEND_MESSAGE_TOOL);
+      return {
+        activeTools: [SEND_MESSAGE_TOOL],
+        instructions: [
+          typeof initialInstructions === "string" ? initialInstructions : undefined,
+          "Answer the user's request completely now through sendMessage. Provide the actual answer, not an acknowledgement, plan, future-tense promise, or status update.",
+        ]
+          .filter(Boolean)
+          .join("\n\n"),
+        toolChoice: { type: "tool", toolName: SEND_MESSAGE_TOOL },
+      };
+    }
     if (completedToolResult(steps, DELEGATE_TOOL)) {
       requireTool(tools, WAIT_TOOL);
       return {
@@ -61,6 +75,24 @@ export function prepareChatKitAgentStep(
     }
     return undefined;
   };
+}
+
+/** Identify self-contained informational requests that need no external action or discovery. */
+export function requiresImmediateAnswer(
+  messages: readonly { role?: string; parts?: readonly unknown[] }[],
+): boolean {
+  const latest = [...messages].reverse().find((message) => message.role === "user");
+  if (!latest?.parts?.length) return false;
+  if (latest.parts.some((part) => !isRecord(part) || part.type !== "text")) return false;
+  const text = latest.parts
+    .map((part) => (isRecord(part) && typeof part.text === "string" ? part.text : ""))
+    .join(" ")
+    .trim();
+  if (!text || text.length > 300) return false;
+  const informational = /^(?:what|who|when|where|why|how|explain|define|describe)\b/i.test(text);
+  const externalContext =
+    /(?:https?:\/\/|\b(?:my|latest|current|today|tomorrow|file|attachment|email|calendar|github|slack|stripe|crm|repository|workspace|search|find|open|create|send|update|delete|upload|download)\b)/i;
+  return informational && !externalContext.test(text);
 }
 
 /** Identify explicit graphical work that must begin in the Computer specialist. */
