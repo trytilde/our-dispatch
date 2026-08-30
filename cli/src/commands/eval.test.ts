@@ -140,6 +140,11 @@ describe("production evaluation", () => {
       if (url.startsWith("https://openbot.test/")) {
         const headers = new Headers(init?.headers);
         expect(headers.get("authorization")).toBe("Bearer test-key");
+        expect(headers.get("origin")).toBe("https://openbot.test");
+      } else {
+        const headers = new Headers(init?.headers);
+        expect(headers.get("x-api-key")).toBe("test-key");
+        expect(headers.get("authorization")).toBeNull();
       }
       if (url === "https://openbot.test/api/agents" && init?.method === "POST")
         return response({ status: "setting_up", job_id: "create-job" }, 202);

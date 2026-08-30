@@ -48,6 +48,7 @@ export interface EvaluationReport {
 interface EvaluationOptions {
   baseUrl: string;
   openbotUrl?: string;
+  openbotOrigin?: string;
   teamId: string;
   orgId?: string;
   agentId: string;
@@ -137,11 +138,16 @@ function parseEvaluationOptions(args: readonly string[]): EvaluationOptions {
   const timeoutMs = parsed["--timeout-ms"] ?? defaultTimeoutMs;
   if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 1_000 || timeoutMs > 600_000)
     throw new Error("--timeout-ms must be an integer from 1000 to 600000");
+  const publicOrigin = env("PUBLIC_ORIGIN");
+  const openbotUrl = parsed["--openbot-url"] ?? publicOrigin;
   return {
     baseUrl,
-    ...(parsed["--openbot-url"] || env("PUBLIC_ORIGIN")
-      ? { openbotUrl: normalizeBaseUrl(parsed["--openbot-url"] ?? env("PUBLIC_ORIGIN")!) }
-      : {}),
+    ...(openbotUrl ? { openbotUrl: normalizeBaseUrl(openbotUrl) } : {}),
+    ...(publicOrigin
+      ? { openbotOrigin: normalizeBaseUrl(publicOrigin) }
+      : openbotUrl
+        ? { openbotOrigin: normalizeBaseUrl(openbotUrl) }
+        : {}),
     teamId,
     ...(orgId ? { orgId } : {}),
     agentId: parsed["--agent-id"] ?? "factory",
@@ -493,11 +499,6 @@ async function apiJson(
     "Content-Type": "application/json",
     ...context.headers,
   });
-  const apiKey = headers.get("x-api-key");
-  if (apiKey && !headers.has("authorization")) {
-    headers.delete("x-api-key");
-    headers.set("authorization", `Bearer ${apiKey}`);
-  }
   new Headers(init.headers).forEach((value, name) => headers.set(name, value));
   const response = await context.request(
     `${context.baseUrl}/api/v1/team/${encodeURIComponent(context.teamId)}${path}`,
@@ -513,7 +514,7 @@ async function apiJson(
 }
 
 async function controlJson(
-  context: Pick<EvaluationOptions, "openbotUrl"> & {
+  context: Pick<EvaluationOptions, "openbotUrl" | "openbotOrigin"> & {
     headers: Record<string, string>;
     request: typeof fetch;
   },
@@ -526,6 +527,12 @@ async function controlJson(
     "Content-Type": "application/json",
     ...context.headers,
   });
+  const apiKey = headers.get("x-api-key");
+  if (apiKey && !headers.has("authorization")) {
+    headers.delete("x-api-key");
+    headers.set("authorization", `Bearer ${apiKey}`);
+  }
+  if (context.openbotOrigin) headers.set("origin", context.openbotOrigin);
   new Headers(init.headers).forEach((value, name) => headers.set(name, value));
   const response = await context.request(`${context.openbotUrl}${path}`, { ...init, headers });
   if (!response.ok)
