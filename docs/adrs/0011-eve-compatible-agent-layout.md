@@ -7,6 +7,7 @@
 - Primary agent is `configuration/agent/`; full subagents are `configuration/agent/subagents/<id>/`.
 - Keep Eve-shaped authored slots where useful. No Eve runtime or loader.
 - `agent.ts` default-exports `chatKitEndpoint`. `instructions.ts` feeds its system prompt.
+- `openbot delete-agent <id> --yes` removes a subagent's aggregate external footprint before source.
 - One shared computer, filesystem, and process identity. Each agent gets a desktop session; each populated seed gets `/workspace/<id>`.
 - A dedicated Computer specialist exposes only visual Computer tools. Delegation routes it through the caller's display and browser profile; direct chats use its own.
 - Seed workspace once. Never overwrite deployed agent files implicitly.
@@ -111,6 +112,7 @@ flowchart LR
 
 ## Updates
 
+- 2026-08-31T01:47:00+02:00: Added the guarded, idempotent `delete-agent` inverse lifecycle. Tilde bundle/channel and external credential-bearing resources are removed and confirmed before persisted agent configuration and authored source are deleted; Factory remains undeletable.
 - 2026-08-30T22:31:00+02:00: Added explicit `agent-profile.json` discovery metadata for the Computer specialist and made discovery reject any `tools/` or `skills/` directory under that profile.
 - 2026-08-30T14:24:00+02:00: Added the explicit Computer-specialist exception. It exposes only visual Computer tools; direct chats use its own display, while delegated sessions inherit the authenticated caller's display and browser profile through server-authored context.
 

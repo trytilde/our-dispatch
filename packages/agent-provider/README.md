@@ -4,7 +4,7 @@ Provisioning and reconciliation boundary for the complete external footprint of
 an authored agent. It is used by development and deployment lifecycles, not by
 authored agent code and not as a chat API.
 
-`AgentProvider` exposes only an idempotent `Deployable` lifecycle. The Tilde
+`AgentProvider` exposes an idempotent `Deployable` lifecycle plus aggregate removal. The Tilde
 implementation discovers authored agents; creates or repairs ChatKit agents;
 synchronizes authored skills and registry membership; and reconciles the dynamic
 MCP server, Tilde control-plane tools, deployment-platform MCP connections, and
@@ -18,7 +18,7 @@ allowlisted same-origin bridge.
 
 ## Public API
 
-- `AgentProvider`: deployment-only contract for aggregate authored-agent resource reconciliation.
+- `AgentProvider`: deployment and removal contract for aggregate authored-agent resource reconciliation.
 - `AgentProviderError` and `AgentProviderErrorCode`: normalized provider failure surface.
 - `TildeAgentProvider`, `TildeAgentProviderConfig`, `TildeAgentProviderOptions`, and
   `TildeAgentResourcePolicy`: typed Tilde implementation, connection configuration, and optional
