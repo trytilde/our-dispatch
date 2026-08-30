@@ -65,14 +65,14 @@ describe("prepareChatKitAgentStep", () => {
 });
 
 describe("requiresImmediateAnswer", () => {
-  it.each(["What is two plus two?", "Explain browser cookies in one sentence", "Define OAuth"])(
-    "answers self-contained informational requests immediately: %s",
-    (text) => {
-      expect(requiresImmediateAnswer([{ role: "user", parts: [{ type: "text", text }] }])).toBe(
-        true,
-      );
-    },
-  );
+  it.each([
+    "What is two plus two?",
+    "Explain browser cookies in one sentence",
+    "Define OAuth",
+    "How do I open a browser in Python?",
+  ])("answers self-contained informational requests immediately: %s", (text) => {
+    expect(requiresImmediateAnswer([{ role: "user", parts: [{ type: "text", text }] }])).toBe(true);
+  });
 
   it.each([
     "What is on my calendar today?",

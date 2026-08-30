@@ -92,7 +92,13 @@ export function requiresImmediateAnswer(
   const informational = /^(?:what|who|when|where|why|how|explain|define|describe)\b/i.test(text);
   const externalContext =
     /(?:https?:\/\/|\b(?:my|latest|current|today|tomorrow|file|attachment|email|calendar|github|slack|stripe|crm|repository|workspace|search|find|open|create|send|update|delete|upload|download)\b)/i;
-  return informational && !externalContext.test(text);
+  return isInstructionalQuestion(text) || (informational && !externalContext.test(text));
+}
+
+function isInstructionalQuestion(text: string): boolean {
+  return /^(?:how\s+(?:do|can|could|would|should)\s+(?:i|we|one|someone)\b|what\s+(?:does|do)\b|(?:explain|define|describe)\b)/i.test(
+    text.trim(),
+  );
 }
 
 /** Identify explicit graphical work that must begin in the Computer specialist. */
@@ -114,9 +120,7 @@ export function requiresComputerDelegation(
     /\b(?:open|visit|navigate to|go to|inspect|read|summarize|check)\s+(?:the\s+)?https?:\/\//i;
   const imperativeInput =
     /(?:^|[.!?]\s*|\b(?:please|can you|could you|would you)\s+)(?:click|tap|scroll|drag|type into|press|take a screenshot)\b/i;
-  const instructionalQuestion =
-    /^(?:how\s+(?:do|can|could|would|should)\s+(?:i|we|one|someone)\b|what\s+(?:does|do)\b|(?:explain|define|describe)\b)/i;
-  if (instructionalQuestion.test(text.trim())) return false;
+  if (isInstructionalQuestion(text)) return false;
   return (
     urlAction.test(text) ||
     (graphicalAction.test(text) && graphicalSurface.test(text)) ||
