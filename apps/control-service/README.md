@@ -20,3 +20,7 @@ Computer as a background job. `GET /api/agents/setup/:jobId` reports that job wi
 Computer API key or shell output to the browser. The command owns source creation and idempotent
 Tilde reconciliation; the status route does not provision a second time or require a separate
 human credential.
+
+Owner-authenticated `DELETE /api/agents/:agentId` starts the guarded aggregate
+`openbot delete-agent` lifecycle. `GET /api/agents/delete/:jobId` reports completion without
+exposing the Computer API key or command output.
