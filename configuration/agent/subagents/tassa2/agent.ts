@@ -1,9 +1,9 @@
 import { configHeaders } from "@trytilde/sdk";
 import {
   chatKitEndpoint,
+  type ChatKitEndpointContext,
   convertToAiSdkMessages,
   createClient,
-  createMCPClient,
 } from "@trytilde/sdk-vercel-ai-node";
 import {
   createTildeAttachmentMessageHandlers,
@@ -11,10 +11,11 @@ import {
   createTildeMediaDownloader,
   createTildeMediaUploader,
 } from "@tryopenbot/computer-tools";
-import { consumeStream, convertToModelMessages, streamText } from "ai";
+import { convertToModelMessages, stepCountIs, streamText } from "ai";
 import type { ToolSet } from "@ai-sdk/provider-utils";
 import { prepareInference } from "./inference.js";
 import instructions from "./instructions.js";
+import { prepareChatKitAgentStep } from "../../../lib/agent-loop.js";
 import awaitShell from "./tools/await_shell.js";
 import bash from "./tools/bash.js";
 import configureConnector from "./tools/configure_connector.js";
@@ -65,9 +66,12 @@ async function localTools(sessionId: string): Promise<ToolSet> {
 
 async function managedMcpTools(
   sessionId: string,
+  session: ChatKitEndpointContext["session"],
 ): Promise<{ tools: ToolSet; closeMcp: () => Promise<void> }> {
-  const handle = await createMCPClient({
-    client,
+  if (!session.createMCPClient)
+    throw new TypeError("ChatKit tool mode did not provide a session-bound MCP client");
+  const handle = await session.createMCPClient({
+    agentId: "tassa2",
     serverId: mcpServerId,
     tools: await localTools(sessionId),
   });
@@ -97,7 +101,7 @@ function queuedRequestCutoff(messages: readonly { metadata?: unknown }[]): strin
 
 export default chatKitEndpoint({
   client,
-  responseMode: "agentLoop",
+  responseMode: "tool",
   webhookSigningKey: process.env.AGENT_TASSA2_WEBHOOK_SIGNING_KEY!,
   requestTimeoutMs: 285_000,
   async handler(request, context) {
@@ -116,17 +120,19 @@ export default chatKitEndpoint({
       onCacheMessage: attachmentHandlers.onCacheMessage,
       onHydrateMessage: attachmentHandlers.onHydrateMessage,
     });
-    const { tools, closeMcp } = await managedMcpTools(context.sessionId);
+    const { tools, closeMcp } = await managedMcpTools(context.sessionId, context.session);
     const inference = await prepareInference(tools, request.signal);
     const result = streamText({
       ...inference,
+      allowSystemInMessages: true,
       abortSignal: request.signal,
       instructions,
       messages: await convertToModelMessages(messages),
+      prepareStep: prepareChatKitAgentStep(tools),
+      stopWhen: stepCountIs(20),
       onFinish: () => void closeMcp(),
     });
     return result.toUIMessageStreamResponse({
-      consumeSseStream: consumeStream,
       originalMessages: messages,
     });
   },
