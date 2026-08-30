@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vite-plus/test";
 import type { PrepareStepFunction, ToolSet } from "ai";
-import { prepareChatKitAgentStep } from "./agent-loop.js";
+import { prepareChatKitAgentStep, stopAfterChatKitMessage } from "./agent-loop.js";
 
 type StepOptions = Parameters<PrepareStepFunction<ToolSet>>[0];
 
@@ -38,5 +38,15 @@ describe("prepareChatKitAgentStep", () => {
     const prepare = prepareChatKitAgentStep(tools);
     expect(prepare(options("chatkit_delegate", { isError: true }))).toBeUndefined();
     expect(prepare(options("SEARCH_TOOLS", { tools: [] }))).toBeUndefined();
+  });
+});
+
+describe("stopAfterChatKitMessage", () => {
+  it("stops after the first successful visible message", () => {
+    expect(stopAfterChatKitMessage(options("sendMessage", { deliveryStatus: "persisted" }))).toBe(
+      true,
+    );
+    expect(stopAfterChatKitMessage(options("sendMessage", { isError: true }))).toBe(false);
+    expect(stopAfterChatKitMessage(options("SEARCH_TOOLS", { tools: [] }))).toBe(false);
   });
 });
