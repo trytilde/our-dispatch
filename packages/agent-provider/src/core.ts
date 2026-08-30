@@ -1,4 +1,4 @@
-import type { DeployableProvider } from "@tryopenbot/runtime-provider";
+import type { DeployableProvider, DeploymentContext } from "@tryopenbot/runtime-provider";
 
 export type AgentProviderErrorCode =
   | "invalid_configuration"
@@ -24,4 +24,6 @@ export class AgentProviderError extends Error {
 /** Reconciles authored agents and their external runtime endpoints through deployment lifecycle. */
 export interface AgentProvider extends DeployableProvider {
   readonly deployable: NonNullable<DeployableProvider["deployable"]>;
+  /** Remove one authored agent's aggregate external footprint. Safe to repeat. */
+  remove(context: DeploymentContext): Promise<void>;
 }

@@ -1,10 +1,11 @@
 import type { AgentProvider } from "@tryopenbot/agent-provider";
 import { discoverAgents, type AgentServiceProvider } from "@tryopenbot/agent-service-provider";
-import type { DeployableProvider } from "@tryopenbot/runtime-provider";
+import type { DeployableProvider, DeploymentContext } from "@tryopenbot/runtime-provider";
 import { describe, expect, it, vi } from "vite-plus/test";
 import {
   formatAgentLifecycleProgress,
   reconcileAgentResources,
+  removeAgentResources,
   serialDeploymentPersistence,
 } from "./agent-lifecycle.js";
 
@@ -85,6 +86,7 @@ describe("agent resource lifecycle", () => {
       devMode: true,
       providers: {
         agent: {
+          remove: async () => undefined,
           deployable: {
             plan: async () => ({ summary: "agent" }),
             deploy: async (context) => {
@@ -123,6 +125,7 @@ describe("agent resource lifecycle", () => {
       devMode: true,
       providers: {
         agent: {
+          remove: async () => undefined,
           deployable: {
             plan: async () => ({ summary: "agent" }),
             deploy: async () => {
@@ -174,6 +177,37 @@ describe("agent resource lifecycle", () => {
     expect(results.map(({ status }) => status)).toEqual(["fulfilled", "rejected", "fulfilled"]);
   });
 
+  it("routes aggregate removal through the agent provider", async () => {
+    const remove = vi.fn(async (context: DeploymentContext) => {
+      expect(context).toMatchObject({
+        agentId: "research-assistant",
+        agentKind: "subagent",
+        agentPath: "/repository/configuration/agent/subagents/research-assistant",
+        agentServiceOrigin: "https://local.trytilde-sb.com",
+      });
+    });
+
+    await removeAgentResources({
+      repositoryRoot: "/repository",
+      agentId: "research-assistant",
+      agentPath: "/repository/configuration/agent/subagents/research-assistant",
+      environment: {},
+      devMode: true,
+      agentServiceOrigin: "https://local.trytilde-sb.com/",
+      providers: {
+        agent: {
+          remove,
+          deployable: { plan: async () => ({ summary: "agent" }), deploy: async () => undefined },
+        },
+        agentService: {
+          baseUrl: () => new URL("http://127.0.0.1:4100"),
+        } as unknown as AgentServiceProvider,
+      },
+    });
+
+    expect(remove).toHaveBeenCalledOnce();
+  });
+
   it("formats concise per-agent progress", () => {
     expect(
       formatAgentLifecycleProgress({
@@ -202,6 +236,7 @@ describe("agent resource lifecycle", () => {
       agentServiceOrigin: "https://local.trytilde-sb.com/",
       providers: {
         agent: {
+          remove: async () => undefined,
           deployable: { plan: async () => ({ summary: "agent" }), deploy },
         } as AgentProvider,
         agentService: { baseUrl } as unknown as AgentServiceProvider,
@@ -214,6 +249,7 @@ describe("agent resource lifecycle", () => {
 
   it("attributes an agent reconciliation failure to its provider implementation", async () => {
     class TildeAgentProvider {
+      readonly remove = async () => undefined;
       readonly deployable = {
         plan: async () => ({ summary: "agent resources" }),
         deploy: async () => {

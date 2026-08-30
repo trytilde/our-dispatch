@@ -44,6 +44,7 @@ const agentNamePattern = /^[\p{L}\p{N}][\p{L}\p{N} ._-]{0,71}$/u;
 const backgroundJobPattern =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const createTimeoutMs = 600_000;
+const deleteTimeoutMs = 600_000;
 
 /**
  * Owner-facing agent creation: development mutates the checkout served by the live HMR runtime;
@@ -113,6 +114,52 @@ export function registerAgentCreation(app: Hono, options: AgentCreationOptions =
     );
   });
 
+  app.delete("/api/agents/:agentId", async (context) => {
+    const environment = options.environment ?? process.env;
+    const serviceUrl = environment.DEVELOPMENT_SANDBOX_SERVICE_URL?.trim();
+    const apiKey = environment.COMPUTER_SERVICE_API_KEY?.trim();
+    if (!localCreation && (!serviceUrl || !apiKey))
+      return context.json({ error: "The development sandbox is not available" }, 503);
+    const agentId = context.req.param("agentId");
+    if (!/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/.test(agentId))
+      return context.json({ error: "Invalid agent ID" }, 400);
+    if (agentId === "factory") return context.json({ error: "Factory cannot be deleted" }, 400);
+    const execute = options.execute ?? localCreation?.execute ?? connectExecutor(serviceUrl!);
+    const response = await execute(
+      options.repositoryRoot
+        ? {
+            agentId: "factory",
+            command: "pnpm",
+            arguments: ["openbot", "delete-agent", agentId, "--yes", "--json"],
+            cwd: options.repositoryRoot,
+            timeoutMilliseconds: deleteTimeoutMs,
+            background: true,
+          }
+        : {
+            agentId: "factory",
+            command: "bash",
+            arguments: [
+              "-lc",
+              `source /workspace/.openbot/development/profile.sh && cd /workspace/openbot && pnpm openbot delete-agent ${shellQuote(agentId)} --yes --json`,
+            ],
+            cwd: "",
+            timeoutMilliseconds: deleteTimeoutMs,
+            background: true,
+          },
+      {
+        authorization: apiKey ? `Bearer ${apiKey}` : "",
+        signal: context.req.raw.signal,
+      },
+    );
+    if (response.exitCode !== 0) return context.json({ error: commandError(response) }, 502);
+    if (!response.running || !response.jobId)
+      return context.json({ error: "Agent deletion did not start" }, 502);
+    return context.json(
+      { status: "deleting", job_id: response.jobId, agent: { id: agentId } },
+      202,
+    );
+  });
+
   app.get("/api/agents/setup/:jobId", async (context) => {
     const environment = options.environment ?? process.env;
     const serviceUrl = environment.DEVELOPMENT_SANDBOX_SERVICE_URL?.trim();
@@ -139,6 +186,35 @@ export function registerAgentCreation(app: Hono, options: AgentCreationOptions =
     }
     localCreation?.forget(jobId);
     return context.json({ status: "ready", agent: created });
+  });
+
+  app.get("/api/agents/delete/:jobId", async (context) => {
+    const environment = options.environment ?? process.env;
+    const serviceUrl = environment.DEVELOPMENT_SANDBOX_SERVICE_URL?.trim();
+    const apiKey = environment.COMPUTER_SERVICE_API_KEY?.trim();
+    if (!localCreation && (!serviceUrl || !apiKey))
+      return context.json({ error: "The development sandbox is not available" }, 503);
+    const jobId = context.req.param("jobId");
+    if (!backgroundJobPattern.test(jobId))
+      return context.json({ error: "Invalid deletion job" }, 400);
+    const wait =
+      options.awaitExecution ?? localCreation?.awaitExecution ?? connectWaiter(serviceUrl!);
+    const response = await wait(
+      { agentId: "factory", jobId, timeoutMilliseconds: 0 },
+      { authorization: apiKey ? `Bearer ${apiKey}` : "", signal: context.req.raw.signal },
+    );
+    if (response.running) return context.json({ status: "deleting" });
+    if (response.exitCode !== 0) {
+      localCreation?.forget(jobId);
+      return context.json({ status: "failed", error: commandError(response) });
+    }
+    const deleted = parseCreatedAgent(response.stdout);
+    if (!deleted) {
+      localCreation?.forget(jobId);
+      return context.json({ status: "failed", error: "Agent deletion returned no result" });
+    }
+    localCreation?.forget(jobId);
+    return context.json({ status: "deleted", agent: deleted });
   });
 }
 
@@ -202,7 +278,7 @@ function commandError(response: AgentCreationResult): string {
       // JSON mode may still include non-JSON process output before the result.
     }
   }
-  return "Agent creation failed";
+  return "Agent operation failed";
 }
 
 function connectExecutor(serviceUrl: string): AgentCreationExecutor {

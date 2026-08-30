@@ -1,5 +1,10 @@
 import type { DeploymentContext, DeploymentPlan } from "@tryopenbot/runtime-provider";
-import { persistEnvironment, persistSecret, unsetEnvironment } from "@tryopenbot/runtime-provider";
+import {
+  persistEnvironment,
+  persistSecret,
+  unsetEnvironment,
+  unsetSecret,
+} from "@tryopenbot/runtime-provider";
 import {
   TildePlatform,
   tildeAuthenticationHeaders,
@@ -12,6 +17,9 @@ import {
 } from "@tryopenbot/platform-integrations/tilde/errors";
 import {
   chatkitClaimAgentResourceBundleOutputs,
+  chatkitDeleteAgent,
+  chatkitDeleteChatProvider,
+  chatkitGetAgent,
   chatkitGetAgentResourceBundleProvisioning,
   chatkitListChatProviders,
   chatkitProvisionAgentResourceBundle,
@@ -78,6 +86,7 @@ export class TildeAgentProvider implements AgentProvider {
     plan: (context: DeploymentContext) => this.#plan(context),
     deploy: (context: DeploymentContext) => this.#deploy(context),
   };
+  readonly remove = (context: DeploymentContext) => this.#remove(context);
   readonly #api: TildeApiClient;
   readonly #teamId: string;
   readonly #skills: TildeSkillReconciler;
@@ -336,6 +345,76 @@ export class TildeAgentProvider implements AgentProvider {
       unsetEnvironment(context, `${prefix}_SKILL_REGISTRY_ID`),
       unsetEnvironment(context, `${prefix}_TILDE_CONTROL_PLANE_TOOL_GROUP_ID`),
     ]);
+  }
+
+  async #remove(context: DeploymentContext): Promise<void> {
+    const { id: slug } = requireAgent(context);
+    const prefix = `AGENT_${slug.replaceAll("-", "_").toUpperCase()}`;
+    const channelId = `${chatKitRealtimeChannelId}-${slug}`;
+    await this.#tools.removeExternalResources(context);
+    await this.#ignoreMissing(`delete ChatKit workspace channel for "${slug}"`, (signal) =>
+      chatkitDeleteChatProvider({
+        client: this.#api,
+        path: { team_id: this.#teamId, channel_id: channelId },
+        signal,
+      }),
+    );
+    await this.#ignoreMissing(`delete Agent Resource Bundle "${slug}"`, (signal) =>
+      chatkitDeleteAgent({
+        client: this.#api,
+        path: { team_id: this.#teamId, agent_id: slug },
+        signal,
+      }),
+    );
+    for (let attempt = 0; attempt < 1_200; attempt += 1) {
+      try {
+        await this.#generated(`check deleted agent "${slug}"`, (signal) =>
+          chatkitGetAgent({
+            client: this.#api,
+            path: { team_id: this.#teamId, agent_id: slug },
+            signal,
+          }),
+        );
+      } catch (error) {
+        if (error instanceof AgentProviderError && error.code === "not_found") break;
+        throw error;
+      }
+      if (attempt === 1_199)
+        throw new AgentProviderError(
+          "deadline_exceeded",
+          `Timed out deleting Agent Resource Bundle "${slug}"`,
+          true,
+        );
+      await new Promise((resolve) => setTimeout(resolve, 500));
+    }
+    await Promise.all([
+      unsetSecret(context, `${prefix}_API_KEY`),
+      unsetSecret(context, `${prefix}_WEBHOOK_SIGNING_KEY`),
+      ...[
+        "NAME",
+        "COMPUTER_SERVICE_URL",
+        "MCP_SERVER_ID",
+        "AGENT_ID",
+        "PROVIDER_ID",
+        "SKILL_REGISTRY_ID",
+        "TILDE_CONTROL_PLANE_TOOL_GROUP_ID",
+        "VERCEL_MCP_CREDENTIAL_ID",
+        "VERCEL_MCP_TOKEN_SHA256",
+        "VERCEL_MCP_SERVER_ID",
+      ].map((suffix) => unsetEnvironment(context, `${prefix}_${suffix}`)),
+    ]);
+  }
+
+  async #ignoreMissing<T>(
+    operationName: string,
+    operation: (signal: AbortSignal) => Promise<{ data?: T; error?: unknown; response?: Response }>,
+  ): Promise<void> {
+    try {
+      await this.#generated(operationName, operation);
+    } catch (error) {
+      if (error instanceof AgentProviderError && error.code === "not_found") return;
+      throw error;
+    }
   }
 
   async #persistAgentSecrets(
