@@ -109,9 +109,13 @@ describe("chatKitEndpoint", () => {
       expect(context.$provider?.tools).toBe(context.session.tools);
       expect(context.session.createMCPClient).toBeTypeOf("function");
       const forwarded = (await request.json()) as {
-        messages: Array<{ role?: string }>;
+        messages: Array<{ role?: string; parts?: Array<{ text?: string }> }>;
       };
       expect(forwarded.messages[0]?.role).toBe("system");
+      expect(forwarded.messages[0]?.parts?.[0]?.text).toContain(
+        "invoke sendMessage exactly once with the completed result",
+      );
+      expect(forwarded.messages[0]?.parts?.[0]?.text).not.toContain("acknowledge a human request");
       return new Response("ok");
     });
     const endpoint = testChatKitEndpoint({

@@ -17,6 +17,7 @@ import instructions from "./instructions.js";
 import {
   prepareChatKitAgentStep,
   requiresComputerDelegation,
+  requiresImmediateAnswer,
   stopAfterChatKitMessage,
 } from "../lib/agent-loop.js";
 import awaitShell from "./tools/await_shell.js";
@@ -120,6 +121,7 @@ export default chatKitEndpoint({
     });
     const { tools, closeMcp } = await managedMcpTools(context.sessionId, context.session);
     const inference = await prepareInference(tools, request.signal);
+    const requireDelegationFirst = requiresComputerDelegation(messages);
     const result = streamText({
       ...inference,
       allowSystemInMessages: true,
@@ -127,7 +129,8 @@ export default chatKitEndpoint({
       instructions,
       messages: await convertToModelMessages(messages),
       prepareStep: prepareChatKitAgentStep(tools, {
-        requireDelegationFirst: requiresComputerDelegation(messages),
+        requireDelegationFirst,
+        requireFinalMessageFirst: !requireDelegationFirst && requiresImmediateAnswer(messages),
       }),
       stopWhen: [stopAfterChatKitMessage, stepCountIs(20)],
       onFinish: () => void closeMcp(),

@@ -3,6 +3,7 @@ import type { PrepareStepFunction, ToolSet } from "ai";
 import {
   prepareChatKitAgentStep,
   requiresComputerDelegation,
+  requiresImmediateAnswer,
   stopAfterChatKitMessage,
 } from "./agent-loop.js";
 
@@ -26,6 +27,15 @@ describe("prepareChatKitAgentStep", () => {
     expect(prepare({ steps: [] } as unknown as StepOptions)).toEqual({
       activeTools: ["chatkit_delegate"],
       toolChoice: { type: "tool", toolName: "chatkit_delegate" },
+    });
+  });
+
+  it("forces a complete answer for a self-contained informational request", () => {
+    const prepare = prepareChatKitAgentStep(tools, { requireFinalMessageFirst: true });
+    expect(prepare({ steps: [] } as unknown as StepOptions)).toEqual({
+      activeTools: ["sendMessage"],
+      instructions: expect.stringContaining("actual answer"),
+      toolChoice: { type: "tool", toolName: "sendMessage" },
     });
   });
   it("forces the wait immediately after delegation", () => {
@@ -54,6 +64,29 @@ describe("prepareChatKitAgentStep", () => {
   });
 });
 
+describe("requiresImmediateAnswer", () => {
+  it.each([
+    "What is two plus two?",
+    "Explain browser cookies in one sentence",
+    "Define OAuth",
+    "How do I open a browser in Python?",
+    "ChatKit workspace (891cab9c-e84b-4811-ad62-45e36f510e5e): How do I open a browser in Python?",
+  ])("answers self-contained informational requests immediately: %s", (text) => {
+    expect(requiresImmediateAnswer([{ role: "user", parts: [{ type: "text", text }] }])).toBe(true);
+  });
+
+  it.each([
+    "What is on my calendar today?",
+    "How many open GitHub issues are current?",
+    "Find the latest sales figures in the CRM",
+    "Send an email to Daniel",
+  ])("keeps external-action requests tool-directed: %s", (text) => {
+    expect(requiresImmediateAnswer([{ role: "user", parts: [{ type: "text", text }] }])).toBe(
+      false,
+    );
+  });
+});
+
 describe("requiresComputerDelegation", () => {
   it.each([
     "Open https://example.com in the browser",
@@ -61,6 +94,8 @@ describe("requiresComputerDelegation", () => {
     "Find my calendar tab and click the next-event button",
     "Please scroll down and take a screenshot",
     "Launch the desktop app and dismiss its dialog",
+    "Can you open the browser and visit example.com?",
+    "ChatKit workspace (891cab9c-e84b-4811-ad62-45e36f510e5e): Can you open the browser and visit example.com?",
   ])("routes explicit graphical work: %s", (text) => {
     expect(requiresComputerDelegation([{ role: "user", parts: [{ type: "text", text }] }])).toBe(
       true,
@@ -72,6 +107,9 @@ describe("requiresComputerDelegation", () => {
     "Explain how browser cookies work",
     "What does click-through rate mean?",
     "I clicked the browser yesterday",
+    "How do I open a browser in Python?",
+    "ChatKit workspace (891cab9c-e84b-4811-ad62-45e36f510e5e): How do I open a browser in Python?",
+    "How can I open the desktop app myself?",
     "Find the latest sales figures in the connected CRM",
   ])("leaves non-graphical questions and discussion local: %s", (text) => {
     expect(requiresComputerDelegation([{ role: "user", parts: [{ type: "text", text }] }])).toBe(

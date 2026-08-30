@@ -78,6 +78,39 @@ describe("Cua worker routing", () => {
     expect(attempts).toBe(2);
   });
 
+  it("serializes catalog and tool operations on the same agent display", async () => {
+    let signalCallStarted!: () => void;
+    let releaseCall!: () => void;
+    const callStarted = new Promise<void>((resolve) => {
+      signalCallStarted = resolve;
+    });
+    const callTool = vi.fn(async () => {
+      signalCallStarted();
+      await new Promise<void>((release) => {
+        releaseCall = release;
+      });
+      return {
+        text: "done",
+        images: [],
+        isError: false,
+        degraded: false,
+        rawJson: "",
+      };
+    });
+    const listToolsJson = vi.fn(async () => JSON.stringify({ tools: [] }));
+    cuaTesting.reset(async () => fakeDriver({ callTool, listToolsJson }));
+
+    const call = callCuaTool("agent", "click", "{}");
+    await callStarted;
+    const catalog = listCuaTools("agent");
+    await Promise.resolve();
+    expect(listToolsJson).not.toHaveBeenCalled();
+    releaseCall();
+    await expect(call).resolves.toMatchObject({ isError: false });
+    await expect(catalog).resolves.toEqual([]);
+    expect(listToolsJson).toHaveBeenCalledTimes(1);
+  });
+
   it("preserves text, images, JSON, verification, degradation, and completion", async () => {
     cuaTesting.reset(async () => fakeDriver());
     const result = await callCuaTool("agent", "get_desktop_state", "{}");

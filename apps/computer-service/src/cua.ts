@@ -39,6 +39,7 @@ export interface CuaCallResult {
 type DriverFactory = (agentId: string, signal?: AbortSignal) => Promise<CuaDriverLike>;
 
 const drivers = new Map<string, Promise<CuaDriverLike>>();
+const operationQueues = new Map<string, Promise<void>>();
 
 async function defaultDriverFactory(agentId: string, signal?: AbortSignal): Promise<CuaDriverLike> {
   signal?.throwIfAborted();
@@ -125,13 +126,16 @@ export async function listCuaTools(
   agentId: string,
   signal?: AbortSignal,
 ): Promise<CuaToolCatalogEntry[]> {
-  const driver = await driverFor(agentId, signal);
-  try {
-    return parseCatalog(await driver.listToolsJson(signal ? { signal } : undefined));
-  } catch (error) {
-    await discardDriver(agentId, driver);
-    throw asConnectError(error, "Cua Driver catalog is unavailable");
-  }
+  return await serializeAgentOperation(agentId, async () => {
+    signal?.throwIfAborted();
+    const driver = await driverFor(agentId, signal);
+    try {
+      return parseCatalog(await driver.listToolsJson(signal ? { signal } : undefined));
+    } catch (error) {
+      await discardDriver(agentId, driver);
+      throw asConnectError(error, "Cua Driver catalog is unavailable");
+    }
+  });
 }
 
 export async function callCuaTool(
@@ -146,49 +150,52 @@ export async function callCuaTool(
   } catch {
     throw new ConnectError("Cua tool arguments must be JSON", Code.InvalidArgument);
   }
-  let driver = await driverFor(agentId, signal);
-  try {
-    let result = await driver.callTool(name, argumentsJson, signal ? { signal } : undefined);
-    if (sessionHasEnded(result)) {
+  return await serializeAgentOperation(agentId, async () => {
+    signal?.throwIfAborted();
+    let driver = await driverFor(agentId, signal);
+    try {
+      let result = await driver.callTool(name, argumentsJson, signal ? { signal } : undefined);
+      if (sessionHasEnded(result)) {
+        await discardDriver(agentId, driver);
+        signal?.throwIfAborted();
+        driver = await driverFor(agentId, signal);
+        result = await driver.callTool(name, argumentsJson, signal ? { signal } : undefined);
+      }
+      return mapToolResult(result);
+    } catch (error) {
+      if (DriverError.Tool.instanceOf(error)) {
+        return {
+          content: [{ content: { case: "text", value: error.inner.message } }],
+          structuredJson: "",
+          isError: true,
+          errorCode: error.inner.errorCode,
+          verified: false,
+          degraded: false,
+          rawJson: "",
+          actionCompletion: CuaActionCompletion.NOT_STARTED,
+          actionJson: "",
+          verificationJson: "",
+        };
+      }
+      if (DriverError.ActionInterrupted.instanceOf(error)) {
+        const completion = error.inner.completion;
+        return {
+          content: [{ content: { case: "text", value: error.inner.reason } }],
+          structuredJson: "",
+          isError: true,
+          errorCode: "action_interrupted",
+          verified: false,
+          degraded: false,
+          rawJson: "",
+          actionCompletion: mapCompletion(completion),
+          actionJson: "",
+          verificationJson: "",
+        };
+      }
       await discardDriver(agentId, driver);
-      signal?.throwIfAborted();
-      driver = await driverFor(agentId, signal);
-      result = await driver.callTool(name, argumentsJson, signal ? { signal } : undefined);
+      throw asConnectError(error, `Cua tool ${name} failed`);
     }
-    return mapToolResult(result);
-  } catch (error) {
-    if (DriverError.Tool.instanceOf(error)) {
-      return {
-        content: [{ content: { case: "text", value: error.inner.message } }],
-        structuredJson: "",
-        isError: true,
-        errorCode: error.inner.errorCode,
-        verified: false,
-        degraded: false,
-        rawJson: "",
-        actionCompletion: CuaActionCompletion.NOT_STARTED,
-        actionJson: "",
-        verificationJson: "",
-      };
-    }
-    if (DriverError.ActionInterrupted.instanceOf(error)) {
-      const completion = error.inner.completion;
-      return {
-        content: [{ content: { case: "text", value: error.inner.reason } }],
-        structuredJson: "",
-        isError: true,
-        errorCode: "action_interrupted",
-        verified: false,
-        degraded: false,
-        rawJson: "",
-        actionCompletion: mapCompletion(completion),
-        actionJson: "",
-        verificationJson: "",
-      };
-    }
-    await discardDriver(agentId, driver);
-    throw asConnectError(error, `Cua tool ${name} failed`);
-  }
+  });
 }
 
 export async function shutdownCuaWorkers(): Promise<void> {
@@ -267,6 +274,26 @@ function sessionHasEnded(result: ToolResult): boolean {
   return result.isError && result.errorCode === "session_ended" && result.action === undefined;
 }
 
+async function serializeAgentOperation<T>(
+  agentId: string,
+  operation: () => Promise<T>,
+): Promise<T> {
+  const previous = operationQueues.get(agentId) ?? Promise.resolve();
+  let release!: () => void;
+  const turn = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const queued = previous.catch(() => undefined).then(() => turn);
+  operationQueues.set(agentId, queued);
+  await previous.catch(() => undefined);
+  try {
+    return await operation();
+  } finally {
+    release();
+    if (operationQueues.get(agentId) === queued) operationQueues.delete(agentId);
+  }
+}
+
 function mapCompletion(completion: ActionCompletion): CuaActionCompletion {
   if (completion === ActionCompletion.NotStarted) return CuaActionCompletion.NOT_STARTED;
   if (completion === ActionCompletion.Completed) return CuaActionCompletion.COMPLETED;
@@ -304,6 +331,7 @@ function asConnectError(error: unknown, fallback: string): ConnectError {
 export const cuaTesting = {
   reset(factory: DriverFactory = defaultDriverFactory) {
     drivers.clear();
+    operationQueues.clear();
     createDriver = factory;
   },
 };

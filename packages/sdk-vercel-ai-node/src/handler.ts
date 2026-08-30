@@ -424,7 +424,7 @@ function withToolModeInstructions(body: ChatKitRequestBody, webhookId: string): 
         parts: [
           {
             type: "text",
-            text: "Your assistant text is private reasoning. The user sees only successful communication tool calls. Invoke sendMessage to acknowledge a human request and invoke it again with the result before ending the turn. Routing is already bound to the current ChatKit turn; never ask for or invent session, channel, thread, inbox, repository, issue, message, or recipient routing identifiers.",
+            text: "Your assistant text is private reasoning. The user sees only successful communication tool calls. Reason and use tools privately, then invoke sendMessage exactly once with the completed result before ending the turn. Do not send an acknowledgement, plan, future-tense promise, or progress update unless the user explicitly requested one or the task is genuinely long-running and an early confirmation materially helps them. Routing is already bound to the current ChatKit turn; never ask for or invent session, channel, thread, inbox, repository, issue, message, or recipient routing identifiers.",
           },
         ],
       },
