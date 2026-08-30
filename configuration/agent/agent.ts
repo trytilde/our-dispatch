@@ -7,7 +7,6 @@ import {
 } from "@trytilde/sdk-vercel-ai-node";
 import {
   createTildeAttachmentMessageHandlers,
-  createCuaTools,
   createTildeMediaDownloader,
   createTildeMediaUploader,
 } from "@tryopenbot/computer-tools";
@@ -36,7 +35,7 @@ const client = createClient({
   orgSubdomain: false,
   teamId: process.env.TILDE_TEAM_ID!,
 });
-async function localTools(sessionId: string): Promise<ToolSet> {
+function localTools(sessionId: string): ToolSet {
   const uploadMedia = createTildeMediaUploader({
     baseUrl: client.config.baseUrl,
     headers: () => configHeaders(client.config),
@@ -56,12 +55,7 @@ async function localTools(sessionId: string): Promise<ToolSet> {
     screenshot: screenshot(uploadMedia),
     write_file: writeFile,
   } satisfies ToolSet;
-  const cuaTools = await createCuaTools({
-    agentId: "factory",
-    existingToolNames: Object.keys(standardTools),
-    uploadMedia,
-  });
-  return { ...standardTools, ...cuaTools };
+  return standardTools;
 }
 
 async function managedMcpTools(
@@ -73,7 +67,7 @@ async function managedMcpTools(
   const handle = await session.createMCPClient({
     agentId: "factory",
     serverId: mcpServerId,
-    tools: await localTools(sessionId),
+    tools: localTools(sessionId),
   });
   const tools: Record<string, unknown> = await handle.mcp.tools();
   assertToolSet(tools);

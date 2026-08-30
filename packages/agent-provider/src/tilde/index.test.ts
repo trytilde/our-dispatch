@@ -26,8 +26,8 @@ describe("TildeAgentProvider", () => {
     expect(new TildeAgentProvider(config).platforms.map(({ id }) => id)).toEqual(["tilde"]);
   });
 
-  it("provisions, polls, claims credentials, and retains OpenBot-only integrations", async () => {
-    vi.spyOn(TildeSkillReconciler.prototype, "bundleSkills").mockResolvedValue({
+  it("provisions a resource-constrained agent without skills or external tools", async () => {
+    const skills = vi.spyOn(TildeSkillReconciler.prototype, "bundleSkills").mockResolvedValue({
       custom: [
         {
           key: "configuration/agents/scout/skills/example/SKILL.md",
@@ -64,11 +64,8 @@ describe("TildeAgentProvider", () => {
           const body = (await request.json()) as { memory?: unknown };
           expect(body).toMatchObject({
             agent: { credential_strategy: "rotate", endpoint: { concurrency_policy: "queue" } },
-            mcp_server: { enabled: true, id: "openbot-scout", enable_tilde_control_plane: true },
-            skill_registry: {
-              enabled: true,
-              enabled_skills: { managed: [{ provider_id: "cua" }] },
-            },
+            mcp_server: { enabled: false },
+            skill_registry: { enabled: false },
           });
           expect(body.memory).toBeUndefined();
           return Response.json(operation("queued", false));
@@ -97,6 +94,12 @@ describe("TildeAgentProvider", () => {
             avatar: { media_type: "image/png", size_bytes: bytes.length, sha256: "hash" },
           });
         }
+        if (request.method === "PUT" && path.endsWith("/agents/scout/permissions")) {
+          expect(await request.json()).toEqual({
+            delegate_to_other_agents: { mode: "only", ids: ["computer"] },
+          });
+          return Response.json({ id: "scout" });
+        }
         if (request.method === "GET" && path.endsWith("/channels"))
           return Response.json({
             items: channelCreated
@@ -116,15 +119,24 @@ describe("TildeAgentProvider", () => {
       }),
     );
 
-    await new TildeAgentProvider(config).deployable.deploy(context);
+    await new TildeAgentProvider(config, {
+      resourcePolicy: () => ({
+        enableExternalTools: false,
+        enableSkillRegistry: false,
+        enableMcpServer: false,
+        enableTildeControlPlane: false,
+        permissions: { delegate_to_other_agents: { mode: "only", ids: ["computer"] } },
+      }),
+    }).deployable.deploy(context);
 
     expect(polled).toBe(true);
-    expect(external).toHaveBeenCalledOnce();
+    expect(skills).not.toHaveBeenCalled();
+    expect(external).not.toHaveBeenCalled();
     expect(context.environment).toMatchObject({
       AGENT_SCOUT_API_KEY: "agent-api-key",
       AGENT_SCOUT_WEBHOOK_SIGNING_KEY: "signing-key",
-      AGENT_SCOUT_MCP_SERVER_ID: "openbot-scout",
     });
+    expect(context.environment.AGENT_SCOUT_MCP_SERVER_ID).toBeUndefined();
     expect(requests.some((request) => request.url.endsWith("/provision/outputs/claim"))).toBe(true);
   });
 
@@ -150,7 +162,7 @@ describe("TildeAgentProvider", () => {
         if (request.method === "PUT" && path.endsWith("/agents/scout/provision")) {
           expect(await request.json()).toMatchObject({
             agent: { credential_strategy: "preserve" },
-            mcp_server: { id: "legacy-mcp" },
+            mcp_server: { id: "legacy-mcp", enable_tilde_control_plane: true },
             skill_registry: { id: "11111111-1111-4111-8111-111111111111" },
           });
           return Response.json(operation("active", false, "legacy-mcp"));

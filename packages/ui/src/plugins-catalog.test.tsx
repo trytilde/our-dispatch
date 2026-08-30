@@ -61,7 +61,7 @@ describe("PluginsCatalog loading and avatars", () => {
     expect(markup).not.toContain("Remove from Factory");
   });
 
-  it("resolves Tilde icon keys for tool providers", () => {
+  it("uses explicit icons and never guesses default.svg URLs", () => {
     const toolsMarkup = renderToStaticMarkup(
       createElement(PluginsCatalog, {
         ...baseProps,
@@ -93,7 +93,8 @@ describe("PluginsCatalog loading and avatars", () => {
         ],
       }),
     );
-    expect(toolsMarkup).toContain("https://thesvg.org/icons/google-mail/default.svg");
+    expect(toolsMarkup).not.toContain("thesvg.org/icons/google-mail");
+    expect(toolsMarkup).toContain("GM");
     expect(toolsMarkup).toContain(
       "https://cdn.jsdelivr.net/gh/glincker/thesvg@main/public/icons/modal/default.svg",
     );

@@ -48,7 +48,7 @@ Sticky header row:
 - **Test run** becomes **Running…** while a run is in flight and stays sticky until
   the refreshed list reflects it; clicking scrolls Run history into view. Disabled
   on drafts.
-- **Delete** opens a confirmation dialog (deviation from grokbot, matching the app's
+- **Delete** opens a confirmation dialog (deviation from the reference, matching the app's
   destructive-action voice): title `Delete "<name>"`, body "This permanently deletes
   the routine and stops all of its triggers. This can't be undone.", buttons Cancel /
   Delete. Failure copy: "Deleting failed. Check your connection and try again."
@@ -110,12 +110,12 @@ sentence. All times are UTC and every time control is suffixed "UTC".
   `aria-invalid`, not committed, draft kept.
 - Off-grid values coming back from the server are injected into the option lists so
   externally authored crons stay editable; anything unrepresentable lands in Custom.
-- Deviations from grokbot (record in ADR): no Interval mode; UTC only.
+- Deviations from the reference (record in ADR): no Interval mode; UTC only.
 
 ### 4.2 Event trigger editors (inside the popover)
 
 One event trigger = one signal rule = exactly ONE signal type (deviation from
-grokbot's multi-event Git trigger: pick one event per trigger; "Add another" covers
+The reference's multi-event Git trigger becomes one event per trigger; "Add another" covers
 multiple). Sentence-shaped rows: an event select plus provider-specific filter
 inputs. Filters map to `filters: [{path, value}]` (exact-equality matching on the
 provider's normalized payload).

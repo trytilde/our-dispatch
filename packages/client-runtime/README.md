@@ -24,6 +24,9 @@ Framework-neutral client behavior shared by OpenBot web and Electron clients.
   `/api/tilde/*` credential bridge; the control service defines no parallel domain APIs. Plugin
   inventory is assembled from Tilde's generated MCP and Skills resource contracts, with every
   native continuation token exhausted rather than relying on an OpenBot-specific aggregate.
+  `createTildePluginsClient` accepts `TildePluginsTransport`, resolves relative provider assets
+  against the active Tilde origin, coalesces native and managed entries for one provider, and
+  caches the assembled read catalogue briefly while invalidating it after mutations.
 - `contracts/workspaces` and the workspace registry helpers own persisted public control-service
   origins, display metadata, and active-workspace selection without moving credentials between
   installations.

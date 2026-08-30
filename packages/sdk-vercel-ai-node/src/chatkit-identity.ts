@@ -46,6 +46,8 @@ export type ChatKitSessionContext = {
   providerDisplayName: string;
   /** Whether Tilde delivers this agent's reply back to that platform. */
   repliesRouteToProvider: boolean;
+  /** Calling agent whose display/browser state a delegated specialist should continue. */
+  parentAgentId?: string;
 };
 
 const IDENTITY_KINDS: readonly string[] = [
@@ -106,6 +108,8 @@ export function parseChatKitSessionContext(
   const sessionId = optionalString(value, "session_id") ?? optionalString(value, "sessionId");
   const providerId = optionalString(value, "provider_id") ?? optionalString(value, "providerId");
   if (!sessionId || !providerId) return undefined;
+  const parentAgentId =
+    optionalString(value, "parent_agent_id") ?? optionalString(value, "parentAgentId");
   return {
     sessionId,
     providerId,
@@ -115,6 +119,7 @@ export function parseChatKitSessionContext(
       providerId,
     repliesRouteToProvider:
       value.replies_route_to_provider === true || value.repliesRouteToProvider === true,
+    ...(parentAgentId ? { parentAgentId } : {}),
   };
 }
 

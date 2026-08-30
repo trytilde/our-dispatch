@@ -8,6 +8,7 @@
 - Keep Eve-shaped authored slots where useful. No Eve runtime or loader.
 - `agent.ts` default-exports `chatKitEndpoint`. `instructions.ts` feeds its system prompt.
 - One shared computer, filesystem, and process identity. Each agent gets a desktop session; each populated seed gets `/workspace/<id>`.
+- A dedicated Computer specialist exposes only visual Computer tools. Delegation routes it through the caller's display and browser profile; direct chats use its own.
 - Seed workspace once. Never overwrite deployed agent files implicitly.
 - Keep Eve's authored `sandbox/` folder and familiar tool names; use computer terminology elsewhere.
 - Scaffold explicit typed Computer tools whose shared implementations live in the non-provider `computer-tools` package.
@@ -62,6 +63,8 @@ OpenBot terminology calls the runtime a Computer, so new APIs, environment varia
 
 Every agent explicitly contains `await_shell.ts`, `bash.ts`, `copy_from_computer.ts`, `copy_to_computer.ts`, `read_file.ts`, `write_file.ts`, `glob.ts`, `grep.ts`, and `screenshot.ts`. Each file is a thin default export from `@tryopenbot/computer-tools` with the path-derived agent ID fixed outside its model-visible schema. This non-provider utility owns the reusable Vercel AI SDK tools and Zod schemas; computer-service-proto remains transport-only. Agent code does not call Microsandbox, Vercel Sandbox, or an untyped HTTP endpoint directly. The API-key-protected computer-service validates the request and uses the fixed agent ID to select `/workspace/<id>` as the default directory and to scope durable background-job handles.
 
+A fork may designate one authored subagent as a Computer specialist. That specialist is a deliberate exception to the full default scaffold: it exposes only the visual Computer-use tool set and has no authored skills, MCP server, connector tools, shell or file helpers, memory tools, or delegation tools. Tilde permissions allow ordinary agents to delegate to it while preventing it from delegating onward. A direct conversation with the specialist uses its own display and browser profile. A delegated session carries the authenticated caller's agent ID in server-authored session context, and the specialist fixes that parent ID into its Computer tool calls so it continues on the caller's existing display and browser profile. The model cannot supply or override this routing identity.
+
 Authored agents do not import any provider package or the fork's provider composition. They instantiate model, MCP, skill, Composio, and other vendor clients directly. The fork-owned template carries direct-integration defaults to future agents without turning providers into an agent plugin API.
 
 The provider-owned default inference template bounds each model/tool run at 50 steps. Forks may
@@ -99,6 +102,7 @@ flowchart LR
 
 - Fork authors get a familiar Eve-shaped tree without coupling OpenBot deployment to Eve.
 - Each agent remains an independently compiled function entrypoint.
+- A narrow Computer specialist can centralize visual-operation prompting without gaining unrelated tools or losing the caller's on-screen state.
 - Required computer tools are explicit; arbitrary tools and skills remain author-controlled.
 - Persistent agent workspaces are protected from silent seed overwrites.
 - Compute, process identity, and filesystem access are installation-wide; agent desktops and `/workspace/<id>` are routing conventions, not security boundaries.
@@ -106,6 +110,8 @@ flowchart LR
 - Fork owners can change future agent defaults without modifying the CLI package.
 
 ## Updates
+
+- 2026-08-30T14:24:00+02:00: Added the explicit Computer-specialist exception. It exposes only visual Computer tools; direct chats use its own display, while delegated sessions inherit the authenticated caller's display and browser profile through server-authored context.
 
 - 2026-08-21T13:50:00+01:00: The selected inference provider may seed provider-owned files into the default agent template during initialization; the copied files immediately become fork-owned and existing agents still change only through explicit edits.
 - 2026-08-26T14:02:03+01:00: Set the provider-owned default and this fork's authored agents to a

@@ -408,4 +408,12 @@ export {
   type SignalTestStatus,
   WebhookUrlField,
 } from "./signal-provider-dialog.js";
-export { SignalsSettings, type SignalsSettingsProps } from "./signals-settings.js";
+export {
+  RoutineProvidersSettings,
+  type RoutineProvidersSettingsProps,
+} from "./signals-settings.js";
+export {
+  RoutineSettings,
+  type RoutineSettingsProps,
+  type RoutineSettingsRow,
+} from "./routine-settings.js";

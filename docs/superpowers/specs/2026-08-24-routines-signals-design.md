@@ -8,7 +8,7 @@ Status: Approved (user), implementation in progress
 OpenBot gains one user-facing concept, **Routines**: per-agent cards with a name, an
 instruction, and 1–8 OR'd **triggers**. A trigger is either a **schedule** (backed by a
 Tilde ChatKit routine — a UTC cron job) or a **provider event** (backed by a Tilde signal
-rule on a signal provider instance). The UX replicates the recovered grokbot 0.16.0
+rule on a signal provider instance). The UX follows the recovered reference implementation
 routines experience with deliberate, recorded deviations. Signal provider connections
 (webhook URL + signing secret) get an OpenBot-owned setup flow, since a self-hosted
 deployment cannot hide provisioning behind a managed dashboard.
@@ -18,7 +18,7 @@ deployment cannot hide provisioning behind a managed dashboard.
 1. **Unified triggers**: one Routines surface; schedule triggers map to Tilde routines,
    event triggers map to Tilde signal rules. Mixed-trigger routines span both APIs.
 2. **Placement**: a new resizable agent-details right pane in the workspace shell,
-   containing the Routines section with drill-in editor (grokbot structure).
+   containing the Routines section with drill-in editor (reference structure).
 3. **Provider setup**: inline connect state on the trigger card opening a setup dialog,
    plus a `/settings/signals` inventory of provider instances.
 4. **Mobile**: deferred with `<FOLLOW UP>`; contracts and runtime state land in
@@ -117,20 +117,20 @@ Agent details pane (toggle in agent header, `mod+alt+b`) with the Routines secti
   grouping/diff/rollback is the risk center), runtime slice tests, `pnpm check`,
   `pnpm build`. Playwright e2e happy-path if feasible.
 
-## Deliberate deviations from grokbot (record in ADR)
+## Deliberate deviations from the reference (record in ADR)
 
 1. **UTC schedules** — Tilde cron is UTC-only; time pickers labeled UTC; description
    strings server-rendered. Custom cron accepts only Tilde-valid expressions (5-field,
    or 6/7-field with `0` seconds; no `@every`, no `CRON_TZ`).
 2. **Interval frequency dropped** — Tilde cannot express arbitrary intervals; hourly
    and `*/N` minute patterns cover real cases.
-3. **Delete confirmation added** — grokbot deleted routines without confirmation.
+3. **Delete confirmation added** — the reference deleted routines without confirmation.
 4. **Run history** — signal deliveries (real, per rule) merged with the routine's
    `last_run_at`/`last_session_id`/`last_error` snapshot; Tilde keeps no cron run log.
-5. **Provider setup surfaced** — webhook URL + secret shown; grokbot hid linking
+5. **Provider setup surfaced** — webhook URL + secret shown; the reference hid linking
    behind a managed dashboard.
 6. **Provider set** — GitHub, Slack, Sentry, Firecrawl (Tilde's supported providers),
-   not grokbot's Teams/Linear/PagerDuty.
+   not the reference's Teams/Linear/PagerDuty set.
 
 ## Error handling
 

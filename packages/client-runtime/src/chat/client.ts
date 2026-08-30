@@ -225,7 +225,7 @@ export function createOpenBotClient(options: OpenBotClientOptions = {}): OpenBot
   };
   const routines = createTildeRoutineClient(tildeSettingsTransport);
   const signals = createTildeSignalClient(tildeSettingsTransport);
-  const plugins = createTildePluginsClient(tildeSettingsTransport.requestJson);
+  const plugins = createTildePluginsClient(tildeSettingsTransport);
 
   function rewriteTildeUrl(value: string): string {
     try {

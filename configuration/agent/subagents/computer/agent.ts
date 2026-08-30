@@ -1,33 +1,20 @@
 import { configHeaders } from "@trytilde/sdk";
 import {
   chatKitEndpoint,
-  type ChatKitEndpointContext,
   convertToAiSdkMessages,
   createClient,
 } from "@trytilde/sdk-vercel-ai-node";
 import {
   createTildeAttachmentMessageHandlers,
-  createTildeMediaDownloader,
+  createCuaTools,
   createTildeMediaUploader,
 } from "@tryopenbot/computer-tools";
 import { convertToModelMessages, stepCountIs, streamText } from "ai";
 import type { ToolSet } from "@ai-sdk/provider-utils";
 import { prepareInference } from "./inference.js";
 import instructions from "./instructions.js";
-import { prepareChatKitAgentStep, stopAfterChatKitMessage } from "../../../lib/agent-loop.js";
-import awaitShell from "./tools/await_shell.js";
-import bash from "./tools/bash.js";
-import configureConnector from "./tools/configure_connector.js";
-import copyFromComputer from "./tools/copy_from_computer.js";
-import copyToComputer from "./tools/copy_to_computer.js";
-import glob from "./tools/glob.js";
-import grep from "./tools/grep.js";
-import readFile from "./tools/read_file.js";
-import screenshot from "./tools/screenshot.js";
-import writeFile from "./tools/write_file.js";
 
-const agentApiKey = process.env.AGENT_PIRATE_POET_API_KEY!;
-const mcpServerId = process.env.AGENT_PIRATE_POET_MCP_SERVER_ID!;
+const agentApiKey = process.env.AGENT_COMPUTER_API_KEY!;
 
 const client = createClient({
   apiKey: agentApiKey,
@@ -35,49 +22,17 @@ const client = createClient({
   orgSubdomain: false,
   teamId: process.env.TILDE_TEAM_ID!,
 });
-function localTools(sessionId: string): ToolSet {
+async function localTools(sessionId: string, displayAgentId: string): Promise<ToolSet> {
   const uploadMedia = createTildeMediaUploader({
     baseUrl: client.config.baseUrl,
     headers: () => configHeaders(client.config),
     sessionId,
     teamId: process.env.TILDE_TEAM_ID!,
   });
-  const downloadMedia = createTildeMediaDownloader(client, sessionId);
-  const standardTools = {
-    await_shell: awaitShell,
-    bash,
-    configure_connector: configureConnector,
-    copy_from_computer: copyFromComputer(uploadMedia),
-    copy_to_computer: copyToComputer(downloadMedia),
-    glob,
-    grep,
-    read_file: readFile,
-    screenshot: screenshot(uploadMedia),
-    write_file: writeFile,
-  } satisfies ToolSet;
-  return standardTools;
-}
-
-async function managedMcpTools(
-  sessionId: string,
-  session: ChatKitEndpointContext["session"],
-): Promise<{ tools: ToolSet; closeMcp: () => Promise<void> }> {
-  if (!session.createMCPClient)
-    throw new TypeError("ChatKit tool mode did not provide a session-bound MCP client");
-  const handle = await session.createMCPClient({
-    agentId: "pirate-poet",
-    serverId: mcpServerId,
-    tools: localTools(sessionId),
+  return await createCuaTools({
+    agentId: displayAgentId,
+    uploadMedia,
   });
-  const tools: Record<string, unknown> = await handle.mcp.tools();
-  assertToolSet(tools);
-  return { tools, closeMcp: () => handle.closeMcp() };
-}
-
-function assertToolSet(tools: Record<string, unknown>): asserts tools is ToolSet {
-  for (const [name, definition] of Object.entries(tools))
-    if (typeof definition !== "object" || definition === null || !("inputSchema" in definition))
-      throw new TypeError(`MCP tool ${name} is not a Vercel AI SDK tool`);
 }
 
 function queuedRequestCutoff(messages: readonly { metadata?: unknown }[]): string | undefined {
@@ -95,8 +50,8 @@ function queuedRequestCutoff(messages: readonly { metadata?: unknown }[]): strin
 
 export default chatKitEndpoint({
   client,
-  responseMode: "tool",
-  webhookSigningKey: process.env.AGENT_PIRATE_POET_WEBHOOK_SIGNING_KEY!,
+  responseMode: "agentLoop",
+  webhookSigningKey: process.env.AGENT_COMPUTER_WEBHOOK_SIGNING_KEY!,
   requestTimeoutMs: 285_000,
   async handler(request, context) {
     const history = await context.session.history();
@@ -114,7 +69,8 @@ export default chatKitEndpoint({
       onCacheMessage: attachmentHandlers.onCacheMessage,
       onHydrateMessage: attachmentHandlers.onHydrateMessage,
     });
-    const { tools, closeMcp } = await managedMcpTools(context.sessionId, context.session);
+    const displayAgentId = context.body.session?.parentAgentId ?? "computer";
+    const tools = await localTools(context.sessionId, displayAgentId);
     const inference = await prepareInference(tools, request.signal);
     const result = streamText({
       ...inference,
@@ -122,9 +78,7 @@ export default chatKitEndpoint({
       abortSignal: request.signal,
       instructions,
       messages: await convertToModelMessages(messages),
-      prepareStep: prepareChatKitAgentStep(tools),
-      stopWhen: [stopAfterChatKitMessage, stepCountIs(20)],
-      onFinish: () => void closeMcp(),
+      stopWhen: stepCountIs(20),
     });
     return result.toUIMessageStreamResponse({
       originalMessages: messages,

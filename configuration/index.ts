@@ -22,7 +22,26 @@ export default Configuration({
     auth: new TildeAuthProvider(tilde),
     controlService: runtime,
     agentService: runtime,
-    agent: new TildeAgentProvider(tilde),
+    agent: new TildeAgentProvider(tilde, {
+      resourcePolicy: ({ id }) => ({
+        ...(id === "computer"
+          ? {
+              enableExternalTools: false,
+              enableMcpServer: false,
+              enableSkillRegistry: false,
+              enableTildeControlPlane: false,
+            }
+          : {}),
+        permissions: {
+          delegate_to_other_agents:
+            id === "computer" ? { mode: "none" } : { mode: "only", ids: ["computer"] },
+          create_multiplayer_sessions: {
+            with_agents: { mode: "none" },
+            with_users: { mode: "none" },
+          },
+        },
+      }),
+    }),
     computer: new ExeDevComputerProvider({ platform: exe }),
     inference: new VercelInferenceProvider(vercel),
     git: new CodeStorageGitProvider(),

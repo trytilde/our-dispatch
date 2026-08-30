@@ -234,7 +234,7 @@ export interface TriggerSentence {
 }
 
 /**
- * Split the server-rendered schedule description into grokbot's lead/rest
+ * Split the server-rendered schedule description into a compact lead/rest
  * sentence pair ("Every" + "day at 07:00 UTC"). Falls back to the raw cron
  * expression when no description was rendered.
  */

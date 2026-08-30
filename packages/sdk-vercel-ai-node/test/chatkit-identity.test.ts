@@ -100,6 +100,7 @@ describe("parseChatKitRequestBody", () => {
         provider_id: "chatkit.channel.slack",
         provider_display_name: "Slack",
         replies_route_to_provider: true,
+        parent_agent_id: "factory",
       },
       messages: [
         {
@@ -111,6 +112,7 @@ describe("parseChatKitRequestBody", () => {
       ],
     });
     expect(body.session?.providerDisplayName).toBe("Slack");
+    expect(body.session?.parentAgentId).toBe("factory");
     expect(body.messages[0]?.identity?.speakerLabel).toBe("Dan Blignaut (dan@faro.co)");
   });
 

@@ -14,10 +14,16 @@ import {
   BotSelectionDialog,
   ClockIcon,
   ConnectorSetupDialog,
+  Dialog,
+  DialogContent,
+  DialogTitle,
   getThemePreference,
   MenuIcon,
   PluginsIcon,
   PluginsCatalog,
+  RoutineEditor,
+  RoutineProvidersSettings,
+  RoutineSettings,
   resolvePluginIconUrl,
   Sheet,
   SheetContent,
@@ -26,7 +32,6 @@ import {
   setThemePreference,
   type ConnectorSetupSubmit,
   SignalsIcon,
-  SignalsSettings,
   type ThemePreference,
 } from "@tryopenbot/ui";
 import { openBotRuntime } from "../runtime.js";
@@ -461,8 +466,8 @@ export function SettingsApp({ section = "general" }: SettingsAppProps = {}) {
             <PluginsSettings agents={agents} kind={section} />
           </SettingsContent>
         ) : section === "routines" ? (
-          <SettingsContent width="constrained">
-            <SignalsSettingsContainer />
+          <SettingsContent width="wide">
+            <RoutineSettingsContainer agents={agents} />
           </SettingsContent>
         ) : (
           <SettingsContent width="constrained">
@@ -569,9 +574,16 @@ function SettingsNavigation({
   );
 }
 
-function SignalsSettingsContainer() {
+function RoutineSettingsContainer({ agents }: { agents: readonly ChatAgent[] }) {
   const signals = useStore(openBotRuntime.store, (state) => state.signals);
+  const routines = useStore(openBotRuntime.store, (state) => state.routines);
   const [connectProviderId, setConnectProviderId] = useState("");
+  const [creatingForBot, setCreatingForBot] = useState(false);
+  const [editing, setEditing] = useState<{ agentId: string; routineId: string | null } | null>(
+    null,
+  );
+  const [running, setRunning] = useState(false);
+  const creatingRef = useRef(false);
   const [rowNotices, setRowNotices] = useState<
     Record<string, { text: string; tone: "success" | "danger" }>
   >({});
@@ -581,6 +593,27 @@ function SignalsSettingsContainer() {
     void openBotRuntime.actions.refreshSignalProviders().catch(() => undefined);
     void openBotRuntime.actions.refreshSignalInstances().catch(() => undefined);
   }, []);
+
+  const agentIdsKey = agents.map((agent) => agent.id).join("\0");
+  useEffect(() => {
+    void Promise.all(agents.map((agent) => openBotRuntime.actions.refreshRoutines(agent.id))).catch(
+      () => undefined,
+    );
+    // Bot identity, not array identity, controls the remote snapshots.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [agentIdsKey]);
+
+  const routineRows = agents.flatMap((agent) =>
+    (routines.byAgentId[agent.id] ?? []).map((routine) => ({
+      routine,
+      botName: agent.display_name,
+    })),
+  );
+  const editedRoutine = editing?.routineId
+    ? ((routines.byAgentId[editing.agentId] ?? []).find(
+        (routine) => routine.id === editing.routineId,
+      ) ?? null)
+    : null;
 
   const timers = noticeTimersRef.current;
   useEffect(
@@ -617,31 +650,12 @@ function SignalsSettingsContainer() {
 
   return (
     <>
-      <SignalsSettings
-        deliveriesByInstanceId={signals.deliveriesByInstanceId}
+      <RoutineProvidersSettings
         error={signals.error || undefined}
         instances={signals.instances}
         onConnectProvider={setConnectProviderId}
         onDeleteInstance={(instance) =>
           void withNotice(instance, () => openBotRuntime.actions.deleteSignalInstance(instance.id))
-        }
-        onRotateSigningKey={(instance, signingSecret) =>
-          void withNotice(
-            instance,
-            async () => {
-              await openBotRuntime.actions.updateSignalInstance(instance.id, { signingSecret });
-            },
-            "Signing key rotated",
-          )
-        }
-        onTestInstance={(instance) =>
-          void withNotice(
-            instance,
-            async () => {
-              await openBotRuntime.actions.testSignalInstance(instance.id);
-            },
-            "Test delivered",
-          )
         }
         onToggleInstance={(instance, enabled) =>
           void withNotice(instance, async () => {
@@ -650,13 +664,96 @@ function SignalsSettingsContainer() {
             });
           })
         }
-        onViewDeliveries={(instanceId) =>
-          void openBotRuntime.actions.refreshSignalDeliveries(instanceId).catch(() => undefined)
-        }
         providers={signals.providers}
         rowNotices={rowNotices}
         settled={signals.status === "ready" || signals.status === "error"}
       />
+      <RoutineSettings
+        error={routines.error || undefined}
+        onCreate={() => setCreatingForBot(true)}
+        onDelete={(routine) =>
+          void openBotRuntime.actions.deleteRoutine(routine.id, routine.agent_id)
+        }
+        onEdit={(routine) => setEditing({ agentId: routine.agent_id, routineId: routine.id })}
+        onToggle={(routine, enabled) =>
+          void openBotRuntime.actions.updateRoutine(routine.id, routine.agent_id, { enabled })
+        }
+        providers={signals.providers}
+        rows={routineRows}
+        settled={routines.status === "ready" || routines.status === "error"}
+      />
+      <BotSelectionDialog
+        agents={agents.map((agent) => ({ id: agent.id, name: agent.display_name }))}
+        onClose={() => setCreatingForBot(false)}
+        onSelect={(agentId) => {
+          setCreatingForBot(false);
+          setEditing({ agentId, routineId: null });
+        }}
+        open={creatingForBot}
+        title="Choose a bot for this routine"
+      />
+      <Dialog open={editing !== null} onOpenChange={(open) => !open && setEditing(null)}>
+        <DialogContent className="mobile-fullscreen-dialog flex h-[min(820px,calc(100dvh-32px))] max-w-[760px] flex-col overflow-hidden p-0">
+          <DialogTitle className="sr-only">
+            {editedRoutine ? `Edit ${editedRoutine.name}` : "Create routine"}
+          </DialogTitle>
+          {editing ? (
+            <RoutineEditor
+              deleteFailed={false}
+              deliveriesByInstanceId={signals.deliveriesByInstanceId}
+              instances={signals.instances}
+              onConnectProvider={setConnectProviderId}
+              onCreateDraft={(input) => {
+                if (creatingRef.current) return;
+                creatingRef.current = true;
+                const prior = new Set(
+                  (openBotRuntime.store.getState().routines.byAgentId[editing.agentId] ?? []).map(
+                    (routine) => routine.id,
+                  ),
+                );
+                void openBotRuntime.actions
+                  .createRoutine({ agentId: editing.agentId, ...input })
+                  .then(() => {
+                    const created = (
+                      openBotRuntime.store.getState().routines.byAgentId[editing.agentId] ?? []
+                    ).find((routine) => !prior.has(routine.id));
+                    if (created) setEditing({ agentId: editing.agentId, routineId: created.id });
+                  })
+                  .finally(() => {
+                    creatingRef.current = false;
+                  });
+              }}
+              onDelete={() => {
+                if (!editedRoutine) return setEditing(null);
+                void openBotRuntime.actions
+                  .deleteRoutine(editedRoutine.id, editing.agentId)
+                  .then(() => setEditing(null));
+              }}
+              onSelectSession={() => setEditing(null)}
+              onTestRun={() => {
+                if (!editedRoutine || running) return;
+                setRunning(true);
+                void openBotRuntime.actions
+                  .runRoutine(editedRoutine.id, editing.agentId)
+                  .finally(() => setRunning(false));
+              }}
+              onUpdate={(input) => {
+                if (editedRoutine)
+                  void openBotRuntime.actions.updateRoutine(
+                    editedRoutine.id,
+                    editing.agentId,
+                    input,
+                  );
+              }}
+              providers={signals.providers}
+              routine={editedRoutine}
+              running={running}
+              saveFailed={false}
+              togglePending={false}
+            />
+          ) : null}
+        </DialogContent>
+      </Dialog>
       {connectProviderId ? (
         <SignalConnectContainer
           onClose={() => setConnectProviderId("")}

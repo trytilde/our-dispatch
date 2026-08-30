@@ -18,11 +18,13 @@ import {
   chatkitUpdateChatProvider,
   chatkitUpdateAgentAvatar,
   chatkitRegisterVercelUiChatProvider,
+  chatkitSetAgentPermissions,
   AgentCredentialStrategy,
   AgentProvisioningStatus,
   ChatKitAgentConcurrencyPolicy,
   createTildeApiClient,
   type TildeApiClient,
+  type AgentPermissions,
 } from "@trytilde/sdk/api";
 import type { AgentProvider } from "../core.js";
 import { AgentProviderError } from "../core.js";
@@ -34,6 +36,21 @@ import { renderAgentAvatarPng } from "./avatar.js";
 export { tildeAgentProviderInitialization } from "./tools.js";
 
 export interface TildeAgentProviderConfig extends TildePlatformConfig {}
+
+export interface TildeAgentResourcePolicy {
+  enableExternalTools?: boolean;
+  enableMcpServer?: boolean;
+  enableTildeControlPlane?: boolean;
+  enableSkillRegistry?: boolean;
+  permissions?: AgentPermissions;
+}
+
+export interface TildeAgentProviderOptions {
+  resourcePolicy?: (agent: {
+    id: string;
+    kind: "primary" | "subagent";
+  }) => TildeAgentResourcePolicy;
+}
 
 type JsonRecord = Record<string, unknown>;
 const chatKitRealtimeChannelId = "openbot-chatkit-workspace";
@@ -58,8 +75,12 @@ export class TildeAgentProvider implements AgentProvider {
   readonly #teamId: string;
   readonly #skills: TildeSkillReconciler;
   readonly #tools: TildeToolReconciler;
+  readonly #resourcePolicy: NonNullable<TildeAgentProviderOptions["resourcePolicy"]>;
 
-  constructor(platformOrConfig: TildePlatform | TildeAgentProviderConfig) {
+  constructor(
+    platformOrConfig: TildePlatform | TildeAgentProviderConfig,
+    options: TildeAgentProviderOptions = {},
+  ) {
     this.platform =
       platformOrConfig instanceof TildePlatform
         ? platformOrConfig
@@ -80,6 +101,7 @@ export class TildeAgentProvider implements AgentProvider {
       throwOnError: false,
     });
     this.#teamId = config.teamId;
+    this.#resourcePolicy = options.resourcePolicy ?? (() => ({}));
     this.#skills = new TildeSkillReconciler({ ...config, fetch: limitedFetch });
     this.#tools = new TildeToolReconciler({
       client: createClient({
@@ -93,6 +115,10 @@ export class TildeAgentProvider implements AgentProvider {
 
   async #plan(context: DeploymentContext): Promise<DeploymentPlan> {
     const agent = requireAgent(context);
+    const policy = this.#resourcePolicy({
+      id: agent.id,
+      kind: context.agentKind ?? "subagent",
+    });
     return {
       summary: `Reconcile authored agent ${agent.id} with Tilde`,
       steps: [
@@ -100,8 +126,12 @@ export class TildeAgentProvider implements AgentProvider {
         "Create the shared OpenBot ChatKit workspace channel when missing",
         "Reconcile Vercel AI SDK endpoint URLs and enabled status",
         "Upload the agent's canonical avatar",
-        "Synchronize authored skills and exact registry membership",
-        "Reconcile dynamic MCP, Tilde control-plane, and deployment-platform tools",
+        policy.enableSkillRegistry === false
+          ? "Remove the agent skill registry"
+          : "Synchronize authored skills and exact registry membership",
+        policy.enableMcpServer === false
+          ? "Remove the dynamic MCP server and its remote tools"
+          : "Reconcile dynamic MCP, Tilde control-plane, and deployment-platform tools",
         context.devMode
           ? "Enable Tilde local-runtime tunneling"
           : "Use the deployed public agent-service URL",
@@ -111,6 +141,10 @@ export class TildeAgentProvider implements AgentProvider {
 
   async #deploy(context: DeploymentContext): Promise<void> {
     const { id: slug } = requireAgent(context);
+    const policy = this.#resourcePolicy({
+      id: slug,
+      kind: context.agentKind ?? "subagent",
+    });
     const origin = context.agentServiceOrigin ?? context.environment.AGENT_SERVICE_ORIGIN;
     if (!origin)
       throw new AgentProviderError(
@@ -125,7 +159,10 @@ export class TildeAgentProvider implements AgentProvider {
     const endpointUrl = new URL(`/api/agents/${slug}`, `${origin}/`);
     const hasCredentials =
       Boolean(context.environment[apiKeyName]) && Boolean(context.environment[webhookKeyName]);
-    const enabledSkills = await this.#skills.bundleSkills(context);
+    const enabledSkills =
+      policy.enableSkillRegistry === false
+        ? { custom: [], managed: [] }
+        : await this.#skills.bundleSkills(context);
     let operation = await this.#generated(`provision Agent Resource Bundle "${slug}"`, (signal) =>
       chatkitProvisionAgentResourceBundle({
         client: this.#api,
@@ -145,20 +182,26 @@ export class TildeAgentProvider implements AgentProvider {
               ? AgentCredentialStrategy.PRESERVE
               : AgentCredentialStrategy.ROTATE,
           },
-          mcp_server: {
-            enabled: true,
-            id: context.environment[`${prefix}_MCP_SERVER_ID`]?.trim() || `openbot-${slug}`,
-            name: `OpenBot ${slug}`,
-            dynamic_tool_discovery: true,
-            enable_tilde_control_plane: true,
-          },
-          skill_registry: {
-            enabled: true,
-            id: context.environment[`${prefix}_SKILL_REGISTRY_ID`]?.trim(),
-            name: `OpenBot ${slug}`,
-            description: `Skills available to the ${slug} OpenBot agent.`,
-            enabled_skills: enabledSkills,
-          },
+          mcp_server:
+            policy.enableMcpServer === false
+              ? { enabled: false }
+              : {
+                  enabled: true,
+                  id: context.environment[`${prefix}_MCP_SERVER_ID`]?.trim() || `openbot-${slug}`,
+                  name: `OpenBot ${slug}`,
+                  dynamic_tool_discovery: true,
+                  enable_tilde_control_plane: policy.enableTildeControlPlane ?? true,
+                },
+          skill_registry:
+            policy.enableSkillRegistry === false
+              ? { enabled: false }
+              : {
+                  enabled: true,
+                  id: context.environment[`${prefix}_SKILL_REGISTRY_ID`]?.trim(),
+                  name: `OpenBot ${slug}`,
+                  description: `Skills available to the ${slug} OpenBot agent.`,
+                  enabled_skills: enabledSkills,
+                },
         },
         signal,
       }),
@@ -185,10 +228,12 @@ export class TildeAgentProvider implements AgentProvider {
         }),
       );
     }
-    const mcpServerId = operation.resources.find(
-      ({ kind, key }) => kind === "mcp_server" && key === "default",
-    )?.id;
-    if (!mcpServerId)
+    const mcpServerId =
+      policy.enableMcpServer === false
+        ? undefined
+        : operation.resources.find(({ kind, key }) => kind === "mcp_server" && key === "default")
+            ?.id;
+    if (policy.enableMcpServer !== false && !mcpServerId)
       throw new AgentProviderError(
         "provider_unavailable",
         `Tilde returned no MCP server for ${slug}`,
@@ -232,15 +277,31 @@ export class TildeAgentProvider implements AgentProvider {
         signal,
       }),
     );
-    await persistEnvironment(
-      context,
-      `${prefix}_MCP_SERVER_ID`,
-      mcpServerId,
-      `Tilde MCP server ID for ${slug}.`,
-    );
+    if (mcpServerId) {
+      await persistEnvironment(
+        context,
+        `${prefix}_MCP_SERVER_ID`,
+        mcpServerId,
+        `Tilde MCP server ID for ${slug}.`,
+      );
+    } else {
+      await unsetEnvironment(context, `${prefix}_MCP_SERVER_ID`);
+    }
+    if (policy.permissions) {
+      await this.#generated(`set permissions for "${slug}"`, (signal) =>
+        chatkitSetAgentPermissions({
+          client: this.#api,
+          path: { team_id: this.#teamId, agent_id: slug },
+          body: policy.permissions!,
+          signal,
+        }),
+      );
+    }
     await Promise.all([
       this.#ensureChatKitWorkspaceChannel(slug, slug, context.agentKind ?? "subagent"),
-      this.#tools.deployExternalResources(context),
+      policy.enableExternalTools === false
+        ? undefined
+        : this.#tools.deployExternalResources(context),
       unsetEnvironment(context, `${prefix}_AGENT_ID`),
       unsetEnvironment(context, `${prefix}_PROVIDER_ID`),
       unsetEnvironment(context, `${prefix}_SKILL_REGISTRY_ID`),
