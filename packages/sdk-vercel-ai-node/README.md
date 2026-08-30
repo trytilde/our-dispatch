@@ -26,6 +26,8 @@ pnpm add @trytilde/sdk @trytilde/sdk-vercel-ai-node zod
   AgentMail Signals can be handled through the discriminated `AgentMailSignalByType` map.
 - `ChatKitEndpointContext` exposes validated provider metadata through typed `github`, `slack`, and
   `linq` fields, plus canonical receiving-agent metadata through optional `context.agent`.
+  Delegated sessions expose the authenticated caller through
+  `context.body.session.parentAgentId`; direct sessions omit it.
   `ChatKitRequestAgent` includes the agent ID, display name, provider, status, principal, avatar
   path, and lifecycle timestamps. `LinqChatKitMessageMetadata` describes inbound Linq chats,
   handles, and parts.
