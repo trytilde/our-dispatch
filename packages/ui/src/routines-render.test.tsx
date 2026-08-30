@@ -4,8 +4,9 @@ import type { Routine, SignalInstance, SignalProvider } from "@tryopenbot/client
 import { AgentDetailsPane } from "./agent-details-pane.js";
 import { ChatHeader } from "./chat-components.js";
 import { RoutineEditor } from "./routine-editor.js";
+import { RoutineSettings } from "./routine-settings.js";
 import { RoutinesSection } from "./routines-section.js";
-import { SignalsSettings } from "./signals-settings.js";
+import { RoutineProvidersSettings } from "./signals-settings.js";
 
 const providers: SignalProvider[] = [
   {
@@ -182,22 +183,39 @@ describe("routines surfaces render", () => {
     expect(html).toContain("What should this routine do each time it runs?");
   });
 
-  it("renders signal connections with their webhook url", () => {
+  it("renders routine provider cards without technical webhook details", () => {
     const html = renderToStaticMarkup(
-      <SignalsSettings
-        deliveriesByInstanceId={{}}
+      <RoutineProvidersSettings
         instances={instances}
         onConnectProvider={noop}
         onDeleteInstance={noop}
-        onRotateSigningKey={noop}
-        onTestInstance={noop}
         onToggleInstance={noop}
-        onViewDeliveries={noop}
         providers={providers}
         settled
       />,
     );
+    expect(html).toContain("Routine providers");
     expect(html).toContain("GitHub connection");
-    expect(html).toContain("github-signals-spi_1/events");
+    expect(html).not.toContain("github-signals-spi_1/events");
+    expect(html).not.toContain("webhook");
+  });
+
+  it("renders enabled routines as a searchable management table", () => {
+    const html = renderToStaticMarkup(
+      <RoutineSettings
+        onCreate={noop}
+        onDelete={noop}
+        onEdit={noop}
+        onToggle={noop}
+        providers={providers}
+        rows={[{ botName: "Factory", routine: scheduled }]}
+        settled
+      />,
+    );
+    expect(html).toContain("Search routines");
+    expect(html).toContain("Morning news");
+    expect(html).toContain("Factory");
+    expect(html).toContain("Enabled");
+    expect(html).not.toContain("Webhook URL");
   });
 });

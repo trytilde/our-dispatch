@@ -671,7 +671,9 @@ export function WorkspaceAccount({
   onSignOut,
 }: WorkspaceAccountProps) {
   const [open, setOpen] = useState(false);
-  const name = account.name?.trim() || "Your account";
+  const suppliedName = account.name?.trim();
+  const email = account.email?.trim().toLowerCase();
+  const name = suppliedName && suppliedName.toLowerCase() !== email ? suppliedName : "Your account";
   const detail = account.workspaceName || account.organizationName;
 
   return (

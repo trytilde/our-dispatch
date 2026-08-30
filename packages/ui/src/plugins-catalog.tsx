@@ -1267,18 +1267,6 @@ function capabilityMark(name: string): string {
     .toUpperCase();
 }
 
-const platformIconAliases: Readonly<Record<string, string>> = {
-  "amazon s3": "aws-s3",
-  "aws s3": "aws-s3",
-  "aws s3 bucket": "aws-s3",
-  "google bigquery": "google-bigquery",
-  "google gmail": "gmail",
-  "google mail": "gmail",
-  "mongo db": "mongodb",
-  "open ai": "openai",
-  postgres: "postgresql",
-};
-
 const modalIconUrl =
   "https://cdn.jsdelivr.net/gh/glincker/thesvg@main/public/icons/modal/default.svg";
 const e2bIconUrl =
@@ -1323,11 +1311,7 @@ function platformIconUrl(value: string | undefined): string | undefined {
     .trim();
   if (!normalized || /^(?:tilde|debug|message internal)\b/.test(normalized)) return undefined;
   const override = platformIconOverrides[normalized];
-  if (override) return override;
-  const slug =
-    platformIconAliases[normalized] ??
-    normalized.replaceAll(/[^a-z0-9]+/g, "-").replaceAll(/^-|-$/g, "");
-  return slug ? `https://thesvg.org/icons/${slug}/default.svg` : undefined;
+  return override;
 }
 
 function isImageUrl(value: string | undefined): value is string {

@@ -18,6 +18,11 @@ import {
 
 type RequestJson = (path: string, init?: RequestInit) => Promise<unknown>;
 
+export interface TildePluginsTransport {
+  requestJson: RequestJson;
+  apiBaseUrl?: string | (() => string | undefined);
+}
+
 const RecordSchema = z.record(z.string(), z.unknown());
 const NativeResourcePageSchema = z.object({
   items: z.array(RecordSchema),
@@ -37,7 +42,18 @@ interface TildePluginResources {
   skill_registries: NativeResource<SkillRegistry>[];
 }
 
-export function createTildePluginsClient(requestJson: RequestJson) {
+export function createTildePluginsClient(transport: RequestJson | TildePluginsTransport) {
+  const requestJson = typeof transport === "function" ? transport : transport.requestJson;
+  const apiBaseUrl = () => {
+    if (typeof transport === "function") return undefined;
+    return typeof transport.apiBaseUrl === "function"
+      ? transport.apiBaseUrl()
+      : transport.apiBaseUrl;
+  };
+  let cachedCatalog: { expiresAt: number; value: Promise<PluginsCatalog> } | undefined;
+  const invalidateCatalog = () => {
+    cachedCatalog = undefined;
+  };
   const listToolProviders = () =>
     listNativeResources<ToolGroupSourceSerialized>(
       requestJson,
@@ -99,6 +115,18 @@ export function createTildePluginsClient(requestJson: RequestJson) {
   }
 
   async function getPluginsCatalog(): Promise<PluginsCatalog> {
+    if (cachedCatalog && cachedCatalog.expiresAt > Date.now()) return await cachedCatalog.value;
+    const value = loadPluginsCatalog();
+    cachedCatalog = { expiresAt: Date.now() + 30_000, value };
+    try {
+      return await value;
+    } catch (error) {
+      invalidateCatalog();
+      throw error;
+    }
+  }
+
+  async function loadPluginsCatalog(): Promise<PluginsCatalog> {
     const [resources, managed] = await Promise.all([
       catalog(),
       requestJson("/api/tilde/mcp/provider-catalog"),
@@ -107,6 +135,7 @@ export function createTildePluginsClient(requestJson: RequestJson) {
       projectPlugins(
         resources,
         ManagedProviderPageSchema.parse(managed).items as NativeResource<McpProviderCatalogEntry>[],
+        apiBaseUrl(),
       ),
     );
   }
@@ -178,6 +207,7 @@ export function createTildePluginsClient(requestJson: RequestJson) {
           ),
         ),
       );
+      invalidateCatalog();
     },
 
     async setToolAccountForAgent(
@@ -205,12 +235,14 @@ export function createTildePluginsClient(requestJson: RequestJson) {
           ),
         );
         if (result.complete !== true) throw new Error("Tilde could not enable and bind every tool");
+        invalidateCatalog();
         return;
       }
       await requestJson(
         `/api/tilde/mcp/mcp-server/${encodeURIComponent(serverId)}/tool-group/${encodeURIComponent(accountId)}`,
         { method: "DELETE" },
       );
+      invalidateCatalog();
     },
 
     async setSkillForAgent(skillId: string, agentId: string, enabled: boolean): Promise<void> {
@@ -269,6 +301,7 @@ export function createTildePluginsClient(requestJson: RequestJson) {
           ? [...new Set([...currentIds, skillId])]
           : currentIds.filter((id) => id !== skillId),
       );
+      invalidateCatalog();
     },
   };
 }
@@ -437,6 +470,7 @@ async function replaceRegistrySkills(
 function projectPlugins(
   catalog: TildePluginResources,
   managedProviders: NativeResource<McpProviderCatalogEntry>[],
+  apiBaseUrl: string | undefined,
 ): PluginsCatalog {
   const agentServers = new Map(
     catalog.mcp_servers.flatMap((server) => {
@@ -457,7 +491,7 @@ function projectPlugins(
   const tools: PluginsCatalog["tools"] = catalog.tool_providers
     .filter((provider) => !proxiedSourceIds.has(text(provider.type_id)))
     .map((provider) => ({
-      provider: serializeProvider(provider),
+      provider: serializeProvider(provider, apiBaseUrl),
       accounts: catalog.tool_accounts
         .filter((account) => text(account.tool_group_source_type_id) === text(provider.type_id))
         .map((account) => ({
@@ -473,24 +507,41 @@ function projectPlugins(
         text(record(record(item.server)?.endpoint_configuration)?.catalog_provider_id) ===
         text(provider.id),
     );
+    const accounts = connections.map((item) => {
+      const account = record(item.tool_group_instance) ?? {};
+      return {
+        ...serializeAccount(account),
+        display_name: text(record(item.server)?.display_name) || text(account.id),
+        provider_type_id: providerId,
+        assigned_agent_ids: assignedAgentIds(text(account.id), agentServers),
+      };
+    });
+    const native = tools.find(
+      (entry) =>
+        entry.provider.type_id === text(provider.id) ||
+        entry.provider.name.toLowerCase() ===
+          (text(provider.name) || text(provider.id)).toLowerCase(),
+    );
+    if (native) {
+      const knownIds = new Set(native.accounts.map((account) => account.id));
+      native.accounts.push(...accounts.filter((account) => !knownIds.has(account.id)));
+      continue;
+    }
+    const managedIconUrl = imageUrl(
+      apiBaseUrl,
+      provider.icon_url,
+      record(provider.metadata)?.icon_url,
+    );
     tools.push({
       provider: {
         type_id: providerId,
         name: text(provider.name) || text(provider.id),
         documentation: text(provider.description),
-        icon_slug: text(provider.id),
+        ...(managedIconUrl ? { icon_url: managedIconUrl } : {}),
         categories: strings(provider.categories),
         credential_sources: [managedCredentialSource(provider)],
       },
-      accounts: connections.map((item) => {
-        const account = record(item.tool_group_instance) ?? {};
-        return {
-          ...serializeAccount(account),
-          display_name: text(record(item.server)?.display_name) || text(account.id),
-          provider_type_id: providerId,
-          assigned_agent_ids: assignedAgentIds(text(account.id), agentServers),
-        };
-      }),
+      accounts,
     });
   }
 
@@ -531,7 +582,7 @@ function projectPlugins(
 
   return {
     tools,
-    skills: serializeSkills(catalog, agentIds, agentRegistries),
+    skills: serializeSkills(catalog, agentIds, agentRegistries, apiBaseUrl),
   };
 }
 
@@ -539,6 +590,7 @@ function serializeSkills(
   catalog: TildePluginResources,
   agentIds: string[],
   agentRegistries: ReadonlyMap<string, Record<string, unknown>>,
+  apiBaseUrl: string | undefined,
 ) {
   const materializedTrustedIds = new Set<string>();
   const trusted = catalog.skill_providers.map((provider) => ({
@@ -574,7 +626,8 @@ function serializeSkills(
     const sourceProvider = catalog.tool_providers.find(
       (provider) => text(provider.type_id) === text(skill.source_provider_id),
     );
-    const group = grouped.get(category) ?? teamSkillProvider(category, skill, sourceProvider);
+    const group =
+      grouped.get(category) ?? teamSkillProvider(category, skill, sourceProvider, apiBaseUrl);
     group.skills.push({
       id: text(skill.id),
       name: displaySkillName(text(skill.name), agentIds),
@@ -590,8 +643,10 @@ function teamSkillProvider(
   category: string,
   skill: Record<string, unknown>,
   sourceProvider: Record<string, unknown> | undefined,
+  apiBaseUrl: string | undefined,
 ) {
   const iconUrl = imageUrl(
+    apiBaseUrl,
     skill.icon_url,
     record(skill.metadata)?.icon_url,
     sourceProvider?.icon_url,
@@ -618,9 +673,10 @@ function teamSkillProvider(
   };
 }
 
-function serializeProvider(provider: Record<string, unknown>) {
+function serializeProvider(provider: Record<string, unknown>, apiBaseUrl: string | undefined) {
   const metadata = record(provider.metadata);
   const iconUrl = imageUrl(
+    apiBaseUrl,
     provider.icon_url,
     metadata?.icon_url,
     metadata?.logo_url,
@@ -856,11 +912,19 @@ function text(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
 }
 
-function imageUrl(...values: unknown[]): string | undefined {
-  return values.find(
-    (value): value is string =>
-      typeof value === "string" && /^(?:https?:\/\/|data:image\/)/.test(value),
-  );
+function imageUrl(apiBaseUrl: string | undefined, ...values: unknown[]): string | undefined {
+  for (const value of values) {
+    if (typeof value !== "string" || !value.trim()) continue;
+    if (/^(?:https?:\/\/|data:image\/)/.test(value)) return value;
+    if (value.startsWith("/") && apiBaseUrl) {
+      try {
+        return new URL(value, apiBaseUrl).toString();
+      } catch {
+        continue;
+      }
+    }
+  }
+  return undefined;
 }
 
 function firstText(...values: unknown[]): string | undefined {

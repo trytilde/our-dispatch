@@ -2,6 +2,65 @@ import { describe, expect, it, vi } from "vite-plus/test";
 import { createTildePluginsClient } from "./tilde-plugins.js";
 
 describe("Tilde plugin client", () => {
+  it("prefers first-class providers, resolves their Tilde icons, and caches one snapshot", async () => {
+    const requestJson = vi.fn(async (path: string) => {
+      if (path.startsWith("/api/tilde/mcp/available-tool-groups?"))
+        return {
+          items: [
+            {
+              type_id: "stripe",
+              name: "Stripe",
+              icon_url: "/app/images/tool-provider-icons/stripe.svg",
+            },
+            {
+              type_id: "agentmail",
+              name: "AgentMail",
+              icon_url: "/app/images/tool-provider-icons/agentmail.svg",
+            },
+          ],
+        };
+      if (path.startsWith("/api/tilde/mcp/tool-group?"))
+        return {
+          items: [
+            {
+              id: "stripe-work",
+              display_name: "Work",
+              status: "active",
+              tool_group_source_type_id: "stripe",
+            },
+          ],
+        };
+      if (path === "/api/tilde/mcp/provider-catalog")
+        return {
+          items: [
+            { id: "stripe", name: "Stripe", tool_provider_type_id: "managed_mcp:stripe" },
+            { id: "agentmail", name: "AgentMail", tool_provider_type_id: "managed_mcp:agentmail" },
+          ],
+        };
+      if (path === "/api/tilde/skill-providers") return { items: [] };
+      return { items: [] };
+    });
+    const client = createTildePluginsClient({
+      requestJson,
+      apiBaseUrl: () => "https://api.trytilde.ai",
+    });
+
+    const first = await client.getPluginsCatalog();
+    const second = await client.getPluginsCatalog();
+
+    expect(first.tools.map(({ provider }) => provider.type_id)).toEqual(["stripe", "agentmail"]);
+    expect(first.tools[0]?.accounts).toHaveLength(1);
+    expect(first.tools[0]?.provider.icon_url).toBe(
+      "https://api.trytilde.ai/app/images/tool-provider-icons/stripe.svg",
+    );
+    expect(second).toEqual(first);
+    expect(
+      requestJson.mock.calls.filter(([path]) =>
+        String(path).startsWith("/api/tilde/mcp/available-tool-groups?"),
+      ),
+    ).toHaveLength(1);
+  });
+
   it("loads and exhausts native Tilde resource pages", async () => {
     const requestJson = vi.fn(async (path: string) => {
       if (path.startsWith("/api/tilde/mcp/available-tool-groups?"))

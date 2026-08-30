@@ -465,6 +465,7 @@ test("keeps the chat composition inside a mobile viewport", async ({ page }) => 
   expect(conversation.x + conversation.width).toBeLessThanOrEqual(390);
   expect(composer.x).toBeGreaterThanOrEqual(0);
   expect(composer.x + composer.width).toBeLessThanOrEqual(390);
+  expect(844 - (composer.y + composer.height)).toBeLessThanOrEqual(3);
   await expect(page.getByRole("textbox", { name: "Message" })).toHaveCSS("font-size", "16px");
   await expect(page.locator(".composer-shell")).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
   for (const control of [
@@ -473,8 +474,8 @@ test("keeps the chat composition inside a mobile viewport", async ({ page }) => 
   ]) {
     const bounds = await control.boundingBox();
     if (!bounds) throw new Error("Mobile composer control is not visible");
-    expect(bounds.width).toBeGreaterThanOrEqual(44);
-    expect(bounds.height).toBeGreaterThanOrEqual(44);
+    expect(bounds.width).toBe(40);
+    expect(bounds.height).toBe(40);
   }
   await expect(page.locator("body")).toHaveJSProperty("scrollWidth", 390);
 });

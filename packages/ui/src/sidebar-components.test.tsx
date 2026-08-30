@@ -15,6 +15,17 @@ describe("WorkspaceAccount", () => {
     expect(markup).toContain("Open account menu for Your account");
     expect(markup).not.toContain("owner@example.com");
   });
+
+  it("does not repeat an email-shaped session name above Plugins", () => {
+    const account = {
+      name: "owner@example.com",
+      email: "owner@example.com",
+    } as WorkspaceAccountProps["account"];
+    const markup = renderToStaticMarkup(createElement(WorkspaceAccount, { account }));
+
+    expect(markup).toContain("Your account");
+    expect(markup).not.toContain("owner@example.com");
+  });
 });
 
 describe("AgentListItem chat rows", () => {

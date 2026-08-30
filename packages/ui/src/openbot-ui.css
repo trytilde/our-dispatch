@@ -8355,49 +8355,59 @@ button.system-event-chip {
 
   .rich-chat .composer-shell,
   .rich-chat.workspace-shell.computer-floating.workspace-open .chat-pane > .composer-shell {
-    position: sticky;
+    position: fixed;
     z-index: 10;
-    bottom: 0;
-    width: calc(100% - 16px);
-    max-width: calc(100% - 16px);
-    margin: 0 8px max(8px, env(safe-area-inset-bottom));
+    right: 4px;
+    bottom: max(2px, env(safe-area-inset-bottom));
+    left: 4px;
+    width: calc(100% - 8px);
+    max-width: calc(100% - 8px);
+    margin: 0;
     padding: 0;
     align-self: end;
     background: transparent;
   }
 
   .rich-chat .composer {
-    padding: 6px;
-    border-radius: 22px;
+    padding: 4px;
+    border-color: var(--line-strong);
+    border-radius: 24px;
+    background: color-mix(in srgb, var(--surface) 96%, transparent);
+    box-shadow: 0 1px 8px color-mix(in srgb, var(--ink) 10%, transparent);
+    backdrop-filter: blur(14px);
+  }
+
+  .rich-chat .conversation {
+    padding-bottom: 72px;
   }
 
   .rich-chat .composer > .composer-input-grid,
   .rich-chat .composer.expanded .composer-input-grid {
-    grid-template-columns: 44px minmax(0, 1fr) 44px;
+    grid-template-columns: 40px minmax(0, 1fr) 40px;
     gap: 2px;
   }
 
   .rich-chat .composer textarea,
   .rich-chat .composer.expanded textarea {
-    min-height: 44px;
-    padding: 10px 6px;
+    min-height: 40px;
+    padding: 9px 5px;
     font-size: 16px !important;
     line-height: 22px;
   }
 
   .rich-chat .composer .attach-button,
   .rich-chat .composer .composer-actions > button {
-    width: 44px;
-    height: 44px;
+    width: 40px;
+    height: 40px;
   }
 
   .rich-chat .composer-attachment-control,
   .rich-chat .composer-actions {
-    min-height: 44px;
+    min-height: 40px;
   }
 
   .composer-attachment-menu {
     left: -2px;
-    right: -46px;
+    right: -42px;
   }
 }

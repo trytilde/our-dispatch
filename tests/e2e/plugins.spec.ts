@@ -713,6 +713,10 @@ test.beforeEach(async ({ page }) => {
       await route.fulfill({ json: { items: [] } });
       return;
     }
+    if (path === "/api/tilde/automations" && method === "GET") {
+      await route.fulfill({ json: { items: [] } });
+      return;
+    }
     await route.fulfill({ status: 404, json: { error: `Unhandled ${method} ${path}` } });
   });
   await page.route("**/api/chat/**", async (route) => {
@@ -783,6 +787,12 @@ test("manages tools and skills by bot", async ({ page }) => {
   await expect(page.locator('[data-settings-width="constrained"]')).toBeVisible();
   await settingsSidebar.getByRole("button", { name: "Routines" }).click();
   await expect(page).toHaveURL(/\/settings\/plugins\/routines$/);
+  await expect(page.locator('[data-settings-width="wide"]')).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Routine providers" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Routines", exact: true })).toBeVisible();
+  await expect(page.getByPlaceholder("Search routine providers")).toBeVisible();
+  await expect(page.getByPlaceholder("Search routines")).toBeVisible();
+  await expect(page.getByText("Webhook URL", { exact: true })).toHaveCount(0);
   await expect(settingsSidebar.getByRole("button", { name: "Routines" })).toHaveAttribute(
     "aria-current",
     "page",
@@ -969,7 +979,7 @@ test("manages tools and skills by bot", async ({ page }) => {
   await expect(page.getByText("AWS CDK", { exact: true })).toHaveCount(0);
   await expect(
     catalog.locator('img[src="https://thesvg.org/icons/github/default.svg"]'),
-  ).toBeVisible();
+  ).toHaveCount(0);
   await page.getByRole("button", { name: "Category", exact: true }).click();
   await page.getByRole("menuitemcheckbox", { name: "Productivity" }).click();
   await expect(catalog.getByRole("button", { name: /^Productivity/ })).toBeVisible();
@@ -1078,7 +1088,7 @@ test("manages tools and skills by bot", async ({ page }) => {
   await expect(page.getByText("Sentry", { exact: true })).toBeVisible();
   await expect(
     catalog.locator('img[src="https://thesvg.org/icons/sentry/default.svg"]'),
-  ).toBeVisible();
+  ).toHaveCount(0);
   await expect(githubSummary).toHaveCount(0);
 
   await page.setViewportSize({ width: 820, height: 720 });

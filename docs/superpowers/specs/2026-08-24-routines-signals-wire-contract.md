@@ -76,7 +76,7 @@ Tilde resources without an `openbot.group` stamp are ignored by the unified list
   `{ "session_id": "…" }`.
 
 Mutations (`POST`, `PATCH`, `DELETE`) return the full refreshed
-`{ "items": Routine[] }` for the agent (grokbot's whole-array replacement model), so
+`{ "items": Routine[] }` for the agent (the reference's whole-array replacement model), so
 clients never patch caches. `POST /run` is the exception (returns the session id;
 client refreshes separately).
 
@@ -159,7 +159,7 @@ control service never echoes `configuration` back to clients.
 `contracts/routines.ts`: `RoutineSchema`, `RoutineTriggerSchema` (discriminated
 union), `RoutineListSchema`, camelCase inputs `CreateRoutineInput`,
 `UpdateRoutineInput`, `RoutineTriggerSpec`; helpers `describeEventTrigger(trigger,
-providers)` and `scheduleTriggerSentence(trigger)` producing grokbot's lead/rest
+providers)` and `scheduleTriggerSentence(trigger)` producing the reference lead/rest
 sentence pairs, plus `SCHEDULE_PRESETS` (Every hour / Every day / Weekdays / Every
 week / Every month) and `cronForPreset(...)` — all pure, shared web/Expo.
 
