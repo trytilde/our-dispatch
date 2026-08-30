@@ -93,6 +93,7 @@ describe("requiresComputerDelegation", () => {
     "Find my calendar tab and click the next-event button",
     "Please scroll down and take a screenshot",
     "Launch the desktop app and dismiss its dialog",
+    "Can you open the browser and visit example.com?",
   ])("routes explicit graphical work: %s", (text) => {
     expect(requiresComputerDelegation([{ role: "user", parts: [{ type: "text", text }] }])).toBe(
       true,
@@ -104,6 +105,8 @@ describe("requiresComputerDelegation", () => {
     "Explain how browser cookies work",
     "What does click-through rate mean?",
     "I clicked the browser yesterday",
+    "How do I open a browser in Python?",
+    "How can I open the desktop app myself?",
     "Find the latest sales figures in the connected CRM",
   ])("leaves non-graphical questions and discussion local: %s", (text) => {
     expect(requiresComputerDelegation([{ role: "user", parts: [{ type: "text", text }] }])).toBe(

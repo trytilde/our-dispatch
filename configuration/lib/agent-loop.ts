@@ -114,6 +114,9 @@ export function requiresComputerDelegation(
     /\b(?:open|visit|navigate to|go to|inspect|read|summarize|check)\s+(?:the\s+)?https?:\/\//i;
   const imperativeInput =
     /(?:^|[.!?]\s*|\b(?:please|can you|could you|would you)\s+)(?:click|tap|scroll|drag|type into|press|take a screenshot)\b/i;
+  const instructionalQuestion =
+    /^(?:how\s+(?:do|can|could|would|should)\s+(?:i|we|one|someone)\b|what\s+(?:does|do)\b|(?:explain|define|describe)\b)/i;
+  if (instructionalQuestion.test(text.trim())) return false;
   return (
     urlAction.test(text) ||
     (graphicalAction.test(text) && graphicalSurface.test(text)) ||
