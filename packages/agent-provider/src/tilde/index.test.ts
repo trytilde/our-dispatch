@@ -225,6 +225,70 @@ describe("TildeAgentProvider", () => {
       "wiki provider unavailable",
     );
   });
+
+  it("removes the agent bundle, channel, and persisted configuration idempotently", async () => {
+    const context = await agentContext("scout");
+    const external = vi
+      .spyOn(TildeToolReconciler.prototype, "removeExternalResources")
+      .mockResolvedValue();
+    Object.assign(context.environment, {
+      AGENT_SCOUT_NAME: "Scout",
+      AGENT_SCOUT_API_KEY: "agent-api-key",
+      AGENT_SCOUT_WEBHOOK_SIGNING_KEY: "signing-key",
+      AGENT_SCOUT_MCP_SERVER_ID: "openbot-scout",
+      AGENT_SCOUT_COMPUTER_SERVICE_URL: "https://computer.test",
+    });
+    const unsetEnvironment: string[] = [];
+    const unsetSecret: string[] = [];
+    context.persistence = {
+      setEnvironment: async () => undefined,
+      setSecret: async () => undefined,
+      unsetEnvironment: async (name) => {
+        unsetEnvironment.push(name);
+        delete context.environment[name];
+      },
+      unsetSecret: async (name) => {
+        unsetSecret.push(name);
+        delete context.environment[name];
+      },
+    };
+    let getCount = 0;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+        const request = input instanceof Request ? input : new Request(input, init);
+        const path = new URL(request.url).pathname;
+        if (
+          request.method === "DELETE" &&
+          path.endsWith("/channels/openbot-chatkit-workspace-scout")
+        )
+          return Response.json({ success: true });
+        if (request.method === "DELETE" && path.endsWith("/agents/scout"))
+          return Response.json({ success: true });
+        if (request.method === "GET" && path.endsWith("/agents/scout")) {
+          getCount += 1;
+          return getCount === 1
+            ? Response.json({ agent: { id: "scout" } })
+            : Response.json({ name: "NotFound", message: "Agent not found" }, { status: 404 });
+        }
+        throw new Error(`Unexpected request: ${request.method} ${path}`);
+      }),
+    );
+
+    await new TildeAgentProvider(config).remove(context);
+
+    expect(external).toHaveBeenCalledWith(context);
+    expect(getCount).toBe(2);
+    expect(unsetSecret).toEqual(["AGENT_SCOUT_API_KEY", "AGENT_SCOUT_WEBHOOK_SIGNING_KEY"]);
+    expect(unsetEnvironment).toEqual(
+      expect.arrayContaining([
+        "AGENT_SCOUT_NAME",
+        "AGENT_SCOUT_MCP_SERVER_ID",
+        "AGENT_SCOUT_COMPUTER_SERVICE_URL",
+      ]),
+    );
+    expect(context.environment).not.toHaveProperty("AGENT_SCOUT_NAME");
+  });
 });
 
 async function agentContext(slug: string): Promise<DeploymentContext> {

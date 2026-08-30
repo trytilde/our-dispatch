@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import arg from "arg";
+import { agentIdFromName } from "@tryopenbot/utilities";
 import { ensureTildeAuth, readSelectedOrgId, readSelectedTeamId } from "../tilde/auth.js";
 import { loadDotenvFiles } from "../tilde/env.js";
 
@@ -13,7 +14,11 @@ const terminalExecutionStatuses = new Set([
   "cancelled",
 ]);
 
-export type EvaluationScenarioId = "simple-answer" | "computer-delegation" | "routine-lifecycle";
+export type EvaluationScenarioId =
+  | "simple-answer"
+  | "computer-delegation"
+  | "routine-lifecycle"
+  | "agent-lifecycle";
 
 export interface EvaluationScenarioResult {
   id: EvaluationScenarioId;
@@ -42,6 +47,8 @@ export interface EvaluationReport {
 
 interface EvaluationOptions {
   baseUrl: string;
+  openbotUrl?: string;
+  openbotOrigin?: string;
   teamId: string;
   orgId?: string;
   agentId: string;
@@ -114,6 +121,7 @@ function parseEvaluationOptions(args: readonly string[]): EvaluationOptions {
   const parsed = arg(
     {
       "--base-url": String,
+      "--openbot-url": String,
       "--team-id": String,
       "--org-id": String,
       "--agent-id": String,
@@ -130,15 +138,23 @@ function parseEvaluationOptions(args: readonly string[]): EvaluationOptions {
   const timeoutMs = parsed["--timeout-ms"] ?? defaultTimeoutMs;
   if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 1_000 || timeoutMs > 600_000)
     throw new Error("--timeout-ms must be an integer from 1000 to 600000");
+  const publicOrigin = env("PUBLIC_ORIGIN");
+  const openbotUrl = parsed["--openbot-url"] ?? publicOrigin;
   return {
     baseUrl,
+    ...(openbotUrl ? { openbotUrl: normalizeBaseUrl(openbotUrl) } : {}),
+    ...(publicOrigin
+      ? { openbotOrigin: normalizeBaseUrl(publicOrigin) }
+      : openbotUrl
+        ? { openbotOrigin: normalizeBaseUrl(openbotUrl) }
+        : {}),
     teamId,
     ...(orgId ? { orgId } : {}),
     agentId: parsed["--agent-id"] ?? "factory",
     timeoutMs,
     scenarios: scenarios.length
       ? [...new Set(scenarios)]
-      : ["simple-answer", "computer-delegation", "routine-lifecycle"],
+      : ["simple-answer", "computer-delegation", "routine-lifecycle", "agent-lifecycle"],
     json: parsed["--json"] ?? false,
   };
 }
@@ -180,7 +196,8 @@ async function runScenario(
       expectedText: /Example Domain/,
       expectedTools: ["chatkit_delegate", "chatkit_wait_for_response", "sendMessage"],
     });
-  return await routineScenario(context);
+  if (id === "routine-lifecycle") return await routineScenario(context);
+  return await agentLifecycleScenario(context);
 }
 
 async function conversationScenario(
@@ -189,7 +206,7 @@ async function conversationScenario(
       headers: Record<string, string>;
     },
   scenario: {
-    id: "simple-answer" | "computer-delegation";
+    id: EvaluationScenarioId;
     prompt: string;
     expectedText: RegExp;
     forbiddenText?: RegExp;
@@ -252,6 +269,115 @@ async function conversationScenario(
       repeatedToolCalls: summary.tools.length - new Set(summary.tools).size,
     },
     tools: summary.tools,
+  };
+}
+
+async function agentLifecycleScenario(
+  context: EvaluationOptions &
+    Required<Pick<EvaluationDependencies, "request" | "now" | "delay">> & {
+      headers: Record<string, string>;
+    },
+): Promise<EvaluationScenarioResult> {
+  if (!context.openbotUrl)
+    throw new Error("PUBLIC_ORIGIN or --openbot-url is required for agent-lifecycle");
+  const started = context.now();
+  const name = `Evaluation Agent ${randomUUID().slice(0, 8)}`;
+  let agentId = agentIdFromName(name);
+  let result: EvaluationScenarioResult | undefined;
+  let operationError: unknown;
+  try {
+    const creation = record(
+      await controlJson(context, "/api/agents", {
+        method: "POST",
+        body: JSON.stringify({ name }),
+      }),
+    );
+    const createJobId = stringField(creation, "job_id");
+    const creationStarted = context.now();
+    let creationReady = false;
+    while (context.now() - creationStarted < context.timeoutMs) {
+      const status = record(
+        await controlJson(context, `/api/agents/setup/${encodeURIComponent(createJobId)}`),
+      );
+      if (status.status === "failed")
+        throw new Error(
+          `Agent creation failed: ${optionalString(status.error) || "unknown error"}`,
+        );
+      if (status.status === "ready") {
+        const agent = record(status.agent);
+        agentId = stringField(agent, "id");
+        creationReady = true;
+        break;
+      }
+      await context.delay(750);
+    }
+    if (!creationReady) throw new Error("Agent creation timed out");
+    const invocation = await conversationScenario(
+      { ...context, agentId },
+      {
+        id: "agent-lifecycle",
+        prompt: "Reply with exactly EVAL_AGENT_OK.",
+        expectedText: /^EVAL_AGENT_OK\.?$/i,
+        expectedTools: ["sendMessage"],
+      },
+    );
+    result = {
+      ...invocation,
+      id: "agent-lifecycle",
+      resourceId: agentId,
+      detail: invocation.passed ? "Created, invoked, and deleted an agent" : invocation.detail,
+    };
+  } catch (error) {
+    operationError = error;
+  }
+  let cleanupError: unknown;
+  try {
+    const deletion = record(
+      await controlJson(context, `/api/agents/${encodeURIComponent(agentId)}`, {
+        method: "DELETE",
+      }),
+    );
+    const deleteJobId = stringField(deletion, "job_id");
+    const deletionStarted = context.now();
+    let deletionComplete = false;
+    let lastStatusError: unknown;
+    while (context.now() - deletionStarted < context.timeoutMs) {
+      try {
+        const status = record(
+          await controlJson(context, `/api/agents/delete/${encodeURIComponent(deleteJobId)}`),
+        );
+        if (status.status === "failed")
+          throw new Error(
+            `Agent deletion failed: ${optionalString(status.error) || "unknown error"}`,
+          );
+        if (status.status === "deleted") {
+          deletionComplete = true;
+          break;
+        }
+      } catch (error) {
+        lastStatusError = error;
+      }
+      if (await tildeAgentMissing(context, agentId)) {
+        deletionComplete = true;
+        break;
+      }
+      await context.delay(750);
+    }
+    if (!deletionComplete)
+      throw new Error(
+        `Agent deletion timed out${lastStatusError ? `: ${errorMessage(lastStatusError)}` : ""}`,
+      );
+  } catch (error) {
+    cleanupError = error;
+  }
+  if (operationError) throw operationError;
+  if (!result) throw new Error("Agent lifecycle evaluation returned no result");
+  if (!cleanupError) return { ...result, elapsedMs: context.now() - started };
+  return {
+    ...result,
+    passed: false,
+    elapsedMs: context.now() - started,
+    detail: `${result.detail}; cleanup failed: ${errorMessage(cleanupError)}`,
   };
 }
 
@@ -399,8 +525,55 @@ async function apiJson(
   return text ? JSON.parse(text) : undefined;
 }
 
+async function controlJson(
+  context: Pick<EvaluationOptions, "openbotUrl" | "openbotOrigin"> & {
+    headers: Record<string, string>;
+    request: typeof fetch;
+  },
+  path: string,
+  init: RequestInit = {},
+): Promise<unknown> {
+  if (!context.openbotUrl) throw new Error("OpenBot URL is unavailable");
+  const headers = new Headers({
+    Accept: "application/json",
+    "Content-Type": "application/json",
+    ...context.headers,
+  });
+  const apiKey = headers.get("x-api-key");
+  if (apiKey && !headers.has("authorization")) {
+    headers.delete("x-api-key");
+    headers.set("authorization", `Bearer ${apiKey}`);
+  }
+  if (context.openbotOrigin) headers.set("origin", context.openbotOrigin);
+  new Headers(init.headers).forEach((value, name) => headers.set(name, value));
+  const response = await context.request(`${context.openbotUrl}${path}`, { ...init, headers });
+  if (!response.ok)
+    throw new Error(`${path} failed (${response.status}): ${await response.text()}`);
+  const text = await response.text();
+  return text ? JSON.parse(text) : undefined;
+}
+
+async function tildeAgentMissing(
+  context: Pick<EvaluationOptions, "baseUrl" | "teamId"> & {
+    headers: Record<string, string>;
+    request: typeof fetch;
+  },
+  agentId: string,
+): Promise<boolean> {
+  const response = await context.request(
+    `${context.baseUrl}/api/v1/team/${encodeURIComponent(context.teamId)}/chatkit/agents/${encodeURIComponent(agentId)}`,
+    { headers: context.headers },
+  );
+  if (response.status === 404) return true;
+  if (!response.ok)
+    throw new Error(`Agent cleanup check failed (${response.status}): ${await response.text()}`);
+  return false;
+}
+
 function isScenarioId(value: string): value is EvaluationScenarioId {
-  return ["simple-answer", "computer-delegation", "routine-lifecycle"].includes(value);
+  return ["simple-answer", "computer-delegation", "routine-lifecycle", "agent-lifecycle"].includes(
+    value,
+  );
 }
 
 function normalizeBaseUrl(value: string): string {

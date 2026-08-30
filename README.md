@@ -37,7 +37,7 @@ carries the developer workflow beside its operator commands (ADR-0018):
 
 ```bash
 pnpm openbot check                  # contracts, types, lint, package tests
-pnpm openbot eval --json            # production conversation and routine measurements
+pnpm openbot eval --json            # production conversation, routine, and agent lifecycle measurements
 pnpm openbot build                  # every package, plus artifact verification
 pnpm openbot test                   # repository tests
 pnpm openbot e2e                    # browser Playwright suite
@@ -55,6 +55,7 @@ and macOS setup from scratch.
 ```bash
 openbot init
 pnpm openbot new-agent
+pnpm openbot delete-agent <id> --yes
 pnpm deploy:prod -- --dry-run --json
 pnpm deploy:prod -- --yes
 ```
