@@ -79,7 +79,8 @@ elif [[ -n "$(git -C "$remote_directory" status --porcelain --untracked-files=no
   echo "Preserving remote OpenBot edits; skipping source fast-forward"
 else
   git -C "$remote_directory" remote set-url origin "$source_url"
-  git -C "$remote_directory" fetch origin "$source_branch"
+  git -C "$remote_directory" fetch --no-tags origin \
+    "refs/heads/$source_branch:refs/remotes/origin/$source_branch"
   git -C "$remote_directory" merge --ff-only "origin/$source_branch"
 fi
 

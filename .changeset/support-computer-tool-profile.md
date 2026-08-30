@@ -20,4 +20,4 @@
 "@tryopenbot/git-provider": patch
 ---
 
-Support an explicit `computer-use-only` agent profile without requiring unrelated authored tools or skills.
+Support an explicit `computer-use-only` agent profile without unrelated authored tools or skills, and reliably fast-forward named deployment branches on exe.dev.
