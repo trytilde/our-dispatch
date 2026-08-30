@@ -65,6 +65,11 @@ export interface ReconcileAgentResourcesOptions {
   report?: DeploymentReporter;
 }
 
+export interface RemoveAgentResourcesOptions extends ReconcileAgentResourcesOptions {
+  agentId: string;
+  agentPath: string;
+}
+
 /** Run each authored agent through its aggregate external-resource lifecycle. */
 export async function reconcileAgentResources(
   options: ReconcileAgentResourcesOptions,
@@ -119,6 +124,48 @@ export async function reconcileAgentResources(
     await runAgentProvider("agent", options.providers.agent, context);
     report({ event: "agent.reconcile.complete", details: progress });
   });
+}
+
+/** Remove one authored agent's complete provider-owned external footprint. */
+export async function removeAgentResources(options: RemoveAgentResourcesOptions): Promise<void> {
+  const persistence = serialDeploymentPersistence(repositoryDeploymentPersistence(options));
+  const agentServiceOrigin = (
+    options.agentServiceOrigin ??
+    (
+      await runProviderLifecycleHook(
+        options.providers.agentService,
+        "Agent Service Provider",
+        "base URL resolution",
+        () =>
+          options.providers.agentService.baseUrl({
+            devMode: options.devMode,
+            environment: options.environment,
+          }),
+      )
+    ).toString()
+  ).replace(/\/$/, "");
+  await runProviderLifecycleHook(options.providers.agent, "Agent Provider", "remove", () =>
+    options.providers.agent.remove({
+      devMode: options.devMode,
+      repositoryRoot: options.repositoryRoot,
+      environment: options.environment,
+      configuration: options.configuration,
+      inputs: new DeploymentOutputs(),
+      persistence,
+      agentId: options.agentId,
+      agentPath: options.agentPath,
+      agentKind: "subagent",
+      agentServiceOrigin,
+      platformIds: [
+        ...new Set(
+          [options.providers.agentService, options.providers.agent].flatMap(
+            (provider) => provider.platforms?.map((platform) => platform.id) ?? [],
+          ),
+        ),
+      ],
+      report: options.report ?? (() => undefined),
+    }),
+  );
 }
 
 async function runAgentProvider(
