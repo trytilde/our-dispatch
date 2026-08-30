@@ -4,6 +4,10 @@ const DELEGATE_TOOL = "chatkit_delegate";
 const WAIT_TOOL = "chatkit_wait_for_response";
 const SEND_MESSAGE_TOOL = "sendMessage";
 
+export interface ChatKitAgentStepOptions {
+  requireDelegationFirst?: boolean;
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
@@ -23,8 +27,18 @@ function requireTool(tools: ToolSet, toolName: string): void {
 }
 
 /** Preserve the reasoning loop across ChatKit communication handoffs. */
-export function prepareChatKitAgentStep(tools: ToolSet): PrepareStepFunction<ToolSet> {
-  return ({ steps }) => {
+export function prepareChatKitAgentStep(
+  tools: ToolSet,
+  options: ChatKitAgentStepOptions = {},
+): PrepareStepFunction<ToolSet> {
+  return ({ steps, initialInstructions }) => {
+    if (options.requireDelegationFirst && steps.length === 0) {
+      requireTool(tools, DELEGATE_TOOL);
+      return {
+        activeTools: [DELEGATE_TOOL],
+        toolChoice: { type: "tool", toolName: DELEGATE_TOOL },
+      };
+    }
     if (completedToolResult(steps, DELEGATE_TOOL)) {
       requireTool(tools, WAIT_TOOL);
       return {
@@ -36,11 +50,43 @@ export function prepareChatKitAgentStep(tools: ToolSet): PrepareStepFunction<Too
       requireTool(tools, SEND_MESSAGE_TOOL);
       return {
         activeTools: [SEND_MESSAGE_TOOL],
+        instructions: [
+          typeof initialInstructions === "string" ? initialInstructions : undefined,
+          "The delegated task is complete. Call sendMessage exactly once, using the completed response in the immediately preceding chatkit_wait_for_response tool result as the answer. Preserve its concrete result and caveats. Never send an acknowledgement, future-tense promise, or status update at this step.",
+        ]
+          .filter(Boolean)
+          .join("\n\n"),
         toolChoice: { type: "tool", toolName: SEND_MESSAGE_TOOL },
       };
     }
     return undefined;
   };
+}
+
+/** Identify explicit graphical work that must begin in the Computer specialist. */
+export function requiresComputerDelegation(
+  messages: readonly { role?: string; parts?: readonly unknown[] }[],
+): boolean {
+  const latest = [...messages].reverse().find((message) => message.role === "user");
+  const text = (latest?.parts ?? [])
+    .flatMap((part) => {
+      if (!isRecord(part) || part.type !== "text" || typeof part.text !== "string") return [];
+      return [part.text];
+    })
+    .join(" ");
+  const graphicalSurface =
+    /\b(?:browser|website|webpage|web page|desktop|desktop app|screen|window|dialog|button|menu|form|tab|toolbar|address bar)\b/i;
+  const graphicalAction =
+    /\b(?:open|visit|navigate|go to|launch|inspect|read|summarize|check|interact|fill|submit|select|choose|upload|download|close|dismiss|switch to|find)\b/i;
+  const urlAction =
+    /\b(?:open|visit|navigate to|go to|inspect|read|summarize|check)\s+(?:the\s+)?https?:\/\//i;
+  const imperativeInput =
+    /(?:^|[.!?]\s*|\b(?:please|can you|could you|would you)\s+)(?:click|tap|scroll|drag|type into|press|take a screenshot)\b/i;
+  return (
+    urlAction.test(text) ||
+    (graphicalAction.test(text) && graphicalSurface.test(text)) ||
+    imperativeInput.test(text)
+  );
 }
 
 /** End the reasoning loop after the first successfully persisted user-facing message. */
