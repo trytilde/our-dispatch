@@ -7,6 +7,8 @@
 - One stylesheet: `@tryopenbot/ui/openbot-ui.css`, exported from the package. `apps/web/src/styles.css` deleted, not overridden.
 - Storybook is package-owned and imports the real exports. No demo app, no duplicated production components.
 - One continuous bot conversation per agent, plus selectable named threads. No duplicate bot session row.
+- Narrow web viewports use full-screen workspace navigation and search, bottom-drawer settings and
+  compact dialogs, and full-screen overlays for content-heavy dialogs.
 - Cost: every visual change is a package change with a changeset and a version bump. Accepted for reuse across web and desktop.
 
 ## Context
@@ -40,6 +42,13 @@ stable user-and-agent lookup key, plus selectable named threads. Every client pr
 conversation as the agent row and lists the remaining sessions as threads; it never duplicates the
 bot session in the thread list.
 
+The shared web renderer has one responsive overlay policy. On narrow viewports, workspace navigation
+and search take the full screen, settings navigation pulls up from the bottom, and compact dialogs
+become bottom drawers. Content-heavy dialogs use the full screen instead. The composer remains stuck
+to the visible bottom edge, uses a transparent outer shell, and keeps text inputs at 16 pixels so
+mobile browsers do not zoom the page on focus. Electron inherits this presentation only when its
+renderer is narrow; wide desktop behavior is unchanged.
+
 ```mermaid
 flowchart LR
   A["apps/web, apps/desktop renderer"] -->|"props only"| U["packages/ui: presentation"]
@@ -48,6 +57,7 @@ flowchart LR
   D --> T["continuous bot session + named threads"]
   U --> C["openbot-ui.css: single workspace stylesheet"]
   U --> S["Storybook catalog: real exports"]
+  U --> R["narrow viewport: full-screen nav/search + drawer dialogs"]
 ```
 
 ## Consequences
@@ -61,6 +71,9 @@ flowchart LR
   reimplements a component defeats the purpose.
 - ADR-0021 and ADR-0022 sit inside this boundary: they govern naming and sourcing within the package
   this record hands presentation ownership to.
+- Responsive overlay variants must be implemented in shared UI primitives or the shared workspace
+  stylesheet, not independently in application routes. Content density decides drawer versus full
+  screen; caller identity does not.
 
 ## Updates
 
@@ -68,3 +81,6 @@ flowchart LR
   shipped with that PR; only the record is new.
 - 2026-08-25T17:42:25+01:00: Replaced the no-thread product rule with one stable continuous bot
   conversation plus selectable named threads, rendered consistently across web, Electron, and mobile.
+- 2026-08-30T09:07:00+02:00: Recorded the narrow-viewport overlay and composer policy for the shared
+  web/Electron renderer: full-screen workspace navigation and search, bottom drawers for compact
+  settings/dialog flows, full-screen content-heavy dialogs, and a non-zooming sticky composer.

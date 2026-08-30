@@ -1,4 +1,4 @@
-import { type FormEvent, useEffect, useMemo, useState } from "react";
+import { type FormEvent, type ReactNode, useEffect, useMemo, useState } from "react";
 import { DicesIcon } from "lucide-react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { AgentAvatar, type AgentAvatarState } from "./agent-avatar.js";
@@ -186,6 +186,23 @@ export function AgentSearchDialog({
 
   // Row order for Cmd/Ctrl+1..9 quick activation: agents first, then actions.
   const visibleResults = query ? results : [];
+  const resultGroups = useMemo(
+    () =>
+      (
+        [
+          ["agent", "Bots"],
+          ["session_title", "Chats"],
+          ["message", "Messages"],
+        ] as const
+      )
+        .map(([kind, label]) => ({
+          kind,
+          label,
+          results: visibleResults.filter((result) => result.kind === kind),
+        }))
+        .filter((group) => group.results.length > 0),
+    [visibleResults],
+  );
   const quickRows = useMemo(
     () => [
       ...(query
@@ -241,6 +258,9 @@ export function AgentSearchDialog({
 
   return (
     <CommandDialog
+      className="mobile-fullscreen-dialog max-[720px]:!inset-0 max-[720px]:!h-dvh max-[720px]:!max-h-none
+        max-[720px]:!max-w-none max-[720px]:!translate-x-0 max-[720px]:!translate-y-0
+        max-[720px]:!rounded-none max-[720px]:!border-0"
       title="Search"
       open={open}
       onOpenChange={(next) => {
@@ -249,7 +269,7 @@ export function AgentSearchDialog({
       commandProps={{ shouldFilter: false }}
     >
       <CommandInput autoFocus placeholder="Search" value={value} onValueChange={onChange} />
-      <CommandList>
+      <CommandList className="max-[720px]:max-h-none max-[720px]:flex-1">
         {!loading && !searching ? (
           <CommandEmpty>{query ? "No matching chats or messages" : "No bots yet"}</CommandEmpty>
         ) : null}
@@ -258,24 +278,38 @@ export function AgentSearchDialog({
             <span className="text-[13px] text-ink-3">Searching…</span>
           </CommandItem>
         ) : null}
-        {visibleResults.map((result, index) => (
-          <CommandItem
-            key={result.id}
-            value={`${result.title} ${result.subtitle ?? ""}`}
-            onSelect={() => onSelectResult?.(result.id)}
-          >
-            <span className="min-w-0 flex-1">
-              <strong className="block truncate text-[13px] font-medium leading-tight text-ink">
-                {result.title}
-              </strong>
-              {result.subtitle ? (
-                <small className="block truncate text-[12px] leading-snug text-ink-3">
-                  {result.subtitle}
-                </small>
-              ) : null}
-            </span>
-            {shortcutHint(index)}
-          </CommandItem>
+        {resultGroups.map((group) => (
+          <CommandGroup heading={group.label} key={group.kind}>
+            {group.results.map((result) => {
+              const index = visibleResults.findIndex((candidate) => candidate.id === result.id);
+              return (
+                <CommandItem
+                  className="min-h-12"
+                  key={result.id}
+                  value={`${result.title} ${result.subtitle ?? ""}`}
+                  onSelect={() => onSelectResult?.(result.id)}
+                >
+                  <span
+                    className="w-[58px] shrink-0 rounded-[5px] bg-inset px-1.5 py-1 text-center
+                      text-[9px] font-semibold uppercase tracking-[0.06em] text-ink-3"
+                  >
+                    {resultKindLabel(result.kind)}
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <strong className="block truncate text-[13px] font-medium leading-tight text-ink">
+                      {highlightDirectMatch(result.title, query)}
+                    </strong>
+                    {result.subtitle ? (
+                      <small className="block truncate text-[12px] leading-snug text-ink-3">
+                        {highlightDirectMatch(result.subtitle, query)}
+                      </small>
+                    ) : null}
+                  </span>
+                  {shortcutHint(index)}
+                </CommandItem>
+              );
+            })}
+          </CommandGroup>
         ))}
         {!query
           ? agents.map((agent, index) => (
@@ -324,6 +358,28 @@ export function AgentSearchDialog({
         ) : null}
       </CommandList>
     </CommandDialog>
+  );
+}
+
+function resultKindLabel(kind: WorkspaceSearchResult["kind"]): string {
+  if (kind === "agent") return "Bot";
+  if (kind === "session_title") return "Chat";
+  return "Message";
+}
+
+function highlightDirectMatch(value: string, query: string): ReactNode {
+  if (!query) return value;
+  const start = value.toLowerCase().indexOf(query);
+  if (start < 0) return value;
+  const end = start + query.length;
+  return (
+    <>
+      {value.slice(0, start)}
+      <mark className="rounded-[3px] bg-[var(--ob-accent-soft)] px-0.5 text-inherit">
+        {value.slice(start, end)}
+      </mark>
+      {value.slice(end)}
+    </>
   );
 }
 
