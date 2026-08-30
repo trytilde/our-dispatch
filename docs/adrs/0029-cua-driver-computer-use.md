@@ -69,3 +69,4 @@ Work: add mobile Computer preview and demonstration controls with behavior match
 
 - 2026-08-24T16:54:07+01:00: Required the deployed managed Cua skill, removed the bundled snapshot, and made registry migration replace rotated provider and skill IDs by stable repository and source-path identity.
 - 2026-08-24T22:08:00+01:00: Stopped attaching the canonical Cua package to individual registries after Tilde made it globally managed; retained cleanup of legacy explicit membership.
+- 2026-08-30T23:49:00+02:00: Serialized catalog and action operations per agent display after concurrent delegated sessions proved that overlapping calls could shut down their shared private worker; different displays remain concurrent.
