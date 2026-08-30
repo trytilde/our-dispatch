@@ -129,4 +129,78 @@ describe("production evaluation", () => {
       runEvaluation(["--scenario", "unknown"], evaluationDependencies(vi.fn<typeof fetch>())),
     ).rejects.toThrow("Unknown evaluation scenario: unknown");
   });
+
+  it("creates, invokes, and deletes a temporary agent through OpenBot", async () => {
+    vi.stubEnv("TILDE_TEAM_ID", "team-one");
+    vi.stubEnv("PUBLIC_ORIGIN", "https://openbot.test");
+    const requests: string[] = [];
+    const request = vi.fn<typeof fetch>(async (input, init) => {
+      const url = requestUrl(input);
+      requests.push(`${init?.method ?? "GET"} ${url}`);
+      if (url.startsWith("https://openbot.test/")) {
+        const headers = new Headers(init?.headers);
+        expect(headers.get("authorization")).toBe("Bearer test-key");
+        expect(headers.get("origin")).toBe("https://openbot.test");
+      } else {
+        const headers = new Headers(init?.headers);
+        expect(headers.get("x-api-key")).toBe("test-key");
+        expect(headers.get("authorization")).toBeNull();
+      }
+      if (url === "https://openbot.test/api/agents" && init?.method === "POST")
+        return response({ status: "setting_up", job_id: "create-job" }, 202);
+      if (url === "https://openbot.test/api/agents/setup/create-job")
+        return response({
+          status: "ready",
+          agent: { id: "evaluation-agent-test", name: "Evaluation Agent Test" },
+        });
+      if (url.endsWith("/chatkit/workspace/agents/evaluation-agent-test/sessions"))
+        return response({ session: { id: "agent-session" } });
+      if (url.endsWith("/sessions/agent-session/messages") && init?.method === "POST")
+        return response({ items: [] });
+      if (url.includes("/sessions/agent-session/messages?page_size=100"))
+        return response({
+          items: [
+            {
+              role: "assistant",
+              created_at: "1",
+              parts: [
+                { type: "tool", state: "output-available", tool_name: "sendMessage" },
+                { type: "text", text: "EVAL_AGENT_OK" },
+              ],
+            },
+          ],
+        });
+      if (
+        url === "https://openbot.test/api/agents/evaluation-agent-test" &&
+        init?.method === "DELETE"
+      )
+        return response({ status: "deleting", job_id: "delete-job" }, 202);
+      if (url === "https://openbot.test/api/agents/delete/delete-job")
+        return response({
+          status: "deleted",
+          agent: { id: "evaluation-agent-test", name: "Evaluation Agent Test" },
+        });
+      return response({ error: "unexpected" }, 500);
+    });
+
+    const report = await runEvaluation(["--scenario", "agent-lifecycle"], {
+      ...evaluationDependencies(request),
+      headers: { "x-api-key": "test-key" },
+    });
+
+    expect(report.ok).toBe(true);
+    expect(report.scenarios[0]).toMatchObject({
+      id: "agent-lifecycle",
+      passed: true,
+      resourceId: "evaluation-agent-test",
+      tools: ["sendMessage"],
+    });
+    expect(requests).toEqual(
+      expect.arrayContaining([
+        "POST https://openbot.test/api/agents",
+        "DELETE https://openbot.test/api/agents/evaluation-agent-test",
+        "GET https://openbot.test/api/agents/delete/delete-job",
+      ]),
+    );
+  });
 });

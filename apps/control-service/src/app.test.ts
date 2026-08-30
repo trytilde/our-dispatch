@@ -258,6 +258,70 @@ describe("bare OpenBot server", () => {
     );
   });
 
+  it("deletes an agent through the trusted Computer and reports completion", async () => {
+    const jobId = "44444444-4444-4444-8444-444444444444";
+    const execute = vi.fn(async () => ({
+      exitCode: 0,
+      stdout: "",
+      stderr: "",
+      jobId,
+      running: true,
+    }));
+    const awaitExecution = vi.fn(async () => ({
+      exitCode: 0,
+      stdout: '{"ok":true,"command":"delete-agent","agent":{"id":"test","name":"Test"}}\n',
+      stderr: "",
+      jobId,
+      running: false,
+    }));
+    const agentApp = createApp({
+      environment: {
+        COMPUTER_SERVICE_API_KEY: "computer-key",
+        DEVELOPMENT_SANDBOX_SERVICE_URL: "https://computer.test/rpc",
+      },
+      agentCreation: { execute, awaitExecution },
+    });
+
+    const started = await agentApp.request("https://openbot.test/api/agents/test", {
+      method: "DELETE",
+    });
+
+    expect(started.status).toBe(202);
+    await expect(started.json()).resolves.toEqual({
+      status: "deleting",
+      job_id: jobId,
+      agent: { id: "test" },
+    });
+    expect(execute).toHaveBeenCalledWith(
+      expect.objectContaining({
+        agentId: "factory",
+        command: "bash",
+        background: true,
+        arguments: ["-lc", expect.stringContaining("openbot delete-agent 'test' --yes --json")],
+      }),
+      expect.objectContaining({ authorization: "Bearer computer-key" }),
+    );
+
+    const status = await agentApp.request(`https://openbot.test/api/agents/delete/${jobId}`);
+    expect(status.status).toBe(200);
+    await expect(status.json()).resolves.toEqual({
+      status: "deleted",
+      agent: { id: "test", name: "Test" },
+    });
+  });
+
+  it("refuses to delete Factory", async () => {
+    const response = await createApp({
+      environment: {
+        COMPUTER_SERVICE_API_KEY: "computer-key",
+        DEVELOPMENT_SANDBOX_SERVICE_URL: "https://computer.test/rpc",
+      },
+    }).request("https://openbot.test/api/agents/factory", { method: "DELETE" });
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({ error: "Factory cannot be deleted" });
+  });
+
   it("completes a development setup job through the local background runner", async () => {
     const root = await mkdtemp(join(tmpdir(), "openbot-agent-create-"));
     temporaryRoots.push(root);

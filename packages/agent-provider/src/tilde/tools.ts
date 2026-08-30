@@ -12,6 +12,7 @@ import {
   createToolGroupInstance,
   getMcpServerInstance,
   deleteProxiedMcpServer,
+  deleteResourceServerCredential,
   enableProxiedMcpServer,
   enableTool,
   encryptResourceServerConfiguration,
@@ -119,6 +120,36 @@ export class TildeToolReconciler {
     } catch (error) {
       if (error instanceof AgentProviderError) throw error;
       throw toolsError("reconcile external Tilde tool resources", error);
+    }
+  }
+
+  /** Remove credential-bearing integrations that live outside Tilde's agent bundle. */
+  async removeExternalResources(context: DeploymentContext): Promise<void> {
+    try {
+      const { id } = requireAgent(context);
+      if (!context.platformIds?.includes("vercel")) return;
+      const prefix = `AGENT_${id.replaceAll("-", "_").toUpperCase()}`;
+      const serverId = context.environment[`${prefix}_VERCEL_MCP_SERVER_ID`]?.trim();
+      const credentialId = context.environment[`${prefix}_VERCEL_MCP_CREDENTIAL_ID`]?.trim();
+      if (serverId)
+        await ignoreNotFound(() =>
+          deleteProxiedMcpServer({
+            client: this.#api,
+            path: { team_id: this.#teamId, tool_group_instance_id: serverId },
+            throwOnError: true,
+          }),
+        );
+      if (credentialId)
+        await ignoreNotFound(() =>
+          deleteResourceServerCredential({
+            client: this.#api,
+            path: { team_id: this.#teamId, id: credentialId },
+            throwOnError: true,
+          }),
+        );
+    } catch (error) {
+      if (error instanceof AgentProviderError) throw error;
+      throw toolsError("remove external Tilde tool resources", error);
     }
   }
 
@@ -497,6 +528,14 @@ function isNotFound(error: unknown): boolean {
     (("status" in error && error.status === 404) ||
       ("response" in error && (error.response as Response | undefined)?.status === 404))
   );
+}
+
+async function ignoreNotFound(operation: () => Promise<unknown>): Promise<void> {
+  try {
+    await operation();
+  } catch (error) {
+    if (!isNotFound(error)) throw error;
+  }
 }
 
 function toolsError(operation: string, error: unknown): AgentProviderError {
