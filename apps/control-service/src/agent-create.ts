@@ -5,14 +5,12 @@ import { createConnectTransport } from "@connectrpc/connect-node";
 import type { Hono } from "hono";
 import { ComputerService } from "@tryopenbot/computer-service-proto";
 import { agentIdFromName } from "@tryopenbot/utilities";
-import { tildeJson, tildeOptionsFromEnvironment } from "./tilde-upstream.js";
 
 export interface AgentCreationOptions {
   environment?: NodeJS.ProcessEnv;
   repositoryRoot?: string;
   execute?: AgentCreationExecutor;
   awaitExecution?: AgentCreationWaiter;
-  tildeFetch?: typeof globalThis.fetch;
 }
 
 export interface AgentCreationRequest {
@@ -130,60 +128,16 @@ export function registerAgentCreation(app: Hono, options: AgentCreationOptions =
       { authorization: apiKey ? `Bearer ${apiKey}` : "", signal: context.req.raw.signal },
     );
     if (response.running) return context.json({ status: "setting_up" });
-    if (response.exitCode !== 0)
+    if (response.exitCode !== 0) {
+      localCreation?.forget(jobId);
       return context.json({ status: "failed", error: commandError(response) });
-    const created = parseCreatedAgent(response.stdout);
-    if (!created)
-      return context.json({ status: "failed", error: "Agent creation returned no result" });
-    const tilde = tildeOptionsFromEnvironment(environment);
-    if (tilde && options.tildeFetch) tilde.fetch = options.tildeFetch;
-    const agentServiceOrigin = environment.AGENT_SERVICE_ORIGIN?.trim();
-    const headerAuthorization = context.req.header("authorization");
-    const ownerAccessToken = context.get("ownerAccessToken") as string | undefined;
-    const authorization = ownerAccessToken ? `Bearer ${ownerAccessToken}` : headerAuthorization;
-    if (tilde && agentServiceOrigin) {
-      if (!authorization)
-        return context.json({
-          status: "failed",
-          error: "Owner authorization is unavailable for Tilde agent provisioning",
-        });
-      try {
-        const operation = (await tildeJson(
-          tilde,
-          `/chatkit/agents/${encodeURIComponent(created.id)}/provision`,
-          {
-            method: "PUT",
-            authorization,
-            body: {
-              agent: {
-                display_name: created.name,
-                endpoint: {
-                  url: new URL(`/api/agents/${created.id}`, `${agentServiceOrigin}/`).toString(),
-                  streaming: true,
-                  timeout_ms: 300_000,
-                  local_running_endpoint: false,
-                  concurrency_policy: "queue",
-                },
-                status: "enabled",
-                credential_strategy: "preserve",
-              },
-            },
-          },
-        )) as { status?: string; error_message?: string };
-        if (operation.status === "error")
-          return context.json({
-            status: "failed",
-            error: operation.error_message ?? "Tilde agent provisioning failed",
-          });
-        if (operation.status !== "active")
-          return context.json({ status: "setting_up", job_id: jobId, agent: created });
-      } catch (error) {
-        return context.json({
-          status: "failed",
-          error: error instanceof Error ? error.message : "Tilde agent provisioning failed",
-        });
-      }
     }
+    const created = parseCreatedAgent(response.stdout);
+    if (!created) {
+      localCreation?.forget(jobId);
+      return context.json({ status: "failed", error: "Agent creation returned no result" });
+    }
+    localCreation?.forget(jobId);
     return context.json({ status: "ready", agent: created });
   });
 }
@@ -191,7 +145,11 @@ export function registerAgentCreation(app: Hono, options: AgentCreationOptions =
 function createLocalAgentCreation(
   repositoryRoot: string,
   environment: NodeJS.ProcessEnv = process.env,
-): { execute: AgentCreationExecutor; awaitExecution: AgentCreationWaiter } {
+): {
+  execute: AgentCreationExecutor;
+  awaitExecution: AgentCreationWaiter;
+  forget(jobId: string): boolean;
+} {
   const jobs = new Map<string, AgentCreationResult>();
   return {
     execute: async (request) => {
@@ -222,16 +180,14 @@ function createLocalAgentCreation(
       });
       return jobs.get(jobId)!;
     },
-    awaitExecution: async ({ jobId }) => {
-      const result = jobs.get(jobId) ?? {
+    awaitExecution: async ({ jobId }) =>
+      jobs.get(jobId) ?? {
         exitCode: 1,
         stdout: "",
         stderr: "Agent creation job was not found",
         jobId,
-      };
-      if (!result.running) jobs.delete(jobId);
-      return result;
-    },
+      },
+    forget: (jobId: string) => jobs.delete(jobId),
   };
 }
 

@@ -1,5 +1,7 @@
 # ADR-0027: Official app store publication through EAS
 
+> Historical publication decision. ADR-0033 removes the mobile client and EAS workflow from current main.
+
 ## In brief
 
 - One published mobile app. `trytilde/openbot` owns the EAS project, bundle identifier, and both store listings.
@@ -104,6 +106,7 @@ flowchart LR
 
 ## Updates
 
+- 2026-08-29T07:28:00+02:00: Superseded operationally by ADR-0033. Main no longer contains the mobile app or EAS publication workflow; the complete prior implementation is preserved only on the DO NOT MERGE mobile archive branch.
 - 2026-08-19T10:20:00+02:00: Initial decision.
 - 2026-08-19T10:55:00+02:00: Named Tilde as publisher and OpenBot as the app, moving the identifier from `dev.openbot.mobile` to `ai.trytilde.openbot` before any store submission, and recorded that `openbot init` must never ask about EAS or require it.
 - 2026-08-19T13:40:00+02:00: Hardened the guard against an empty `OPENBOT_EAS_PROJECT_ID`. GitHub Actions substitutes an empty string for an unset repository variable, and `??` accepted it, so the official project compared unequal to itself and the refusal never fired. Overrides now read through `optionalEnvironment`, which treats empty and whitespace as absent.

@@ -35,6 +35,48 @@ class TestWebSocket implements WebSocketLike {
 }
 
 describe("OpenBot client", () => {
+  it("uses the authenticated installation Tilde origin for signal webhook URLs", async () => {
+    const fetch = vi.fn(async (input: RequestInfo | URL) => {
+      const url = requestUrl(input);
+      if (url === "/auth/session")
+        return Response.json({
+          authenticated: true,
+          user: { subject: "human-one", name: "Daniel" },
+          tilde: { team_id: "team-one", api_base_url: "https://tilde.test/" },
+        });
+      if (url.startsWith("/api/tilde/signals/providers"))
+        return Response.json({
+          items: [
+            {
+              type_id: "github",
+              route_descriptors: [{ path: "events" }],
+              signal_types: [],
+              credential_sources: [],
+            },
+          ],
+        });
+      if (url.startsWith("/api/tilde/signals/instances"))
+        return Response.json({
+          items: [
+            {
+              id: "spi-one",
+              signal_provider_source_type_id: "github",
+              ingress_mode: "webhook",
+            },
+          ],
+        });
+      return Response.json({ error: `Unhandled ${url}` }, { status: 404 });
+    });
+    const client = createOpenBotClient({ fetch });
+
+    await client.getSession();
+    await expect(client.listSignalInstances()).resolves.toEqual([
+      expect.objectContaining({
+        webhook_url: "https://tilde.test/api/v1/webhooks/github-signals-spi-one/events",
+      }),
+    ]);
+  });
+
   it("starts and polls a validated agent setup job", async () => {
     const jobId = "44444444-4444-4444-8444-444444444444";
     const fetch = vi
@@ -364,49 +406,68 @@ describe("OpenBot client", () => {
     expect(socket.closeCalls).toBe(1);
   });
 
-  it("loads and mutates plugin configuration through the control service", async () => {
+  it("loads and mutates plugins through native Tilde resources", async () => {
     const calls: { method: string; url: string }[] = [];
+    const catalog = {
+      tool_providers: [{ type_id: "github", name: "GitHub", credential_sources: [] }],
+      tool_accounts: [
+        {
+          id: "github-work",
+          display_name: "Work",
+          status: "active",
+          tool_group_source_type_id: "github",
+        },
+      ],
+      mcp_servers: [
+        {
+          id: "server-one",
+          agent_id: "agent-one",
+          tools: [{ tool_group_instance_id: "github-work" }],
+        },
+        { id: "server-two", agent_id: "agent-two", tools: [] },
+      ],
+      proxied_mcp_servers: [],
+      skills: [{ id: "skill-one", name: "Research", source_kind: "OpenBot" }],
+      skill_providers: [],
+      skill_registries: [
+        { id: "registry-one", agent_id: "agent-one", skills: [{ id: "skill-one" }] },
+      ],
+    };
     const client = createOpenBotClient({
       fetch: async (input, init) => {
         const url = requestUrl(input);
         calls.push({ method: init?.method ?? "GET", url });
-        if (url.startsWith("/api/plugins?"))
-          return Response.json({
-            tools: [
-              {
-                provider: {
-                  type_id: "github",
-                  name: "GitHub",
-                  credential_sources: [],
-                },
-                accounts: [
-                  {
-                    id: "github-work",
-                    display_name: "Work",
-                    status: "active",
-                    assigned_agent_ids: ["agent-one"],
-                  },
-                ],
-              },
-            ],
-            skills: [],
-          });
+        const nativePage = nativePluginCatalogPage(url, catalog);
+        if (nativePage) return Response.json(nativePage);
+        if (url === "/api/tilde/mcp/provider-catalog") return Response.json({ items: [] });
+        if (url.includes("enable-and-bind")) return Response.json({ complete: true });
         return Response.json({ ok: true });
       },
     });
 
-    await expect(client.getPluginsCatalog(["agent-one", "agent-two"])).resolves.toMatchObject({
+    await expect(client.getPluginsCatalog()).resolves.toMatchObject({
       tools: [{ accounts: [{ assigned_agent_ids: ["agent-one"] }] }],
     });
     await client.deleteConnectorAccounts(["github/work", "github-personal"]);
     await client.setToolAccountForAgent("github-work", "agent-two", true);
     await client.setSkillForAgent("skill-one", "agent-one", false);
-    expect(calls).toEqual([
-      { method: "GET", url: "/api/plugins?agent_id=agent-one&agent_id=agent-two" },
-      { method: "DELETE", url: "/api/connectors/accounts" },
-      { method: "POST", url: "/api/plugins/tools/github-work/agents/agent-two" },
-      { method: "DELETE", url: "/api/plugins/skills/skill-one/agents/agent-one" },
-    ]);
+    expect(calls).toEqual(
+      expect.arrayContaining([
+        {
+          method: "GET",
+          url: "/api/tilde/mcp/available-tool-groups?deployment_alias=latest&include_global=true&page_size=100",
+        },
+        { method: "GET", url: "/api/tilde/mcp/provider-catalog" },
+        { method: "DELETE", url: "/api/tilde/mcp/tool-group/github%2Fwork" },
+        { method: "DELETE", url: "/api/tilde/mcp/tool-group/github-personal" },
+        {
+          method: "POST",
+          url: "/api/tilde/mcp/tool-group/github-work/tools/enable-and-bind",
+        },
+        { method: "PATCH", url: "/api/tilde/skill-registry/registry-one" },
+      ]),
+    );
+    expect(calls.some(({ url }) => url.includes("/openbot/plugins/catalog"))).toBe(false);
   });
 
   it("rewrites Tilde attachment URLs through the configured bridge", () => {
@@ -435,4 +496,36 @@ function socketTicket(): ChatKitRealtimeSocketTicket {
 
 function requestUrl(input: RequestInfo | URL): string {
   return typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+}
+
+function nativePluginCatalogPage(
+  url: string,
+  catalog: {
+    tool_providers: unknown[];
+    tool_accounts: unknown[];
+    mcp_servers: unknown[];
+    proxied_mcp_servers: unknown[];
+    skills: unknown[];
+    skill_providers: unknown[];
+    skill_registries: unknown[];
+  },
+): { items: unknown[] } | undefined {
+  const path = url.split("?", 1)[0];
+  const items =
+    path === "/api/tilde/mcp/available-tool-groups"
+      ? catalog.tool_providers
+      : path === "/api/tilde/mcp/tool-group"
+        ? catalog.tool_accounts
+        : path === "/api/tilde/mcp/mcp-server"
+          ? catalog.mcp_servers
+          : path === "/api/tilde/mcp/proxied-mcp-servers"
+            ? catalog.proxied_mcp_servers
+            : path === "/api/tilde/skill"
+              ? catalog.skills
+              : path === "/api/tilde/skill-providers"
+                ? catalog.skill_providers
+                : path === "/api/tilde/skill-registry"
+                  ? catalog.skill_registries
+                  : undefined;
+  return items ? { items } : undefined;
 }

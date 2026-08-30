@@ -7,8 +7,7 @@ describe("optionalEnvironment", () => {
   });
 
   // GitHub Actions substitutes "" for an unset `vars.*`, and `??` would accept it.
-  // The desktop bucket would resolve to "" and the mobile guard would read the
-  // official EAS project as a fork's and wave the release through.
+  // The desktop bucket would resolve to "" and bypass its intended default.
   it("treats an unset, empty, or whitespace variable as absent", () => {
     expect(optionalEnvironment("NAME", {})).toBeUndefined();
     expect(optionalEnvironment("NAME", { NAME: "" })).toBeUndefined();

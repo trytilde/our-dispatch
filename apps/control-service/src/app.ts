@@ -9,10 +9,9 @@ import type { AuthProvider } from "@tryopenbot/auth-provider";
 import type { ComputerProvider } from "@tryopenbot/computer-service-provider";
 import { registerAgentCreation, type AgentCreationOptions } from "./agent-create.js";
 import { registerTildeChatProxy, type TildeChatProxyOptions } from "./chat-proxy.js";
-import { registerConnectorRoutes, type ConnectorRouteOptions } from "./connectors.js";
+import { registerTildeProxy, type TildeProxyOptions } from "./tilde-proxy.js";
+import { registerConnectorAuthorizedRoute } from "./connector-authorized.js";
 import { registerComputerPreview } from "./computer-preview.js";
-import { registerRoutineRoutes, type RoutineRouteOptions } from "./routines.js";
-import { registerSignalRoutes, type SignalRouteOptions } from "./signals.js";
 import { registerOwnerAuth, requireOwner } from "./auth.js";
 const sourceWebRoot = fileURLToPath(new URL("../../web/dist", import.meta.url));
 const workingDirectoryWebRoot = resolve(process.cwd(), "apps/web/dist");
@@ -25,14 +24,9 @@ export interface AppOptions {
   devMode?: boolean;
   environment?: NodeJS.ProcessEnv;
   tildeChatProxy?: TildeChatProxyOptions;
-  connectors?: ConnectorRouteOptions;
-  routines?: RoutineRouteOptions;
-  signals?: SignalRouteOptions;
+  tildeProxy?: TildeProxyOptions;
   authProvider?: AuthProvider;
-  agentCreation?: Pick<
-    AgentCreationOptions,
-    "repositoryRoot" | "execute" | "awaitExecution" | "tildeFetch"
-  >;
+  agentCreation?: Pick<AgentCreationOptions, "repositoryRoot" | "execute" | "awaitExecution">;
 }
 
 export function createApp(options: AppOptions = {}): Hono {
@@ -44,15 +38,10 @@ export function createApp(options: AppOptions = {}): Hono {
     registerOwnerAuth(app, options.authProvider, options);
     const middleware = requireOwner(options.authProvider, options);
     app.use("/api/chat/*", middleware);
+    app.use("/api/tilde/*", middleware);
     app.use("/api/computer/*", middleware);
     app.use("/api/agents", middleware);
-    app.use("/api/connectors/*", middleware);
-    app.use("/api/plugins/*", middleware);
-    app.use("/api/plugins", middleware);
     app.use("/api/agents/*", middleware);
-    app.use("/api/routines", middleware);
-    app.use("/api/routines/*", middleware);
-    app.use("/api/signals/*", middleware);
   } else
     app.get("/auth/native-config", (context) =>
       context.json({ error: "Owner authentication is not configured" }, 503),
@@ -63,9 +52,8 @@ export function createApp(options: AppOptions = {}): Hono {
   });
   registerAgentCreation(app, { environment: options.environment, ...options.agentCreation });
   registerTildeChatProxy(app, options.tildeChatProxy);
-  registerConnectorRoutes(app, options.connectors);
-  registerRoutineRoutes(app, options.routines);
-  registerSignalRoutes(app, options.signals);
+  registerTildeProxy(app, options.tildeProxy ?? options.tildeChatProxy);
+  registerConnectorAuthorizedRoute(app);
   if (existsSync(webRoot)) {
     const cacheHeaders = (
       path: string,

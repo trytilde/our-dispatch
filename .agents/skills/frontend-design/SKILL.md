@@ -1,6 +1,6 @@
 ---
 name: frontend-design
-description: Guidance for distinctive, intentional visual design when building new UI or reshaping an existing one across OpenBot's web, Expo mobile, and Electron desktop clients. Helps with aesthetic direction, typography, native platform fit, and making choices that don't read as templated defaults.
+description: Guidance for distinctive, intentional visual design when building new UI or reshaping an existing one across OpenBot's web and Electron desktop clients. Helps with aesthetic direction, typography, platform fit, and making choices that don't read as templated defaults.
 license: Complete terms in LICENSE.txt
 ---
 
@@ -10,20 +10,15 @@ Approach this as the design lead at a small studio known for giving every client
 
 ## OpenBot clients
 
-OpenBot ships the same product through three clients, and a design decision here is a decision for all of them:
+OpenBot ships the same product through two clients, and a design decision here is a decision for both:
 
 - `apps/web` — React 19, React DOM, Vite, TanStack Router, and `packages/ui`.
-- `apps/mobile` — Expo and React Native, built on BNA UI (`https://ui.ahmedbna.com`). Native components only. No DOM, no CSS files, no Tailwind classes, no `packages/ui` React DOM imports.
 - `apps/desktop` — Electron shell rendering the web client.
 
-Design the visual system once and express it per platform. Web and Expo share behavior and contracts through `packages/client-runtime`, not JSX — see ADR-0017. Concretely:
-
-- Express the palette, type scale, spacing, and radii as plain values that both a stylesheet and a React Native `StyleSheet` can consume. Do not encode the system in CSS custom properties alone.
-- Typography must resolve on both. A web webfont has no effect in Expo; register the face through `expo-font` or choose a platform-appropriate pairing per client and say so.
-- Expo has no hover, no CSS cascade, no media queries, no `position: fixed`, no `gap` on every version, and no shadow parity — `boxShadow` is `elevation` on Android and `shadow*` on iOS. Replace hover affordances with press states.
-- Respect native interaction: system back, safe-area insets, keyboard avoidance, momentum scrolling, and platform navigation patterns. A web layout scaled down is not a mobile design.
-- Honor `userInterfaceStyle: automatic` from `apps/mobile/app.json`. Every surface needs a light and dark resolution on all three clients.
-- Use the installed `expo-ui`, `expo-native-ui`, and `expo-web-to-native` skills when translating a web surface to native. They carry the current Expo component and API guidance; do not invent an RN equivalent from memory.
+The Electron renderer consumes the web tree, so visual tokens and DOM components normally live in
+`packages/ui` or `apps/web`. Desktop-only window chrome and privileged interactions remain in the
+Electron shell. Every surface needs a light and dark resolution, keyboard access, reduced motion,
+and responsive behavior.
 
 State explicitly which clients a design covers. When a surface intentionally differs per platform, say which platform and why — that difference is a design decision, not an implementation detail, and the `create-pr` cross-client parity gate will ask for it.
 
@@ -66,8 +61,7 @@ Spend your boldness in one place. Let the signature element be the one memorable
 Static review is not evidence. Exercise every client the design touches, and name the ones you did not:
 
 - Web and Electron: run the app and check the real route, console, network, and visible state. Follow `e2e-debug-and-qa`.
-- Expo: run `pnpm --filter @tryopenbot/mobile build` for a bundle-level check, then run the app on the emulator or a device and screenshot it. Follow `run-expo`. A web screenshot is never mobile proof.
-- Check light and dark on each client, plus a small and a large viewport on web.
+- Check light and dark in web and Electron, plus a small and a large viewport on web.
 
 Keep screenshots, recordings, and traces outside git.
 

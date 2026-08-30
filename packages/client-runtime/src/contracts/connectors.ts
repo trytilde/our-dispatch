@@ -4,9 +4,9 @@ import { z } from "zod";
  * Connector (Tilde tool-provider) configuration contracts shared by every
  * client surface. The agent's `configure_connector` tool emits a
  * `connector_selection` payload inside its tool output; clients render it as
- * an account picker and drive new-account setup through the control-service
- * `/api/connectors` routes so credentials never travel through the chat
- * transcript.
+ * an account picker and drive new-account setup through native Tilde resources
+ * behind the installation's allowlisted credential bridge, so credentials
+ * never travel through the chat transcript.
  */
 
 export const CONNECTOR_SELECTION_TOOL_NAME = "configure_connector";
@@ -138,8 +138,7 @@ export interface ConnectorSetupField {
 
 /**
  * Flatten a Tilde credential JSON Schema into renderable form fields. Shared
- * by the web dialog and the native mobile sheet so both surfaces render the
- * same credential forms from the same provider metadata.
+ * by owner-facing connector setup surfaces.
  */
 export function connectorSetupFields(schema: unknown): ConnectorSetupField[] {
   const record = asRecordValue(schema);
@@ -175,10 +174,7 @@ function asRecordValue(value: unknown): Record<string, unknown> {
  * client kind lets the landing page bounce desktop flows to the openbot://
  * deep link while browser flows simply close the tab.
  */
-export function connectorAuthorizedReturnUrl(
-  origin: string,
-  client: "web" | "electron" | "mobile",
-): string {
+export function connectorAuthorizedReturnUrl(origin: string, client: "web" | "electron"): string {
   return `${origin.replace(/\/$/, "")}/connectors/authorized?client=${client}`;
 }
 

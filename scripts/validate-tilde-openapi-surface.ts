@@ -18,6 +18,10 @@ const requiredOperations = [
   "create-tool-group-instance",
   "list-messages",
   "get-session-event-history",
+  "chatkit-register-agent-tools",
+  "chatkit-report-tool-execution",
+  "chatkit-send-session-message",
+  "chatkit-invoke-session-provider-tool",
 ];
 
 const spec = JSON.parse(await readFile(specPath, "utf8")) as {

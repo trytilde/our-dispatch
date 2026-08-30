@@ -69,6 +69,8 @@ export type ChatKitConnectionOptions = {
    */
   sessionId: string;
   permissions?: ChatKitSessionPermissions;
+  /** Session-bound tools created from trusted ChatKit endpoint context. */
+  boundTools?: ToolSet;
 };
 
 export type CreateMCPClientOptions<TTools extends ToolSet = ToolSet> = Omit<
@@ -76,6 +78,8 @@ export type CreateMCPClientOptions<TTools extends ToolSet = ToolSet> = Omit<
   "transport"
 > & {
   client: Client;
+  /** ChatKit agent that owns this MCP connection and its process-local tools. */
+  agentId?: string;
   serverId: string;
   tools?: TTools;
   headers?: Record<string, string>;
@@ -137,6 +141,13 @@ export async function createMCPClient<TTools extends ToolSet = ToolSet>(
   if (!apiKey) {
     throw new TypeError("createMCPClient requires client config apiKey");
   }
+  const localToolSet = options.tools ?? ({} as TTools);
+  const boundToolSet = options.chatkit?.boundTools ?? {};
+  const hasLocalTools = Object.keys(localToolSet).length > 0;
+  const agentId = options.agentId?.trim();
+  if (hasLocalTools && !agentId) {
+    throw new TypeError("createMCPClient requires agentId when tools are provided");
+  }
 
   const clientHeaders = Object.fromEntries(configHeaders(options.client.config).entries());
   delete clientHeaders.authorization;
@@ -155,10 +166,77 @@ export async function createMCPClient<TTools extends ToolSet = ToolSet>(
     },
   });
 
+  const authoredLocalTools = toLocalTools(
+    localToolSet,
+    options.client,
+    agentId ?? "",
+    options.serverId,
+    options.chatkit?.sessionId,
+  );
+  const boundLocalTools = toUnobservedLocalTools(boundToolSet);
+  const localTools = [...boundLocalTools, ...authoredLocalTools];
+  try {
+    if (agentId) {
+      await options.client.chatkit.registerAgentTools({
+        agentId,
+        tools: [
+          ...authoredLocalTools.map((tool) => ({
+            toolId: localToolId(options.serverId, tool.name),
+            wireName: tool.name,
+            displayName: tool.name,
+            supportsSummary: false,
+            identity: {
+              mcpServerId: options.serverId,
+              inputSchema: tool.inputSchema,
+              ...(tool.outputSchema ? { outputSchema: tool.outputSchema } : {}),
+            },
+          })),
+          ...(hasLocalTools
+            ? [
+                {
+                  toolId: localToolId(options.serverId, "MULTI_EXECUTE_TOOL"),
+                  wireName: "MULTI_EXECUTE_TOOL",
+                  displayName: "Execute multiple tools",
+                  supportsSummary: true,
+                  summary: "Executed a batch of tools",
+                  identity: {
+                    mcpServerId: options.serverId,
+                    dynamicWrapper: true,
+                  },
+                },
+              ]
+            : []),
+        ],
+      });
+    }
+  } catch (error) {
+    await remoteClient.close();
+    throw error;
+  }
+
   const mcp = wrapMcpClientWithLocalTools({
     client: remoteClient,
     serverId: options.serverId,
-    tools: toLocalTools(options.tools ?? ({} as TTools)),
+    tools: localTools,
+    ...(agentId && hasLocalTools
+      ? {
+          observeMultiExecute: async (event) => {
+            await options.client.chatkit.reportToolExecution({
+              agentId,
+              executionId: event.executionId,
+              batchId: event.batchId,
+              ...(options.chatkit?.sessionId ? { sessionId: options.chatkit.sessionId } : {}),
+              toolId: localToolId(options.serverId, "MULTI_EXECUTE_TOOL"),
+              wireName: "MULTI_EXECUTE_TOOL",
+              state: event.state,
+              input: event.input,
+              ...(event.output ? { output: event.output } : {}),
+              ...(event.errorMessage ? { errorMessage: event.errorMessage } : {}),
+              summary: "Executed a batch of tools",
+            });
+          },
+        }
+      : {}),
   }) as TildeMCPClient<TTools>;
   let mcpClosed = false;
   const closeMcp = async () => {
@@ -169,8 +247,43 @@ export async function createMCPClient<TTools extends ToolSet = ToolSet>(
   return { mcp, closeMcp };
 }
 
-function toLocalTools(tools: ToolSet): LocalMcpTool[] {
-  return Object.entries(tools).map(([name, tool]) => toLocalTool(name, tool));
+function toUnobservedLocalTools(tools: ToolSet): LocalMcpTool[] {
+  return Object.entries(tools).map(([name, value]) => {
+    const tool = value as unknown as ExecutableToolLike;
+    if (typeof tool.execute !== "function") {
+      throw new TypeError(`Session-bound MCP tool requires execute: ${name}`);
+    }
+    const execute = tool.execute;
+    const localTool: LocalMcpTool = {
+      name,
+      description: tool.description ?? name,
+      inputSchema: jsonSchemaObject(tool.inputSchema),
+      async execute(input) {
+        return (await execute(input, {
+          toolCallId: `${name}-${randomUUID()}`,
+          messages: [],
+          abortSignal: new AbortController().signal,
+          context: undefined,
+        })) as ToolResult;
+      },
+    };
+    if (tool.outputSchema !== undefined) {
+      localTool.outputSchema = jsonSchemaObject(tool.outputSchema);
+    }
+    return localTool;
+  });
+}
+
+function toLocalTools(
+  tools: ToolSet,
+  client: Client,
+  agentId: string,
+  serverId: string,
+  sessionId?: string,
+): LocalMcpTool[] {
+  return Object.entries(tools).map(([name, tool]) =>
+    toLocalTool(name, tool, client, agentId, serverId, sessionId),
+  );
 }
 
 type ExecutableToolLike = {
@@ -183,7 +296,14 @@ type ExecutableToolLike = {
   ) => ToolResult | Promise<ToolResult>;
 };
 
-function toLocalTool(name: string, value: ToolSet[string]): LocalMcpTool {
+function toLocalTool(
+  name: string,
+  value: ToolSet[string],
+  client: Client,
+  agentId: string,
+  serverId: string,
+  sessionId?: string,
+): LocalMcpTool {
   const tool = value as unknown as ExecutableToolLike;
   if (typeof tool.execute !== "function") {
     throw new TypeError(`Local MCP tool requires execute: ${name}`);
@@ -193,19 +313,70 @@ function toLocalTool(name: string, value: ToolSet[string]): LocalMcpTool {
     name,
     description: tool.description ?? name,
     inputSchema: jsonSchemaObject(tool.inputSchema),
-    async execute(input, _context) {
-      return (await execute(input, {
-        toolCallId: `${name}-${randomUUID()}`,
-        messages: [],
-        abortSignal: new AbortController().signal,
-        context: undefined,
-      })) as ToolResult;
+    async execute(input, localContext) {
+      const executionId = `tilde-sdk-execution-${randomUUID()}`;
+      const toolId = localToolId(serverId, name);
+      const correlation = localContext.execution
+        ? {
+            parentExecutionId: localContext.execution.parentExecutionId,
+            batchId: localContext.execution.batchId,
+            batchIndex: localContext.execution.batchIndex,
+          }
+        : {};
+      const session = sessionId ? { sessionId } : {};
+      await client.chatkit.reportToolExecution({
+        agentId,
+        executionId,
+        ...session,
+        toolId,
+        wireName: name,
+        state: "started",
+        input,
+        ...correlation,
+      });
+      try {
+        const output = (await execute(input, {
+          toolCallId: executionId,
+          messages: [],
+          abortSignal: new AbortController().signal,
+          context: undefined,
+        })) as ToolResult;
+        await client.chatkit.reportToolExecution({
+          agentId,
+          executionId,
+          ...session,
+          toolId,
+          wireName: name,
+          state: "completed",
+          input,
+          ...(output === undefined ? {} : { output }),
+          ...correlation,
+        });
+        return output;
+      } catch (error) {
+        await client.chatkit.reportToolExecution({
+          agentId,
+          executionId,
+          ...session,
+          toolId,
+          wireName: name,
+          state: "failed",
+          input,
+          errorMessage: error instanceof Error ? error.message : String(error),
+          ...correlation,
+        });
+        throw error;
+      }
     },
   };
   if (tool.outputSchema !== undefined) {
     localTool.outputSchema = jsonSchemaObject(tool.outputSchema);
   }
   return localTool;
+}
+
+function localToolId(serverId: string, name: string): string {
+  return `tilde-sdk-local:${serverId}:${name}`;
 }
 
 function jsonSchemaObject(schema: JsonObject | undefined): JsonObject {

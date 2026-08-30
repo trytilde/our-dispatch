@@ -42,6 +42,10 @@ export function createE2EClient(): Client {
   });
 }
 
+export function readE2EAgentId(): string {
+  return requiredEnv("TILDE_E2E_AGENT_ID");
+}
+
 function requiredEnv(name: string): string {
   const value = optionalEnv(name);
   if (!value) {

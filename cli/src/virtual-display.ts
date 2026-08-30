@@ -2,8 +2,7 @@
 // x11vnc exposes it on loopback only, so a remote developer reaches it through
 // `openbot connect` rather than an open port.
 //
-// Shared by the Android emulator and the Electron desktop shell, which need the same
-// arrangement on different displays and ports so they can run side by side.
+// Used by the Electron desktop shell on a display-less Linux host.
 import { spawn, spawnSync } from "node:child_process";
 import { setTimeout as delay } from "node:timers/promises";
 import { toolchainEnvironment } from "./toolchain.js";

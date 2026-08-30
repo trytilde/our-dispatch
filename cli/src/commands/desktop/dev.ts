@@ -2,8 +2,7 @@
 //
 // On a machine with a display this simply opens a window. On a display-less host —
 // the remote Linux build box — Electron gets a virtual screen published over loopback
-// VNC, on a different display and port than the Android emulator so both can run at
-// once. Reach it with `openbot connect <host>`.
+// VNC. Reach it with `openbot connect <host>`.
 import { spawn } from "node:child_process";
 import arg from "arg";
 import { ensureVirtualScreen, ensureVncServer, hasNativeDisplay } from "../../virtual-display.js";

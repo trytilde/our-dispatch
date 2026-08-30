@@ -1,6 +1,6 @@
 # openbot
 
-The React Ink CLI for OpenBot. It operates an installation — initialization, development supervision, encrypted secret maintenance, service execution, provider-coordinated deployment — and it carries the developer workflow for the codebase itself: repository gates, the Expo mobile toolchain, and remote development hosts. One command surface serves operators, fork developers, and sandboxed agents (ADR-0018). Commands are parsed with `arg`; command entrypoints live under `src/commands/`.
+The React Ink CLI for OpenBot. It operates an installation — initialization, development supervision, encrypted secret maintenance, service execution, provider-coordinated deployment — and it carries the developer workflow for the codebase itself: repository gates and remote desktop hosts. One command surface serves operators, fork developers, and sandboxed agents (ADR-0018). Commands are parsed with `arg`; command entrypoints live under `src/commands/`.
 
 Provider lifecycle failures identify both the concrete implementation and provider domain. CLI failures always print the complete redacted stack and cause chain below the concise error message; the same stack is included in JSON error output and the private run log.
 
@@ -37,18 +37,10 @@ The CLI operates on the OpenBot repository in the current working directory. For
 - `openbot tunnel -- <command>` runs a local service behind its Tilde local-runtime tunnel. `openbot plugin --cli <claude|codex|cursor|opencode|gemini>` configures selected Tilde MCP servers and skill registries for a coding-agent CLI and optionally launches it with `--launch`.
 - `openbot sdk <refresh|validate|smoke|publish>` owns generated OpenAPI refresh, SDK package validation, clean packed-consumer verification, and explicitly confirmed npm publication for the `@trytilde/sdk*` packages in this monorepo.
 - `openbot check`, `openbot build`, `openbot test`, and `openbot e2e` delegate to the matching repository scripts, which remain the single definition of what each gate runs. `openbot desktop package` packages the Electron app. Extra arguments pass through.
-- `openbot mobile <subcommand>` owns the Expo developer workflow and resolves `ANDROID_SDK_ROOT`, `ANDROID_HOME`, and a real Node binary before spawning anything, because Gradle shells out to `node` while evaluating settings and fails on a version-manager shim:
-  - `mobile expo <args...>` passes through to the Expo CLI of the workspace app that depends on `expo`; override the location with `OPENBOT_MOBILE_DIR`.
-  - `mobile emulator [--avd NAME] [--display N] [--vnc-port PORT] [--timeout MS]` boots the Android emulator and is idempotent, reusing a running Xvfb, emulator, or x11vnc. On Linux it runs headless behind Xvfb with x11vnc bound to loopback only; on macOS the emulator gets a real window.
-  - `mobile setup` provisions the Android SDK idempotently — command line tools, licenses, platform and system-image packages — and reports root-only system packages instead of installing them.
-  - `mobile avd [--name NAME] [--image PKG] [--device PROFILE]` creates the virtual device the emulator boots.
-  - `mobile screenshot [--out FILE]` captures the device screen and prints the PNG path.
-  - `mobile logs [logcat args]` streams the `ReactNativeJS` log channel.
-  - `mobile doctor` verifies the toolchain and exits non-zero when a required tool is missing.
-- `openbot desktop dev [--headless] [--display N] [--vnc-port PORT]` builds and launches the Electron shell. On a machine with a display it opens a window; on a display-less host it renders to a virtual screen published over loopback VNC on port 5901, a different display and port than the Android emulator so both run at once. `openbot desktop package` packages the app for the host platform.
+- `openbot desktop dev [--headless] [--display N] [--vnc-port PORT]` builds and launches the Electron shell. On a machine with a display it opens a window; on a display-less host it renders to a virtual screen published over loopback VNC on port 5901. `openbot desktop package` packages the app for the host platform.
 - `openbot desktop release <build|publish|manifest|status>` publishes signed desktop builds to the updates bucket. `build` packages, signs, and notarizes; `publish` uploads this platform's artifacts and its release entry; `manifest` rebuilds `version.json` from the entries already in the bucket; `status` prints the resolved target. `publish` and `manifest` require `--yes` because both change a public feed, and all of them refuse the official bucket from a remote other than `trytilde/openbot`. See ADR-0028.
-- `openbot connect <host> [--print] [--no-vnc] [--no-desktop] [--no-metro] [--no-adb]` opens the ssh tunnel that carries a remote development host's emulator screen, Electron screen, Metro bundler, and adb to this machine's loopback. Everything on a remote binds loopback, so the tunnel is the only path in; on a mac remote the same VNC port reaches macOS Screen Sharing.
-- `openbot remote <host> <emulator|dev|android|ios|build|desktop|desktop-package|doctor>` runs a development task on a configured host over ssh. `ios` requires a mac host, and `desktop-package` produces artifacts for the remote's platform because Electron Builder targets the host it runs on.
+- `openbot connect <host> [--print] [--no-desktop]` opens the ssh tunnel that carries a remote Electron screen to this machine's loopback.
+- `openbot remote <host> <desktop|desktop-package>` runs a desktop task on a configured host over ssh. `desktop-package` produces artifacts for the remote's platform because Electron Builder targets the host it runs on.
 - Development hosts are fork-owned configuration in `configuration/dev-hosts.json`, never package code. Any command also accepts a raw `user@host`:
 
 ```json

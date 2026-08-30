@@ -4,8 +4,6 @@ import { tildeFetch } from "./fetch.js";
 
 export interface TildePlatformConfig {
   apiKey: string;
-  /** Optional human OAuth token used with the API key for deployment-time delegation. */
-  delegatedBearerToken?: string;
   orgId: string;
   teamId: string;
   baseUrl?: string;
@@ -88,12 +86,9 @@ export class TildePlatform implements Platform {
   }
 }
 
-/** Headers for ordinary machine requests or deployment-time human delegation. */
+/** Headers for the installation's single API-key credential. */
 export function tildeAuthenticationHeaders(config: TildePlatformConfig): Headers {
-  const headers = new Headers({ "x-api-key": config.apiKey });
-  if (config.delegatedBearerToken)
-    headers.set("Authorization", `Bearer ${config.delegatedBearerToken}`);
-  return headers;
+  return new Headers({ "x-api-key": config.apiKey });
 }
 
 function tildeClientConfig(

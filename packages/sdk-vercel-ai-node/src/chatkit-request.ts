@@ -96,11 +96,30 @@ export type ChatKitRequestMessage = {
   identity?: ChatKitMessageIdentity;
 };
 
+export type ChatKitRequestAgentAvatar = {
+  /** Authenticated Tilde API path for the current avatar bytes. */
+  url: string;
+};
+
+/** Canonical public metadata for the agent receiving this turn. */
+export type ChatKitRequestAgent = {
+  id: string;
+  displayName: string;
+  providerId: string;
+  status: "enabled" | "disabled";
+  principalUserId?: string;
+  avatar?: ChatKitRequestAgentAvatar;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type ChatKitRequestBody = {
   chatId?: string | null;
   messages: ChatKitRequestMessage[];
   /** Where the conversation originated, when Tilde supplied provenance. */
   session?: ChatKitSessionContext;
+  /** The canonical Tilde agent receiving this turn, when supplied. */
+  agent?: ChatKitRequestAgent;
 };
 
 export class ChatKitRequestValidationError extends Error {
@@ -133,7 +152,43 @@ export function parseChatKitRequestBody(value: JsonValue): ChatKitRequestBody {
   if (session) {
     body.session = session;
   }
+  const agent = parseChatKitRequestAgent(value.agent as JsonValue | undefined);
+  if (agent) {
+    body.agent = agent;
+  }
   return body;
+}
+
+export function parseChatKitRequestAgent(
+  value: JsonValue | undefined,
+): ChatKitRequestAgent | undefined {
+  if (value === undefined || value === null) return undefined;
+  if (!isJsonObject(value)) throw invalid("body.agent", "must be an object or null");
+  const status = requiredString(value, "status", "body.agent");
+  if (status !== "enabled" && status !== "disabled") {
+    throw invalid("body.agent.status", 'must be "enabled" or "disabled"');
+  }
+  const agent: ChatKitRequestAgent = {
+    id: requiredString(value, "id", "body.agent"),
+    displayName: requiredString(value, "displayName", "body.agent"),
+    providerId: requiredString(value, "providerId", "body.agent"),
+    status,
+    createdAt: requiredString(value, "createdAt", "body.agent"),
+    updatedAt: requiredString(value, "updatedAt", "body.agent"),
+  };
+  optionalString(value, "principalUserId", "body.agent");
+  if (typeof value.principalUserId === "string") {
+    agent.principalUserId = value.principalUserId;
+  }
+  if (value.avatar !== undefined && value.avatar !== null) {
+    if (!isJsonObject(value.avatar)) {
+      throw invalid("body.agent.avatar", "must be an object or null");
+    }
+    agent.avatar = {
+      url: requiredString(value.avatar, "url", "body.agent.avatar"),
+    };
+  }
+  return agent;
 }
 
 export function isChatKitRequestMessage(value: unknown): value is ChatKitRequestMessage {

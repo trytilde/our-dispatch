@@ -54,7 +54,6 @@ describe("OpenBot CLI", () => {
       "test",
       "e2e",
       "desktop",
-      "mobile",
       "connect",
       "remote",
       "help",

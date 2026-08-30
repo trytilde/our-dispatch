@@ -30,6 +30,7 @@ async function waitForAbort(signal: AbortSignal): Promise<never> {
 
 export const POST = chatKitEndpoint({
   webhookSigningKey: process.env.TILDE_CHATKIT_WEBHOOK_SIGNING_KEY || "",
+  responseMode: "agentLoop",
   client,
   async handler(request, context) {
     const history = await context.session.history();

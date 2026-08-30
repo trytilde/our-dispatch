@@ -15,7 +15,6 @@ duplicate each other:
 | --- | --- |
 | [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) | License status, copyright, and the recorded OpenBot modifications per upstream project |
 | [`packages/ui/src/beautiful-ui/PROVENANCE.md`](packages/ui/src/beautiful-ui/PROVENANCE.md) | Per-file SHA-256 at retrieval for the vendored web component tree |
-| [`apps/mobile/src/components/ui/PROVENANCE.md`](apps/mobile/src/components/ui/PROVENANCE.md) | Per-file SHA-256 in repo for the vendored React Native component tree |
 | [`skills-lock.json`](skills-lock.json) | Source repository, ref, path, and content hash per vendored coding-agent skill |
 
 The rules these files exist to enforce are recorded as decisions in
@@ -34,8 +33,7 @@ maintained here. Each row is upstream material, not OpenBot's own work.
 | `packages/ui/src/beautiful-ui/upstream/` | Beautiful UI, retrieved 2026-08-17 from the publisher's live component source | MIT, preserved in `upstream/LICENSE` | Per-file SHA-256 in the tree's `PROVENANCE.md` |
 | `packages/ui/src/components/ui/` | shadcn/ui, via the shadcn registry CLI | MIT | Registry config pinned in `packages/ui/components.json` |
 | `packages/ui/src/components/ai-elements/` | Vercel AI Elements, via the `ai-elements` CLI | Apache-2.0 | Modifications recorded in the notices file |
-| `apps/mobile/src/components/ui/` | BNA UI, retrieved 2026-08-17 with `bna-ui` CLI 3.0.0 | MIT | Per-file SHA-256 in the tree's `PROVENANCE.md` |
-| `.agents/skills/` (47 of 69) | Public GitHub skill repositories | Per upstream repository | Source, ref, path, and content hash per skill in `skills-lock.json` |
+| `.agents/skills/` (23 of 45) | Public GitHub skill repositories | Per upstream repository | Source, ref, path, and content hash per skill in `skills-lock.json` |
 
 `glimm` is upstream code too, but it arrives as an ordinary npm dependency of
 `packages/ui` rather than as vendored source, so it needs no entry here beyond
@@ -73,7 +71,6 @@ and outside formatter and linter ownership:
 | `packages/sdk/src/generated/schema.d.ts` | `packages/api-client/specs/openapi.cloud.json` | `pnpm openbot sdk refresh` |
 | `packages/computer-service-proto/src/gen/` | `proto/openbot/computer/v1/computer.proto` | `pnpm contracts:generate` |
 | `apps/web/src/routeTree.gen.ts` | the TanStack route files | the Vite dev/build pipeline |
-| `apps/mobile/android/`, `apps/mobile/ios/` | `app.json` and config plugins | Expo prebuild; gitignored build output |
 
 ## First-party source consolidation
 
@@ -94,11 +91,6 @@ and in the notices file in the same commit.
 Re-retrieve from the publisher's current source, update the recorded hashes, and
 review the diff — that is the cost accepted in ADR-0022 in exchange for
 auditability and builds that do not depend on a registry being reachable.
-
-```bash
-# React Native components, from apps/mobile
-pnpm dlx bna-ui add <name> --overwrite
-```
 
 **Adding a new upstream source** means four things in one commit: the files, a
 notices entry with license and copyright, per-file hashes wherever the tree is

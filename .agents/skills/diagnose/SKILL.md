@@ -66,7 +66,7 @@ console output, and network failures, then drill into backend code or API curls.
 Locate the owning layer before fixing. Wrong data, wrong reconciliation, or wrong shared state is a
 `packages/client-runtime` defect and reproduces without a browser through a runtime test; the
 renderer owns only presentation symptoms such as styling, hover, focus, transition, and layout. A
-runtime defect usually affects web, mobile, and desktop, so check the other clients before declaring
+runtime defect usually affects web and desktop, so check the other client before declaring
 the scope.
 
 ## Phase 2 — Reproduce

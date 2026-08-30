@@ -763,6 +763,78 @@ describe("MCP client", () => {
 });
 
 describe("ChatKit client", () => {
+  it("registers an agent tool set and reports an execution lifecycle", async () => {
+    const requests: Array<{
+      url: string;
+      method: string | undefined;
+      body: unknown;
+    }> = [];
+    const fetchMock = vi.fn(async (input: Parameters<typeof fetch>[0], init?: RequestInit) => {
+      requests.push({
+        url: String(input),
+        method: init?.method,
+        body: init?.body ? await new Response(init.body).json() : undefined,
+      });
+      return Response.json({ ok: true });
+    });
+    const client = createClient({
+      baseUrl: "https://api.example.test",
+      teamId: "team_123",
+      fetch: fetchMock as typeof fetch,
+    });
+
+    await client.chatkit.registerAgentTools({
+      agentId: "agent/1",
+      tools: [
+        {
+          toolId: "tilde-sdk-local:server:echo",
+          wireName: "echo",
+          displayName: "Echo",
+          identity: { mcpServerId: "server" },
+        },
+      ],
+    });
+    await client.chatkit.reportToolExecution({
+      agentId: "agent/1",
+      executionId: "execution_1",
+      toolId: "tilde-sdk-local:server:echo",
+      wireName: "echo",
+      state: "completed",
+      input: { text: "hello" },
+      output: { text: "hello" },
+    });
+
+    expect(requests).toEqual([
+      {
+        url: "https://api.example.test/api/v1/team/team_123/chatkit/agents/agent%2F1/tools",
+        method: "PUT",
+        body: {
+          tools: [
+            {
+              tool_id: "tilde-sdk-local:server:echo",
+              wire_name: "echo",
+              display_name: "Echo",
+              supports_summary: false,
+              identity_snapshot: { mcpServerId: "server" },
+            },
+          ],
+        },
+      },
+      {
+        url: "https://api.example.test/api/v1/team/team_123/chatkit/agents/agent%2F1/tool-executions",
+        method: "POST",
+        body: {
+          execution_id: "execution_1",
+          tool_id: "tilde-sdk-local:server:echo",
+          wire_name: "echo",
+          state: "completed",
+          input: { text: "hello" },
+          output: { text: "hello" },
+        },
+      },
+    ]);
+  });
+
   it("lists message history through the canonical ChatKit sessions route", async () => {
     const fetchMock = vi.fn(async (input: Parameters<typeof fetch>[0], init?: RequestInit) => {
       expect(String(input)).toBe(
@@ -792,6 +864,89 @@ describe("ChatKit client", () => {
       nextPageToken: "older",
     });
     expect(fetchMock).toHaveBeenCalledOnce();
+  });
+
+  it("invokes active-turn-bound ChatKit communication tools", async () => {
+    const requests: Array<{ url: string; method?: string; body: unknown }> = [];
+    const fetchMock = vi.fn(async (input: Parameters<typeof fetch>[0], init?: RequestInit) => {
+      const url = String(input);
+      requests.push({
+        url,
+        method: init?.method,
+        body: init?.body ? await new Response(init.body).json() : undefined,
+      });
+      if (url.endsWith("/tools/sendMessage")) {
+        return Response.json({
+          message: { id: "message_1" },
+          provider_id: "chatkit.channel.slack",
+          delivery_status: "queued",
+        });
+      }
+      return Response.json({
+        provider_id: "chatkit.channel.slack",
+        tool_name: "addReaction",
+        result: { ok: true },
+      });
+    });
+    const client = createClient({
+      baseUrl: "https://api.example.test",
+      teamId: "team_123",
+      fetch: fetchMock as typeof fetch,
+    });
+
+    await expect(
+      client.chatkit.sendSessionMessage({
+        sessionId: "session_1",
+        agentInboxInstanceId: "agent_instance",
+        targetInboxInstanceId: "target_instance",
+        triggerMessageId: "trigger_1",
+        toolCallId: "call_1",
+        content: "Hello",
+      }),
+    ).resolves.toEqual({
+      message: { id: "message_1" },
+      providerId: "chatkit.channel.slack",
+      deliveryStatus: "queued",
+    });
+    await expect(
+      client.chatkit.invokeSessionProviderTool({
+        sessionId: "session_1",
+        toolName: "addReaction",
+        agentInboxInstanceId: "agent_instance",
+        targetInboxInstanceId: "target_instance",
+        triggerMessageId: "trigger_1",
+        toolCallId: "call_2",
+        parameters: { emoji: "eyes" },
+      }),
+    ).resolves.toEqual({
+      providerId: "chatkit.channel.slack",
+      toolName: "addReaction",
+      result: { ok: true },
+    });
+    expect(requests).toEqual([
+      {
+        url: "https://api.example.test/api/v1/team/team_123/chatkit/sessions/session_1/tools/sendMessage",
+        method: "POST",
+        body: {
+          agent_inbox_instance_id: "agent_instance",
+          target_inbox_instance_id: "target_instance",
+          trigger_message_id: "trigger_1",
+          tool_call_id: "call_1",
+          content: "Hello",
+        },
+      },
+      {
+        url: "https://api.example.test/api/v1/team/team_123/chatkit/sessions/session_1/tools/addReaction",
+        method: "POST",
+        body: {
+          agent_inbox_instance_id: "agent_instance",
+          target_inbox_instance_id: "target_instance",
+          trigger_message_id: "trigger_1",
+          tool_call_id: "call_2",
+          input: { emoji: "eyes" },
+        },
+      },
+    ]);
   });
 
   it("caches and hydrates converted ChatKit messages", async () => {

@@ -32,17 +32,16 @@ describe("platform initialization", () => {
     expect(platform.client()).toBe(platform.client());
   });
 
-  it("combines the machine key with an optional human deployment token", () => {
+  it("uses exactly one installation API-key credential", () => {
     const platform = new TildePlatform({
       apiKey: "test-key",
-      delegatedBearerToken: "human-token",
       orgId: "test-org",
       teamId: "test-team",
     });
 
     const headers = new Headers(platform.client().config.headers);
     expect(headers.get("x-api-key")).toBe("test-key");
-    expect(headers.get("authorization")).toBe("Bearer human-token");
+    expect(headers.get("authorization")).toBeNull();
   });
 
   it("owns shared Vercel credentials and account scope", () => {

@@ -145,7 +145,7 @@ function PluginsSettings({
   async function refresh(): Promise<void> {
     setError("");
     try {
-      setCatalog(await openBotRuntime.client.getPluginsCatalog(agentIds));
+      setCatalog(await openBotRuntime.client.getPluginsCatalog());
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Could not load plugins");
     } finally {

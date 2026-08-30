@@ -61,7 +61,7 @@ describe("TildeAgentProvider", () => {
         requests.push(request.clone());
         const path = new URL(request.url).pathname;
         if (request.method === "PUT" && path.endsWith("/agents/scout/provision")) {
-          const body = (await request.json()) as { memory: { wiki?: unknown } };
+          const body = (await request.json()) as { memory?: unknown };
           expect(body).toMatchObject({
             agent: { credential_strategy: "rotate", endpoint: { concurrency_policy: "queue" } },
             mcp_server: { enabled: true, id: "openbot-scout", enable_tilde_control_plane: true },
@@ -69,9 +69,8 @@ describe("TildeAgentProvider", () => {
               enabled: true,
               enabled_skills: { managed: [{ provider_id: "cua" }] },
             },
-            memory: { bank: { enabled: true, name: "OpenBot scout memory" } },
           });
-          expect(body.memory.wiki).toBeUndefined();
+          expect(body.memory).toBeUndefined();
           return Response.json(operation("queued", false));
         }
         if (request.method === "GET" && path.endsWith("/agents/scout/provision")) {

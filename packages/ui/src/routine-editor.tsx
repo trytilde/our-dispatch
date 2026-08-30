@@ -45,38 +45,38 @@ function deliveryEntry(delivery: SignalDelivery): RunHistoryEntry {
   };
 }
 
-function matchedRuleIds(delivery: SignalDelivery): string[] {
-  const value = (delivery as Record<string, unknown>)["matched_rule_ids"];
+function matchedTriggerIds(delivery: SignalDelivery): string[] {
+  const value = (delivery as Record<string, unknown>)["matched_trigger_ids"];
   return Array.isArray(value) ? value.filter((id): id is string => typeof id === "string") : [];
 }
 
 /**
- * Deliveries are created with no matched rules and filled in after matching, so
+ * Deliveries are created with no matched triggers and filled in after matching, so
  * an unmatched delivery only proves it belongs to another routine once it has
  * settled; until then it is the run the history renders as "Running".
  */
-function belongsToRoutine(delivery: SignalDelivery, ruleIds: ReadonlySet<string>): boolean {
-  const matched = matchedRuleIds(delivery);
-  if (matched.length > 0) return matched.some((id) => ruleIds.has(id));
+function belongsToRoutine(delivery: SignalDelivery, triggerIds: ReadonlySet<string>): boolean {
+  const matched = matchedTriggerIds(delivery);
+  if (matched.length > 0) return matched.some((id) => triggerIds.has(id));
   return delivery.status === "pending" || delivery.status === "processing";
 }
 
 /**
- * Newest-first run history: signal deliveries matched to the routine's rules
+ * Newest-first run history: signal deliveries matched to the Routine's triggers
  * plus the schedule snapshot row (Tilde keeps no cron run log).
  */
 export function routineRunHistory(
   routine: Routine,
   deliveriesByInstanceId: Record<string, SignalDelivery[]>,
 ): RunHistoryEntry[] {
-  const ruleIds = new Set(
-    routine.triggers.flatMap((trigger) => (trigger.kind === "event" ? [trigger.rule_id] : [])),
+  const triggerIds = new Set(
+    routine.triggers.flatMap((trigger) => (trigger.kind === "event" ? [trigger.id] : [])),
   );
   const entries: RunHistoryEntry[] = [];
   for (const trigger of routine.triggers) {
     if (trigger.kind !== "event") continue;
     for (const delivery of deliveriesByInstanceId[trigger.instance_id] ?? []) {
-      if (!belongsToRoutine(delivery, ruleIds)) continue;
+      if (!belongsToRoutine(delivery, triggerIds)) continue;
       entries.push(deliveryEntry(delivery));
     }
   }

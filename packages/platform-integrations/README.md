@@ -4,7 +4,7 @@ Canonical installation-level integrations for platforms shared by multiple OpenB
 
 ## Public API
 
-- `TildePlatform` implements `Platform` for the Tilde credential, organization, team, and API origin shared by Tilde agent, skills, and tools providers. It may combine the persistent machine API key with a short-lived human OAuth token for deployment-time machine-on-behalf-of-human authorization. Initialization persists `https://api.trytilde.ai` as the default origin so an unrelated host override cannot retarget a configured repository. `tildePlatform` is the default shared instance.
+- `TildePlatform` implements `Platform` for the installation API key, organization, team, and API origin shared by Tilde agent, skills, and tools providers. The API key authenticates as its owning human or agent user; OpenBot never combines it with a bearer token. Initialization persists `https://api.trytilde.ai` as the default origin so an unrelated host override cannot retarget a configured repository. `tildePlatform` is the default shared instance.
 - `VercelPlatform` implements `Platform` for the Vercel credential and optional team scope shared by Vercel control-service, agent-service, and computer providers. `vercelPlatform` is the default shared instance.
 - `ExeDevPlatform` owns the shared VM name, 2-vCPU/8-GB sizing defaults, remote checkout path, SSH
   hostname, and public HTTPS origin consumed by the exe.dev runtime and Computer providers.

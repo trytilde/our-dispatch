@@ -10,14 +10,25 @@ pnpm add @trytilde/sdk @trytilde/sdk-vercel-ai-node zod
 ## Public API
 
 - `chatKitEndpoint(options)` verifies ChatKit webhooks and runs a Vercel AI SDK handler with typed
-  session context and history.
-- `createMCPClient(options)` creates a Tilde-authenticated AI SDK MCP client and merges local tools.
+  session context and history. Select `responseMode: "agentLoop"` for direct streamed responses or
+  `responseMode: "tool"` to expose provider-bound communication through `context.session.tools`
+  and `context.$provider.tools` while treating returned assistant text as private reasoning.
+- `createMCPClient(options)` creates a Tilde-authenticated AI SDK MCP client, registers local tools
+  for the owning ChatKit agent, and records local and dynamic child executions. Pass `agentId` when
+  supplying `tools`; use `chatkit.sessionId` to correlate executions to the active session. Inside
+  a tool-mode endpoint, `context.session.createMCPClient(options)` also injects the current
+  session's bound provider tools without registering them as authored local tools.
+- `createChatKitSessionTools(client, session)` constructs the trusted, provider-aware `sendMessage`,
+  reaction, thread, AgentMail, and Linq poll tools used by tool-mode endpoints.
 - `toolEndpoint(options)` exposes signed, Zod-validated custom tool discovery and invocation.
 - `convertToAiSdkMessage` and `convertToAiSdkMessages` convert persisted ChatKit messages.
 - AgentMail, GitHub, and Slack provider metadata is promoted into typed endpoint context, and
   AgentMail Signals can be handled through the discriminated `AgentMailSignalByType` map.
 - `ChatKitEndpointContext` exposes validated provider metadata through typed `github`, `slack`, and
-  `linq` fields. `LinqChatKitMessageMetadata` describes inbound Linq chats, handles, and parts.
+  `linq` fields, plus canonical receiving-agent metadata through optional `context.agent`.
+  `ChatKitRequestAgent` includes the agent ID, display name, provider, status, principal, avatar
+  path, and lifecycle timestamps. `LinqChatKitMessageMetadata` describes inbound Linq chats,
+  handles, and parts.
 - `LinqSignalType`, `LinqSignalByType`, and `LinqWebhookEnvelope` strongly type every supported Linq
   webhook event. Register event-specific conversion handlers under `onUnprocessed.linq`.
 - `createChatKitAttachmentFilePartHandler(options)` resolves ChatKit attachments for model input.

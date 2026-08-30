@@ -33,7 +33,7 @@ export class DesktopAuth {
 
   /**
    * The control service owns OIDC configuration, so a packaged build carries no deployment
-   * specifics and every client resolves the same values as the mobile app does.
+   * specifics and every native desktop client resolves the same public values.
    */
   async #nativeConfiguration(): Promise<NativeAuthConfiguration> {
     this.#configuration ??= (async () => {

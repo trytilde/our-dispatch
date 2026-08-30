@@ -28,7 +28,7 @@ export type OnboardingState = z.infer<typeof onboardingStateSchema>;
 
 /**
  * The slice of a key/value store onboarding needs. Sync-or-async returns so web
- * `localStorage`, Electron's bridge, and Expo SecureStore all satisfy it unchanged.
+ * `localStorage` and Electron's bridge both satisfy it unchanged.
  */
 export interface OnboardingStorage {
   getItem(key: string): string | null | Promise<string | null>;

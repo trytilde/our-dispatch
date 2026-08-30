@@ -120,6 +120,8 @@ export {
   type SlackChatKitMessageMetadata,
 } from "./chatkit-provider-metadata";
 export {
+  type ChatKitRequestAgent,
+  type ChatKitRequestAgentAvatar,
   type ChatKitRequestApproval,
   type ChatKitRequestBody,
   type ChatKitRequestDataPart,
@@ -136,6 +138,7 @@ export {
   type ChatKitRequestToolState,
   ChatKitRequestValidationError,
   isChatKitRequestMessage,
+  parseChatKitRequestAgent,
   parseChatKitRequestBody,
 } from "./chatkit-request";
 export {
@@ -154,11 +157,14 @@ export {
   type ChatKitConvertedMessage,
   type ChatKitEndpointContext,
   type ChatKitEndpointOptions,
+  type ChatKitResponseMode,
   type ChatKitSessionClient,
   type ChatKitSessionHistory,
   type ChatKitSessionHistoryOptions,
   chatKitEndpoint,
+  TILDE_CHATKIT_RESPONSE_MODE_HEADER,
 } from "./handler";
+export { type ChatKitToolSession, createChatKitSessionTools } from "./chatkit-session-tools";
 export {
   type ChatKitConnectionOptions,
   chatkitConnectionHeaders,

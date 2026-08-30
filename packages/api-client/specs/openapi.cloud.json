@@ -437,7 +437,7 @@
           "v1"
         ],
         "summary": "Enroll current human in a product",
-        "description": "Creates one deduplicated human Core or Pay seat, synchronizes the exact organization quantity with Autumn, and never bills machine or API-key identities.",
+        "description": "Creates one deduplicated human Core or Pay seat, synchronizes the exact organization quantity with Autumn, and never bills agent identities.",
         "operationId": "billing-product-enroll-current-human",
         "parameters": [
           {
@@ -462,7 +462,7 @@
             }
           },
           "400": {
-            "description": "Unknown product or machine caller",
+            "description": "Unknown product or agent caller",
             "content": {
               "application/json": {
                 "schema": {
@@ -2388,7 +2388,7 @@
           {
             "name": "user_type",
             "in": "query",
-            "description": "Filter to `human` users or `machine` agents.",
+            "description": "Filter to `human` or `agent` users.",
             "required": false,
             "schema": {
               "type": "string"
@@ -3549,7 +3549,7 @@
           {
             "name": "user_type",
             "in": "query",
-            "description": "Filter to `human` users or `machine` agents.",
+            "description": "Filter to `human` or `agent` users.",
             "required": false,
             "schema": {
               "type": "string"
@@ -4304,7 +4304,7 @@
           {
             "name": "user_type",
             "in": "query",
-            "description": "Filter to `human` users or `machine` agents.",
+            "description": "Filter to `human` or `agent` users.",
             "required": false,
             "schema": {
               "type": "string"
@@ -4596,7 +4596,7 @@
           {
             "name": "user_type",
             "in": "query",
-            "description": "Filter to `human` users or `machine` agents.",
+            "description": "Filter to `human` or `agent` users.",
             "required": false,
             "schema": {
               "type": "string"
@@ -4905,7 +4905,7 @@
           {
             "name": "user_type",
             "in": "query",
-            "description": "Filter to `human` users or `machine` agents.",
+            "description": "Filter to `human` or `agent` users.",
             "required": false,
             "schema": {
               "type": "string"
@@ -5578,8 +5578,8 @@
           "automations",
           "v1"
         ],
-        "summary": "List unified automations",
-        "description": "Lists authoritative automation roots, filterable by agent and reconciliation status.",
+        "summary": "List unified routines",
+        "description": "Lists native Routine roots and their schedule or event triggers, filterable by agent.",
         "operationId": "automations-list",
         "parameters": [
           {
@@ -5598,21 +5598,6 @@
               "type": [
                 "string",
                 "null"
-              ]
-            }
-          },
-          {
-            "name": "status",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "oneOf": [
-                {
-                  "type": "null"
-                },
-                {
-                  "$ref": "#/components/schemas/AutomationStatus"
-                }
               ]
             }
           },
@@ -5652,7 +5637,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/AutomationPaginatedResponse"
+                  "$ref": "#/components/schemas/RoutinePaginatedResponse"
                 }
               }
             }
@@ -5668,14 +5653,14 @@
         ]
       }
     },
-    "/api/v1/team/{team_id}/automations/{automation_id}": {
+    "/api/v1/team/{team_id}/automations/{routine_id}": {
       "get": {
         "tags": [
           "automations",
           "v1"
         ],
-        "summary": "Get a unified automation",
-        "description": "Gets the persisted root, trigger membership, generation, and reconciliation status.",
+        "summary": "Get a unified routine",
+        "description": "Gets the native root, trigger configuration, schedule telemetry, and version.",
         "operationId": "automations-get",
         "parameters": [
           {
@@ -5687,7 +5672,7 @@
             }
           },
           {
-            "name": "automation_id",
+            "name": "routine_id",
             "in": "path",
             "required": true,
             "schema": {
@@ -5710,7 +5695,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Automation"
+                  "$ref": "#/components/schemas/Routine"
                 }
               }
             }
@@ -5740,8 +5725,8 @@
           "automations",
           "v1"
         ],
-        "summary": "Create or replace a unified automation",
-        "description": "Persists and serially reconciles desired schedule and event triggers. Reconciliation failure remains observable on the root.",
+        "summary": "Create or replace a unified routine",
+        "description": "Atomically persists the Routine root and its complete native schedule/event trigger set.",
         "operationId": "automations-put",
         "parameters": [
           {
@@ -5753,7 +5738,7 @@
             }
           },
           {
-            "name": "automation_id",
+            "name": "routine_id",
             "in": "path",
             "required": true,
             "schema": {
@@ -5774,7 +5759,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/PutAutomationBody"
+                "$ref": "#/components/schemas/PutRoutineBody"
               }
             }
           },
@@ -5786,7 +5771,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Automation"
+                  "$ref": "#/components/schemas/Routine"
                 }
               }
             }
@@ -5816,8 +5801,8 @@
           "automations",
           "v1"
         ],
-        "summary": "Delete a unified automation",
-        "description": "Deletes all materialized members before deleting the authoritative root.",
+        "summary": "Delete a unified routine",
+        "description": "Deletes the Routine root and cascading triggers when no schedule execution holds a live lease.",
         "operationId": "automations-delete",
         "parameters": [
           {
@@ -5829,7 +5814,7 @@
             }
           },
           {
-            "name": "automation_id",
+            "name": "routine_id",
             "in": "path",
             "required": true,
             "schema": {
@@ -5852,7 +5837,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/DeleteAutomationResponse"
+                  "$ref": "#/components/schemas/DeleteRoutineResponse"
                 }
               }
             }
@@ -5868,13 +5853,102 @@
         ]
       }
     },
-    "/api/v1/team/{team_id}/automations/{automation_id}/ownership": {
+    "/api/v1/team/{team_id}/automations/{routine_id}/executions": {
+      "get": {
+        "tags": [
+          "automations",
+          "v1"
+        ],
+        "summary": "List routine executions",
+        "description": "Lists durable manual, schedule, and event executions for one visible Routine.",
+        "operationId": "automations-list-executions",
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "routine_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/WrappedUuidV4"
+            }
+          },
+          {
+            "name": "agent_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "next_page_token",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "name": "team_id",
+            "in": "path",
+            "description": "Team ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoutineExecutionPaginatedResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          },
+          {
+            "bearer_token": []
+          }
+        ]
+      }
+    },
+    "/api/v1/team/{team_id}/automations/{routine_id}/ownership": {
       "post": {
         "tags": [
           "automations",
           "v1"
         ],
-        "summary": "Set automation ownership",
+        "summary": "Set routine ownership",
         "description": "Sets the persisted ownership mode and preserves an effective-user grant when made private.",
         "operationId": "automations-set-ownership",
         "parameters": [
@@ -5887,7 +5961,7 @@
             }
           },
           {
-            "name": "automation_id",
+            "name": "routine_id",
             "in": "path",
             "required": true,
             "schema": {
@@ -5936,13 +6010,13 @@
         ]
       }
     },
-    "/api/v1/team/{team_id}/automations/{automation_id}/run": {
+    "/api/v1/team/{team_id}/automations/{routine_id}/run": {
       "post": {
         "tags": [
           "automations",
           "v1"
         ],
-        "summary": "Run a unified automation",
+        "summary": "Run a unified routine",
         "description": "Runs once for the supplied durable run ID and returns the existing result on retry.",
         "operationId": "automations-run",
         "parameters": [
@@ -5955,7 +6029,7 @@
             }
           },
           {
-            "name": "automation_id",
+            "name": "routine_id",
             "in": "path",
             "required": true,
             "schema": {
@@ -5976,7 +6050,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/RunAutomationBody"
+                "$ref": "#/components/schemas/RunRoutineBody"
               }
             }
           },
@@ -5988,7 +6062,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/RunAutomationResponse"
+                  "$ref": "#/components/schemas/RunRoutineResponse"
                 }
               }
             }
@@ -6004,13 +6078,13 @@
         ]
       }
     },
-    "/api/v1/team/{team_id}/automations/{automation_id}/visibility": {
+    "/api/v1/team/{team_id}/automations/{routine_id}/visibility": {
       "post": {
         "tags": [
           "automations",
           "v1"
         ],
-        "summary": "Set automation visibility",
+        "summary": "Set routine visibility",
         "description": "Sets the persisted visibility mode and preserves an effective-user grant when made private.",
         "operationId": "automations-set-visibility",
         "parameters": [
@@ -6023,7 +6097,7 @@
             }
           },
           {
-            "name": "automation_id",
+            "name": "routine_id",
             "in": "path",
             "required": true,
             "schema": {
@@ -6072,14 +6146,14 @@
         ]
       }
     },
-    "/api/v1/team/{team_id}/automations/{automation_id}/{plane}/grants": {
+    "/api/v1/team/{team_id}/automations/{routine_id}/{plane}/grants": {
       "get": {
         "tags": [
           "automations",
           "v1"
         ],
-        "summary": "List automation grants",
-        "description": "Lists grants on the selected automation authorization plane.",
+        "summary": "List routine grants",
+        "description": "Lists grants on the selected routine authorization plane.",
         "operationId": "automations-list-grants",
         "parameters": [
           {
@@ -6091,7 +6165,7 @@
             }
           },
           {
-            "name": "automation_id",
+            "name": "routine_id",
             "in": "path",
             "required": true,
             "schema": {
@@ -6145,7 +6219,7 @@
           "automations",
           "v1"
         ],
-        "summary": "Add an automation grant",
+        "summary": "Add a routine grant",
         "description": "Validates and adds a principal grant on the selected authorization plane.",
         "operationId": "automations-add-grant",
         "parameters": [
@@ -6158,7 +6232,7 @@
             }
           },
           {
-            "name": "automation_id",
+            "name": "routine_id",
             "in": "path",
             "required": true,
             "schema": {
@@ -6215,13 +6289,13 @@
         ]
       }
     },
-    "/api/v1/team/{team_id}/automations/{automation_id}/{plane}/grants/{principal_type}/{principal_id}": {
+    "/api/v1/team/{team_id}/automations/{routine_id}/{plane}/grants/{principal_type}/{principal_id}": {
       "delete": {
         "tags": [
           "automations",
           "v1"
         ],
-        "summary": "Remove an automation grant",
+        "summary": "Remove a routine grant",
         "description": "Idempotently removes a principal grant while retaining at least one private ownership grant.",
         "operationId": "automations-remove-grant",
         "parameters": [
@@ -6234,7 +6308,7 @@
             }
           },
           {
-            "name": "automation_id",
+            "name": "routine_id",
             "in": "path",
             "required": true,
             "schema": {
@@ -7257,7 +7331,7 @@
           "v1"
         ],
         "summary": "Download a ChatKit agent avatar",
-        "description": "Returns the canonical avatar bytes from the agent's stable machine-user profile.",
+        "description": "Returns the canonical avatar bytes from the stable agent-user profile.",
         "operationId": "chatkit-get-agent-avatar",
         "parameters": [
           {
@@ -7329,7 +7403,7 @@
           "v1"
         ],
         "summary": "Upload a ChatKit agent avatar",
-        "description": "Stores a PNG, JPEG, or WebP avatar on the agent's stable machine-user profile.",
+        "description": "Stores a PNG, JPEG, or WebP avatar on the stable agent-user profile.",
         "operationId": "chatkit-update-agent-avatar",
         "parameters": [
           {
@@ -7380,6 +7454,162 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ChatKitAgentAvatar"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {},
+          {
+            "api_key": []
+          },
+          {
+            "bearer_token": []
+          }
+        ]
+      }
+    },
+    "/api/v1/team/{team_id}/chatkit/agents/{agent_id}/observability": {
+      "get": {
+        "tags": [
+          "chatkit",
+          "v1"
+        ],
+        "summary": "Get agent observability configuration",
+        "description": "Returns agent event visibility defaults and the reconciled tool catalog with effective policy inputs.",
+        "operationId": "chatkit-get-agent-observability",
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "agent_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "team_id",
+            "in": "path",
+            "description": "Team ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentObservabilityConfiguration"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {},
+          {
+            "api_key": []
+          },
+          {
+            "bearer_token": []
+          }
+        ]
+      },
+      "patch": {
+        "tags": [
+          "chatkit",
+          "v1"
+        ],
+        "summary": "Update agent observability defaults",
+        "description": "Updates one visibility policy used for both live and historical audience projections.",
+        "operationId": "chatkit-update-agent-observability",
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "agent_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "team_id",
+            "in": "path",
+            "description": "Team ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateAgentObservabilityPolicyRequestInner"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentObservabilityConfiguration"
                 }
               }
             }
@@ -7484,6 +7714,117 @@
             }
           },
           "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {},
+          {
+            "api_key": []
+          },
+          {
+            "bearer_token": []
+          }
+        ]
+      }
+    },
+    "/api/v1/team/{team_id}/chatkit/agents/{agent_id}/permissions": {
+      "put": {
+        "tags": [
+          "chatkit",
+          "v1"
+        ],
+        "summary": "Update ChatKit agent permissions",
+        "description": "Sets whether an agent may delegate to other agents and create multi-party sessions, and which agents or users it may reach. Permissions narrow reach: they intersect with the visibility plane and never grant access to an agent the caller cannot already see. An agent with no permissions is offered no delegation tools at all.",
+        "operationId": "chatkit-set-agent-permissions",
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "description": "Team ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "agent_id",
+            "in": "path",
+            "description": "ChatKit agent inbox ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "team_id",
+            "in": "path",
+            "description": "Team ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AgentPermissions"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Update what a ChatKit agent may reach",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChatKitAgent"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
             "description": "",
             "content": {
               "application/json": {
@@ -7743,6 +8084,281 @@
             }
           },
           "500": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {},
+          {
+            "api_key": []
+          },
+          {
+            "bearer_token": []
+          }
+        ]
+      }
+    },
+    "/api/v1/team/{team_id}/chatkit/agents/{agent_id}/tool-executions": {
+      "post": {
+        "tags": [
+          "chatkit",
+          "v1"
+        ],
+        "summary": "Report a local tool execution lifecycle event",
+        "description": "Records a Harness-local tool lifecycle event and its canonical execution state atomically.",
+        "operationId": "chatkit-report-tool-execution",
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "agent_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "team_id",
+            "in": "path",
+            "description": "Team ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReportToolExecutionRequestInner"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ToolExecution"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {},
+          {
+            "api_key": []
+          },
+          {
+            "bearer_token": []
+          }
+        ]
+      }
+    },
+    "/api/v1/team/{team_id}/chatkit/agents/{agent_id}/tools": {
+      "put": {
+        "tags": [
+          "chatkit",
+          "v1"
+        ],
+        "summary": "Register an agent tool set",
+        "description": "Reconciles the complete Harness-local tool set for an agent connection; omitted prior local tools become unavailable.",
+        "operationId": "chatkit-register-agent-tools",
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "agent_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "team_id",
+            "in": "path",
+            "description": "Team ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterAgentToolsRequestInner"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentObservabilityConfiguration"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {},
+          {
+            "api_key": []
+          },
+          {
+            "bearer_token": []
+          }
+        ]
+      }
+    },
+    "/api/v1/team/{team_id}/chatkit/agents/{agent_id}/tools/{tool_id}": {
+      "patch": {
+        "tags": [
+          "chatkit",
+          "v1"
+        ],
+        "summary": "Update an agent tool visibility override",
+        "description": "Sets or clears the sparse visibility override and operator-authored summary for one stable tool identity.",
+        "operationId": "chatkit-update-agent-tool-visibility",
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "agent_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "tool_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "team_id",
+            "in": "path",
+            "description": "Team ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateAgentToolVisibilityRequestInner"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentObservabilityConfiguration"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
             "description": "",
             "content": {
               "application/json": {
@@ -9443,651 +10059,6 @@
             "bearer_token": []
           }
         ]
-      }
-    },
-    "/api/v1/team/{team_id}/chatkit/routines": {
-      "get": {
-        "tags": [
-          "chatkit",
-          "v1"
-        ],
-        "summary": "List ChatKit routines",
-        "description": "Lists scheduled prompts for one team.",
-        "operationId": "chatkit-list-routines",
-        "parameters": [
-          {
-            "name": "team_id",
-            "in": "path",
-            "description": "Team ID",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "page_size",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "format": "int64"
-            }
-          },
-          {
-            "name": "next_page_token",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": [
-                "string",
-                "null"
-              ]
-            }
-          },
-          {
-            "name": "team_id",
-            "in": "path",
-            "description": "Team ID",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Routine list",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/RoutinePaginatedResponse"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {},
-          {
-            "api_key": []
-          },
-          {
-            "bearer_token": []
-          }
-        ]
-      },
-      "post": {
-        "tags": [
-          "chatkit",
-          "v1"
-        ],
-        "summary": "Create a ChatKit routine",
-        "description": "Creates a minute-granularity UTC cron schedule that prompts one ChatKit agent.",
-        "operationId": "chatkit-create-routine",
-        "parameters": [
-          {
-            "name": "team_id",
-            "in": "path",
-            "description": "Team ID",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "team_id",
-            "in": "path",
-            "description": "Team ID",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CreateRoutineRequestInner"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Created routine",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Routine"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Invalid schedule or routine",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Internal Server Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {},
-          {
-            "api_key": []
-          },
-          {
-            "bearer_token": []
-          }
-        ]
-      }
-    },
-    "/api/v1/team/{team_id}/chatkit/routines/{routine_id}": {
-      "get": {
-        "tags": [
-          "chatkit",
-          "v1"
-        ],
-        "summary": "Get a ChatKit routine",
-        "description": "Gets one scheduled prompt.",
-        "operationId": "chatkit-get-routine",
-        "parameters": [
-          {
-            "name": "team_id",
-            "in": "path",
-            "description": "Team ID",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "routine_id",
-            "in": "path",
-            "description": "Routine ID",
-            "required": true,
-            "schema": {
-              "$ref": "#/components/schemas/WrappedUuidV4"
-            }
-          },
-          {
-            "name": "team_id",
-            "in": "path",
-            "description": "Team ID",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Routine",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Routine"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {},
-          {
-            "api_key": []
-          },
-          {
-            "bearer_token": []
-          }
-        ]
-      },
-      "delete": {
-        "tags": [
-          "chatkit",
-          "v1"
-        ],
-        "summary": "Delete a ChatKit routine",
-        "description": "Deletes one scheduled prompt.",
-        "operationId": "chatkit-delete-routine",
-        "parameters": [
-          {
-            "name": "team_id",
-            "in": "path",
-            "description": "Team ID",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "routine_id",
-            "in": "path",
-            "description": "Routine ID",
-            "required": true,
-            "schema": {
-              "$ref": "#/components/schemas/WrappedUuidV4"
-            }
-          },
-          {
-            "name": "team_id",
-            "in": "path",
-            "description": "Team ID",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Deletion result",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/DeleteRoutineResponse"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {},
-          {
-            "api_key": []
-          },
-          {
-            "bearer_token": []
-          }
-        ]
-      },
-      "patch": {
-        "tags": [
-          "chatkit",
-          "v1"
-        ],
-        "summary": "Update a ChatKit routine",
-        "description": "Updates a routine and recomputes its next UTC occurrence.",
-        "operationId": "chatkit-update-routine",
-        "parameters": [
-          {
-            "name": "team_id",
-            "in": "path",
-            "description": "Team ID",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "routine_id",
-            "in": "path",
-            "description": "Routine ID",
-            "required": true,
-            "schema": {
-              "$ref": "#/components/schemas/WrappedUuidV4"
-            }
-          },
-          {
-            "name": "team_id",
-            "in": "path",
-            "description": "Team ID",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/UpdateRoutineRequestInner"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Updated routine",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Routine"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {},
-          {
-            "api_key": []
-          },
-          {
-            "bearer_token": []
-          }
-        ]
-      }
-    },
-    "/api/v1/team/{team_id}/chatkit/routines/{routine_id}/ownership": {
-      "post": {
-        "tags": [
-          "chatkit",
-          "v1"
-        ],
-        "operationId": "set-chatkit-routine-ownership",
-        "parameters": [
-          {
-            "name": "team_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "routine_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "$ref": "#/components/schemas/WrappedUuidV4"
-            }
-          },
-          {
-            "name": "team_id",
-            "in": "path",
-            "description": "Team ID",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/SetResourceAccessModeRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ResourceAuthorization"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/team/{team_id}/chatkit/routines/{routine_id}/visibility": {
-      "post": {
-        "tags": [
-          "chatkit",
-          "v1"
-        ],
-        "operationId": "set-chatkit-routine-visibility",
-        "parameters": [
-          {
-            "name": "team_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "routine_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "$ref": "#/components/schemas/WrappedUuidV4"
-            }
-          },
-          {
-            "name": "team_id",
-            "in": "path",
-            "description": "Team ID",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/SetResourceAccessModeRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ResourceAuthorization"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/team/{team_id}/chatkit/routines/{routine_id}/{plane}/grants": {
-      "get": {
-        "tags": [
-          "chatkit",
-          "v1"
-        ],
-        "operationId": "list-chatkit-routine-grants",
-        "parameters": [
-          {
-            "name": "team_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "routine_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "$ref": "#/components/schemas/WrappedUuidV4"
-            }
-          },
-          {
-            "name": "plane",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "$ref": "#/components/schemas/ResourceGrantPlane"
-            }
-          },
-          {
-            "name": "team_id",
-            "in": "path",
-            "description": "Team ID",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/ResourceGrant"
-                  }
-                }
-              }
-            }
-          }
-        }
-      },
-      "post": {
-        "tags": [
-          "chatkit",
-          "v1"
-        ],
-        "operationId": "add-chatkit-routine-grant",
-        "parameters": [
-          {
-            "name": "team_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "routine_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "$ref": "#/components/schemas/WrappedUuidV4"
-            }
-          },
-          {
-            "name": "plane",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "$ref": "#/components/schemas/ResourceGrantPlane"
-            }
-          },
-          {
-            "name": "team_id",
-            "in": "path",
-            "description": "Team ID",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CreateResourcePlaneGrantRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ResourceGrant"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/team/{team_id}/chatkit/routines/{routine_id}/{plane}/grants/{principal_type}/{principal_id}": {
-      "delete": {
-        "tags": [
-          "chatkit",
-          "v1"
-        ],
-        "operationId": "remove-chatkit-routine-grant",
-        "parameters": [
-          {
-            "name": "team_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "routine_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "$ref": "#/components/schemas/WrappedUuidV4"
-            }
-          },
-          {
-            "name": "plane",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "$ref": "#/components/schemas/ResourceGrantPlane"
-            }
-          },
-          {
-            "name": "principal_type",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "$ref": "#/components/schemas/ResourcePrincipalType"
-            }
-          },
-          {
-            "name": "principal_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "team_id",
-            "in": "path",
-            "description": "Team ID",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": ""
-          }
-        }
       }
     },
     "/api/v1/team/{team_id}/chatkit/session": {
@@ -13174,6 +13145,204 @@
           },
           "500": {
             "description": "Internal Server Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {},
+          {
+            "api_key": []
+          },
+          {
+            "bearer_token": []
+          }
+        ]
+      }
+    },
+    "/api/v1/team/{team_id}/chatkit/sessions/{session_id}/tools/sendMessage": {
+      "post": {
+        "tags": [
+          "chatkit",
+          "v1"
+        ],
+        "summary": "Send a session-bound provider message",
+        "description": "Invokes the session provider's sendMessage capability with server-validated participant routing and persists the canonical ChatKit message.",
+        "operationId": "chatkit-send-session-message",
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "description": "Team ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "session_id",
+            "in": "path",
+            "description": "Session ID",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/WrappedUuidV4"
+            }
+          },
+          {
+            "name": "team_id",
+            "in": "path",
+            "description": "Team ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SendSessionMessageBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Provider message delivered",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SendSessionMessageResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {},
+          {
+            "api_key": []
+          },
+          {
+            "bearer_token": []
+          }
+        ]
+      }
+    },
+    "/api/v1/team/{team_id}/chatkit/sessions/{session_id}/tools/{tool_name}": {
+      "post": {
+        "tags": [
+          "chatkit",
+          "v1"
+        ],
+        "summary": "Invoke a session-bound provider tool",
+        "description": "Invokes a provider action with server-bound session and message routing.",
+        "operationId": "chatkit-invoke-session-provider-tool",
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/WrappedUuidV4"
+            }
+          },
+          {
+            "name": "tool_name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "team_id",
+            "in": "path",
+            "description": "Team ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InvokeSessionProviderToolBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvokeSessionProviderToolResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
             "content": {
               "application/json": {
                 "schema": {
@@ -26268,10 +26437,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/SignalDelivery"
-                  }
+                  "$ref": "#/components/schemas/SignalDeliveryPaginatedResponse"
                 }
               }
             }
@@ -26451,10 +26617,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/SignalProviderInstance"
-                  }
+                  "$ref": "#/components/schemas/SignalProviderInstancePaginatedResponse"
                 }
               }
             }
@@ -27086,603 +27249,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/SignalProviderSourceSerialized"
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/team/{team_id}/signals/rules": {
-      "get": {
-        "tags": [
-          "signals",
-          "v1"
-        ],
-        "summary": "List SignalRules",
-        "description": "List SignalRules.",
-        "operationId": "signals-list-rules",
-        "parameters": [
-          {
-            "name": "team_id",
-            "in": "path",
-            "description": "Team ID",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "page_size",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "format": "int64"
-            },
-            "style": "form"
-          },
-          {
-            "name": "next_page_token",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string"
-            },
-            "style": "form"
-          },
-          {
-            "name": "instance_id",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string"
-            },
-            "style": "form"
-          },
-          {
-            "name": "status",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string"
-            },
-            "style": "form"
-          },
-          {
-            "name": "team_id",
-            "in": "path",
-            "description": "Team ID",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/SignalRule"
-                  }
-                }
-              }
-            }
-          }
-        }
-      },
-      "post": {
-        "tags": [
-          "signals",
-          "v1"
-        ],
-        "summary": "Create SignalRule",
-        "description": "Create a SignalRule mapping incoming signals to ChatKit actions.",
-        "operationId": "signals-create-rule",
-        "parameters": [
-          {
-            "name": "team_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "team_id",
-            "in": "path",
-            "description": "Team ID",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CreateSignalRuleRequestInner"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SignalRule"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/team/{team_id}/signals/rules/{id}/ownership": {
-      "post": {
-        "tags": [
-          "signals",
-          "v1"
-        ],
-        "operationId": "set-signal-rule-ownership",
-        "parameters": [
-          {
-            "name": "team_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "$ref": "#/components/schemas/WrappedUuidV4"
-            }
-          },
-          {
-            "name": "team_id",
-            "in": "path",
-            "description": "Team ID",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/SetResourceAccessModeRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ResourceAuthorization"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/team/{team_id}/signals/rules/{id}/visibility": {
-      "post": {
-        "tags": [
-          "signals",
-          "v1"
-        ],
-        "operationId": "set-signal-rule-visibility",
-        "parameters": [
-          {
-            "name": "team_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "$ref": "#/components/schemas/WrappedUuidV4"
-            }
-          },
-          {
-            "name": "team_id",
-            "in": "path",
-            "description": "Team ID",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/SetResourceAccessModeRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ResourceAuthorization"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/team/{team_id}/signals/rules/{id}/{plane}/grants": {
-      "get": {
-        "tags": [
-          "signals",
-          "v1"
-        ],
-        "operationId": "list-signal-rule-grants",
-        "parameters": [
-          {
-            "name": "team_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "$ref": "#/components/schemas/WrappedUuidV4"
-            }
-          },
-          {
-            "name": "plane",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "$ref": "#/components/schemas/ResourceGrantPlane"
-            }
-          },
-          {
-            "name": "team_id",
-            "in": "path",
-            "description": "Team ID",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/ResourceGrant"
-                  }
-                }
-              }
-            }
-          }
-        }
-      },
-      "post": {
-        "tags": [
-          "signals",
-          "v1"
-        ],
-        "operationId": "add-signal-rule-grant",
-        "parameters": [
-          {
-            "name": "team_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "$ref": "#/components/schemas/WrappedUuidV4"
-            }
-          },
-          {
-            "name": "plane",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "$ref": "#/components/schemas/ResourceGrantPlane"
-            }
-          },
-          {
-            "name": "team_id",
-            "in": "path",
-            "description": "Team ID",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CreateResourcePlaneGrantRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ResourceGrant"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/team/{team_id}/signals/rules/{id}/{plane}/grants/{principal_type}/{principal_id}": {
-      "delete": {
-        "tags": [
-          "signals",
-          "v1"
-        ],
-        "operationId": "remove-signal-rule-grant",
-        "parameters": [
-          {
-            "name": "team_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "$ref": "#/components/schemas/WrappedUuidV4"
-            }
-          },
-          {
-            "name": "plane",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "$ref": "#/components/schemas/ResourceGrantPlane"
-            }
-          },
-          {
-            "name": "principal_type",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "$ref": "#/components/schemas/ResourcePrincipalType"
-            }
-          },
-          {
-            "name": "principal_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "team_id",
-            "in": "path",
-            "description": "Team ID",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": ""
-          }
-        }
-      }
-    },
-    "/api/v1/team/{team_id}/signals/rules/{rule_id}": {
-      "get": {
-        "tags": [
-          "signals",
-          "v1"
-        ],
-        "summary": "Get SignalRule",
-        "description": "Get a SignalRule.",
-        "operationId": "signals-get-rule",
-        "parameters": [
-          {
-            "name": "team_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "rule_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "$ref": "#/components/schemas/WrappedUuidV4"
-            }
-          },
-          {
-            "name": "team_id",
-            "in": "path",
-            "description": "Team ID",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SignalRule"
-                }
-              }
-            }
-          }
-        }
-      },
-      "delete": {
-        "tags": [
-          "signals",
-          "v1"
-        ],
-        "summary": "Delete SignalRule",
-        "description": "Delete a SignalRule.",
-        "operationId": "signals-delete-rule",
-        "parameters": [
-          {
-            "name": "team_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "rule_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "$ref": "#/components/schemas/WrappedUuidV4"
-            }
-          },
-          {
-            "name": "team_id",
-            "in": "path",
-            "description": "Team ID",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/DeleteSignalResponse"
-                }
-              }
-            }
-          }
-        }
-      },
-      "patch": {
-        "tags": [
-          "signals",
-          "v1"
-        ],
-        "summary": "Update SignalRule",
-        "description": "Update a SignalRule.",
-        "operationId": "signals-update-rule",
-        "parameters": [
-          {
-            "name": "team_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "rule_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "$ref": "#/components/schemas/WrappedUuidV4"
-            }
-          },
-          {
-            "name": "team_id",
-            "in": "path",
-            "description": "Team ID",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/UpdateSignalRuleRequestInner"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SignalRule"
+                  "$ref": "#/components/schemas/SignalProviderSourceSerializedPaginatedResponse"
                 }
               }
             }
@@ -37601,10 +37168,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/SignalDelivery"
-                  }
+                  "$ref": "#/components/schemas/SignalDeliveryPaginatedResponse"
                 }
               }
             }
@@ -37750,10 +37314,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/SignalProviderInstance"
-                  }
+                  "$ref": "#/components/schemas/SignalProviderInstancePaginatedResponse"
                 }
               }
             }
@@ -38234,515 +37795,10 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/SignalProviderSourceSerialized"
-                  }
+                  "$ref": "#/components/schemas/SignalProviderSourceSerializedPaginatedResponse"
                 }
               }
             }
-          }
-        }
-      }
-    },
-    "/api/v1/user/{user_id}/signals/rules": {
-      "get": {
-        "tags": [
-          "signals",
-          "v1"
-        ],
-        "operationId": "signals-list-personal-rules",
-        "parameters": [
-          {
-            "name": "page_size",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "format": "int64"
-            },
-            "style": "form"
-          },
-          {
-            "name": "next_page_token",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string"
-            },
-            "style": "form"
-          },
-          {
-            "name": "instance_id",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string"
-            },
-            "style": "form"
-          },
-          {
-            "name": "status",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string"
-            },
-            "style": "form"
-          },
-          {
-            "name": "user_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/SignalRule"
-                  }
-                }
-              }
-            }
-          }
-        }
-      },
-      "post": {
-        "tags": [
-          "signals",
-          "v1"
-        ],
-        "operationId": "signals-create-personal-rule",
-        "parameters": [
-          {
-            "name": "user_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CreateSignalRuleRequestInner"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SignalRule"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/user/{user_id}/signals/rules/{rule_id}": {
-      "get": {
-        "tags": [
-          "signals",
-          "v1"
-        ],
-        "operationId": "signals-get-personal-rule",
-        "parameters": [
-          {
-            "name": "user_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "rule_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "$ref": "#/components/schemas/WrappedUuidV4"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SignalRule"
-                }
-              }
-            }
-          }
-        }
-      },
-      "delete": {
-        "tags": [
-          "signals",
-          "v1"
-        ],
-        "operationId": "signals-delete-personal-rule",
-        "parameters": [
-          {
-            "name": "user_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "rule_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "$ref": "#/components/schemas/WrappedUuidV4"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/DeleteSignalResponse"
-                }
-              }
-            }
-          }
-        }
-      },
-      "patch": {
-        "tags": [
-          "signals",
-          "v1"
-        ],
-        "operationId": "signals-update-personal-rule",
-        "parameters": [
-          {
-            "name": "user_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "rule_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "$ref": "#/components/schemas/WrappedUuidV4"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/UpdateSignalRuleRequestInner"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SignalRule"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/user/{user_id}/signals/rules/{rule_id}/ownership": {
-      "post": {
-        "tags": [
-          "signals",
-          "v1"
-        ],
-        "summary": "Set personal signal rule ownership",
-        "description": "Set the persisted ownership mode for a personal signal rule. Personal rules cannot be widened to team ownership.",
-        "operationId": "signals-set-personal-rule-ownership",
-        "parameters": [
-          {
-            "name": "user_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "rule_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "$ref": "#/components/schemas/WrappedUuidV4"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/SetResourceAccessModeRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ResourceAuthorization"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/user/{user_id}/signals/rules/{rule_id}/visibility": {
-      "post": {
-        "tags": [
-          "signals",
-          "v1"
-        ],
-        "summary": "Set personal signal rule visibility",
-        "description": "Set the persisted visibility mode for a personal signal rule. Personal rules cannot be widened to team visibility.",
-        "operationId": "signals-set-personal-rule-visibility",
-        "parameters": [
-          {
-            "name": "user_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "rule_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "$ref": "#/components/schemas/WrappedUuidV4"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/SetResourceAccessModeRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ResourceAuthorization"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/user/{user_id}/signals/rules/{rule_id}/{plane}/grants": {
-      "get": {
-        "tags": [
-          "signals",
-          "v1"
-        ],
-        "summary": "List personal signal rule grants",
-        "description": "List persisted grants for one authorization plane on a personal signal rule.",
-        "operationId": "signals-list-personal-rule-grants",
-        "parameters": [
-          {
-            "name": "user_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "rule_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "$ref": "#/components/schemas/WrappedUuidV4"
-            }
-          },
-          {
-            "name": "plane",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "$ref": "#/components/schemas/ResourceGrantPlane"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/ResourceGrant"
-                  }
-                }
-              }
-            }
-          }
-        }
-      },
-      "post": {
-        "tags": [
-          "signals",
-          "v1"
-        ],
-        "summary": "Add personal signal rule grant",
-        "description": "Add a principal grant to the URL-selected authorization plane on a personal signal rule.",
-        "operationId": "signals-add-personal-rule-grant",
-        "parameters": [
-          {
-            "name": "user_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "rule_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "$ref": "#/components/schemas/WrappedUuidV4"
-            }
-          },
-          {
-            "name": "plane",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "$ref": "#/components/schemas/ResourceGrantPlane"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CreateResourcePlaneGrantRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ResourceGrant"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/user/{user_id}/signals/rules/{rule_id}/{plane}/grants/{principal_type}/{principal_id}": {
-      "delete": {
-        "tags": [
-          "signals",
-          "v1"
-        ],
-        "summary": "Remove personal signal rule grant",
-        "description": "Remove a principal grant from the URL-selected authorization plane on a personal signal rule.",
-        "operationId": "signals-remove-personal-rule-grant",
-        "parameters": [
-          {
-            "name": "user_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "rule_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "$ref": "#/components/schemas/WrappedUuidV4"
-            }
-          },
-          {
-            "name": "plane",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "$ref": "#/components/schemas/ResourceGrantPlane"
-            }
-          },
-          {
-            "name": "principal_type",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "$ref": "#/components/schemas/ResourcePrincipalType"
-            }
-          },
-          {
-            "name": "principal_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": ""
           }
         }
       }
@@ -41099,6 +40155,26 @@
           }
         }
       },
+      "Agent": {
+        "type": "object",
+        "description": "Authenticated agent identity.\n\nRepresents an agent user that authenticated via an API key.",
+        "required": [
+          "sub"
+        ],
+        "properties": {
+          "groups": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Groups the agent belongs to."
+          },
+          "sub": {
+            "type": "string",
+            "description": "Subject identifier (user ID) of the agent account."
+          }
+        }
+      },
       "AgentCredentialStrategy": {
         "type": "string",
         "enum": [
@@ -41131,6 +40207,99 @@
           },
           "url": {
             "type": "string"
+          }
+        }
+      },
+      "AgentEventVisibility": {
+        "type": "string",
+        "enum": [
+          "hidden",
+          "summary",
+          "details"
+        ]
+      },
+      "AgentMultiplayerPermissions": {
+        "type": "object",
+        "description": "Who an agent may pull into a session it creates.",
+        "properties": {
+          "with_agents": {
+            "$ref": "#/components/schemas/AgentReachScope",
+            "description": "Agents the agent may add."
+          },
+          "with_users": {
+            "$ref": "#/components/schemas/AgentReachScope",
+            "description": "Tilde users the agent may add."
+          }
+        }
+      },
+      "AgentObservabilityConfiguration": {
+        "type": "object",
+        "required": [
+          "policy",
+          "tools"
+        ],
+        "properties": {
+          "policy": {
+            "$ref": "#/components/schemas/AgentObservabilityPolicy"
+          },
+          "tools": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AgentToolCatalogEntry"
+            }
+          }
+        }
+      },
+      "AgentObservabilityPolicy": {
+        "type": "object",
+        "required": [
+          "agent_inbox_id",
+          "org_id",
+          "team_id",
+          "tool_visibility",
+          "reasoning_visibility",
+          "thinking_visibility",
+          "created_at",
+          "updated_at"
+        ],
+        "properties": {
+          "agent_inbox_id": {
+            "type": "string"
+          },
+          "created_at": {
+            "$ref": "#/components/schemas/WrappedChronoDateTime"
+          },
+          "org_id": {
+            "type": "string"
+          },
+          "reasoning_visibility": {
+            "$ref": "#/components/schemas/AgentEventVisibility"
+          },
+          "team_id": {
+            "type": "string"
+          },
+          "thinking_visibility": {
+            "$ref": "#/components/schemas/AgentEventVisibility"
+          },
+          "tool_visibility": {
+            "$ref": "#/components/schemas/AgentEventVisibility"
+          },
+          "updated_at": {
+            "$ref": "#/components/schemas/WrappedChronoDateTime"
+          }
+        }
+      },
+      "AgentPermissions": {
+        "type": "object",
+        "description": "The reach recorded on an agent record.",
+        "properties": {
+          "create_multiplayer_sessions": {
+            "$ref": "#/components/schemas/AgentMultiplayerPermissions",
+            "description": "Whether the agent may create a session with more than two parties, and\nwho it may add."
+          },
+          "delegate_to_other_agents": {
+            "$ref": "#/components/schemas/AgentReachScope",
+            "description": "Whether the agent may open a private child conversation with another\nagent, and with which agents."
           }
         }
       },
@@ -41224,6 +40393,64 @@
           "deprovisioning"
         ]
       },
+      "AgentReachScope": {
+        "oneOf": [
+          {
+            "type": "object",
+            "description": "No one. The default, and what an unset permission means.",
+            "required": [
+              "mode"
+            ],
+            "properties": {
+              "mode": {
+                "type": "string",
+                "enum": [
+                  "none"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "Anyone the agent can already see, subject to the visibility plane.",
+            "required": [
+              "mode"
+            ],
+            "properties": {
+              "mode": {
+                "type": "string",
+                "enum": [
+                  "any"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "Only these, and still only those among them the agent can see.",
+            "required": [
+              "ids",
+              "mode"
+            ],
+            "properties": {
+              "ids": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "Agent inbox ids or Tilde user ids, depending on the field."
+              },
+              "mode": {
+                "type": "string",
+                "enum": [
+                  "only"
+                ]
+              }
+            }
+          }
+        ],
+        "description": "Who an agent may reach for one kind of action."
+      },
       "AgentSpec": {
         "type": "object",
         "required": [
@@ -41244,6 +40471,104 @@
             "type": "string"
           }
         }
+      },
+      "AgentToolCatalogEntry": {
+        "type": "object",
+        "required": [
+          "agent_inbox_id",
+          "org_id",
+          "team_id",
+          "tool_id",
+          "wire_name",
+          "display_name",
+          "source",
+          "status",
+          "supports_summary",
+          "identity_snapshot",
+          "last_seen_at",
+          "created_at",
+          "updated_at"
+        ],
+        "properties": {
+          "agent_inbox_id": {
+            "type": "string"
+          },
+          "configured_summary": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "created_at": {
+            "$ref": "#/components/schemas/WrappedChronoDateTime"
+          },
+          "display_name": {
+            "type": "string"
+          },
+          "identity_snapshot": {
+            "$ref": "#/components/schemas/WrappedJsonValue"
+          },
+          "last_seen_at": {
+            "$ref": "#/components/schemas/WrappedChronoDateTime"
+          },
+          "org_id": {
+            "type": "string"
+          },
+          "provider_summary": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "source": {
+            "$ref": "#/components/schemas/AgentToolSource"
+          },
+          "status": {
+            "$ref": "#/components/schemas/AgentToolStatus"
+          },
+          "supports_summary": {
+            "type": "boolean"
+          },
+          "team_id": {
+            "type": "string"
+          },
+          "tool_id": {
+            "type": "string"
+          },
+          "updated_at": {
+            "$ref": "#/components/schemas/WrappedChronoDateTime"
+          },
+          "visibility_override": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/AgentEventVisibility"
+              }
+            ]
+          },
+          "wire_name": {
+            "type": "string"
+          }
+        }
+      },
+      "AgentToolSource": {
+        "type": "string",
+        "enum": [
+          "mcp",
+          "harness_local",
+          "endpoint_observed",
+          "builtin",
+          "dynamic"
+        ]
+      },
+      "AgentToolStatus": {
+        "type": "string",
+        "enum": [
+          "active",
+          "unavailable"
+        ]
       },
       "ApplyOntologyTemplateResult": {
         "type": "object",
@@ -41541,298 +40866,6 @@
             ]
           }
         }
-      },
-      "Automation": {
-        "type": "object",
-        "required": [
-          "id",
-          "org_id",
-          "team_id",
-          "authorization",
-          "created_by_user_id",
-          "agent_id",
-          "name",
-          "instruction",
-          "enabled",
-          "status",
-          "generation",
-          "applied_generation",
-          "triggers",
-          "created_at",
-          "updated_at"
-        ],
-        "properties": {
-          "agent_id": {
-            "type": "string"
-          },
-          "applied_generation": {
-            "type": "integer",
-            "format": "int64"
-          },
-          "authorization": {
-            "$ref": "#/components/schemas/ResourceAuthorizationModes"
-          },
-          "created_at": {
-            "$ref": "#/components/schemas/WrappedChronoDateTime"
-          },
-          "created_by_user_id": {
-            "type": "string"
-          },
-          "enabled": {
-            "type": "boolean"
-          },
-          "error_message": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "generation": {
-            "type": "integer",
-            "format": "int64"
-          },
-          "id": {
-            "$ref": "#/components/schemas/WrappedUuidV4"
-          },
-          "instruction": {
-            "type": "string"
-          },
-          "last_error": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "description": "Execution error paired with the latest materialized schedule execution."
-          },
-          "last_run_at": {
-            "oneOf": [
-              {
-                "type": "null"
-              },
-              {
-                "$ref": "#/components/schemas/WrappedChronoDateTime",
-                "description": "Latest materialized schedule execution, independent of reconciliation status."
-              }
-            ]
-          },
-          "last_session_id": {
-            "oneOf": [
-              {
-                "type": "null"
-              },
-              {
-                "$ref": "#/components/schemas/WrappedUuidV4",
-                "description": "Session created by `last_run_at`, when one was recorded."
-              }
-            ]
-          },
-          "name": {
-            "type": "string"
-          },
-          "org_id": {
-            "type": "string"
-          },
-          "status": {
-            "$ref": "#/components/schemas/AutomationStatus"
-          },
-          "team_id": {
-            "type": "string"
-          },
-          "triggers": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/AutomationTrigger"
-            }
-          },
-          "updated_at": {
-            "$ref": "#/components/schemas/WrappedChronoDateTime"
-          }
-        }
-      },
-      "AutomationPaginatedResponse": {
-        "type": "object",
-        "required": [
-          "items"
-        ],
-        "properties": {
-          "items": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/Automation"
-            }
-          },
-          "next_page_token": {
-            "type": "string"
-          }
-        }
-      },
-      "AutomationStatus": {
-        "type": "string",
-        "enum": [
-          "reconciling",
-          "active",
-          "error",
-          "deleting"
-        ]
-      },
-      "AutomationTrigger": {
-        "allOf": [
-          {
-            "$ref": "#/components/schemas/AutomationTriggerSpec"
-          },
-          {
-            "type": "object",
-            "required": [
-              "id",
-              "created_at",
-              "updated_at"
-            ],
-            "properties": {
-              "created_at": {
-                "$ref": "#/components/schemas/WrappedChronoDateTime"
-              },
-              "id": {
-                "$ref": "#/components/schemas/WrappedUuidV4"
-              },
-              "last_error": {
-                "type": [
-                  "string",
-                  "null"
-                ],
-                "description": "Schedule-only live projection from the materialized ChatKit routine."
-              },
-              "last_run_at": {
-                "oneOf": [
-                  {
-                    "type": "null"
-                  },
-                  {
-                    "$ref": "#/components/schemas/WrappedChronoDateTime",
-                    "description": "Schedule-only live projection from the materialized ChatKit routine."
-                  }
-                ]
-              },
-              "last_session_id": {
-                "oneOf": [
-                  {
-                    "type": "null"
-                  },
-                  {
-                    "$ref": "#/components/schemas/WrappedUuidV4",
-                    "description": "Schedule-only live projection from the materialized ChatKit routine."
-                  }
-                ]
-              },
-              "materialized_resource_id": {
-                "oneOf": [
-                  {
-                    "type": "null"
-                  },
-                  {
-                    "$ref": "#/components/schemas/WrappedUuidV4"
-                  }
-                ]
-              },
-              "next_run_at": {
-                "oneOf": [
-                  {
-                    "type": "null"
-                  },
-                  {
-                    "$ref": "#/components/schemas/WrappedChronoDateTime",
-                    "description": "Schedule-only live projection from the materialized ChatKit routine."
-                  }
-                ]
-              },
-              "schedule_description": {
-                "type": [
-                  "string",
-                  "null"
-                ],
-                "description": "Schedule-only live projection from the materialized ChatKit routine."
-              },
-              "updated_at": {
-                "$ref": "#/components/schemas/WrappedChronoDateTime"
-              }
-            }
-          }
-        ]
-      },
-      "AutomationTriggerInput": {
-        "allOf": [
-          {
-            "$ref": "#/components/schemas/AutomationTriggerSpec"
-          },
-          {
-            "type": "object",
-            "required": [
-              "id"
-            ],
-            "properties": {
-              "id": {
-                "$ref": "#/components/schemas/WrappedUuidV4"
-              }
-            }
-          }
-        ]
-      },
-      "AutomationTriggerSpec": {
-        "oneOf": [
-          {
-            "type": "object",
-            "required": [
-              "schedule",
-              "kind"
-            ],
-            "properties": {
-              "kind": {
-                "type": "string",
-                "enum": [
-                  "schedule"
-                ]
-              },
-              "schedule": {
-                "type": "string"
-              }
-            }
-          },
-          {
-            "type": "object",
-            "required": [
-              "signal_provider_instance_id",
-              "signal_type",
-              "kind"
-            ],
-            "properties": {
-              "filter": {
-                "$ref": "#/components/schemas/SignalRuleFilter"
-              },
-              "kind": {
-                "type": "string",
-                "enum": [
-                  "event"
-                ]
-              },
-              "session_policy": {
-                "oneOf": [
-                  {
-                    "type": "null"
-                  },
-                  {
-                    "$ref": "#/components/schemas/SignalSessionPolicy",
-                    "description": "Omitted policies are resolved by Tilde to a new session per delivery."
-                  }
-                ]
-              },
-              "signal_provider_instance_id": {
-                "type": "string"
-              },
-              "signal_type": {
-                "type": "string"
-              }
-            }
-          }
-        ]
       },
       "BillingContext": {
         "type": "object",
@@ -42573,11 +41606,73 @@
           }
         }
       },
+      "ChatKitIdentityKind": {
+        "type": "string",
+        "description": "Address scheme for a [`ChatKitIdentity`].",
+        "enum": [
+          "email",
+          "mobile_number",
+          "username",
+          "tilde_user",
+          "agent"
+        ]
+      },
+      "ChatKitMessageIdentity": {
+        "type": "object",
+        "description": "Identity block serialized onto every ChatKit message delivered to an agent.\n\nThe runtime SDK uses this to attribute a speaker; it is deliberately a\nstructured field rather than only a text prefix so an agent can distinguish\na real sender from text that merely looks like one.",
+        "required": [
+          "identity_id",
+          "kind",
+          "display_name",
+          "is_agent",
+          "speaker_label"
+        ],
+        "properties": {
+          "display_name": {
+            "type": "string"
+          },
+          "external_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "identity_id": {
+            "type": "string"
+          },
+          "is_agent": {
+            "type": "boolean"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/ChatKitIdentityKind"
+          },
+          "provider_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "speaker_label": {
+            "type": "string",
+            "description": "Pre-rendered, sanitized `display_name (qualifier)` label."
+          },
+          "tilde_user_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Present only when the identity is a verified authorization principal."
+          }
+        }
+      },
       "ChatKitParticipant": {
         "type": "object",
         "description": "Public ChatKit participant view.",
         "required": [
           "participant_type",
+          "participant_handle",
+          "membership_source",
+          "joined_at",
           "instance",
           "inbox"
         ],
@@ -42587,6 +41682,15 @@
           },
           "instance": {
             "$ref": "#/components/schemas/InboxInstance"
+          },
+          "joined_at": {
+            "$ref": "#/components/schemas/WrappedChronoDateTime"
+          },
+          "membership_source": {
+            "$ref": "#/components/schemas/ChatKitParticipantMembershipSource"
+          },
+          "participant_handle": {
+            "type": "string"
           },
           "participant_type": {
             "$ref": "#/components/schemas/ChatKitParticipantType"
@@ -42628,8 +41732,24 @@
           },
           "participant_type": {
             "$ref": "#/components/schemas/ChatKitParticipantType"
+          },
+          "tilde_user_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Tilde user this participant speaks for, when one is known.\n\nSet when a human is added through the API by a signed-in user. Left\n`None` for an inbound external participant, whose address is a claim\nrather than a credential and therefore confers no authority."
           }
         }
+      },
+      "ChatKitParticipantMembershipSource": {
+        "type": "string",
+        "description": "How a durable conversation participant was admitted to a session.",
+        "enum": [
+          "explicit",
+          "provider",
+          "recipient"
+        ]
       },
       "ChatKitParticipantType": {
         "type": "string",
@@ -42666,6 +41786,67 @@
           "browser",
           "native"
         ]
+      },
+      "ChatKitRequestAgent": {
+        "type": "object",
+        "description": "Public agent snapshot included in every signed HTTP-agent request.",
+        "required": [
+          "id",
+          "displayName",
+          "providerId",
+          "status",
+          "createdAt",
+          "updatedAt"
+        ],
+        "properties": {
+          "avatar": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ChatKitRequestAgentAvatar"
+              }
+            ]
+          },
+          "createdAt": {
+            "$ref": "#/components/schemas/WrappedChronoDateTime"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "principalUserId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "providerId": {
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/InboxStatus"
+          },
+          "updatedAt": {
+            "$ref": "#/components/schemas/WrappedChronoDateTime"
+          }
+        }
+      },
+      "ChatKitRequestAgentAvatar": {
+        "type": "object",
+        "description": "Agent avatar resource included in the signed HTTP-agent request context.",
+        "required": [
+          "url"
+        ],
+        "properties": {
+          "url": {
+            "type": "string",
+            "description": "Authenticated Tilde API path that serves the current avatar bytes."
+          }
+        }
       },
       "ChatKitSearchAgent": {
         "type": "object",
@@ -43078,6 +42259,17 @@
           "id": {
             "type": "string"
           },
+          "identity": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ChatKitMessageIdentity",
+                "description": "Who sent this message.\n\nA structured field rather than a text prefix, because an external sender\nchooses their own display name and could otherwise forge a transcript\nturn. Runtimes may render a prefix from\n[`crate::identity::ChatKitMessageIdentity::speaker_label`], but this\nblock is the source of truth."
+              }
+            ]
+          },
           "metadata": {
             "oneOf": [
               {
@@ -43349,6 +42541,17 @@
           "messages"
         ],
         "properties": {
+          "agent": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ChatKitRequestAgent",
+                "description": "Canonical public metadata for the agent receiving this turn."
+              }
+            ]
+          },
           "chatId": {
             "type": [
               "string",
@@ -43360,6 +42563,44 @@
             "items": {
               "$ref": "#/components/schemas/ChatMessage"
             }
+          },
+          "session": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ChatSessionContext",
+                "description": "Where this conversation came from.\n\nRuntimes use it to tell the model that a reply is delivered back to the\nparticipants on the originating platform. Without it an agent answering\nan email writes as if it were in a chat window."
+              }
+            ]
+          }
+        }
+      },
+      "ChatSessionContext": {
+        "type": "object",
+        "description": "Provenance of the ChatKit session an agent turn belongs to.",
+        "required": [
+          "session_id",
+          "provider_id",
+          "provider_display_name",
+          "replies_route_to_provider"
+        ],
+        "properties": {
+          "provider_display_name": {
+            "type": "string",
+            "description": "Human-readable provider name for prompt text, for example `GitHub`."
+          },
+          "provider_id": {
+            "type": "string",
+            "description": "ChatKit provider that owns the channel the conversation started on, for\nexample `chatkit.channel.github`."
+          },
+          "replies_route_to_provider": {
+            "type": "boolean",
+            "description": "Whether a reply is delivered back to the originating platform by Tilde.\n\n`false` for the web UI and for agent-to-agent delegation, where the\nreply stays inside Tilde."
+          },
+          "session_id": {
+            "type": "string"
           }
         }
       },
@@ -44924,53 +44165,6 @@
           }
         }
       },
-      "CreateRoutineRequestInner": {
-        "type": "object",
-        "description": "User-authored fields for a new routine.",
-        "required": [
-          "agent_inbox_id",
-          "title",
-          "prompt",
-          "schedule"
-        ],
-        "properties": {
-          "agent_inbox_id": {
-            "type": "string"
-          },
-          "authorization": {
-            "$ref": "#/components/schemas/ResourceAuthorizationModes"
-          },
-          "enabled": {
-            "type": "boolean"
-          },
-          "initial_grants": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/ResourceGrantRequest"
-            }
-          },
-          "metadata": {
-            "oneOf": [
-              {
-                "type": "null"
-              },
-              {
-                "$ref": "#/components/schemas/WrappedJsonValue",
-                "description": "Opaque client-owned JSON metadata without server-side semantics."
-              }
-            ]
-          },
-          "prompt": {
-            "type": "string"
-          },
-          "schedule": {
-            "type": "string"
-          },
-          "title": {
-            "type": "string"
-          }
-        }
-      },
       "CreateSessionInner": {
         "type": "object",
         "description": "Inner create fields for a ChatKit session.",
@@ -45237,72 +44431,6 @@
             ]
           },
           "webhook_endpoint_id": {
-            "type": [
-              "string",
-              "null"
-            ]
-          }
-        }
-      },
-      "CreateSignalRuleRequestInner": {
-        "type": "object",
-        "required": [
-          "signal_provider_instance_id",
-          "display_name",
-          "signal_type",
-          "session_policy",
-          "action"
-        ],
-        "properties": {
-          "action": {
-            "$ref": "#/components/schemas/SignalAction"
-          },
-          "authorization": {
-            "$ref": "#/components/schemas/ResourceAuthorizationModes"
-          },
-          "display_name": {
-            "type": "string"
-          },
-          "filter": {
-            "$ref": "#/components/schemas/SignalRuleFilter"
-          },
-          "id": {
-            "oneOf": [
-              {
-                "type": "null"
-              },
-              {
-                "$ref": "#/components/schemas/WrappedUuidV4"
-              }
-            ]
-          },
-          "initial_grants": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/ResourceGrantRequest"
-            }
-          },
-          "metadata": {
-            "oneOf": [
-              {
-                "type": "null"
-              },
-              {
-                "$ref": "#/components/schemas/WrappedJsonValue",
-                "description": "Opaque client-owned JSON metadata without server-side semantics."
-              }
-            ]
-          },
-          "session_policy": {
-            "$ref": "#/components/schemas/SignalSessionPolicy"
-          },
-          "signal_provider_instance_id": {
-            "type": "string"
-          },
-          "signal_type": {
-            "type": "string"
-          },
-          "target_team_id": {
             "type": [
               "string",
               "null"
@@ -46336,7 +45464,7 @@
       },
       "CurrentSeatStatus": {
         "type": "string",
-        "description": "Current caller's seat state. Machine identities never consume seats.",
+        "description": "Current caller's seat state. Agent identities never consume seats.",
         "enum": [
           "active",
           "not_assigned",
@@ -46576,17 +45704,6 @@
           }
         }
       },
-      "DeleteAutomationResponse": {
-        "type": "object",
-        "required": [
-          "deleted"
-        ],
-        "properties": {
-          "deleted": {
-            "type": "boolean"
-          }
-        }
-      },
       "DeleteChatKitAgentTurnQueueItemResponse": {
         "type": "object",
         "required": [
@@ -46635,7 +45752,6 @@
       },
       "DeleteRoutineResponse": {
         "type": "object",
-        "description": "Routine deletion response.",
         "required": [
           "deleted"
         ],
@@ -47786,8 +46902,8 @@
           {
             "allOf": [
               {
-                "$ref": "#/components/schemas/Machine",
-                "description": "Machine identity (API key authentication)"
+                "$ref": "#/components/schemas/Agent",
+                "description": "Agent identity."
               },
               {
                 "type": "object",
@@ -47798,19 +46914,19 @@
                   "type": {
                     "type": "string",
                     "enum": [
-                      "machine"
+                      "agent"
                     ]
                   }
                 }
               }
             ],
-            "description": "Machine identity (API key authentication)"
+            "description": "Agent identity."
           },
           {
             "allOf": [
               {
                 "$ref": "#/components/schemas/Human",
-                "description": "Human identity (STS token authentication)"
+                "description": "Human identity."
               },
               {
                 "type": "object",
@@ -47827,30 +46943,7 @@
                 }
               }
             ],
-            "description": "Human identity (STS token authentication)"
-          },
-          {
-            "type": "object",
-            "description": "Machine acting on behalf of a human (both credentials provided)",
-            "required": [
-              "machine",
-              "human",
-              "type"
-            ],
-            "properties": {
-              "human": {
-                "$ref": "#/components/schemas/Human"
-              },
-              "machine": {
-                "$ref": "#/components/schemas/Machine"
-              },
-              "type": {
-                "type": "string",
-                "enum": [
-                  "machine_on_behalf_of_human"
-                ]
-              }
-            }
+            "description": "Human identity."
           },
           {
             "type": "object",
@@ -47990,10 +47083,33 @@
           "updated_at"
         ],
         "properties": {
+          "agent_permissions": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/AgentPermissions",
+                "description": "What this agent is permitted to reach. Always `None` for a non-agent\ninbox, and `None` on an agent means it may reach no one.\n\nRead from its own tables rather than from a column, so it is loaded only\nwhere it is needed and cannot be written by an unrelated inbox edit."
+              }
+            ]
+          },
+          "api_key_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "authorization": {
             "$ref": "#/components/schemas/ResourceAuthorizationModes"
           },
           "common_provider_installation_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "concurrency_policy": {
             "type": [
               "string",
               "null"
@@ -48011,11 +47127,31 @@
               "null"
             ]
           },
+          "display_name": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Human-readable name. Unique per team and inbox type."
+          },
+          "endpoint_url": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Agent HTTP endpoint. `None` for anything that is not an agent."
+          },
           "id": {
             "type": "string"
           },
           "inbox_type": {
             "$ref": "#/components/schemas/InboxType"
+          },
+          "local_running_endpoint": {
+            "type": [
+              "boolean",
+              "null"
+            ]
           },
           "lookup_key": {
             "type": [
@@ -48042,8 +47178,21 @@
           "status": {
             "$ref": "#/components/schemas/InboxStatus"
           },
+          "streaming": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
           "team_id": {
             "type": "string"
+          },
+          "timeout_ms": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
           },
           "updated_at": {
             "$ref": "#/components/schemas/WrappedChronoDateTime"
@@ -48065,6 +47214,13 @@
           "updated_at"
         ],
         "properties": {
+          "chatkit_identity_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Identity this instance speaks for. `None` only for rows created before\nidentities existed, or while a backfill is still in flight."
+          },
           "created_at": {
             "$ref": "#/components/schemas/WrappedChronoDateTime"
           },
@@ -48356,12 +47512,67 @@
           }
         ]
       },
+      "InvokeSessionProviderToolBody": {
+        "type": "object",
+        "description": "HTTP body for one session-bound provider action.",
+        "required": [
+          "agent_inbox_instance_id",
+          "target_inbox_instance_id",
+          "tool_call_id",
+          "trigger_message_id",
+          "input"
+        ],
+        "properties": {
+          "agent_inbox_instance_id": {
+            "type": "string"
+          },
+          "input": {
+            "$ref": "#/components/schemas/WrappedJsonValue"
+          },
+          "target_inbox_instance_id": {
+            "type": "string"
+          },
+          "tool_call_id": {
+            "type": "string"
+          },
+          "trigger_message_id": {
+            "$ref": "#/components/schemas/WrappedUuidV4"
+          }
+        }
+      },
+      "InvokeSessionProviderToolResponse": {
+        "type": "object",
+        "description": "Result from a provider-specific session action.",
+        "required": [
+          "provider_id",
+          "tool_name",
+          "result"
+        ],
+        "properties": {
+          "provider_id": {
+            "type": "string"
+          },
+          "result": {
+            "$ref": "#/components/schemas/WrappedJsonValue"
+          },
+          "tool_name": {
+            "type": "string"
+          }
+        }
+      },
       "InvokeToolInstanceParamsInner": {
         "type": "object",
         "required": [
           "params"
         ],
         "properties": {
+          "chatkit_session_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "ChatKit session the calling MCP connection was scoped to, after\nvalidation.\n\nThreaded through so a session-aware tool — delegation, for one — reads\nthe session from the connection rather than accepting it as a tool\nparameter a model could point anywhere."
+          },
           "mcp_server_instance_id": {
             "type": [
               "string",
@@ -48664,26 +47875,6 @@
             }
           }
         ]
-      },
-      "Machine": {
-        "type": "object",
-        "description": "Authenticated machine identity.\n\nRepresents an API client or automated service that authenticated via API key.",
-        "required": [
-          "sub"
-        ],
-        "properties": {
-          "groups": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            },
-            "description": "System groups the machine belongs to (e.g. `[\"tilde_system:admin\"]`)"
-          },
-          "sub": {
-            "type": "string",
-            "description": "Subject identifier (user ID) of the machine account"
-          }
-        }
       },
       "ManagedSkillSelection": {
         "type": "object",
@@ -52482,7 +51673,7 @@
         ],
         "description": "How a stored credential is materialized into HTTP request shape when the\nproxy forwards a request upstream."
       },
-      "PutAutomationBody": {
+      "PutRoutineBody": {
         "type": "object",
         "required": [
           "agent_id",
@@ -52500,6 +51691,13 @@
           "enabled": {
             "type": "boolean"
           },
+          "expected_version": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
           "initial_grants": {
             "type": "array",
             "items": {
@@ -52509,13 +51707,23 @@
           "instruction": {
             "type": "string"
           },
+          "metadata": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/WrappedJsonValue"
+              }
+            ]
+          },
           "name": {
             "type": "string"
           },
           "triggers": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/AutomationTriggerInput"
+              "$ref": "#/components/schemas/RoutineTriggerInput"
             }
           }
         }
@@ -52726,6 +51934,58 @@
               "null"
             ],
             "description": "The refresh token. If not provided, will be read from cookie."
+          }
+        }
+      },
+      "RegisterAgentTool": {
+        "type": "object",
+        "required": [
+          "tool_id",
+          "wire_name",
+          "display_name"
+        ],
+        "properties": {
+          "display_name": {
+            "type": "string"
+          },
+          "identity_snapshot": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/WrappedJsonValue"
+              }
+            ]
+          },
+          "summary": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "supports_summary": {
+            "type": "boolean"
+          },
+          "tool_id": {
+            "type": "string"
+          },
+          "wire_name": {
+            "type": "string"
+          }
+        }
+      },
+      "RegisterAgentToolsRequestInner": {
+        "type": "object",
+        "required": [
+          "tools"
+        ],
+        "properties": {
+          "tools": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RegisterAgentTool"
+            }
           }
         }
       },
@@ -53250,6 +52510,124 @@
           },
           "source_kind": {
             "$ref": "#/components/schemas/MemorySourceKind"
+          }
+        }
+      },
+      "ReportToolExecutionRequestInner": {
+        "type": "object",
+        "required": [
+          "tool_id",
+          "wire_name",
+          "state",
+          "input"
+        ],
+        "properties": {
+          "batch_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "batch_index": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
+          "completed_at": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/WrappedChronoDateTime"
+              }
+            ]
+          },
+          "error_message": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "event_id": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/WrappedUuidV4"
+              }
+            ]
+          },
+          "execution_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "input": {
+            "$ref": "#/components/schemas/WrappedJsonValue"
+          },
+          "message_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "model_tool_call_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "output": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/WrappedJsonValue"
+              }
+            ]
+          },
+          "parent_execution_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "session_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "started_at": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/WrappedChronoDateTime"
+              }
+            ]
+          },
+          "state": {
+            "$ref": "#/components/schemas/ToolExecutionState"
+          },
+          "summary": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "tool_id": {
+            "type": "string"
+          },
+          "wire_name": {
+            "type": "string"
           }
         }
       },
@@ -53976,24 +53354,23 @@
       },
       "Routine": {
         "type": "object",
-        "description": "A recurring prompt scheduled against one ChatKit agent.",
         "required": [
           "id",
           "org_id",
           "team_id",
           "authorization",
-          "agent_inbox_id",
-          "title",
-          "prompt",
-          "schedule",
-          "schedule_description",
+          "created_by_user_id",
+          "agent_id",
+          "name",
+          "instruction",
           "enabled",
-          "next_run_at",
+          "version",
+          "triggers",
           "created_at",
           "updated_at"
         ],
         "properties": {
-          "agent_inbox_id": {
+          "agent_id": {
             "type": "string"
           },
           "authorization": {
@@ -54003,16 +53380,16 @@
             "$ref": "#/components/schemas/WrappedChronoDateTime"
           },
           "created_by_user_id": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": "string"
           },
           "enabled": {
             "type": "boolean"
           },
           "id": {
             "$ref": "#/components/schemas/WrappedUuidV4"
+          },
+          "instruction": {
+            "type": "string"
           },
           "last_error": {
             "type": [
@@ -54046,36 +53423,132 @@
                 "type": "null"
               },
               {
-                "$ref": "#/components/schemas/WrappedJsonValue",
-                "description": "Opaque client-owned JSON metadata without server-side semantics."
+                "$ref": "#/components/schemas/WrappedJsonValue"
               }
             ]
           },
-          "next_run_at": {
-            "$ref": "#/components/schemas/WrappedChronoDateTime"
+          "name": {
+            "type": "string"
           },
           "org_id": {
             "type": "string"
           },
-          "prompt": {
+          "team_id": {
             "type": "string"
           },
-          "schedule": {
-            "type": "string",
-            "description": "Minute-granularity cron expression evaluated in UTC."
+          "triggers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RoutineTrigger"
+            }
           },
-          "schedule_description": {
-            "type": "string",
-            "description": "Human-readable rendering of `schedule`."
+          "updated_at": {
+            "$ref": "#/components/schemas/WrappedChronoDateTime"
+          },
+          "version": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "RoutineEventInstructionPolicy": {
+        "type": "string",
+        "enum": [
+          "signal_only",
+          "signal_and_instruction"
+        ]
+      },
+      "RoutineExecution": {
+        "type": "object",
+        "required": [
+          "id",
+          "routine_id",
+          "org_id",
+          "team_id",
+          "status",
+          "started_at"
+        ],
+        "properties": {
+          "completed_at": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/WrappedChronoDateTime"
+              }
+            ]
+          },
+          "error": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "$ref": "#/components/schemas/WrappedUuidV4"
+          },
+          "org_id": {
+            "type": "string"
+          },
+          "routine_id": {
+            "$ref": "#/components/schemas/WrappedUuidV4"
+          },
+          "session_id": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/WrappedUuidV4"
+              }
+            ]
+          },
+          "signal_delivery_id": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/WrappedUuidV4"
+              }
+            ]
+          },
+          "started_at": {
+            "$ref": "#/components/schemas/WrappedChronoDateTime"
+          },
+          "status": {
+            "type": "string"
           },
           "team_id": {
             "type": "string"
           },
-          "title": {
-            "type": "string"
+          "trigger_id": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/WrappedUuidV4"
+              }
+            ]
+          }
+        }
+      },
+      "RoutineExecutionPaginatedResponse": {
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RoutineExecution"
+            }
           },
-          "updated_at": {
-            "$ref": "#/components/schemas/WrappedChronoDateTime"
+          "next_page_token": {
+            "type": "string"
           }
         }
       },
@@ -54096,19 +53569,201 @@
           }
         }
       },
-      "RunAutomationBody": {
+      "RoutineTrigger": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/RoutineTriggerSpec"
+          },
+          {
+            "type": "object",
+            "required": [
+              "id",
+              "enabled",
+              "created_at",
+              "updated_at"
+            ],
+            "properties": {
+              "created_at": {
+                "$ref": "#/components/schemas/WrappedChronoDateTime"
+              },
+              "enabled": {
+                "type": "boolean"
+              },
+              "id": {
+                "$ref": "#/components/schemas/WrappedUuidV4"
+              },
+              "last_error": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "last_run_at": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/components/schemas/WrappedChronoDateTime"
+                  }
+                ]
+              },
+              "last_session_id": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/components/schemas/WrappedUuidV4"
+                  }
+                ]
+              },
+              "metadata": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/components/schemas/WrappedJsonValue"
+                  }
+                ]
+              },
+              "next_run_at": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/components/schemas/WrappedChronoDateTime"
+                  }
+                ]
+              },
+              "schedule_description": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "updated_at": {
+                "$ref": "#/components/schemas/WrappedChronoDateTime"
+              }
+            }
+          }
+        ]
+      },
+      "RoutineTriggerInput": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/RoutineTriggerSpec"
+          },
+          {
+            "type": "object",
+            "required": [
+              "id"
+            ],
+            "properties": {
+              "enabled": {
+                "type": "boolean"
+              },
+              "id": {
+                "$ref": "#/components/schemas/WrappedUuidV4"
+              },
+              "metadata": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/components/schemas/WrappedJsonValue"
+                  }
+                ]
+              }
+            }
+          }
+        ]
+      },
+      "RoutineTriggerSpec": {
+        "oneOf": [
+          {
+            "type": "object",
+            "required": [
+              "schedule",
+              "kind"
+            ],
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "schedule"
+                ]
+              },
+              "schedule": {
+                "type": "string"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "signal_provider_instance_id",
+              "signal_type",
+              "kind"
+            ],
+            "properties": {
+              "action": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/components/schemas/SignalAction"
+                  }
+                ]
+              },
+              "filter": {
+                "$ref": "#/components/schemas/SignalRuleFilter"
+              },
+              "instruction_policy": {
+                "$ref": "#/components/schemas/RoutineEventInstructionPolicy"
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "event"
+                ]
+              },
+              "session_policy": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/components/schemas/SignalSessionPolicy"
+                  }
+                ]
+              },
+              "signal_provider_instance_id": {
+                "type": "string"
+              },
+              "signal_type": {
+                "type": "string"
+              }
+            }
+          }
+        ]
+      },
+      "RunRoutineBody": {
         "type": "object",
         "required": [
           "run_id"
         ],
         "properties": {
           "run_id": {
-            "$ref": "#/components/schemas/WrappedUuidV4",
-            "description": "Stable client run identity used for deduplication."
+            "$ref": "#/components/schemas/WrappedUuidV4"
           }
         }
       },
-      "RunAutomationResponse": {
+      "RunRoutineResponse": {
         "type": "object",
         "required": [
           "run_id",
@@ -54273,6 +53928,114 @@
             }
           },
           "text": {
+            "type": "string"
+          }
+        }
+      },
+      "SendSessionMessageBody": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/SendSessionMessageInput"
+          },
+          {
+            "type": "object",
+            "required": [
+              "agent_inbox_instance_id",
+              "target_inbox_instance_id",
+              "tool_call_id",
+              "trigger_message_id"
+            ],
+            "properties": {
+              "agent_inbox_instance_id": {
+                "type": "string"
+              },
+              "target_inbox_instance_id": {
+                "type": "string"
+              },
+              "tool_call_id": {
+                "type": "string"
+              },
+              "trigger_message_id": {
+                "$ref": "#/components/schemas/WrappedUuidV4"
+              }
+            }
+          }
+        ],
+        "description": "HTTP body for a session-bound visible message."
+      },
+      "SendSessionMessageInput": {
+        "type": "object",
+        "description": "Model-visible parameters for the session-bound communication tool.",
+        "required": [
+          "content"
+        ],
+        "properties": {
+          "bcc": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            }
+          },
+          "cc": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            }
+          },
+          "content": {
+            "type": "string"
+          },
+          "html": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "reply_all": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "subject": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "to": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "SendSessionMessageResponse": {
+        "type": "object",
+        "description": "Canonical result returned by `sendMessage` after provider delivery.",
+        "required": [
+          "message",
+          "provider_id",
+          "delivery_status"
+        ],
+        "properties": {
+          "delivery_status": {
+            "type": "string"
+          },
+          "message": {
+            "$ref": "#/components/schemas/Message"
+          },
+          "provider_id": {
             "type": "string"
           }
         }
@@ -54529,7 +54292,7 @@
           "raw_payload",
           "headers",
           "status",
-          "matched_rule_ids",
+          "matched_trigger_ids",
           "created_at",
           "updated_at"
         ],
@@ -54570,7 +54333,7 @@
           "id": {
             "$ref": "#/components/schemas/WrappedUuidV4"
           },
-          "matched_rule_ids": {
+          "matched_trigger_ids": {
             "type": "array",
             "items": {
               "type": "string"
@@ -54614,6 +54377,23 @@
           },
           "updated_at": {
             "$ref": "#/components/schemas/WrappedChronoDateTime"
+          }
+        }
+      },
+      "SignalDeliveryPaginatedResponse": {
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SignalDelivery"
+            }
+          },
+          "next_page_token": {
+            "type": "string"
           }
         }
       },
@@ -54949,6 +54729,23 @@
           }
         }
       },
+      "SignalProviderInstancePaginatedResponse": {
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SignalProviderInstance"
+            }
+          },
+          "next_page_token": {
+            "type": "string"
+          }
+        }
+      },
       "SignalProviderInstanceStatus": {
         "type": "string",
         "enum": [
@@ -55064,85 +54861,20 @@
           }
         }
       },
-      "SignalRule": {
+      "SignalProviderSourceSerializedPaginatedResponse": {
         "type": "object",
         "required": [
-          "id",
-          "org_id",
-          "target_team_id",
-          "signal_provider_instance_id",
-          "display_name",
-          "status",
-          "signal_type",
-          "filter",
-          "session_policy",
-          "action",
-          "created_at",
-          "updated_at"
+          "items"
         ],
         "properties": {
-          "action": {
-            "$ref": "#/components/schemas/SignalAction"
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SignalProviderSourceSerialized"
+            }
           },
-          "authorization": {
-            "$ref": "#/components/schemas/ResourceAuthorizationModes"
-          },
-          "created_at": {
-            "$ref": "#/components/schemas/WrappedChronoDateTime"
-          },
-          "created_by_user_id": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "display_name": {
+          "next_page_token": {
             "type": "string"
-          },
-          "filter": {
-            "$ref": "#/components/schemas/SignalRuleFilter"
-          },
-          "id": {
-            "$ref": "#/components/schemas/WrappedUuidV4"
-          },
-          "metadata": {
-            "oneOf": [
-              {
-                "type": "null"
-              },
-              {
-                "$ref": "#/components/schemas/WrappedJsonValue",
-                "description": "Opaque client-owned JSON metadata without server-side semantics."
-              }
-            ]
-          },
-          "org_id": {
-            "type": "string"
-          },
-          "session_policy": {
-            "$ref": "#/components/schemas/SignalSessionPolicy"
-          },
-          "signal_provider_instance_id": {
-            "type": "string"
-          },
-          "signal_type": {
-            "type": "string"
-          },
-          "status": {
-            "$ref": "#/components/schemas/SignalRuleStatus"
-          },
-          "target_team_id": {
-            "type": "string",
-            "description": "Team in which ChatKit sessions and agent actions execute. Personal\nrules require this explicit target and create user_team sessions."
-          },
-          "team_id": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "updated_at": {
-            "$ref": "#/components/schemas/WrappedChronoDateTime"
           }
         }
       },
@@ -55156,13 +54888,6 @@
             }
           }
         }
-      },
-      "SignalRuleStatus": {
-        "type": "string",
-        "enum": [
-          "enabled",
-          "disabled"
-        ]
       },
       "SignalSessionPolicy": {
         "oneOf": [
@@ -56850,7 +56575,10 @@
         ],
         "properties": {
           "categories": {
-            "$ref": "#/components/schemas/WrappedJsonValue"
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           },
           "created_at": {
             "$ref": "#/components/schemas/WrappedChronoDateTime"
@@ -56865,7 +56593,10 @@
             "type": "string"
           },
           "tool_group_categories": {
-            "$ref": "#/components/schemas/WrappedJsonValue"
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           },
           "tool_group_deployment_deployment_id": {
             "type": "string"
@@ -56906,6 +56637,147 @@
             "type": "string"
           }
         }
+      },
+      "ToolExecution": {
+        "type": "object",
+        "required": [
+          "id",
+          "org_id",
+          "team_id",
+          "agent_inbox_id",
+          "tool_id",
+          "wire_name",
+          "authority",
+          "state",
+          "input",
+          "identity_snapshot",
+          "started_at",
+          "updated_at"
+        ],
+        "properties": {
+          "agent_inbox_id": {
+            "type": "string"
+          },
+          "authority": {
+            "$ref": "#/components/schemas/ToolExecutionAuthority"
+          },
+          "batch_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "batch_index": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
+          "completed_at": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/WrappedChronoDateTime"
+              }
+            ]
+          },
+          "error_message": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "identity_snapshot": {
+            "$ref": "#/components/schemas/WrappedJsonValue"
+          },
+          "input": {
+            "$ref": "#/components/schemas/WrappedJsonValue"
+          },
+          "message_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "model_tool_call_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "org_id": {
+            "type": "string"
+          },
+          "output": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/WrappedJsonValue"
+              }
+            ]
+          },
+          "parent_execution_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "session_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "started_at": {
+            "$ref": "#/components/schemas/WrappedChronoDateTime"
+          },
+          "state": {
+            "$ref": "#/components/schemas/ToolExecutionState"
+          },
+          "summary": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "team_id": {
+            "type": "string"
+          },
+          "tool_id": {
+            "type": "string"
+          },
+          "updated_at": {
+            "$ref": "#/components/schemas/WrappedChronoDateTime"
+          },
+          "wire_name": {
+            "type": "string"
+          }
+        }
+      },
+      "ToolExecutionAuthority": {
+        "type": "string",
+        "enum": [
+          "server_observed",
+          "agent_endpoint_reported",
+          "harness_client_reported"
+        ]
+      },
+      "ToolExecutionState": {
+        "type": "string",
+        "enum": [
+          "started",
+          "progress",
+          "completed",
+          "failed"
+        ]
       },
       "ToolGroupInstanceListItem": {
         "allOf": [
@@ -57808,6 +57680,46 @@
         ],
         "description": "Union of all UI message part types"
       },
+      "UpdateAgentObservabilityPolicyRequestInner": {
+        "type": "object",
+        "required": [
+          "tool_visibility",
+          "reasoning_visibility",
+          "thinking_visibility"
+        ],
+        "properties": {
+          "reasoning_visibility": {
+            "$ref": "#/components/schemas/AgentEventVisibility"
+          },
+          "thinking_visibility": {
+            "$ref": "#/components/schemas/AgentEventVisibility"
+          },
+          "tool_visibility": {
+            "$ref": "#/components/schemas/AgentEventVisibility"
+          }
+        }
+      },
+      "UpdateAgentToolVisibilityRequestInner": {
+        "type": "object",
+        "properties": {
+          "configured_summary": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "visibility_override": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/AgentEventVisibility"
+              }
+            ]
+          }
+        }
+      },
       "UpdateChatKitChatProviderRequestInner": {
         "type": "object",
         "description": "Request body for updating a ChatKit chat provider.",
@@ -58345,53 +58257,6 @@
           }
         }
       },
-      "UpdateRoutineRequestInner": {
-        "type": "object",
-        "description": "User-authored fields for editing a routine.",
-        "properties": {
-          "agent_inbox_id": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "enabled": {
-            "type": [
-              "boolean",
-              "null"
-            ]
-          },
-          "metadata": {
-            "oneOf": [
-              {
-                "type": "null"
-              },
-              {
-                "$ref": "#/components/schemas/WrappedJsonValue",
-                "description": "Opaque client-owned JSON metadata; absent leaves the stored value unchanged."
-              }
-            ]
-          },
-          "prompt": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "schedule": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "title": {
-            "type": [
-              "string",
-              "null"
-            ]
-          }
-        }
-      },
       "UpdateSelfProfileRequest": {
         "type": "object",
         "properties": {
@@ -58440,43 +58305,6 @@
           },
           "status": {
             "$ref": "#/components/schemas/SignalProviderInstanceStatus"
-          }
-        }
-      },
-      "UpdateSignalRuleRequestInner": {
-        "type": "object",
-        "required": [
-          "display_name",
-          "status",
-          "session_policy",
-          "action"
-        ],
-        "properties": {
-          "action": {
-            "$ref": "#/components/schemas/SignalAction"
-          },
-          "display_name": {
-            "type": "string"
-          },
-          "filter": {
-            "$ref": "#/components/schemas/SignalRuleFilter"
-          },
-          "metadata": {
-            "oneOf": [
-              {
-                "type": "null"
-              },
-              {
-                "$ref": "#/components/schemas/WrappedJsonValue",
-                "description": "Opaque client-owned JSON metadata; the update body is a full replace,\nso an absent field clears the stored value, matching `filter`."
-              }
-            ]
-          },
-          "session_policy": {
-            "$ref": "#/components/schemas/SignalSessionPolicy"
-          },
-          "status": {
-            "$ref": "#/components/schemas/SignalRuleStatus"
           }
         }
       },
@@ -58793,7 +58621,7 @@
       },
       "User": {
         "type": "object",
-        "description": "A user entity in the system.\n\nRepresents both human users and machine accounts with their associated metadata.",
+        "description": "A user entity in the system.\n\nRepresents both human and agent users with their associated metadata.",
         "required": [
           "id",
           "user_type",
@@ -58835,7 +58663,7 @@
               "string",
               "null"
             ],
-            "description": "Email address (required for human users, optional for machines)"
+            "description": "Email address (required for human users, optional for agents)."
           },
           "id": {
             "type": "string",
@@ -58847,13 +58675,13 @@
           },
           "user_type": {
             "$ref": "#/components/schemas/UserType",
-            "description": "Whether this is a machine or human user"
+            "description": "Whether this is an agent or human user."
           }
         }
       },
       "UserAvatar": {
         "type": "object",
-        "description": "Uploaded profile image metadata for a human or machine user.",
+        "description": "Uploaded profile image metadata for a human or agent user.",
         "required": [
           "bucket",
           "object_key",
@@ -59192,9 +59020,9 @@
       },
       "UserType": {
         "type": "string",
-        "description": "Type of user identity in the system.\n\nDistinguishes between automated services and real users.",
+        "description": "Type of user identity in the system.\n\nDistinguishes first-class agent users from human users.",
         "enum": [
-          "machine",
+          "agent",
           "human"
         ]
       },

@@ -8,12 +8,19 @@ export {
   teamPath,
 } from "@trytilde/api-client";
 export {
+  type AgentToolRegistration,
   type ChatKitAttachment,
   ChatKitClient,
   type ConvertedChatKitMessage,
+  type InvokeSessionProviderToolInput,
+  type InvokeSessionProviderToolResult,
   MessagesClient,
   type RegisteredChatKitAgent,
   type RegisteredChatKitChannel,
+  type ReportToolExecutionInput,
+  type SendSessionMessageInput,
+  type SendSessionMessageResult,
+  type ToolExecutionState,
 } from "./chatkit";
 export { Client, createClient } from "./client";
 export { type Config, configHeaders, createConfig, type NormalizedConfig } from "./config";

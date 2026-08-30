@@ -87,6 +87,7 @@ export function OpenBotApp() {
   const [dragging, setDragging] = useState(false);
   const [search, setSearch] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [messageMenuId, setMessageMenuId] = useState("");
   const [replyingTo, setReplyingTo] = useState<ChatMessage | null>(null);
   const [threadRootId, setThreadRootId] = useState("");
@@ -695,6 +696,8 @@ export function OpenBotApp() {
             : undefined
         }
         collapsed={layout.sidebarCollapsed}
+        mobileOpen={mobileSidebarOpen}
+        onMobileOpenChange={setMobileSidebarOpen}
         agents={sidebarChats}
         selectedAgentId={selectedSidebarChatId}
         loading={loading}
@@ -725,17 +728,16 @@ export function OpenBotApp() {
       />
 
       <ChatPane>
-        {selectedAgent ? (
-          <ChatHeader
-            agentId={selectedAgent.id}
-            agentName={selectedAgent.display_name}
-            busy={agentBusy}
-            computerOpen={layout.workspaceOpen}
-            onToggleComputer={layout.toggleWorkspace}
-            detailsOpen={detailsOpen}
-            onToggleDetails={() => setDetailsRoute(!detailsOpen)}
-          />
-        ) : null}
+        <ChatHeader
+          agentId={selectedAgent?.id}
+          agentName={selectedAgent?.display_name ?? "OpenBot"}
+          busy={Boolean(selectedAgent && agentBusy)}
+          computerOpen={layout.workspaceOpen}
+          onOpenSidebar={() => setMobileSidebarOpen(true)}
+          onToggleComputer={selectedAgent ? layout.toggleWorkspace : undefined}
+          detailsOpen={detailsOpen}
+          onToggleDetails={selectedAgent ? () => setDetailsRoute(!detailsOpen) : undefined}
+        />
 
         {loading && !selectedAgent ? (
           <ConversationSurface scrollRef={conversationRef} onScroll={handleConversationScroll}>

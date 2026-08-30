@@ -3,9 +3,9 @@ import type { SignalProvider } from "./signals.js";
 
 /**
  * Unified routine contracts shared by every client surface. A routine groups
- * 1..MAX_ROUTINE_TRIGGERS OR'd triggers — schedule triggers backed by Tilde
- * ChatKit routines and event triggers backed by Tilde signal rules — behind
- * the control-service `/api/routines` routes.
+ * 1..MAX_ROUTINE_TRIGGERS OR'd native schedule or event triggers. The client
+ * runtime projects Tilde's authoritative Routine API directly through the
+ * installation's allowlisted credential bridge.
  */
 
 export const MAX_ROUTINE_TRIGGERS = 8;
@@ -26,7 +26,6 @@ export const RoutineScheduleTriggerSchema = z
     /** Server-rendered Tilde schedule_description, passthrough. */
     description: z.string().optional(),
     next_run_at: z.string().nullable().optional(),
-    routine_id: z.string(),
   })
   .passthrough();
 export type RoutineScheduleTrigger = z.infer<typeof RoutineScheduleTriggerSchema>;
@@ -39,7 +38,6 @@ export const RoutineEventTriggerSchema = z
     provider_type: z.string(),
     signal_type: z.string(),
     filters: z.array(RoutineTriggerFilterSchema).optional(),
-    rule_id: z.string(),
   })
   .passthrough();
 export type RoutineEventTrigger = z.infer<typeof RoutineEventTriggerSchema>;
