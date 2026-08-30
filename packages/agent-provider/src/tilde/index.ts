@@ -17,11 +17,14 @@ import {
   chatkitProvisionAgentResourceBundle,
   chatkitUpdateChatProvider,
   chatkitUpdateAgentAvatar,
+  chatkitUpdateAgentOwnership,
+  chatkitUpdateAgentVisibility,
   chatkitRegisterVercelUiChatProvider,
   chatkitSetAgentPermissions,
   AgentCredentialStrategy,
   AgentProvisioningStatus,
   ChatKitAgentConcurrencyPolicy,
+  ResourceAccessMode,
   createTildeApiClient,
   type TildeApiClient,
   type AgentPermissions,
@@ -38,6 +41,10 @@ export { tildeAgentProviderInitialization } from "./tools.js";
 export interface TildeAgentProviderConfig extends TildePlatformConfig {}
 
 export interface TildeAgentResourcePolicy {
+  authorization?: {
+    ownership?: ResourceAccessMode;
+    visibility?: ResourceAccessMode;
+  };
   enableExternalTools?: boolean;
   enableMcpServer?: boolean;
   enableTildeControlPlane?: boolean;
@@ -297,6 +304,28 @@ export class TildeAgentProvider implements AgentProvider {
         }),
       );
     }
+    await Promise.all([
+      policy.authorization?.visibility
+        ? this.#generated(`set visibility for "${slug}"`, (signal) =>
+            chatkitUpdateAgentVisibility({
+              client: this.#api,
+              path: { team_id: this.#teamId, agent_id: slug },
+              body: { mode: policy.authorization!.visibility! },
+              signal,
+            }),
+          )
+        : undefined,
+      policy.authorization?.ownership
+        ? this.#generated(`set ownership for "${slug}"`, (signal) =>
+            chatkitUpdateAgentOwnership({
+              client: this.#api,
+              path: { team_id: this.#teamId, agent_id: slug },
+              body: { mode: policy.authorization!.ownership! },
+              signal,
+            }),
+          )
+        : undefined,
+    ]);
     await Promise.all([
       this.#ensureChatKitWorkspaceChannel(slug, slug, context.agentKind ?? "subagent"),
       policy.enableExternalTools === false

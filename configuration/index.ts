@@ -4,6 +4,7 @@ import { TildeAuthProvider } from "@tryopenbot/auth-provider";
 import { Configuration } from "@tryopenbot/configuration";
 import { ExeDevComputerProvider } from "@tryopenbot/computer-service-provider";
 import { CodeStorageGitProvider } from "@tryopenbot/git-provider";
+import { ResourceAccessMode } from "@trytilde/sdk/api";
 import { VercelInferenceProvider } from "@tryopenbot/inference-provider";
 import { ExeDevPlatform, TildePlatform, VercelPlatform } from "@tryopenbot/platform-integrations";
 
@@ -24,6 +25,10 @@ export default Configuration({
     agentService: runtime,
     agent: new TildeAgentProvider(tilde, {
       resourcePolicy: ({ id }) => ({
+        authorization: {
+          ownership: ResourceAccessMode.TEAM,
+          visibility: ResourceAccessMode.TEAM,
+        },
         ...(id === "computer"
           ? {
               enableExternalTools: false,

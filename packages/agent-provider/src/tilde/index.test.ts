@@ -2,6 +2,7 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DeploymentOutputs, type DeploymentContext } from "@tryopenbot/runtime-provider";
+import { ResourceAccessMode } from "@trytilde/sdk/api";
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 import { TildeAgentProvider } from "./index.js";
 import { TildeSkillReconciler } from "./skills.js";
@@ -100,6 +101,18 @@ describe("TildeAgentProvider", () => {
           });
           return Response.json({ id: "scout" });
         }
+        if (
+          request.method === "POST" &&
+          (path.endsWith("/agents/scout/visibility") || path.endsWith("/agents/scout/ownership"))
+        ) {
+          expect(await request.json()).toEqual({ mode: "team" });
+          return Response.json({
+            org_id: "org-one",
+            team_id: "team-one",
+            visibility: "team",
+            ownership: "team",
+          });
+        }
         if (request.method === "GET" && path.endsWith("/channels"))
           return Response.json({
             items: channelCreated
@@ -122,6 +135,10 @@ describe("TildeAgentProvider", () => {
     await new TildeAgentProvider(config, {
       resourcePolicy: () => ({
         enableExternalTools: false,
+        authorization: {
+          visibility: ResourceAccessMode.TEAM,
+          ownership: ResourceAccessMode.TEAM,
+        },
         enableSkillRegistry: false,
         enableMcpServer: false,
         enableTildeControlPlane: false,
