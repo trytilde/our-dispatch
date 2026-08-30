@@ -276,7 +276,7 @@ async function routineScenario(
           enabled: true,
           instruction: "Reply with exactly EVAL_ROUTINE_OK.",
           name: `OpenBot evaluation ${routineId.slice(0, 8)}`,
-          triggers: [{ id: triggerId, kind: "schedule", schedule: "0 0 7 * * *", enabled: true }],
+          triggers: [{ id: triggerId, kind: "schedule", schedule: "0 7 * * *", enabled: true }],
         }),
       }),
     );
@@ -290,7 +290,7 @@ async function routineScenario(
           expected_version: version,
           instruction: "Reply with exactly EVAL_ROUTINE_OK.",
           name: `OpenBot evaluation updated ${routineId.slice(0, 8)}`,
-          triggers: [{ id: triggerId, kind: "schedule", schedule: "0 0 7 * * *", enabled: true }],
+          triggers: [{ id: triggerId, kind: "schedule", schedule: "0 7 * * *", enabled: true }],
         }),
       }),
     );
