@@ -340,21 +340,33 @@ async function agentLifecycleScenario(
     const deleteJobId = stringField(deletion, "job_id");
     const deletionStarted = context.now();
     let deletionComplete = false;
+    let lastStatusError: unknown;
     while (context.now() - deletionStarted < context.timeoutMs) {
-      const status = record(
-        await controlJson(context, `/api/agents/delete/${encodeURIComponent(deleteJobId)}`),
-      );
-      if (status.status === "failed")
-        throw new Error(
-          `Agent deletion failed: ${optionalString(status.error) || "unknown error"}`,
+      try {
+        const status = record(
+          await controlJson(context, `/api/agents/delete/${encodeURIComponent(deleteJobId)}`),
         );
-      if (status.status === "deleted") {
+        if (status.status === "failed")
+          throw new Error(
+            `Agent deletion failed: ${optionalString(status.error) || "unknown error"}`,
+          );
+        if (status.status === "deleted") {
+          deletionComplete = true;
+          break;
+        }
+      } catch (error) {
+        lastStatusError = error;
+      }
+      if (await tildeAgentMissing(context, agentId)) {
         deletionComplete = true;
         break;
       }
       await context.delay(750);
     }
-    if (!deletionComplete) throw new Error("Agent deletion timed out");
+    if (!deletionComplete)
+      throw new Error(
+        `Agent deletion timed out${lastStatusError ? `: ${errorMessage(lastStatusError)}` : ""}`,
+      );
   } catch (error) {
     cleanupError = error;
   }
@@ -539,6 +551,23 @@ async function controlJson(
     throw new Error(`${path} failed (${response.status}): ${await response.text()}`);
   const text = await response.text();
   return text ? JSON.parse(text) : undefined;
+}
+
+async function tildeAgentMissing(
+  context: Pick<EvaluationOptions, "baseUrl" | "teamId"> & {
+    headers: Record<string, string>;
+    request: typeof fetch;
+  },
+  agentId: string,
+): Promise<boolean> {
+  const response = await context.request(
+    `${context.baseUrl}/api/v1/team/${encodeURIComponent(context.teamId)}/chatkit/agents/${encodeURIComponent(agentId)}`,
+    { headers: context.headers },
+  );
+  if (response.status === 404) return true;
+  if (!response.ok)
+    throw new Error(`Agent cleanup check failed (${response.status}): ${await response.text()}`);
+  return false;
 }
 
 function isScenarioId(value: string): value is EvaluationScenarioId {

@@ -170,16 +170,15 @@ describe("production evaluation", () => {
             },
           ],
         });
+      if (url.endsWith("/chatkit/agents/evaluation-agent-test"))
+        return response({ error: "not found" }, 404);
       if (
         url === "https://openbot.test/api/agents/evaluation-agent-test" &&
         init?.method === "DELETE"
       )
         return response({ status: "deleting", job_id: "delete-job" }, 202);
       if (url === "https://openbot.test/api/agents/delete/delete-job")
-        return response({
-          status: "deleted",
-          agent: { id: "evaluation-agent-test", name: "Evaluation Agent Test" },
-        });
+        throw new TypeError("fetch failed");
       return response({ error: "unexpected" }, 500);
     });
 
