@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vite-plus/test";
 import type { PrepareStepFunction, ToolSet } from "ai";
-import { prepareChatKitAgentStep, stopAfterChatKitMessage } from "./agent-loop.js";
+import {
+  prepareChatKitAgentStep,
+  requiresComputerDelegation,
+  stopAfterChatKitMessage,
+} from "./agent-loop.js";
 
 type StepOptions = Parameters<PrepareStepFunction<ToolSet>>[0];
 
@@ -11,11 +15,19 @@ function options(toolName: string, output: unknown): StepOptions {
 }
 
 const tools = {
+  chatkit_delegate: {},
   chatkit_wait_for_response: {},
   sendMessage: {},
 } as unknown as ToolSet;
 
 describe("prepareChatKitAgentStep", () => {
+  it("forces delegation before any user-visible message for explicit graphical work", () => {
+    const prepare = prepareChatKitAgentStep(tools, { requireDelegationFirst: true });
+    expect(prepare({ steps: [] } as unknown as StepOptions)).toEqual({
+      activeTools: ["chatkit_delegate"],
+      toolChoice: { type: "tool", toolName: "chatkit_delegate" },
+    });
+  });
   it("forces the wait immediately after delegation", () => {
     expect(prepareChatKitAgentStep(tools)(options("chatkit_delegate", { isError: false }))).toEqual(
       {
@@ -38,6 +50,24 @@ describe("prepareChatKitAgentStep", () => {
     const prepare = prepareChatKitAgentStep(tools);
     expect(prepare(options("chatkit_delegate", { isError: true }))).toBeUndefined();
     expect(prepare(options("SEARCH_TOOLS", { tools: [] }))).toBeUndefined();
+  });
+});
+
+describe("requiresComputerDelegation", () => {
+  it("routes explicit browser and desktop work but leaves ordinary questions local", () => {
+    expect(
+      requiresComputerDelegation([
+        {
+          role: "user",
+          parts: [{ type: "text", text: "Open https://example.com in the browser" }],
+        },
+      ]),
+    ).toBe(true);
+    expect(
+      requiresComputerDelegation([
+        { role: "user", parts: [{ type: "text", text: "What is two plus two?" }] },
+      ]),
+    ).toBe(false);
   });
 });
 
