@@ -87,6 +87,10 @@ describe("production evaluation", () => {
     const request = vi.fn<typeof fetch>(async (input, init) => {
       const url = requestUrl(input);
       if (/\/automations\/[0-9a-f-]+$/.test(url) && init?.method === "PUT") {
+        if (typeof init.body !== "string") throw new TypeError("Expected a JSON request body");
+        expect(JSON.parse(init.body)).toMatchObject({
+          triggers: [{ kind: "schedule", schedule: "0 7 * * *" }],
+        });
         putCount += 1;
         return response({ version: putCount });
       }
