@@ -12,9 +12,11 @@ if command -v google-chrome-stable >/dev/null 2>&1; then
     --disable-sync \
     --disable-features=SigninPromo \
     --force-renderer-accessibility \
+    --hide-crash-restore-bubble \
     --no-default-browser-check \
     --no-first-run \
-    --user-data-dir="$profile_directory"
+    --user-data-dir="$profile_directory" \
+    "$@"
 fi
 
 exec chromium \
@@ -24,6 +26,8 @@ exec chromium \
   --disable-sync \
   --disable-features=SigninPromo \
   --force-renderer-accessibility \
+  --hide-crash-restore-bubble \
   --no-default-browser-check \
   --no-first-run \
-  --user-data-dir="$profile_directory"
+  --user-data-dir="$profile_directory" \
+  "$@"

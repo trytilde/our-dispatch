@@ -704,6 +704,10 @@ describe("computer image lifecycle", () => {
     expect(browser).toContain("--no-first-run");
     expect(browser).toContain("--no-default-browser-check");
     expect(browser).toContain("--disable-features=SigninPromo");
+    expect(browser).toContain("--hide-crash-restore-bubble");
+    expect(browser).toContain('"$@"');
+    const browserDesktop = await readFile(computerImageAssets.openbotBrowserDesktop, "utf8");
+    expect(browserDesktop).toContain("Exec=/usr/local/bin/openbot-browser %U");
   });
 });
 
