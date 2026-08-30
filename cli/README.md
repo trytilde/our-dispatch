@@ -27,6 +27,7 @@ The CLI operates on the OpenBot repository in the current working directory. For
 `openbot dev --local-tilde-api [ORIGIN]` initializes `third-party/tilde-api` when needed, uses the platform default (`https://api.tilde.test:8443` on macOS and `https://api.tilde.test` elsewhere), and starts `make dev` in that private checkout when the selected socket is not already listening. An explicit HTTP origin such as `http://127.0.0.1:8443` is normalized to the HTTPS listener served by the API. The override and child process remain scoped to this development run.
 <!-- #END DO NOT UPSTREAM -->
 - `openbot deploy` builds selected providers, optionally stops with `--skip-deploy`, or plans and deploys providers with the runtime last.
+- `openbot eval --json` runs production conversations and a self-cleaning routine lifecycle through the selected Tilde team, reporting pass/fail, latency, tool calls, repeated calls, sessions, and cleanup identifiers. Repeat `--scenario` to select `simple-answer`, `computer-delegation`, or `routine-lifecycle`; authentication uses `TILDE_API_KEY` from the environment or the cached `openbot auth` session, never an argument.
 - The exe.dev runtime option reconciles one named 2-vCPU/8-GB VM, exposes Vite on its HTTPS origin,
   clones the Code Storage fork, and keeps `pnpm dev` running through systemd user linger. The host
   itself is the Computer and receives the trusted development configuration. This is an
