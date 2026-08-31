@@ -8112,7 +8112,7 @@
           "v1"
         ],
         "summary": "Report a local tool execution lifecycle event",
-        "description": "Records a Harness-local tool lifecycle event and its canonical execution state atomically.",
+        "description": "Records a coding-harness-local tool lifecycle event and its canonical execution state atomically. Event-oriented clients may include tool metadata to register one newly discovered tool without reconciling the complete local catalog.",
         "operationId": "chatkit-report-tool-execution",
         "parameters": [
           {
@@ -32689,6 +32689,66 @@
         }
       }
     },
+    "/api/v1/team/{team_id}/wikis/{wiki_id}/pages/grep": {
+      "post": {
+        "tags": [
+          "wiki",
+          "v1"
+        ],
+        "summary": "Grep Wiki pages",
+        "description": "Run bounded literal or regular-expression line search across Wiki Markdown.",
+        "operationId": "grep-wiki-pages",
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "wiki_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/WrappedUuidV4"
+            }
+          },
+          {
+            "name": "team_id",
+            "in": "path",
+            "description": "Team ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GrepWikiPagesBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GrepWikiPagesResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/team/{team_id}/wikis/{wiki_id}/pages/{page_id}": {
       "get": {
         "tags": [
@@ -37108,6 +37168,148 @@
         }
       }
     },
+    "/api/v1/user/{user_id}/memory/source-bindings": {
+      "get": {
+        "tags": [
+          "memory",
+          "v1"
+        ],
+        "summary": "List personal source memory-bank bindings",
+        "description": "Inspect selected personal banks and synchronization state for one personal source.",
+        "operationId": "list-personal-memory-source-bindings",
+        "parameters": [
+          {
+            "name": "user_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "source_kind",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/MemorySourceKind"
+            }
+          },
+          {
+            "name": "source_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/MemorySourceBinding"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "memory",
+          "v1"
+        ],
+        "summary": "Replace personal source memory-bank bindings",
+        "description": "Atomically replace a personal source's selected personal banks and durably queue a full backfill.",
+        "operationId": "replace-personal-memory-source-bindings",
+        "parameters": [
+          {
+            "name": "user_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReplaceMemoryBankBindingsBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/MemorySourceBinding"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/user/{user_id}/memory/source-bindings/retry": {
+      "post": {
+        "tags": [
+          "memory",
+          "v1"
+        ],
+        "summary": "Retry personal source synchronization",
+        "description": "Retry every personal memory-bank binding for a personal source.",
+        "operationId": "retry-personal-memory-source-sync",
+        "parameters": [
+          {
+            "name": "user_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RetryMemorySourceBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/MemorySourceBinding"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/user/{user_id}/signals/deliveries": {
       "get": {
         "tags": [
@@ -39470,6 +39672,57 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/WikiPage"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/user/{user_id}/wikis/{wiki_id}/pages/grep": {
+      "post": {
+        "tags": [
+          "wiki",
+          "v1"
+        ],
+        "summary": "Grep personal Wiki pages",
+        "description": "Run bounded literal or regular-expression line search across personal Wiki Markdown.",
+        "operationId": "grep-personal-wiki-pages",
+        "parameters": [
+          {
+            "name": "user_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "wiki_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/WrappedUuidV4"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GrepWikiPagesBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GrepWikiPagesResponse"
                 }
               }
             }
@@ -42587,6 +42840,13 @@
           "replies_route_to_provider"
         ],
         "properties": {
+          "parent_agent_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Calling agent whose display/browser context a delegated specialist should continue."
+          },
           "provider_display_name": {
             "type": "string",
             "description": "Human-readable provider name for prompt text, for example `GitHub`."
@@ -46267,6 +46527,68 @@
           }
         }
       },
+      "GrepWikiPagesBody": {
+        "type": "object",
+        "description": "Bounded ripgrep-style search over the Markdown lines in one Wiki.",
+        "required": [
+          "pattern"
+        ],
+        "properties": {
+          "case_sensitive": {
+            "type": "boolean"
+          },
+          "context_lines": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "match_limit": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "page_limit": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "path_prefix": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "pattern": {
+            "type": "string"
+          },
+          "regex": {
+            "type": "boolean"
+          }
+        }
+      },
+      "GrepWikiPagesResponse": {
+        "type": "object",
+        "required": [
+          "matches",
+          "pages_scanned",
+          "truncated"
+        ],
+        "properties": {
+          "matches": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WikiGrepMatch"
+            }
+          },
+          "pages_scanned": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "truncated": {
+            "type": "boolean"
+          }
+        }
+      },
       "Group": {
         "type": "object",
         "description": "A group entity for organizing users and managing access control.\n\nGroups allow assigning permissions to multiple users at once.",
@@ -48962,7 +49284,6 @@
           "source_kind",
           "source_id",
           "org_id",
-          "team_id",
           "generation",
           "detached",
           "created_at",
@@ -48971,6 +49292,12 @@
         "properties": {
           "created_at": {
             "$ref": "#/components/schemas/WrappedChronoDateTime"
+          },
+          "created_by_user_id": {
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "detached": {
             "type": "boolean",
@@ -49009,7 +49336,10 @@
             "$ref": "#/components/schemas/MemorySourceKind"
           },
           "team_id": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "updated_at": {
             "$ref": "#/components/schemas/WrappedChronoDateTime"
@@ -52623,11 +52953,53 @@
               "null"
             ]
           },
+          "tool": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ReportedAgentTool",
+                "description": "Optional immutable tool metadata supplied by event-oriented clients\nthat cannot enumerate a complete local tool catalog up front.\n\nWhen the tool is not registered yet, ChatKit creates one active\nHarness-local catalog entry without marking any other tools unavailable."
+              }
+            ]
+          },
           "tool_id": {
             "type": "string"
           },
           "wire_name": {
             "type": "string"
+          }
+        }
+      },
+      "ReportedAgentTool": {
+        "type": "object",
+        "description": "Tool metadata carried with a lifecycle report when the calling harness\ndiscovers tools one execution at a time.",
+        "required": [
+          "display_name"
+        ],
+        "properties": {
+          "display_name": {
+            "type": "string"
+          },
+          "identity_snapshot": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/WrappedJsonValue"
+              }
+            ]
+          },
+          "summary": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "supports_summary": {
+            "type": "boolean"
           }
         }
       },
@@ -59443,6 +59815,49 @@
             "items": {
               "$ref": "#/components/schemas/WikiPageRelationship"
             }
+          }
+        }
+      },
+      "WikiGrepMatch": {
+        "type": "object",
+        "required": [
+          "page_id",
+          "path",
+          "title",
+          "line_number",
+          "line",
+          "before",
+          "after"
+        ],
+        "properties": {
+          "after": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "before": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "line": {
+            "type": "string"
+          },
+          "line_number": {
+            "type": "integer",
+            "description": "One-based Markdown line number.",
+            "minimum": 0
+          },
+          "page_id": {
+            "$ref": "#/components/schemas/WrappedUuidV4"
+          },
+          "path": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
           }
         }
       },

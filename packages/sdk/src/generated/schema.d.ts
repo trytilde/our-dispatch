@@ -1827,7 +1827,7 @@ export interface paths {
         put?: never;
         /**
          * Report a local tool execution lifecycle event
-         * @description Records a Harness-local tool lifecycle event and its canonical execution state atomically.
+         * @description Records a coding-harness-local tool lifecycle event and its canonical execution state atomically. Event-oriented clients may include tool metadata to register one newly discovered tool without reconciling the complete local catalog.
          */
         post: operations["chatkit-report-tool-execution"];
         delete?: never;
@@ -7014,6 +7014,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/team/{team_id}/wikis/{wiki_id}/pages/grep": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Grep Wiki pages
+         * @description Run bounded literal or regular-expression line search across Wiki Markdown.
+         */
+        post: operations["grep-wiki-pages"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/team/{team_id}/wikis/{wiki_id}/pages/{page_id}": {
         parameters: {
             query?: never;
@@ -8018,6 +8038,50 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/user/{user_id}/memory/source-bindings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List personal source memory-bank bindings
+         * @description Inspect selected personal banks and synchronization state for one personal source.
+         */
+        get: operations["list-personal-memory-source-bindings"];
+        /**
+         * Replace personal source memory-bank bindings
+         * @description Atomically replace a personal source's selected personal banks and durably queue a full backfill.
+         */
+        put: operations["replace-personal-memory-source-bindings"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/user/{user_id}/memory/source-bindings/retry": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Retry personal source synchronization
+         * @description Retry every personal memory-bank binding for a personal source.
+         */
+        post: operations["retry-personal-memory-source-sync"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/user/{user_id}/signals/deliveries": {
         parameters: {
             query?: never;
@@ -8544,6 +8608,26 @@ export interface paths {
         get: operations["list-personal-wiki-pages"];
         put?: never;
         post: operations["create-personal-wiki-page"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/user/{user_id}/wikis/{wiki_id}/pages/grep": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Grep personal Wiki pages
+         * @description Run bounded literal or regular-expression line search across personal Wiki Markdown.
+         */
+        post: operations["grep-personal-wiki-pages"];
         delete?: never;
         options?: never;
         head?: never;
@@ -9409,6 +9493,8 @@ export interface components {
         };
         /** @description Provenance of the ChatKit session an agent turn belongs to. */
         ChatSessionContext: {
+            /** @description Calling agent whose display/browser context a delegated specialist should continue. */
+            parent_agent_id?: string | null;
             /** @description Human-readable provider name for prompt text, for example `GitHub`. */
             provider_display_name: string;
             /**
@@ -10300,6 +10386,24 @@ export interface components {
             download_url: string;
             expires_at: components["schemas"]["WrappedChronoDateTime"];
         };
+        /** @description Bounded ripgrep-style search over the Markdown lines in one Wiki. */
+        GrepWikiPagesBody: {
+            case_sensitive?: boolean;
+            /** Format: int32 */
+            context_lines?: number;
+            /** Format: int32 */
+            match_limit?: number;
+            /** Format: int32 */
+            page_limit?: number;
+            path_prefix?: string | null;
+            pattern: string;
+            regex?: boolean;
+        };
+        GrepWikiPagesResponse: {
+            matches: components["schemas"]["WikiGrepMatch"][];
+            pages_scanned: number;
+            truncated: boolean;
+        };
         /**
          * @description A group entity for organizing users and managing access control.
          *
@@ -11022,6 +11126,7 @@ export interface components {
         MemoryProvider: "hindsight";
         MemorySourceBinding: {
             created_at: components["schemas"]["WrappedChronoDateTime"];
+            created_by_user_id?: string | null;
             /** @description True while a detached source is waiting for provider document cleanup. */
             detached: boolean;
             /** Format: int64 */
@@ -11034,7 +11139,7 @@ export interface components {
             org_id: string;
             source_id: string;
             source_kind: components["schemas"]["MemorySourceKind"];
-            team_id: string;
+            team_id?: string | null;
             updated_at: components["schemas"]["WrappedChronoDateTime"];
         };
         /** @enum {string} */
@@ -11873,8 +11978,19 @@ export interface components {
             started_at?: null | components["schemas"]["WrappedChronoDateTime"];
             state: components["schemas"]["ToolExecutionState"];
             summary?: string | null;
+            tool?: null | components["schemas"]["ReportedAgentTool"];
             tool_id: string;
             wire_name: string;
+        };
+        /**
+         * @description Tool metadata carried with a lifecycle report when the calling harness
+         *     discovers tools one execution at a time.
+         */
+        ReportedAgentTool: {
+            display_name: string;
+            identity_snapshot?: null | components["schemas"]["WrappedJsonValue"];
+            summary?: string | null;
+            supports_summary?: boolean;
         };
         ResolveLoginProviderResponse: {
             provider: components["schemas"]["LoginProviderResolution"];
@@ -13491,6 +13607,16 @@ export interface components {
         WikiGraph: {
             pages: components["schemas"]["WikiPage"][];
             relationships: components["schemas"]["WikiPageRelationship"][];
+        };
+        WikiGrepMatch: {
+            after: string[];
+            before: string[];
+            line: string;
+            /** @description One-based Markdown line number. */
+            line_number: number;
+            page_id: components["schemas"]["WrappedUuidV4"];
+            path: string;
+            title: string;
         };
         WikiOntologyInstallation: {
             actor_id: string;
@@ -30660,6 +30786,33 @@ export interface operations {
             };
         };
     };
+    "grep-wiki-pages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Team ID */
+                team_id: string;
+                wiki_id: components["schemas"]["WrappedUuidV4"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GrepWikiPagesBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GrepWikiPagesResponse"];
+                };
+            };
+        };
+    };
     "get-wiki-page": {
         parameters: {
             query?: never;
@@ -32884,6 +33037,80 @@ export interface operations {
             };
         };
     };
+    "list-personal-memory-source-bindings": {
+        parameters: {
+            query: {
+                source_kind: components["schemas"]["MemorySourceKind"];
+                source_id: string;
+            };
+            header?: never;
+            path: {
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MemorySourceBinding"][];
+                };
+            };
+        };
+    };
+    "replace-personal-memory-source-bindings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReplaceMemoryBankBindingsBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MemorySourceBinding"][];
+                };
+            };
+        };
+    };
+    "retry-personal-memory-source-sync": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RetryMemorySourceBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MemorySourceBinding"][];
+                };
+            };
+        };
+    };
     "signals-list-personal-deliveries": {
         parameters: {
             query?: {
@@ -34102,6 +34329,32 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["WikiPage"];
+                };
+            };
+        };
+    };
+    "grep-personal-wiki-pages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                user_id: string;
+                wiki_id: components["schemas"]["WrappedUuidV4"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GrepWikiPagesBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GrepWikiPagesResponse"];
                 };
             };
         };
