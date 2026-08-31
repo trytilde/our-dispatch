@@ -1,6 +1,9 @@
 import { randomUUID } from "node:crypto";
+import { readFile, writeFile } from "node:fs/promises";
+import { resolve } from "node:path";
 import arg from "arg";
 import { agentIdFromName } from "@tryopenbot/utilities";
+import { parse as parseYaml } from "yaml";
 import { ensureTildeAuth, readSelectedOrgId, readSelectedTeamId } from "../tilde/auth.js";
 import { loadDotenvFiles } from "../tilde/env.js";
 
@@ -281,6 +284,7 @@ async function agentLifecycleScenario(
   if (!context.openbotUrl)
     throw new Error("PUBLIC_ORIGIN or --openbot-url is required for agent-lifecycle");
   const started = context.now();
+  const secretSnapshot = await captureEncryptedConfiguration();
   const name = `Evaluation Agent ${randomUUID().slice(0, 8)}`;
   let agentId = agentIdFromName(name);
   let result: EvaluationScenarioResult | undefined;
@@ -370,6 +374,11 @@ async function agentLifecycleScenario(
   } catch (error) {
     cleanupError = error;
   }
+  try {
+    await restoreEncryptedConfiguration(secretSnapshot);
+  } catch (error) {
+    cleanupError ??= error;
+  }
   if (operationError) throw operationError;
   if (!result) throw new Error("Agent lifecycle evaluation returned no result");
   if (!cleanupError) return { ...result, elapsedMs: context.now() - started };
@@ -379,6 +388,52 @@ async function agentLifecycleScenario(
     elapsedMs: context.now() - started,
     detail: `${result.detail}; cleanup failed: ${errorMessage(cleanupError)}`,
   };
+}
+
+interface EncryptedConfigurationSnapshot {
+  path: string;
+  content: string;
+  payload: string;
+}
+
+async function captureEncryptedConfiguration(): Promise<
+  EncryptedConfigurationSnapshot | undefined
+> {
+  const path = resolve(process.cwd(), "configuration/secrets.enc.yaml");
+  try {
+    const content = await readFile(path, "utf8");
+    return { path, content, payload: encryptedPayload(content) };
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return undefined;
+    throw error;
+  }
+}
+
+async function restoreEncryptedConfiguration(
+  snapshot: EncryptedConfigurationSnapshot | undefined,
+): Promise<void> {
+  if (!snapshot) return;
+  const current = await readFile(snapshot.path, "utf8");
+  if (current === snapshot.content) return;
+  if (encryptedPayload(current) !== snapshot.payload)
+    throw new Error("Encrypted configuration changed beyond temporary evaluation credentials");
+  await writeFile(snapshot.path, snapshot.content, "utf8");
+}
+
+function encryptedPayload(content: string): string {
+  const parsed = record(parseYaml(content));
+  delete parsed.sops;
+  return JSON.stringify(sortJson(parsed));
+}
+
+function sortJson(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(sortJson);
+  if (!value || typeof value !== "object") return value;
+  return Object.fromEntries(
+    Object.entries(value as Record<string, unknown>)
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([key, nested]) => [key, sortJson(nested)]),
+  );
 }
 
 async function routineScenario(
