@@ -377,7 +377,7 @@ async function agentLifecycleScenario(
     cleanupError = error;
   }
   try {
-    await restoreEncryptedConfiguration(secretSnapshot);
+    await restoreEncryptedConfiguration(secretSnapshot, context.delay);
   } catch (error) {
     cleanupError ??= error;
   }
@@ -414,13 +414,19 @@ async function captureEncryptedConfiguration(): Promise<
 
 async function restoreEncryptedConfiguration(
   snapshot: EncryptedConfigurationSnapshot | undefined,
+  delay: (milliseconds: number) => Promise<void>,
 ): Promise<void> {
   if (!snapshot) return;
-  const current = await readFile(snapshot.path, "utf8");
-  if (current === snapshot.content) return;
-  if ((await decryptedPayload(snapshot.path)) !== snapshot.payload)
-    throw new Error("Encrypted configuration changed beyond temporary evaluation credentials");
-  await writeFile(snapshot.path, snapshot.content, "utf8");
+  for (let attempt = 0; attempt < 120; attempt += 1) {
+    const current = await readFile(snapshot.path, "utf8");
+    if (current === snapshot.content) return;
+    if ((await decryptedPayload(snapshot.path)) === snapshot.payload) {
+      await writeFile(snapshot.path, snapshot.content, "utf8");
+      return;
+    }
+    if (attempt < 119) await delay(250);
+  }
+  throw new Error("Encrypted configuration changed beyond temporary evaluation credentials");
 }
 
 async function decryptedPayload(path: string): Promise<string> {
