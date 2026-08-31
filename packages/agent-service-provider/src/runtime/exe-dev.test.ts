@@ -87,6 +87,10 @@ describe("ExeDevRuntimeServiceProvider", () => {
     expect(calls.at(-1)?.input).toContain(
       '"refs/heads/$source_branch:refs/remotes/origin/$source_branch"',
     );
+    expect(calls.at(-1)?.input).toContain('switch "$source_branch"');
+    expect(calls.at(-1)?.input).toContain(
+      'switch --create "$source_branch" --no-track "origin/$source_branch"',
+    );
     expect(calls.at(-1)?.input).toContain("sha256sum --check --strict");
     expect(calls.at(-1)?.input).toContain("repository-only-token");
     expect(deployment.environment.PUBLIC_ORIGIN).toBe("https://openbot.exe.xyz");
