@@ -6,6 +6,7 @@ import { agentIdFromName } from "@tryopenbot/utilities";
 import { parse as parseYaml } from "yaml";
 import { ensureTildeAuth, readSelectedOrgId, readSelectedTeamId } from "../tilde/auth.js";
 import { loadDotenvFiles } from "../tilde/env.js";
+import { repositoryRoot } from "../paths.js";
 
 const defaultBaseUrl = "https://api.trytilde.ai";
 const defaultTimeoutMs = 120_000;
@@ -399,7 +400,7 @@ interface EncryptedConfigurationSnapshot {
 async function captureEncryptedConfiguration(): Promise<
   EncryptedConfigurationSnapshot | undefined
 > {
-  const path = resolve(process.cwd(), "configuration/secrets.enc.yaml");
+  const path = resolve(repositoryRoot, "configuration/secrets.enc.yaml");
   try {
     const content = await readFile(path, "utf8");
     return { path, content, payload: encryptedPayload(content) };
