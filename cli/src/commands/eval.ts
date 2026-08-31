@@ -4,6 +4,7 @@ import { resolve } from "node:path";
 import arg from "arg";
 import { agentIdFromName } from "@tryopenbot/utilities";
 import { parse as parseYaml } from "yaml";
+import { processCommandRunner } from "../initialization.js";
 import { ensureTildeAuth, readSelectedOrgId, readSelectedTeamId } from "../tilde/auth.js";
 import { loadDotenvFiles } from "../tilde/env.js";
 import { repositoryRoot } from "../paths.js";
@@ -400,10 +401,11 @@ interface EncryptedConfigurationSnapshot {
 async function captureEncryptedConfiguration(): Promise<
   EncryptedConfigurationSnapshot | undefined
 > {
+  if (!env("SOPS_AGE_KEY")) return undefined;
   const path = resolve(repositoryRoot, "configuration/secrets.enc.yaml");
   try {
     const content = await readFile(path, "utf8");
-    return { path, content, payload: encryptedPayload(content) };
+    return { path, content, payload: await decryptedPayload(path) };
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") return undefined;
     throw error;
@@ -416,15 +418,18 @@ async function restoreEncryptedConfiguration(
   if (!snapshot) return;
   const current = await readFile(snapshot.path, "utf8");
   if (current === snapshot.content) return;
-  if (encryptedPayload(current) !== snapshot.payload)
+  if ((await decryptedPayload(snapshot.path)) !== snapshot.payload)
     throw new Error("Encrypted configuration changed beyond temporary evaluation credentials");
   await writeFile(snapshot.path, snapshot.content, "utf8");
 }
 
-function encryptedPayload(content: string): string {
-  const parsed = record(parseYaml(content));
-  delete parsed.sops;
-  return JSON.stringify(sortJson(parsed));
+async function decryptedPayload(path: string): Promise<string> {
+  const decrypted = await processCommandRunner.run(
+    "sops",
+    ["decrypt", "--input-type", "yaml", "--output-type", "yaml", path],
+    { cwd: repositoryRoot, environment: process.env },
+  );
+  return JSON.stringify(sortJson(parseYaml(decrypted.stdout)));
 }
 
 function sortJson(value: unknown): unknown {
