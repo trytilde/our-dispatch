@@ -346,4 +346,47 @@ describe("TildeToolReconciler", () => {
       AGENT_SCOUT_VERCEL_MCP_SERVER_ID: "vercel-group",
     });
   });
+
+  it("removes the agent-owned Vercel MCP server before its credential", async () => {
+    const client = createClient({
+      teamId: "team-one",
+      orgId: "org-one",
+      apiKey: "secret",
+      baseUrl: "https://tilde.test",
+    });
+    const mutations: string[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+        const request = input instanceof Request ? input : new Request(input, init);
+        const path = new URL(request.url).pathname;
+        if (request.method === "DELETE" && path.endsWith("/proxied-mcp-servers/vercel-group")) {
+          mutations.push("delete-server");
+          return Response.json({});
+        }
+        if (request.method === "DELETE" && path.endsWith("/resource-server/credential-one")) {
+          mutations.push("delete-credential");
+          return Response.json({});
+        }
+        throw new Error(`Unexpected request: ${request.method} ${path}`);
+      }),
+    );
+    const context: DeploymentContext = {
+      devMode: false,
+      repositoryRoot: "/repo",
+      environment: {
+        AGENT_SCOUT_VERCEL_MCP_CREDENTIAL_ID: "credential-one",
+        AGENT_SCOUT_VERCEL_MCP_SERVER_ID: "vercel-group",
+      },
+      inputs: new DeploymentOutputs(),
+      agentId: "scout",
+      agentPath: "/repo/configuration/agent/subagents/scout",
+      platformIds: ["tilde", "vercel"],
+      report: () => undefined,
+    };
+
+    await new TildeToolReconciler({ client }).removeExternalResources(context);
+
+    expect(mutations).toEqual(["delete-server", "delete-credential"]);
+  });
 });

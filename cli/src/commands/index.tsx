@@ -15,6 +15,7 @@ import { parseLocalTildeApiOptions } from "../local-tilde-api.js";
 import { runEnvironment } from "./env.js";
 import { runInitialization } from "./init.js";
 import { runNewAgent } from "./new-agent.js";
+import { runDeleteAgent } from "./delete-agent.js";
 import { runOrchestrator } from "./orchestrate.js";
 import { runSecrets } from "./secrets.js";
 import { runDevelopmentServer } from "./serve.js";
@@ -74,6 +75,16 @@ export async function runCommand(command: string, args: readonly string[]): Prom
       return;
     }
     return show(<Success title={`Agent ${agent.name} created at ${agentPath}`} />);
+  }
+  if (command === "delete-agent") {
+    const result = await runDeleteAgent(args);
+    if (result.json) {
+      process.stdout.write(
+        `${JSON.stringify({ ok: true, command: "delete-agent", agent: { id: result.agent.id, name: result.agent.name } })}\n`,
+      );
+      return;
+    }
+    return show(<Success title={`Agent ${result.agent.name} deleted`} />);
   }
   if (command === "dev") {
     let parseDevelopmentOptions = (): DevelopmentOptions => {
