@@ -2,8 +2,10 @@ import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import checkbox from "@inquirer/checkbox";
 import {
+  type ChatKitAgentPaginatedResponse,
   type Client,
   type CloudWhoamiResponse,
+  chatkitListAgents,
   createTildeApiClient,
   getSkillRegistrySkill,
   listMcpServerInstances,
@@ -18,6 +20,10 @@ import {
 } from "@trytilde/sdk/api";
 import type { JsonObject, JsonValue } from "@trytilde/sdk/json";
 import { isJsonObject } from "@trytilde/sdk/json";
+import {
+  installCodingAgentAuditHooks,
+  writeCodingAgentAuditInstallation,
+} from "./coding-agent-audit.js";
 
 export { ensureDesktopAuth, type DesktopAuthOptions } from "./plugin-auth.js";
 
@@ -55,6 +61,45 @@ export type TildeTeamChoice = {
   teamName: string;
   orgId?: string;
 };
+
+export type TildeChatKitAgentChoice = {
+  id: string;
+  label: string;
+  teamId: string;
+  teamName: string;
+};
+
+export async function listTildeChatKitAgentChoices(
+  config: TildePluginConfig,
+  input?: { teamName?: string; teams?: TildeTeamChoice[] },
+): Promise<TildeChatKitAgentChoice[]> {
+  const teams = input?.teams ?? (await listTildeTeamChoices(config, input));
+  const api = createPluginApiClient(config);
+  const results = await Promise.all(
+    teams.map(async (team) => {
+      const response = await apiCall<ChatKitAgentPaginatedResponse>(
+        chatkitListAgents({
+          client: api,
+          path: { team_id: team.teamId },
+          query: { page_size: 100 },
+        }),
+      );
+      return response.items.map((agent) => {
+        const displayName =
+          isJsonObject(agent.configuration) && typeof agent.configuration.display_name === "string"
+            ? agent.configuration.display_name
+            : agent.id;
+        return {
+          id: agent.id,
+          teamId: team.teamId,
+          teamName: team.teamName,
+          label: `${team.teamName} / ${displayName}`,
+        };
+      });
+    }),
+  );
+  return results.flat();
+}
 
 export async function listTildeTeamChoices(
   config: TildePluginConfig,
@@ -205,11 +250,17 @@ export function mcpServerConfigForCli(cli: AgentCli, server: TildeMcpServerChoic
     throw new Error(`MCP server ${server.label} does not include a URL`);
   }
   switch (cli) {
+    case "opencode":
+      return {
+        type: "remote",
+        url,
+        enabled: true,
+      };
+    case "gemini":
+      return { httpUrl: url };
     case "claude":
     case "codex":
     case "cursor":
-    case "opencode":
-    case "gemini":
       return {
         name: server.label,
         transport: "streamable_http",
@@ -227,7 +278,7 @@ export function cliMcpConfigPath(cli: AgentCli, homeDir: string): string {
     case "cursor":
       return join(homeDir, ".cursor", "mcp.json");
     case "opencode":
-      return join(homeDir, ".config", "opencode", "mcp.json");
+      return join(homeDir, ".config", "opencode", "opencode.json");
     case "gemini":
       return join(homeDir, ".gemini", "settings.json");
   }
@@ -314,11 +365,15 @@ export async function configureTildePluginForCli(
     interactive?: boolean;
     mcpServers?: TildeMcpServerChoice[];
     skillRegistries?: TildeSkillRegistryChoice[];
+    auditAgentId?: string;
   },
 ): Promise<{
   mcpConfigPath: string;
   mcpServerCount: number;
   skillFiles: string[];
+  auditConfigPath?: string;
+  auditHookPath?: string;
+  auditAgentId?: string;
 }> {
   const selected =
     input.mcpServers || input.skillRegistries
@@ -330,6 +385,24 @@ export async function configureTildePluginForCli(
           ...(input.teamName ? { teamName: input.teamName } : {}),
           ...(typeof input.interactive === "boolean" ? { interactive: input.interactive } : {}),
         });
+  let auditAgents: TildeChatKitAgentChoice[] = [];
+  try {
+    auditAgents = await listTildeChatKitAgentChoices(
+      config,
+      input.teamName ? { teamName: input.teamName } : {},
+    );
+  } catch (error) {
+    if (input.auditAgentId) throw error;
+    config.logger?.write(
+      `ChatKit audit discovery unavailable; MCP and skill setup will continue without audit hooks.\n`,
+    );
+  }
+  const auditAgent = input.auditAgentId
+    ? auditAgents.find((agent) => agent.id === input.auditAgentId)
+    : auditAgents[0];
+  if (input.auditAgentId && !auditAgent) {
+    throw new Error(`ChatKit audit agent not found: ${input.auditAgentId}`);
+  }
   const [mcpConfigPath, skillFiles] = await Promise.all([
     writeMcpConfigForCli(cli, {
       homeDir: input.homeDir,
@@ -340,10 +413,35 @@ export async function configureTildePluginForCli(
       registries: selected.skillRegistries,
     }),
   ]);
+  const audit = auditAgent
+    ? await Promise.all([
+        writeCodingAgentAuditInstallation(
+          cli,
+          {
+            baseUrl: config.baseUrl,
+            teamId: auditAgent.teamId,
+            agentId: auditAgent.id,
+          },
+          input.homeDir,
+        ),
+        installCodingAgentAuditHooks({
+          cli,
+          homeDir: input.homeDir,
+          mcpServers: selected.mcpServers.filter((server) => server.teamId === auditAgent.teamId),
+        }),
+      ])
+    : undefined;
   return {
     mcpConfigPath,
     mcpServerCount: selected.mcpServers.length,
     skillFiles,
+    ...(audit
+      ? {
+          auditConfigPath: audit[0],
+          ...(audit[1] ? { auditHookPath: audit[1] } : {}),
+          auditAgentId: auditAgent?.id,
+        }
+      : {}),
   };
 }
 

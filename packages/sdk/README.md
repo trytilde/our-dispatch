@@ -21,6 +21,9 @@ pnpm add @trytilde/sdk
   trusted session routing rather than model-supplied provider identifiers.
 - `McpClient.addFunctions(input)` and `McpClient.removeFunctions(input)` atomically reconcile up to 500 function mappings from one tool provider instance.
 - `SkillPackage` and `SkillsClient` discover, download, verify, and materialize managed skills.
+- `recordCodingAgentEvent(options)` records harness-neutral session, message, and tool lifecycle events in canonical ChatKit sessions.
+- `ChatKitClient.createAgentSession(input)` idempotently resolves a lookup-key session and its participant routes.
+- `ChatKitClient.createMessage(input)` writes a canonical searchable message with caller-selected stable identity metadata.
 - `@trytilde/sdk/api` exposes the generated API client when a stable wrapper does not yet exist.
 - `@trytilde/sdk/json` exposes the shared JSON types, guards, accessors, and parser.
 
@@ -58,3 +61,29 @@ await tilde.skills
 `materialize` is a Node.js API and is suitable for a scoped Modal computer or
 another agent filesystem. Browser callers can use `manifest()` and
 `download(path)` directly.
+
+## Record a coding-agent event
+
+Harness adapters normalize their native hook payloads before calling the core
+recorder. The recorder reuses one ChatKit session per harness session, writes
+prompts and final responses as searchable messages, and correlates each tool
+lifecycle by its stable execution ID.
+Supported sources are Codex, Claude Code, Cursor, OpenCode, and Gemini CLI.
+
+```ts
+import { createClient, recordCodingAgentEvent } from "@trytilde/sdk";
+
+await recordCodingAgentEvent({
+  client: createClient(),
+  agentId: "agent-id",
+  source: "codex",
+  event: {
+    type: "tool_completed",
+    sessionId: "codex-thread-id",
+    executionId: "tool-call-id",
+    toolName: "functions.exec",
+    input: { cmd: "pnpm test" },
+    output: { exitCode: 0 },
+  },
+});
+```

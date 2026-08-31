@@ -1,6 +1,7 @@
 import { spawn } from "node:child_process";
 import { homedir } from "node:os";
 import { type AgentCli, configureTildePluginForCli, ensureDesktopAuth } from "../tilde/plugin.js";
+import { runCodingAgentAuditHook } from "../tilde/coding-agent-audit.js";
 
 const DEFAULT_TILDE_API_BASE_URL = "https://api.trytilde.ai";
 
@@ -10,6 +11,7 @@ export type TildePluginOptions = {
   teamId?: string;
   teamName?: string;
   apiKey?: string;
+  auditAgentId?: string;
   homeDir: string;
   interactive: boolean;
   launch: boolean;
@@ -34,6 +36,9 @@ export function parseTildePluginArgs(args: readonly string[]): TildePluginOption
   if (process.env.TILDE_TEAM_ID) options.teamId = process.env.TILDE_TEAM_ID;
   if (process.env.TILDE_TEAM_NAME) options.teamName = process.env.TILDE_TEAM_NAME;
   if (process.env.TILDE_API_KEY) options.apiKey = process.env.TILDE_API_KEY;
+  if (process.env.TILDE_CHATKIT_AGENT_ID) {
+    options.auditAgentId = process.env.TILDE_CHATKIT_AGENT_ID;
+  }
 
   for (let index = 0; index < args.length; index += 1) {
     const arg = args[index];
@@ -56,6 +61,9 @@ export function parseTildePluginArgs(args: readonly string[]): TildePluginOption
         break;
       case "--api-key":
         options.apiKey = requiredValue(args[++index], "--api-key");
+        break;
+      case "--agent-id":
+        options.auditAgentId = requiredValue(args[++index], "--agent-id");
         break;
       case "--home-dir":
         options.homeDir = requiredValue(args[++index], "--home-dir");
@@ -88,6 +96,9 @@ export function parseTildePluginArgs(args: readonly string[]): TildePluginOption
 }
 
 export async function runTildePlugin(args: readonly string[]): Promise<number> {
+  if (args[0] === "audit") {
+    return runAuditHookCommand(args.slice(1));
+  }
   if (args.includes("--help") || args.includes("-h")) {
     process.stdout.write(tildePluginHelpText());
     return 0;
@@ -116,16 +127,63 @@ export async function runTildePlugin(args: readonly string[]): Promise<number> {
       homeDir: options.homeDir,
       ...(options.teamName ? { teamName: options.teamName } : {}),
       interactive: options.interactive,
+      ...(options.auditAgentId ? { auditAgentId: options.auditAgentId } : {}),
     },
   );
 
   process.stderr.write(
-    `Tilde plugin configured for ${options.cli}\nMCP config: ${result.mcpConfigPath}\nMCP servers enabled: ${result.mcpServerCount}\nSkills installed: ${result.skillFiles.length}\n`,
+    `Tilde plugin configured for ${options.cli}\nMCP config: ${result.mcpConfigPath}\nMCP servers enabled: ${result.mcpServerCount}\nSkills installed: ${result.skillFiles.length}\n${result.auditAgentId ? `ChatKit audit agent: ${result.auditAgentId}\nAudit hook: ${result.auditHookPath ?? "not supported by this CLI"}\n` : ""}`,
   );
 
   if (!options.launch) return 0;
   const command = options.command ?? defaultCommandForCli(options.cli);
   return runChildCommand(command, options.passthrough);
+}
+
+async function runAuditHookCommand(args: readonly string[]): Promise<number> {
+  let cli: AgentCli | undefined;
+  let homeDir = process.env.TILDE_AGENT_HOME ?? homedir();
+  let apiKey = process.env.TILDE_API_KEY;
+  for (let index = 0; index < args.length; index += 1) {
+    switch (args[index]) {
+      case "--cli":
+        cli = parseCliValue(args[++index]);
+        break;
+      case "--home-dir":
+        homeDir = requiredValue(args[++index], "--home-dir");
+        break;
+      case "--api-key":
+        apiKey = requiredValue(args[++index], "--api-key");
+        break;
+      default:
+        throw new Error(`Unknown audit hook argument: ${args[index]}`);
+    }
+  }
+  if (!cli) throw new Error("Missing --cli for plugin audit hook");
+  const text = await readStandardInput();
+  if (text.trim()) {
+    try {
+      await runCodingAgentAuditHook({
+        cli,
+        homeDir,
+        ...(apiKey ? { apiKey } : {}),
+        payload: JSON.parse(text) as unknown,
+      });
+    } catch (error) {
+      process.stderr.write(
+        `Tilde ChatKit audit hook failed open: ${error instanceof Error ? error.message : String(error)}\n`,
+      );
+    }
+  }
+  if (cli === "gemini") process.stdout.write("{}\n");
+  return 0;
+}
+
+async function readStandardInput(): Promise<string> {
+  let value = "";
+  process.stdin.setEncoding("utf8");
+  for await (const chunk of process.stdin) value += chunk;
+  return value;
 }
 
 function parseCliValue(value: string | undefined): AgentCli {
@@ -163,12 +221,14 @@ function runChildCommand(command: string, args: string[]): Promise<number> {
 export function tildePluginHelpText(): string {
   return `Usage:
   openbot plugin --cli <claude|codex|cursor|opencode|gemini> [options]
+  openbot plugin audit --cli <claude|codex|cursor|opencode|gemini>
 
 Options:
   --base-url <url>       Tilde API base URL. Default: TILDE_API_BASE_URL or ${DEFAULT_TILDE_API_BASE_URL}
   --team-id <id>         Optional team filter. Default: discover all teams from whoami
   --team-name <name>     Display name used in selector labels. Default: TILDE_TEAM_NAME or team ID
   --api-key <key>        API key sent as Authorization: Bearer. Default: TILDE_API_KEY
+  --agent-id <id>        ChatKit agent receiving coding-session audit events. Default: first visible agent
   --home-dir <path>      Destination home directory. Default: TILDE_AGENT_HOME or OS home
   --interactive          Show checkbox selectors
   --non-interactive      Select all resources without prompting

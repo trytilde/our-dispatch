@@ -76,6 +76,7 @@ export function OpenBotApp() {
     messages,
     nextMessageToken,
     queuedTurns,
+    participantEvents,
     loading: loadingMessages,
     submitting,
     agentBusy,
@@ -777,8 +778,30 @@ export function OpenBotApp() {
                     openBotRuntime.client.getAttachmentDownloadUrl(sessionKey, attachmentId);
                   const rewriteUrl = (value: string) =>
                     openBotRuntime.client.rewriteTildeUrl(value);
+                  let participantEventIndex = 0;
+                  const renderParticipantEventsBefore = (timestamp: number) => {
+                    while (participantEventIndex < participantEvents.length) {
+                      const event = participantEvents[participantEventIndex];
+                      if (!event || Date.parse(event.occurred_at) > timestamp) break;
+                      flushRun();
+                      const participant = event.data.participant;
+                      const name = participant.display_name || participant.participant_handle;
+                      rendered.push(
+                        <div
+                          className="participant-activity"
+                          key={`participant:${event.id}`}
+                          role="status"
+                        >
+                          <span>{name}</span>{" "}
+                          {event.type === "participant.joined" ? "joined" : "left"}
+                        </div>,
+                      );
+                      participantEventIndex += 1;
+                    }
+                  };
 
                   visibleMessages.forEach((message, index) => {
+                    renderParticipantEventsBefore(Date.parse(message.created_at));
                     const previous = visibleMessages[index - 1];
                     const next = visibleMessages[index + 1];
                     const continuedPrevious = previous?.role === message.role;
@@ -895,6 +918,7 @@ export function OpenBotApp() {
                       );
                     });
                   });
+                  renderParticipantEventsBefore(Number.POSITIVE_INFINITY);
                   flushRun();
                   return rendered;
                 })()}

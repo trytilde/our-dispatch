@@ -454,6 +454,24 @@ describe("OpenBot runtime", () => {
         active_session_id: "session-one",
         active_conversation: {
           messages: { items: [], next_page_token: null },
+          participant_events: [
+            {
+              id: "participant-snapshot",
+              occurred_at: now,
+              type: "participant.joined" as const,
+              data: {
+                session_id: "session-one",
+                participant: {
+                  participant_handle: "p0",
+                  participant_type: "human" as const,
+                  membership_source: "explicit" as const,
+                  inbox_id: "human",
+                  inbox_instance_id: "human-one",
+                  display_name: "Daniel",
+                },
+              },
+            },
+          ],
           queued_turns: { items: [], next_page_token: null },
           snapshot_revision: 0,
         },
@@ -478,6 +496,23 @@ describe("OpenBot runtime", () => {
     });
 
     await runtime.actions.initialize();
+    await emitEvent({
+      id: "participant-one",
+      occurred_at: now,
+      type: "participant.joined",
+      data: {
+        session_id: "session-one",
+        participant: {
+          participant_handle: "p1",
+          participant_type: "agent",
+          membership_source: "explicit",
+          inbox_id: "computer",
+          inbox_instance_id: "computer-one",
+          display_name: "Computer",
+        },
+      },
+    });
+    expect(runtime.store.getState().conversation.participantEvents).toHaveLength(2);
     await emitEvent({
       id: "typing-one",
       occurred_at: now,

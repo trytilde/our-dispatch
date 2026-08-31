@@ -1,11 +1,13 @@
 import { z } from "zod";
 import { pageSchema } from "./common.js";
+import { ParticipantEventSchema } from "./events.js";
 import { ChatMessagePageSchema, ChatMessageSchema } from "./messages.js";
 import { QueuedTurnPageSchema } from "./queue.js";
 import { ChatSessionSchema, SidebarResponseSchema } from "./sidebar.js";
 
 export const ConversationSnapshotSchema = z.object({
   messages: ChatMessagePageSchema,
+  participant_events: z.array(ParticipantEventSchema).optional(),
   queued_turns: QueuedTurnPageSchema,
   snapshot_revision: z.number(),
 });

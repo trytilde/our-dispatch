@@ -1,0 +1,19 @@
+{
+  "name": "tilde",
+  "version": "0.1.0",
+  "description": "Tilde MCP, managed skills, and canonical ChatKit audit events for Codex.",
+  "author": {
+    "name": "Tilde"
+  },
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Tilde",
+    "shortDescription": "Tilde tools, skills, and audit events.",
+    "longDescription": "Connect Codex to Tilde MCP servers and managed skills while recording searchable messages and canonical tool executions in ChatKit.",
+    "developerName": "Tilde",
+    "category": "Productivity",
+    "capabilities": [],
+    "defaultPrompt": "Show me the Tilde tools and skills available in this workspace."
+  },
+  "mcpServers": "./.mcp.json"
+}

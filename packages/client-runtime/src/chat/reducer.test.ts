@@ -147,4 +147,25 @@ describe("message ordering", () => {
       ]).map((item) => item.id),
     ).toEqual(["first-prompt", "first-reply", "second-prompt", "second-reply"]);
   });
+
+  it("omits legacy participant lifecycle system messages", () => {
+    expect(
+      uniqueMessages([
+        {
+          id: "legacy-join",
+          type: "ui",
+          role: "system",
+          session_id: "session-one",
+          parts: [
+            {
+              type: "data",
+              data_type: "tilde.chatkit.participant",
+              data: { participant_handle: "p1" },
+            },
+          ],
+          created_at: "2026-08-20T09:00:00Z",
+        },
+      ]),
+    ).toEqual([]);
+  });
 });

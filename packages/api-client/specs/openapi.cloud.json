@@ -42403,12 +42403,19 @@
         "description": "Initial messages and pending queue state for one ChatKit workspace session.",
         "required": [
           "messages",
+          "participant_events",
           "queued_turns",
           "snapshot_revision"
         ],
         "properties": {
           "messages": {
             "$ref": "#/components/schemas/MessagePaginatedResponse"
+          },
+          "participant_events": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ChatKitWorkspaceParticipantEvent"
+            }
           },
           "queued_turns": {
             "$ref": "#/components/schemas/ChatKitWorkspaceQueuedTurns"
@@ -42418,6 +42425,94 @@
             "format": "int64"
           }
         }
+      },
+      "ChatKitWorkspaceParticipantEvent": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ChatKitWorkspaceParticipantEventKind"
+          },
+          {
+            "type": "object",
+            "required": [
+              "id",
+              "occurred_at"
+            ],
+            "properties": {
+              "id": {
+                "$ref": "#/components/schemas/WrappedUuidV4"
+              },
+              "occurred_at": {
+                "$ref": "#/components/schemas/WrappedChronoDateTime"
+              }
+            }
+          }
+        ],
+        "description": "Participant lifecycle event rendered as session activity rather than a message."
+      },
+      "ChatKitWorkspaceParticipantEventKind": {
+        "oneOf": [
+          {
+            "type": "object",
+            "required": [
+              "data",
+              "type"
+            ],
+            "properties": {
+              "data": {
+                "type": "object",
+                "required": [
+                  "session_id",
+                  "participant"
+                ],
+                "properties": {
+                  "participant": {
+                    "$ref": "#/components/schemas/SessionParticipantIdentity"
+                  },
+                  "session_id": {
+                    "$ref": "#/components/schemas/WrappedUuidV4"
+                  }
+                }
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "participant.joined"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "data",
+              "type"
+            ],
+            "properties": {
+              "data": {
+                "type": "object",
+                "required": [
+                  "session_id",
+                  "participant"
+                ],
+                "properties": {
+                  "participant": {
+                    "$ref": "#/components/schemas/SessionParticipantIdentity"
+                  },
+                  "session_id": {
+                    "$ref": "#/components/schemas/WrappedUuidV4"
+                  }
+                }
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "participant.left"
+                ]
+              }
+            }
+          }
+        ],
+        "description": "Session participant lifecycle event variants exposed to workspace clients."
       },
       "ChatKitWorkspaceQueuedTurns": {
         "type": "object",
@@ -54503,6 +54598,44 @@
           },
           "next_page_token": {
             "type": "string"
+          }
+        }
+      },
+      "SessionParticipantIdentity": {
+        "type": "object",
+        "description": "Durable participant identity carried by join and leave events.",
+        "required": [
+          "participant_handle",
+          "participant_type",
+          "membership_source",
+          "inbox_id",
+          "inbox_instance_id",
+          "display_name"
+        ],
+        "properties": {
+          "display_name": {
+            "type": "string"
+          },
+          "external_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "inbox_id": {
+            "type": "string"
+          },
+          "inbox_instance_id": {
+            "type": "string"
+          },
+          "membership_source": {
+            "$ref": "#/components/schemas/ChatKitParticipantMembershipSource"
+          },
+          "participant_handle": {
+            "type": "string"
+          },
+          "participant_type": {
+            "$ref": "#/components/schemas/ChatKitParticipantType"
           }
         }
       },

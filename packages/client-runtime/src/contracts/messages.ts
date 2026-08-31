@@ -25,6 +25,7 @@ export const ChatPartSchema = z
     approval: z.unknown().optional(),
     title: z.string().nullable().optional(),
     source_id: z.string().optional(),
+    data_type: z.string().optional(),
     data: z.unknown().optional(),
     provider_metadata: z.unknown().optional(),
   })

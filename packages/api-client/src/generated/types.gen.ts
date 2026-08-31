@@ -818,8 +818,34 @@ export type ChatKitWorkspaceBootstrapResponse = {
  */
 export type ChatKitWorkspaceConversationSnapshot = {
     messages: MessagePaginatedResponse;
+    participant_events: Array<ChatKitWorkspaceParticipantEvent>;
     queued_turns: ChatKitWorkspaceQueuedTurns;
     snapshot_revision: number;
+};
+
+/**
+ * Participant lifecycle event rendered as session activity rather than a message.
+ */
+export type ChatKitWorkspaceParticipantEvent = ChatKitWorkspaceParticipantEventKind & {
+    id: WrappedUuidV4;
+    occurred_at: WrappedChronoDateTime;
+};
+
+/**
+ * Session participant lifecycle event variants exposed to workspace clients.
+ */
+export type ChatKitWorkspaceParticipantEventKind = {
+    data: {
+        participant: SessionParticipantIdentity;
+        session_id: WrappedUuidV4;
+    };
+    type: 'participant.joined';
+} | {
+    data: {
+        participant: SessionParticipantIdentity;
+        session_id: WrappedUuidV4;
+    };
+    type: 'participant.left';
 };
 
 /**
@@ -4417,6 +4443,19 @@ export type Session = {
 export type SessionPaginatedResponse = {
     items: Array<Session>;
     next_page_token?: string;
+};
+
+/**
+ * Durable participant identity carried by join and leave events.
+ */
+export type SessionParticipantIdentity = {
+    display_name: string;
+    external_id?: string | null;
+    inbox_id: string;
+    inbox_instance_id: string;
+    membership_source: ChatKitParticipantMembershipSource;
+    participant_handle: string;
+    participant_type: ChatKitParticipantType;
 };
 
 /**

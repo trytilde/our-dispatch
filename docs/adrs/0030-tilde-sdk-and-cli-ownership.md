@@ -24,7 +24,9 @@ collapse those product and state boundaries.
 
 The generated client, core SDK, React adapters, and Vercel AI adapters live under
 `packages/api-client` and `packages/sdk*`. Their public packages are `@trytilde/api-client`, `@trytilde/sdk`,
-`@trytilde/sdk-react`, `@trytilde/sdk-vercel-ai-node`, and `@trytilde/sdk-vercel-ai-react`.
+`@trytilde/sdk-react`, `@trytilde/sdk-vercel-ai-node`, `@trytilde/sdk-vercel-ai-react`,
+`@trytilde/sdk-codex`, `@trytilde/sdk-claude-code`, `@trytilde/sdk-cursor`,
+`@trytilde/sdk-opencode`, and `@trytilde/sdk-gemini-cli`.
 Coding-agent MCP and skill-registry setup is an internal part of the OpenBot CLI, not another
 public package. The old `@trytilde/harness-sdk*` and `@trytilde/harness-plugins` names receive no
 in-repository compatibility packages.
@@ -55,3 +57,15 @@ flowchart LR
 - External SDK consumers keep a narrow package boundary and independent release cadence.
 - Consumers of old Harness package names or the `tilde` binary need an explicit migration.
 - Tilde API OpenAPI remains an external service contract even though generation now runs here.
+
+## Updates
+
+- 2026-08-30: Harness-neutral ChatKit recording remains in `@trytilde/sdk`,
+  while Codex, Claude Code, and Cursor hook-wire adapters use dedicated
+  `@trytilde/sdk-*` packages. `openbot plugin` remains the one setup command: it
+  installs Tilde MCP and skill resources, native harness hooks, non-secret
+  ChatKit routing configuration, and a packaged Codex plugin where Codex
+  requires plugin-owned hooks.
+- 2026-08-31: OpenCode and Gemini CLI receive matching dedicated adapters and
+  native fail-open audit installation, completing ChatKit audit support across
+  every coding harness configured by `openbot plugin`.

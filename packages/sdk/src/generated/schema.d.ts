@@ -9405,9 +9405,31 @@ export interface components {
         /** @description Initial messages and pending queue state for one ChatKit workspace session. */
         ChatKitWorkspaceConversationSnapshot: {
             messages: components["schemas"]["MessagePaginatedResponse"];
+            participant_events: components["schemas"]["ChatKitWorkspaceParticipantEvent"][];
             queued_turns: components["schemas"]["ChatKitWorkspaceQueuedTurns"];
             /** Format: int64 */
             snapshot_revision: number;
+        };
+        /** @description Participant lifecycle event rendered as session activity rather than a message. */
+        ChatKitWorkspaceParticipantEvent: components["schemas"]["ChatKitWorkspaceParticipantEventKind"] & {
+            id: components["schemas"]["WrappedUuidV4"];
+            occurred_at: components["schemas"]["WrappedChronoDateTime"];
+        };
+        /** @description Session participant lifecycle event variants exposed to workspace clients. */
+        ChatKitWorkspaceParticipantEventKind: {
+            data: {
+                participant: components["schemas"]["SessionParticipantIdentity"];
+                session_id: components["schemas"]["WrappedUuidV4"];
+            };
+            /** @enum {string} */
+            type: "participant.joined";
+        } | {
+            data: {
+                participant: components["schemas"]["SessionParticipantIdentity"];
+                session_id: components["schemas"]["WrappedUuidV4"];
+            };
+            /** @enum {string} */
+            type: "participant.left";
         };
         /** @description Concrete pending-turn page used by ChatKit workspace aggregate responses. */
         ChatKitWorkspaceQueuedTurns: {
@@ -12358,6 +12380,16 @@ export interface components {
         SessionPaginatedResponse: {
             items: components["schemas"]["Session"][];
             next_page_token?: string;
+        };
+        /** @description Durable participant identity carried by join and leave events. */
+        SessionParticipantIdentity: {
+            display_name: string;
+            external_id?: string | null;
+            inbox_id: string;
+            inbox_instance_id: string;
+            membership_source: components["schemas"]["ChatKitParticipantMembershipSource"];
+            participant_handle: string;
+            participant_type: components["schemas"]["ChatKitParticipantType"];
         };
         /** @description Authorization principal attached to a private ChatKit session. */
         SessionUserMembership: {
