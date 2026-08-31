@@ -1,5 +1,0 @@
----
-"@tryopenbot/mobile": minor
----
-
-Give the mobile app a launcher icon and name the App Store Connect app for submission. The icon is an agent avatar rendered from the same artwork the app draws for its agents — an opaque square for iOS, a transparent foreground over the adaptive background for Android — committed as tracked artwork. `eas.json` now carries the official `ascAppId`, so `openbot mobile release submit --platform ios` reaches the right listing.

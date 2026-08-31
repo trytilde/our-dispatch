@@ -245,8 +245,20 @@ describe("Tilde plugin helpers", () => {
     expect(mcpConfigDocumentForCli("claude", [server])).toHaveProperty("mcpServers");
     expect(mcpConfigDocumentForCli("codex", [server])).toHaveProperty("mcp_servers");
     expect(mcpConfigDocumentForCli("cursor", [server])).toHaveProperty("mcpServers");
-    expect(mcpConfigDocumentForCli("opencode", [server])).toHaveProperty("mcp");
-    expect(mcpConfigDocumentForCli("gemini", [server])).toHaveProperty("mcpServers");
+    expect(mcpConfigDocumentForCli("opencode", [server])).toEqual({
+      mcp: {
+        "Team / Server": {
+          type: "remote",
+          url: "https://mcp.test",
+          enabled: true,
+        },
+      },
+    });
+    expect(mcpConfigDocumentForCli("gemini", [server])).toEqual({
+      mcpServers: {
+        "Team / Server": { httpUrl: "https://mcp.test" },
+      },
+    });
   });
 
   test("writes CLI config and installs registries atomically", async () => {

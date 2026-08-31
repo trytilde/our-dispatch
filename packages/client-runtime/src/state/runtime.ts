@@ -15,7 +15,7 @@ import type {
   AuthenticatedSession,
   AuthenticationStatus,
 } from "../contracts/auth.js";
-import type { ActivityEvent, ChatEvent } from "../contracts/events.js";
+import type { ActivityEvent, ChatEvent, ParticipantEvent } from "../contracts/events.js";
 import type { ChatMessage, ChatPart } from "../contracts/messages.js";
 import type {
   AttachmentCompletion,
@@ -63,6 +63,7 @@ export interface ConversationState {
   messages: ChatMessage[];
   nextMessageToken?: string | null;
   queuedTurns: QueuedTurn[];
+  participantEvents: ParticipantEvent[];
   activity: ActivityEvent[];
   loading: boolean;
   submitting: boolean;
@@ -215,6 +216,7 @@ const initialState: OpenBotState = {
     selectedSessionId: "",
     messages: [],
     queuedTurns: [],
+    participantEvents: [],
     activity: [],
     loading: false,
     submitting: false,
@@ -249,6 +251,7 @@ export function createOpenBotRuntime(options: OpenBotRuntimeOptions): OpenBotRun
   const sessionSort = options.sessionSort ?? "updated_at";
   const busySessionIds = new Set<string>();
   const liveMessagesBySession = new Map<string, ChatMessage[]>();
+  const participantEventsBySession = new Map<string, ParticipantEvent[]>();
   let chatKitRealtimeObserver: AbortController | undefined;
   let agentSetupObserver: AbortController | undefined;
   let sidebarRefreshTimer: ReturnType<typeof setTimeout> | undefined;
@@ -366,10 +369,13 @@ export function createOpenBotRuntime(options: OpenBotRuntimeOptions): OpenBotRun
 
   function applyConversationSnapshot(sessionId: string, snapshot: ConversationSnapshot): void {
     const messages = uniqueMessages(snapshot.messages.items);
+    const participantEvents = uniqueParticipantEvents(snapshot.participant_events ?? []);
     liveMessagesBySession.set(sessionId, messages);
+    participantEventsBySession.set(sessionId, participantEvents);
     updateConversation({
       selectedSessionId: sessionId,
       messages,
+      participantEvents,
       nextMessageToken: snapshot.messages.next_page_token,
       queuedTurns: snapshot.queued_turns.items,
     });
@@ -574,6 +580,13 @@ export function createOpenBotRuntime(options: OpenBotRuntimeOptions): OpenBotRun
                   : (liveMessagesBySession.get(sessionId) ?? []);
               const reduction = reduceLiveChatEvent(currentMessages, event, sessionId, now());
               liveMessagesBySession.set(sessionId, reduction.messages);
+              if (event.type === "participant.joined" || event.type === "participant.left") {
+                const participantEvents = uniqueParticipantEvents([
+                  ...(participantEventsBySession.get(sessionId) ?? []),
+                  event,
+                ]);
+                participantEventsBySession.set(sessionId, participantEvents);
+              }
               const name = eventName(event);
               const busy = eventBusyState(event);
               if (busy !== undefined) setSessionBusy(sessionId, busy);
@@ -609,6 +622,7 @@ export function createOpenBotRuntime(options: OpenBotRuntimeOptions): OpenBotRun
                 }
                 updateConversation({
                   messages: reduction.messages,
+                  participantEvents: participantEventsBySession.get(sessionId) ?? [],
                   queuedTurns,
                   activity: [{ ...event, receivedAt: now() }, ...state.conversation.activity].slice(
                     0,
@@ -690,6 +704,7 @@ export function createOpenBotRuntime(options: OpenBotRuntimeOptions): OpenBotRun
       messages: liveMessagesBySession.get(session.id) ?? [],
       nextMessageToken: undefined,
       queuedTurns: [],
+      participantEvents: participantEventsBySession.get(session.id) ?? [],
       activity: [],
       loading: true,
       agentBusy: busySessionIds.has(session.id),
@@ -722,6 +737,7 @@ export function createOpenBotRuntime(options: OpenBotRuntimeOptions): OpenBotRun
       selectedSessionId: "",
       messages: [],
       queuedTurns: [],
+      participantEvents: [],
       activity: [],
       agentBusy: false,
       streamStatus: chatKitRealtimeObserver?.signal.aborted === false ? "Live" : "Connecting",
@@ -738,6 +754,7 @@ export function createOpenBotRuntime(options: OpenBotRuntimeOptions): OpenBotRun
       messages: [],
       nextMessageToken: undefined,
       queuedTurns: [],
+      participantEvents: [],
       activity: [],
       loading: false,
       agentBusy: false,
@@ -1227,6 +1244,9 @@ function eventSessionId(event: ChatEvent): string {
       return event.data.session_id;
     case "session.user_state.updated":
       return event.data.state.session_id;
+    case "participant.joined":
+    case "participant.left":
+      return event.data.session_id;
     case "session.child.created":
       return event.data.session.id;
     case "message.created":
@@ -1249,6 +1269,12 @@ function eventSessionId(event: ChatEvent): string {
     default:
       return "";
   }
+}
+
+function uniqueParticipantEvents(events: readonly ParticipantEvent[]): ParticipantEvent[] {
+  return [...new Map(events.map((event) => [event.id, event])).values()].sort(
+    (left, right) => Date.parse(left.occurred_at) - Date.parse(right.occurred_at),
+  );
 }
 
 function applyAgentEvent(store: StoreApi<OpenBotState>, event: ChatEvent): void {

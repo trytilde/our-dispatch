@@ -139,7 +139,11 @@ export function eventName(event: ChatEvent): string {
 
 export function uniqueMessages(messages: ChatMessage[]): ChatMessage[] {
   const chronological = [
-    ...new Map(messages.map((message) => [message.id, message])).values(),
+    ...new Map(
+      messages
+        .filter((message) => !isLegacyParticipantLifecycleMessage(message))
+        .map((message) => [message.id, message]),
+    ).values(),
   ].sort((left, right) => Date.parse(left.created_at) - Date.parse(right.created_at));
   const ids = new Set(chronological.map((message) => message.id));
   const replies = new Map<string, ChatMessage[]>();
@@ -161,6 +165,12 @@ export function uniqueMessages(messages: ChatMessage[]): ChatMessage[] {
       append(message);
   for (const message of chronological) append(message);
   return ordered;
+}
+
+function isLegacyParticipantLifecycleMessage(message: ChatMessage): boolean {
+  return (message.parts ?? []).some(
+    (part) => part.type === "data" && part.data_type === "tilde.chatkit.participant",
+  );
 }
 
 export function messageText(message: ChatMessage): string {

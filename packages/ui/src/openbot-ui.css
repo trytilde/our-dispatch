@@ -944,6 +944,20 @@ h6.ob-markdown__heading {
   gap: 2px;
 }
 
+.participant-activity {
+  align-self: center;
+  margin: 8px 0;
+  color: var(--ink-3);
+  font-size: 11px;
+  line-height: 1.4;
+  text-align: center;
+}
+
+.participant-activity > span {
+  color: var(--ink-2);
+  font-weight: 600;
+}
+
 .ob-voice-waveform i {
   width: 2px;
   height: 4px;

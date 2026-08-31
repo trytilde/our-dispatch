@@ -9,7 +9,7 @@ Framework-neutral client behavior shared by OpenBot web and Electron clients.
 - `contracts/sidebar` owns agents, sessions, pagination, and sorting.
 - `contracts/agents` owns the durable background agent-setup start and status payloads.
 - `contracts/messages` owns conversation messages and parts.
-- `contracts/events` owns generic one-session SSE envelopes and the closed ChatKit realtime event union.
+- `contracts/events` owns generic one-session SSE envelopes, participant lifecycle activity, and the closed ChatKit realtime event union.
 - `contracts/workspace` owns aggregate bootstrap, conversation snapshot, turn-submission,
   and consolidated ChatKit search responses plus the durable event revision used to reconnect the
   team-wide observer.
@@ -43,8 +43,9 @@ preview, per-user unread, queue, turn, and streamed-message state current. Platf
 restore an in-progress setup job; the runtime polls it to readiness, refreshes the authoritative
 sidebar, and selects the created agent only after it appears there.
 The observer retains the last durable revision and resumes from it after a disconnect.
-Agent, session, read-state, message, queue, and turn events reduce directly from their discriminated
-payloads; no recursive payload inspection or event-name substring matching is retained.
+Agent, session, participant, read-state, message, queue, and turn events reduce directly from their
+discriminated payloads; participant activity remains separate from messages, and no recursive payload
+inspection or event-name substring matching is retained.
 
 Initial load, conversation selection, and turn submission consume server-authored aggregate
 responses. Web and Electron therefore reconcile identical authoritative snapshots without

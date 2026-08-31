@@ -19,6 +19,8 @@ const ATTACHMENT_DOWNLOAD_URL_PATH =
 const AGENT_TOOLS_PATH = "/api/v1/team/{team_id}/chatkit/agents/{agent_id}/tools";
 const AGENT_TOOL_EXECUTIONS_PATH =
   "/api/v1/team/{team_id}/chatkit/agents/{agent_id}/tool-executions";
+const CHATKIT_SESSIONS_PATH = "/api/v1/team/{team_id}/chatkit/sessions";
+const CHATKIT_MESSAGE_PATH = "/api/v1/team/{team_id}/chatkit/session/{session_id}/message";
 
 type Paginated<T> = {
   items: T[];
@@ -63,6 +65,12 @@ export type ReportToolExecutionInput = {
   executionId: string;
   toolId: string;
   wireName: string;
+  tool?: {
+    displayName: string;
+    supportsSummary?: boolean;
+    summary?: string;
+    identity?: JsonObject;
+  };
   state: ToolExecutionState;
   input: JsonValue;
   sessionId?: string;
@@ -76,6 +84,30 @@ export type ReportToolExecutionInput = {
   summary?: string;
   startedAt?: string;
   completedAt?: string;
+};
+
+export type ChatKitSessionParticipant = JsonObject & {
+  participant_type?: "human" | "agent";
+  instance?: JsonObject & { id?: string };
+  inbox?: JsonObject & { id?: string };
+};
+
+export type ChatKitSessionWithParticipants = JsonObject & {
+  session: JsonObject & { id?: string };
+  participants: ChatKitSessionParticipant[];
+};
+
+export type CreateChatKitMessageInput = {
+  id?: string;
+  sessionId: string;
+  fromInboxId: string;
+  fromInboxInstanceId?: string;
+  toInboxId?: string;
+  toInboxInstanceId?: string;
+  role: "system" | "user" | "assistant";
+  displayName: string;
+  text: string;
+  metadata?: JsonObject;
 };
 
 export type SendSessionMessageInput = {
@@ -205,6 +237,14 @@ export class ChatKitClient {
         message_id: input.messageId,
         tool_id: input.toolId,
         wire_name: input.wireName,
+        tool: input.tool
+          ? {
+              display_name: input.tool.displayName,
+              supports_summary: input.tool.supportsSummary ?? false,
+              summary: input.tool.summary,
+              identity_snapshot: input.tool.identity,
+            }
+          : undefined,
         state: input.state,
         model_tool_call_id: input.modelToolCallId,
         parent_execution_id: input.parentExecutionId,
@@ -216,6 +256,47 @@ export class ChatKitClient {
         summary: input.summary,
         started_at: input.startedAt,
         completed_at: input.completedAt,
+      },
+    });
+  }
+
+  async createAgentSession(input: {
+    agentId: string;
+    lookupKey: string;
+    title?: string;
+  }): Promise<ChatKitSessionWithParticipants> {
+    return requestJson<ChatKitSessionWithParticipants>(this.#config, {
+      method: "POST",
+      path: teamPath(this.#config, CHATKIT_SESSIONS_PATH),
+      body: {
+        agent_id: input.agentId,
+        lookup_key: input.lookupKey,
+        title: input.title,
+      },
+    });
+  }
+
+  async createMessage(input: CreateChatKitMessageInput): Promise<JsonObject> {
+    return requestJson<JsonObject>(this.#config, {
+      method: "POST",
+      path: pathWithParams(teamPath(this.#config, CHATKIT_MESSAGE_PATH), {
+        session_id: input.sessionId,
+      }),
+      body: {
+        type: "text",
+        id: input.id,
+        from_inbox_type_id: input.fromInboxId,
+        to_inbox_type_id: input.toInboxId,
+        from_inbox_instance_id: input.fromInboxInstanceId,
+        to_inbox_instance_id: input.toInboxInstanceId,
+        in_reply_to_message_id: null,
+        in_reply_to_inbox_id: null,
+        related_task_ids: [],
+        role: input.role,
+        user_display_name: input.displayName,
+        text: input.text,
+        metadata: input.metadata,
+        inbox_settings: {},
       },
     });
   }

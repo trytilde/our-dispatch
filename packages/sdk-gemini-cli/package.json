@@ -1,0 +1,55 @@
+{
+  "name": "@trytilde/sdk-gemini-cli",
+  "version": "0.1.0",
+  "description": "Gemini CLI hook adapter for Tilde ChatKit coding-agent audit events.",
+  "homepage": "https://github.com/trytilde/openbot/tree/main/packages/sdk-gemini-cli#readme",
+  "bugs": {
+    "url": "https://github.com/trytilde/openbot/issues"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/trytilde/openbot.git",
+    "directory": "packages/sdk-gemini-cli"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "development": "./src/index.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "publishConfig": {
+    "exports": {
+      ".": {
+        "types": "./dist/index.d.ts",
+        "import": "./dist/index.js"
+      }
+    },
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsc --noEmit && tsdown --config ../../tsdown.node.config.ts",
+    "check": "vp check",
+    "lint": "vp lint",
+    "prepack": "pnpm build",
+    "test": "vp test run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@trytilde/sdk": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "5.9.2",
+    "vite-plus": "catalog:",
+    "vitest": "catalog:"
+  },
+  "engines": {
+    "node": ">=24"
+  }
+}

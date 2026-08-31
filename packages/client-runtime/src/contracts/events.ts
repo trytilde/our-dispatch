@@ -62,6 +62,33 @@ const baseEvent = {
   occurred_at: z.string(),
 };
 
+export const ParticipantIdentitySchema = z.object({
+  participant_handle: z.string().min(1),
+  participant_type: z.enum(["human", "agent"]),
+  membership_source: z.enum(["explicit", "provider", "recipient"]),
+  inbox_id: z.string().min(1),
+  inbox_instance_id: z.string().min(1),
+  display_name: z.string(),
+  external_id: z.string().nullable().optional(),
+});
+export type ParticipantIdentity = z.infer<typeof ParticipantIdentitySchema>;
+
+const ParticipantJoinedEventSchema = z.object({
+  ...baseEvent,
+  type: z.literal("participant.joined"),
+  data: z.object({ session_id: z.string(), participant: ParticipantIdentitySchema }),
+});
+const ParticipantLeftEventSchema = z.object({
+  ...baseEvent,
+  type: z.literal("participant.left"),
+  data: z.object({ session_id: z.string(), participant: ParticipantIdentitySchema }),
+});
+export const ParticipantEventSchema = z.discriminatedUnion("type", [
+  ParticipantJoinedEventSchema,
+  ParticipantLeftEventSchema,
+]);
+export type ParticipantEvent = z.infer<typeof ParticipantEventSchema>;
+
 export const ChatEventSchema = z.discriminatedUnion("type", [
   z.object({ ...baseEvent, type: z.literal("access.changed") }),
   z.object({
@@ -108,6 +135,8 @@ export const ChatEventSchema = z.discriminatedUnion("type", [
     type: z.literal("session.user_state.updated"),
     data: z.object({ state: SessionUserStateSchema }),
   }),
+  ParticipantJoinedEventSchema,
+  ParticipantLeftEventSchema,
   z.object({
     ...baseEvent,
     type: z.literal("session.child.created"),

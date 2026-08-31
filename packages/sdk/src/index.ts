@@ -1,4 +1,12 @@
 export {
+  codingAgentSessionLookupKey,
+  codingAgentToolId,
+  type CodingAgentAuditEvent,
+  type CodingAgentSource,
+  type RecordCodingAgentEventOptions,
+  recordCodingAgentEvent,
+} from "./chatkit/coding-agent";
+export {
   type McpServerUrlInput,
   mcpServerUrl,
   type ReverseProxyUrlInput,
@@ -10,8 +18,11 @@ export {
 export {
   type AgentToolRegistration,
   type ChatKitAttachment,
+  type ChatKitSessionParticipant,
+  type ChatKitSessionWithParticipants,
   ChatKitClient,
   type ConvertedChatKitMessage,
+  type CreateChatKitMessageInput,
   type InvokeSessionProviderToolInput,
   type InvokeSessionProviderToolResult,
   MessagesClient,

@@ -33,7 +33,8 @@ Origin-free socket. The ticket travels as a WebSocket subprotocol credential and
 
 Tilde publishes the ChatKit realtime contract as generated AsyncAPI. Its client-facing event union is
 separate from Tilde's internal event bus and uses stable agent, session, personal read-state, message,
-queue, turn, activity, task, and error categories. The team-scoped socket is one system channel rather than one channel per chat:
+participant, queue, turn, activity, task, and error categories. Participant joins and leaves reconcile
+through client-runtime session activity and never enter the message transcript. The team-scoped socket is one system channel rather than one channel per chat:
 every connected owner client needs background activity for all accessible conversations. AsyncAPI
 separates client ping, server control frames, and typed domain events into distinct operations while
 retaining the single physical channel. The direct socket forwards the client's last applied durable
@@ -80,3 +81,4 @@ flowchart LR
 - 2026-08-25T12:00:00+02:00: Replaced the undocumented event dependency with Tilde's Rust-derived AsyncAPI contract, retained one team-wide physical channel, and adopted durable event revisions plus aggregate REST snapshots for reconnect convergence.
 - 2026-08-26T16:18:13+01:00: Replaced the background SSE adapter with a direct client-to-Tilde ChatKit workspace WebSocket using single-use browser/Electron Origin-bound or Expo native-bearer tickets, a ready barrier, and revision-safe reconnects.
 - 2026-08-27T11:35:59Z: Replaced the old UI-named routes and raw recursive event parsing with the hard-cutover ChatKit workspace REST and ChatKit realtime contracts, a closed client event union, explicit queue/turn reduction, and Tilde-owned per-user read state shared across web, desktop, and mobile.
+- 2026-08-31T20:06:14Z: Added durable participant join/leave snapshot and realtime reconciliation as session activity, while filtering legacy synthetic participant messages from owner transcripts.

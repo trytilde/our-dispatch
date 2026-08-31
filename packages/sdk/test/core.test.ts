@@ -2,7 +2,13 @@ import { mkdtemp, readFile, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
-import { ApiError, configHeaders, createClient, createConfig } from "../src";
+import {
+  ApiError,
+  configHeaders,
+  createClient,
+  createConfig,
+  recordCodingAgentEvent,
+} from "../src";
 
 const spawnMock = vi.fn(() => ({
   killed: false,
@@ -763,6 +769,74 @@ describe("MCP client", () => {
 });
 
 describe("ChatKit client", () => {
+  it("records coding-agent messages in an idempotent ChatKit session", async () => {
+    const requests: Array<{ url: string; body: unknown }> = [];
+    const fetchMock = vi.fn(async (input: Parameters<typeof fetch>[0], init?: RequestInit) => {
+      const url = String(input);
+      requests.push({
+        url,
+        body: init?.body ? await new Response(init.body).json() : undefined,
+      });
+      if (url.endsWith("/chatkit/sessions")) {
+        return Response.json({
+          session: { id: "session-1" },
+          participants: [
+            {
+              participant_type: "human",
+              inbox: { id: "channel-1" },
+              instance: { id: "human-1" },
+            },
+            {
+              participant_type: "agent",
+              inbox: { id: "agent-1" },
+              instance: { id: "agent-instance-1" },
+            },
+          ],
+        });
+      }
+      return Response.json({ id: "message-1" });
+    });
+    const client = createClient({
+      baseUrl: "https://api.example.test",
+      teamId: "team-1",
+      fetch: fetchMock as typeof fetch,
+    });
+
+    await recordCodingAgentEvent({
+      client,
+      agentId: "agent-1",
+      source: "claude-code",
+      event: {
+        type: "user_message",
+        sessionId: "claude-session-1",
+        eventId: "prompt-1",
+        cwd: "/workspace/repository",
+        text: "Fix the failing test",
+      },
+    });
+
+    expect(requests[0]).toEqual({
+      url: "https://api.example.test/api/v1/team/team-1/chatkit/sessions",
+      body: {
+        agent_id: "agent-1",
+        lookup_key: "coding-agent:claude-code:claude-session-1",
+        title: "Claude Code · repository",
+      },
+    });
+    expect(requests[1]).toMatchObject({
+      url: "https://api.example.test/api/v1/team/team-1/chatkit/session/session-1/message",
+      body: {
+        type: "text",
+        from_inbox_type_id: "channel-1",
+        to_inbox_type_id: "agent-1",
+        from_inbox_instance_id: "human-1",
+        to_inbox_instance_id: "agent-instance-1",
+        role: "user",
+        text: "Fix the failing test",
+      },
+    });
+  });
+
   it("registers an agent tool set and reports an execution lifecycle", async () => {
     const requests: Array<{
       url: string;
@@ -799,6 +873,10 @@ describe("ChatKit client", () => {
       executionId: "execution_1",
       toolId: "tilde-sdk-local:server:echo",
       wireName: "echo",
+      tool: {
+        displayName: "Echo",
+        identity: { codingAgentSource: "codex" },
+      },
       state: "completed",
       input: { text: "hello" },
       output: { text: "hello" },
@@ -827,6 +905,11 @@ describe("ChatKit client", () => {
           execution_id: "execution_1",
           tool_id: "tilde-sdk-local:server:echo",
           wire_name: "echo",
+          tool: {
+            display_name: "Echo",
+            supports_summary: false,
+            identity_snapshot: { codingAgentSource: "codex" },
+          },
           state: "completed",
           input: { text: "hello" },
           output: { text: "hello" },
