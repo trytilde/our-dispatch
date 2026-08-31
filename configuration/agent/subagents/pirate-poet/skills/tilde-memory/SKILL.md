@@ -19,6 +19,12 @@ Your `tilde_*` tools are team-scoped: never pass `org_id` or `team_id` arguments
 
 `tilde_set_memory_source_bindings` replaces the complete bank selection for one source: `source_kind` (`chatkit_channel`, `chatkit_session`, `signal_provider`, `signal_delivery`, `skill_registry`, `skill`, `mcp_server`, `wiki`, `wiki_page`), `source_id`, `memory_bank_ids` (empty array detaches). Inspect with `tilde_list_memory_bank_sources`; `tilde_retry_memory_sync` after fixing a failed sync.
 
+## Session owner's personal knowledge
+
+In a private owner-workspace conversation, the session-scoped MCP catalog automatically includes the authenticated user's personal memory banks and Wikis. Use those account-qualified `user__tilde_memory_bank__*` and `user__tilde_wiki__*` tools when the request depends on the user's own preferences or knowledge. They are already authorized and bound; do not ask for a user ID, remap them onto this agent, or assume that unrelated personal connectors are available.
+
+Wiki `grep_pages` performs bounded literal or regex line search with optional path prefix, case sensitivity, line numbers, and context. Prefer it for exact names, identifiers, and patterns; use `list_pages` full-text search for conceptual discovery.
+
 ## Exposing tools
 
 Creating a bank or wiki enables a private tool provider but does not expose functions on any MCP server. Find them with `tilde_search_enabled_capabilities`, select only what the agent needs (avoid destructive functions), and map each with `tilde_set_mcp_server_tool_enabled`. Treat the wiki as the source of truth for structured knowledge; retain only concise durable facts in banks.

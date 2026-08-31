@@ -919,6 +919,10 @@ export type ChatRequest = {
  */
 export type ChatSessionContext = {
     /**
+     * Calling agent whose display/browser context a delegated specialist should continue.
+     */
+    parent_agent_id?: string | null;
+    /**
      * Human-readable provider name for prompt text, for example `GitHub`.
      */
     provider_display_name: string;
@@ -2018,6 +2022,25 @@ export type GetAttachmentDownloadUrlResponse = {
 };
 
 /**
+ * Bounded ripgrep-style search over the Markdown lines in one Wiki.
+ */
+export type GrepWikiPagesBody = {
+    case_sensitive?: boolean;
+    context_lines?: number;
+    match_limit?: number;
+    page_limit?: number;
+    path_prefix?: string | null;
+    pattern: string;
+    regex?: boolean;
+};
+
+export type GrepWikiPagesResponse = {
+    matches: Array<WikiGrepMatch>;
+    pages_scanned: number;
+    truncated: boolean;
+};
+
+/**
  * A group entity for organizing users and managing access control.
  *
  * Groups allow assigning permissions to multiple users at once.
@@ -2902,6 +2925,7 @@ export enum MemoryProvider {
 
 export type MemorySourceBinding = {
     created_at: WrappedChronoDateTime;
+    created_by_user_id?: string | null;
     /**
      * True while a detached source is waiting for provider document cleanup.
      */
@@ -2914,7 +2938,7 @@ export type MemorySourceBinding = {
     org_id: string;
     source_id: string;
     source_kind: MemorySourceKind;
-    team_id: string;
+    team_id?: string | null;
     updated_at: WrappedChronoDateTime;
 };
 
@@ -3929,8 +3953,20 @@ export type ReportToolExecutionRequestInner = {
     started_at?: null | WrappedChronoDateTime;
     state: ToolExecutionState;
     summary?: string | null;
+    tool?: null | ReportedAgentTool;
     tool_id: string;
     wire_name: string;
+};
+
+/**
+ * Tool metadata carried with a lifecycle report when the calling harness
+ * discovers tools one execution at a time.
+ */
+export type ReportedAgentTool = {
+    display_name: string;
+    identity_snapshot?: null | WrappedJsonValue;
+    summary?: string | null;
+    supports_summary?: boolean;
 };
 
 export type ResolveLoginProviderResponse = {
@@ -5944,6 +5980,19 @@ export type WikiAssetUploadResponse = {
 export type WikiGraph = {
     pages: Array<WikiPage>;
     relationships: Array<WikiPageRelationship>;
+};
+
+export type WikiGrepMatch = {
+    after: Array<string>;
+    before: Array<string>;
+    line: string;
+    /**
+     * One-based Markdown line number.
+     */
+    line_number: number;
+    page_id: WrappedUuidV4;
+    path: string;
+    title: string;
 };
 
 export type WikiOntologyInstallation = {
@@ -19255,6 +19304,25 @@ export type CreateWikiPageResponses = {
 
 export type CreateWikiPageResponse = CreateWikiPageResponses[keyof CreateWikiPageResponses];
 
+export type GrepWikiPagesData = {
+    body: GrepWikiPagesBody;
+    path: {
+        /**
+         * Team ID
+         */
+        team_id: string;
+        wiki_id: WrappedUuidV4;
+    };
+    query?: never;
+    url: '/api/v1/team/{team_id}/wikis/{wiki_id}/pages/grep';
+};
+
+export type GrepWikiPagesResponses = {
+    200: GrepWikiPagesResponse;
+};
+
+export type GrepWikiPagesResponse2 = GrepWikiPagesResponses[keyof GrepWikiPagesResponses];
+
 export type DeleteWikiPageData = {
     body: ExpectedRevisionBody;
     path: {
@@ -20871,6 +20939,54 @@ export type RemovePersonalMemoryBankVisibilityGrantResponses = {
     200: unknown;
 };
 
+export type ListPersonalMemorySourceBindingsData = {
+    body?: never;
+    path: {
+        user_id: string;
+    };
+    query: {
+        source_kind: MemorySourceKind;
+        source_id: string;
+    };
+    url: '/api/v1/user/{user_id}/memory/source-bindings';
+};
+
+export type ListPersonalMemorySourceBindingsResponses = {
+    200: Array<MemorySourceBinding>;
+};
+
+export type ListPersonalMemorySourceBindingsResponse = ListPersonalMemorySourceBindingsResponses[keyof ListPersonalMemorySourceBindingsResponses];
+
+export type ReplacePersonalMemorySourceBindingsData = {
+    body: ReplaceMemoryBankBindingsBody;
+    path: {
+        user_id: string;
+    };
+    query?: never;
+    url: '/api/v1/user/{user_id}/memory/source-bindings';
+};
+
+export type ReplacePersonalMemorySourceBindingsResponses = {
+    200: Array<MemorySourceBinding>;
+};
+
+export type ReplacePersonalMemorySourceBindingsResponse = ReplacePersonalMemorySourceBindingsResponses[keyof ReplacePersonalMemorySourceBindingsResponses];
+
+export type RetryPersonalMemorySourceSyncData = {
+    body: RetryMemorySourceBody;
+    path: {
+        user_id: string;
+    };
+    query?: never;
+    url: '/api/v1/user/{user_id}/memory/source-bindings/retry';
+};
+
+export type RetryPersonalMemorySourceSyncResponses = {
+    200: Array<MemorySourceBinding>;
+};
+
+export type RetryPersonalMemorySourceSyncResponse = RetryPersonalMemorySourceSyncResponses[keyof RetryPersonalMemorySourceSyncResponses];
+
 export type SignalsListPersonalDeliveriesData = {
     body?: never;
     path: {
@@ -21698,6 +21814,22 @@ export type CreatePersonalWikiPageResponses = {
 };
 
 export type CreatePersonalWikiPageResponse = CreatePersonalWikiPageResponses[keyof CreatePersonalWikiPageResponses];
+
+export type GrepPersonalWikiPagesData = {
+    body: GrepWikiPagesBody;
+    path: {
+        user_id: string;
+        wiki_id: WrappedUuidV4;
+    };
+    query?: never;
+    url: '/api/v1/user/{user_id}/wikis/{wiki_id}/pages/grep';
+};
+
+export type GrepPersonalWikiPagesResponses = {
+    200: GrepWikiPagesResponse;
+};
+
+export type GrepPersonalWikiPagesResponse = GrepPersonalWikiPagesResponses[keyof GrepPersonalWikiPagesResponses];
 
 export type DeletePersonalWikiPageData = {
     body: ExpectedRevisionBody;
