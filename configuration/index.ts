@@ -34,6 +34,7 @@ export default Configuration({
               enableExternalTools: false,
               enableMcpServer: true,
               enableMcpDynamicToolDiscovery: false,
+              enableMappedMcpTools: false,
               enableSkillRegistry: false,
               enableTildeControlPlane: false,
             }

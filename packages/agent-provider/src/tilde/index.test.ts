@@ -54,6 +54,7 @@ describe("TildeAgentProvider", () => {
     };
     let channelCreated = false;
     let polled = false;
+    let removedMappedTools = false;
     const requests: Request[] = [];
     vi.stubGlobal(
       "fetch",
@@ -98,6 +99,41 @@ describe("TildeAgentProvider", () => {
           return Response.json({
             principal_user_id: "machine-scout",
             avatar: { media_type: "image/png", size_bytes: bytes.length, sha256: "hash" },
+          });
+        }
+        if (request.method === "GET" && path.endsWith("/mcp/mcp-server/openbot-scout"))
+          return Response.json({
+            id: "openbot-scout",
+            name: "OpenBot scout",
+            org_id: "org-one",
+            team_id: "team-one",
+            is_dynamic_tool_discovery: false,
+            tools: [
+              {
+                tool_group_source_type_id: "browser",
+                tool_group_instance_id: "human-approval",
+                tool_source_type_id: "wait_for_human_assistance_to_complete",
+                tool_name: "wait_for_human_assistance_to_complete",
+              },
+            ],
+          });
+        if (
+          request.method === "DELETE" &&
+          path.endsWith("/mcp/mcp-server/openbot-scout/functions")
+        ) {
+          expect(await request.json()).toEqual({
+            tool_group_source_type_id: "browser",
+            tool_group_instance_id: "human-approval",
+            tool_source_type_ids: ["wait_for_human_assistance_to_complete"],
+          });
+          removedMappedTools = true;
+          return Response.json({
+            id: "openbot-scout",
+            name: "OpenBot scout",
+            org_id: "org-one",
+            team_id: "team-one",
+            is_dynamic_tool_discovery: false,
+            tools: [],
           });
         }
         if (request.method === "PUT" && path.endsWith("/agents/scout/permissions")) {
@@ -147,6 +183,7 @@ describe("TildeAgentProvider", () => {
         enableSkillRegistry: false,
         enableMcpServer: true,
         enableMcpDynamicToolDiscovery: false,
+        enableMappedMcpTools: false,
         enableTildeControlPlane: false,
         permissions: { delegate_to_other_agents: { mode: "only", ids: ["computer"] } },
       }),
@@ -155,6 +192,7 @@ describe("TildeAgentProvider", () => {
     expect(polled).toBe(true);
     expect(skills).not.toHaveBeenCalled();
     expect(external).not.toHaveBeenCalled();
+    expect(removedMappedTools).toBe(true);
     expect(context.environment).toMatchObject({
       AGENT_SCOUT_API_KEY: "agent-api-key",
       AGENT_SCOUT_WEBHOOK_SIGNING_KEY: "signing-key",

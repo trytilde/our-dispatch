@@ -20,4 +20,4 @@
 "@tryopenbot/git-provider": minor
 ---
 
-Give Computer a fixed Tilde MCP server while exposing only its local CUA tools to the model.
+Give Computer a fixed Tilde MCP server, remove stale provider-backed mappings, and expose only its local CUA tools to the model.

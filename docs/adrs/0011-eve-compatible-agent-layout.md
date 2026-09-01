@@ -112,6 +112,7 @@ flowchart LR
 
 ## Updates
 
+- 2026-09-01T11:28:00+02:00: Made the Computer resource policy reconcile its fixed MCP server to zero provider-backed function mappings, including stale mappings retained by Tilde bundle updates; process-local CUA registration is unaffected.
 - 2026-09-01T10:35:02+02:00: Restored a fixed non-dynamic Tilde MCP server for the Computer specialist and made its model catalogue fail closed to the exact local `createCuaTools` names; remote mappings, control-plane tools, skills, and onward delegation remain disabled.
 - 2026-08-31T01:47:00+02:00: Added the guarded, idempotent `delete-agent` inverse lifecycle. Tilde bundle/channel and external credential-bearing resources are removed and confirmed before persisted agent configuration and authored source are deleted; Factory remains undeletable.
 - 2026-08-30T22:31:00+02:00: Added explicit `agent-profile.json` discovery metadata for the Computer specialist and made discovery reject any `tools/` or `skills/` directory under that profile.

@@ -56,6 +56,7 @@ export interface TildeAgentResourcePolicy {
   enableExternalTools?: boolean;
   enableMcpServer?: boolean;
   enableMcpDynamicToolDiscovery?: boolean;
+  enableMappedMcpTools?: boolean;
   enableTildeControlPlane?: boolean;
   enableSkillRegistry?: boolean;
   permissions?: AgentPermissions;
@@ -149,6 +150,7 @@ export class TildeAgentProvider implements AgentProvider {
         policy.enableMcpServer === false
           ? "Remove the dynamic MCP server and its remote tools"
           : policy.enableMcpDynamicToolDiscovery === false &&
+              policy.enableMappedMcpTools === false &&
               policy.enableTildeControlPlane === false &&
               policy.enableExternalTools === false
             ? "Reconcile a fixed MCP server for process-local tools only"
@@ -307,6 +309,9 @@ export class TildeAgentProvider implements AgentProvider {
       );
     } else {
       await unsetEnvironment(context, `${prefix}_MCP_SERVER_ID`);
+    }
+    if (mcpServerId && policy.enableMappedMcpTools === false) {
+      await this.#tools.removeMappedTools(mcpServerId);
     }
     if (policy.permissions) {
       await this.#generated(`set permissions for "${slug}"`, (signal) =>
