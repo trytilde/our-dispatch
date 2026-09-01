@@ -27,7 +27,7 @@ describe("TildeAgentProvider", () => {
     expect(new TildeAgentProvider(config).platforms.map(({ id }) => id)).toEqual(["tilde"]);
   });
 
-  it("provisions a resource-constrained agent without skills or external tools", async () => {
+  it("provisions a resource-constrained agent with only a fixed MCP server", async () => {
     const skills = vi.spyOn(TildeSkillReconciler.prototype, "bundleSkills").mockResolvedValue({
       custom: [
         {
@@ -65,7 +65,12 @@ describe("TildeAgentProvider", () => {
           const body = (await request.json()) as { memory?: unknown };
           expect(body).toMatchObject({
             agent: { credential_strategy: "rotate", endpoint: { concurrency_policy: "queue" } },
-            mcp_server: { enabled: false },
+            mcp_server: {
+              enabled: true,
+              id: "openbot-scout",
+              dynamic_tool_discovery: false,
+              enable_tilde_control_plane: false,
+            },
             skill_registry: { enabled: false },
           });
           expect(body.memory).toBeUndefined();
@@ -140,7 +145,8 @@ describe("TildeAgentProvider", () => {
           ownership: ResourceAccessMode.TEAM,
         },
         enableSkillRegistry: false,
-        enableMcpServer: false,
+        enableMcpServer: true,
+        enableMcpDynamicToolDiscovery: false,
         enableTildeControlPlane: false,
         permissions: { delegate_to_other_agents: { mode: "only", ids: ["computer"] } },
       }),
@@ -153,7 +159,7 @@ describe("TildeAgentProvider", () => {
       AGENT_SCOUT_API_KEY: "agent-api-key",
       AGENT_SCOUT_WEBHOOK_SIGNING_KEY: "signing-key",
     });
-    expect(context.environment.AGENT_SCOUT_MCP_SERVER_ID).toBeUndefined();
+    expect(context.environment.AGENT_SCOUT_MCP_SERVER_ID).toBe("openbot-scout");
     expect(requests.some((request) => request.url.endsWith("/provision/outputs/claim"))).toBe(true);
   });
 

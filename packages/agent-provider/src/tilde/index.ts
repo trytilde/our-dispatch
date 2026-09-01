@@ -55,6 +55,7 @@ export interface TildeAgentResourcePolicy {
   };
   enableExternalTools?: boolean;
   enableMcpServer?: boolean;
+  enableMcpDynamicToolDiscovery?: boolean;
   enableTildeControlPlane?: boolean;
   enableSkillRegistry?: boolean;
   permissions?: AgentPermissions;
@@ -147,7 +148,11 @@ export class TildeAgentProvider implements AgentProvider {
           : "Synchronize authored skills and exact registry membership",
         policy.enableMcpServer === false
           ? "Remove the dynamic MCP server and its remote tools"
-          : "Reconcile dynamic MCP, Tilde control-plane, and deployment-platform tools",
+          : policy.enableMcpDynamicToolDiscovery === false &&
+              policy.enableTildeControlPlane === false &&
+              policy.enableExternalTools === false
+            ? "Reconcile a fixed MCP server for process-local tools only"
+            : "Reconcile dynamic MCP, Tilde control-plane, and deployment-platform tools",
         context.devMode
           ? "Enable Tilde local-runtime tunneling"
           : "Use the deployed public agent-service URL",
@@ -205,7 +210,7 @@ export class TildeAgentProvider implements AgentProvider {
                   enabled: true,
                   id: context.environment[`${prefix}_MCP_SERVER_ID`]?.trim() || `openbot-${slug}`,
                   name: `OpenBot ${slug}`,
-                  dynamic_tool_discovery: true,
+                  dynamic_tool_discovery: policy.enableMcpDynamicToolDiscovery ?? true,
                   enable_tilde_control_plane: policy.enableTildeControlPlane ?? true,
                 },
           skill_registry:

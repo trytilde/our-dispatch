@@ -32,7 +32,8 @@ export default Configuration({
         ...(id === "computer"
           ? {
               enableExternalTools: false,
-              enableMcpServer: false,
+              enableMcpServer: true,
+              enableMcpDynamicToolDiscovery: false,
               enableSkillRegistry: false,
               enableTildeControlPlane: false,
             }
