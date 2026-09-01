@@ -10,7 +10,8 @@ synchronizes authored skills and registry membership; and reconciles the dynamic
 MCP server, Tilde control-plane tools, deployment-platform MCP connections, and
 stored agent reach. Fork composition may narrow those resources per authored
 agent—for example, a Computer specialist can disable every remote tool and skill
-surface while retaining its endpoint, team authorization, and explicit delegation permissions.
+surface while retaining a fixed non-dynamic MCP identity for process-local CUA tools,
+its endpoint, team authorization, and explicit delegation permissions.
 Repeated deployments and retries after partial failure converge without duplicate
 resources or unnecessary updates. It exposes no vendor CRUD to the CLI. Owner
 conversation traffic uses Tilde's REST/SSE contract through the control service's

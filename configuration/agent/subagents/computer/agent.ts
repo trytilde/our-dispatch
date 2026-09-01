@@ -3,6 +3,7 @@ import {
   chatKitEndpoint,
   convertToAiSdkMessages,
   createClient,
+  createMCPClient,
 } from "@trytilde/sdk-vercel-ai-node";
 import {
   createTildeAttachmentMessageHandlers,
@@ -13,8 +14,10 @@ import { convertToModelMessages, stepCountIs, streamText } from "ai";
 import type { ToolSet } from "@ai-sdk/provider-utils";
 import { prepareInference } from "./inference.js";
 import instructions from "./instructions.js";
+import { selectComputerMcpTools } from "./lib/mcp-tools.js";
 
 const agentApiKey = process.env.AGENT_COMPUTER_API_KEY!;
+const mcpServerId = process.env.AGENT_COMPUTER_MCP_SERVER_ID!;
 
 const client = createClient({
   apiKey: agentApiKey,
@@ -33,6 +36,24 @@ async function localTools(sessionId: string, displayAgentId: string): Promise<To
     agentId: displayAgentId,
     uploadMedia,
   });
+}
+
+async function computerMcpTools(
+  sessionId: string,
+  displayAgentId: string,
+): Promise<{ tools: ToolSet; closeMcp: () => Promise<void> }> {
+  const cuaTools = await localTools(sessionId, displayAgentId);
+  const handle = await createMCPClient({
+    agentId: "computer",
+    client,
+    serverId: mcpServerId,
+    tools: cuaTools,
+  });
+  const availableTools = await handle.mcp.tools();
+  return {
+    tools: selectComputerMcpTools(cuaTools, availableTools),
+    closeMcp: () => handle.closeMcp(),
+  };
 }
 
 function queuedRequestCutoff(messages: readonly { metadata?: unknown }[]): string | undefined {
@@ -70,7 +91,7 @@ export default chatKitEndpoint({
       onHydrateMessage: attachmentHandlers.onHydrateMessage,
     });
     const displayAgentId = context.body.session?.parentAgentId ?? "computer";
-    const tools = await localTools(context.sessionId, displayAgentId);
+    const { tools, closeMcp } = await computerMcpTools(context.sessionId, displayAgentId);
     const inference = await prepareInference(tools, request.signal);
     const result = streamText({
       ...inference,
@@ -78,6 +99,7 @@ export default chatKitEndpoint({
       abortSignal: request.signal,
       instructions,
       messages: await convertToModelMessages(messages),
+      onFinish: () => void closeMcp(),
       stopWhen: stepCountIs(20),
     });
     return result.toUIMessageStreamResponse({
