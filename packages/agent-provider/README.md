@@ -12,6 +12,8 @@ stored agent reach. Fork composition may narrow those resources per authored
 agent—for example, a Computer specialist can disable every remote tool and skill
 surface while retaining a fixed non-dynamic MCP identity for process-local CUA tools,
 its endpoint, team authorization, and explicit delegation permissions.
+Setting `enableMappedMcpTools` to `false` also reconciles away stale provider-backed
+functions without affecting process-local tools registered by the authored agent.
 Repeated deployments and retries after partial failure converge without duplicate
 resources or unnecessary updates. It exposes no vendor CRUD to the CLI. Owner
 conversation traffic uses Tilde's REST/SSE contract through the control service's

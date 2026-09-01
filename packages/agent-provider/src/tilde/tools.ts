@@ -6,6 +6,7 @@ import type { ProviderInitialization } from "@tryopenbot/runtime-provider";
 import { persistEnvironment, type DeploymentContext } from "@tryopenbot/runtime-provider";
 import {
   bulkAddMcpServerInstanceFunctions,
+  bulkRemoveMcpServerInstanceFunctions,
   connectProxiedMcpServer,
   createResourceServerCredential,
   createTildeApiClient,
@@ -120,6 +121,50 @@ export class TildeToolReconciler {
     } catch (error) {
       if (error instanceof AgentProviderError) throw error;
       throw toolsError("reconcile external Tilde tool resources", error);
+    }
+  }
+
+  /** Remove every provider-backed function while preserving process-local MCP tools. */
+  async removeMappedTools(serverId: string): Promise<void> {
+    try {
+      const { data: instance } = await getMcpServerInstance({
+        client: this.#api,
+        path: { team_id: this.#teamId, mcp_server_instance_id: serverId },
+        throwOnError: true,
+      });
+      const mappings = new Map<
+        string,
+        {
+          toolGroupSourceTypeId: string;
+          toolGroupInstanceId: string;
+          toolSourceTypeIds: Set<string>;
+        }
+      >();
+      for (const tool of instance.tools ?? []) {
+        const key = `${tool.tool_group_source_type_id}\0${tool.tool_group_instance_id}`;
+        const mapping = mappings.get(key) ?? {
+          toolGroupSourceTypeId: tool.tool_group_source_type_id,
+          toolGroupInstanceId: tool.tool_group_instance_id,
+          toolSourceTypeIds: new Set<string>(),
+        };
+        mapping.toolSourceTypeIds.add(tool.tool_source_type_id);
+        mappings.set(key, mapping);
+      }
+      await mapWithConcurrency([...mappings.values()], maxConcurrentRequests, (mapping) =>
+        bulkRemoveMcpServerInstanceFunctions({
+          client: this.#api,
+          path: { team_id: this.#teamId, mcp_server_instance_id: serverId },
+          body: {
+            tool_group_source_type_id: mapping.toolGroupSourceTypeId,
+            tool_group_instance_id: mapping.toolGroupInstanceId,
+            tool_source_type_ids: [...mapping.toolSourceTypeIds],
+          },
+          throwOnError: true,
+        }),
+      );
+    } catch (error) {
+      if (error instanceof AgentProviderError) throw error;
+      throw toolsError("remove mapped MCP tools", error);
     }
   }
 
