@@ -124,8 +124,8 @@ export class TildeToolReconciler {
     }
   }
 
-  /** Remove every provider-backed function while preserving process-local MCP tools. */
-  async removeMappedTools(serverId: string): Promise<void> {
+  /** Remove configured functions while preserving process-local and Tilde system tools. */
+  async removeNonSystemMappedTools(serverId: string): Promise<void> {
     try {
       const { data: instance } = await getMcpServerInstance({
         client: this.#api,
@@ -141,6 +141,9 @@ export class TildeToolReconciler {
         }
       >();
       for (const tool of instance.tools ?? []) {
+        // Tilde attaches this system handoff helper whenever a team MCP server is read or used.
+        // It cannot be removed durably, and the authored agent's exact-name selector excludes it.
+        if (tool.tool_group_source_type_id === "tilde_human_approval") continue;
         const key = `${tool.tool_group_source_type_id}\0${tool.tool_group_instance_id}`;
         const mapping = mappings.get(key) ?? {
           toolGroupSourceTypeId: tool.tool_group_source_type_id,
@@ -164,7 +167,7 @@ export class TildeToolReconciler {
       );
     } catch (error) {
       if (error instanceof AgentProviderError) throw error;
-      throw toolsError("remove mapped MCP tools", error);
+      throw toolsError("remove non-system mapped MCP tools", error);
     }
   }
 
