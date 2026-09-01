@@ -110,10 +110,16 @@ describe("TildeAgentProvider", () => {
             is_dynamic_tool_discovery: false,
             tools: [
               {
-                tool_group_source_type_id: "browser",
-                tool_group_instance_id: "human-approval",
+                tool_group_source_type_id: "tilde_human_approval",
+                tool_group_instance_id: "tilde-human-approval",
                 tool_source_type_id: "wait_for_human_assistance_to_complete",
                 tool_name: "wait_for_human_assistance_to_complete",
+              },
+              {
+                tool_group_source_type_id: "stripe",
+                tool_group_instance_id: "stale-stripe",
+                tool_source_type_id: "create_payment_link",
+                tool_name: "create_payment_link",
               },
             ],
           });
@@ -122,9 +128,9 @@ describe("TildeAgentProvider", () => {
           path.endsWith("/mcp/mcp-server/openbot-scout/functions")
         ) {
           expect(await request.json()).toEqual({
-            tool_group_source_type_id: "browser",
-            tool_group_instance_id: "human-approval",
-            tool_source_type_ids: ["wait_for_human_assistance_to_complete"],
+            tool_group_source_type_id: "stripe",
+            tool_group_instance_id: "stale-stripe",
+            tool_source_type_ids: ["create_payment_link"],
           });
           removedMappedTools = true;
           return Response.json({
@@ -183,7 +189,7 @@ describe("TildeAgentProvider", () => {
         enableSkillRegistry: false,
         enableMcpServer: true,
         enableMcpDynamicToolDiscovery: false,
-        enableMappedMcpTools: false,
+        enableNonSystemMappedMcpTools: false,
         enableTildeControlPlane: false,
         permissions: { delegate_to_other_agents: { mode: "only", ids: ["computer"] } },
       }),
