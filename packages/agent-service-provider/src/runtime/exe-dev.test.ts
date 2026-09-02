@@ -75,7 +75,7 @@ describe("ExeDevRuntimeServiceProvider", () => {
     expect(calls[1]?.args).toEqual(["exe.dev", "share", "port", "openbot", "4173"]);
     expect(calls[2]?.args).toEqual(["exe.dev", "share", "set-public", "openbot"]);
     expect(calls.flatMap((call) => call.args).join(" ")).not.toContain("repository-only-token");
-    expect(calls[3]?.input).toContain('CODE_STORAGE_REPOSITORY_TOKEN="repository-only-token"');
+    expect(calls[3]?.input).not.toContain("CODE_STORAGE_REPOSITORY_TOKEN");
     expect(calls[3]?.input).not.toContain("human-deployment-token");
     expect(calls.at(-1)?.input).toContain('cd "$remote_directory"');
     expect(calls.at(-1)?.input).toContain('XDG_RUNTIME_DIR="/run/user/$(id -u)"');
