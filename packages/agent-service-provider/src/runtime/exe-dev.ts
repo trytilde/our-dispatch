@@ -300,11 +300,21 @@ function renderRemoteEnvironment(
 
 async function readConfigurationEnvironment(repositoryRoot: string): Promise<string> {
   try {
-    return await readFile(resolve(repositoryRoot, "configuration/.env"), "utf8");
+    return sanitizeRemoteConfigurationEnvironment(
+      await readFile(resolve(repositoryRoot, "configuration/.env"), "utf8"),
+    );
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") return "";
     throw error;
   }
+}
+
+/** Removes outer-deployment source credentials from configuration copied into the inner runtime. */
+export function sanitizeRemoteConfigurationEnvironment(environment: string): string {
+  return environment
+    .split("\n")
+    .filter((line) => !/^\s*(?:export\s+)?CODE_STORAGE_/.test(line))
+    .join("\n");
 }
 
 async function waitForHealth(request: typeof fetch, origin: string): Promise<void> {

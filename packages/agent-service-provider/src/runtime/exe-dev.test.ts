@@ -3,7 +3,11 @@ import { describe, expect, expectTypeOf, it, vi } from "vite-plus/test";
 import { ExeDevPlatform } from "@tryopenbot/platform-integrations";
 import { DeploymentOutputs, type DeploymentContext } from "@tryopenbot/runtime-provider";
 import type { AgentServiceProvider } from "../index.js";
-import { ExeDevRuntimeServiceProvider, type ExeDevCommandRunner } from "./exe-dev.js";
+import {
+  ExeDevRuntimeServiceProvider,
+  sanitizeRemoteConfigurationEnvironment,
+  type ExeDevCommandRunner,
+} from "./exe-dev.js";
 
 function context(devMode = false): DeploymentContext {
   return {
@@ -22,6 +26,14 @@ function context(devMode = false): DeploymentContext {
 }
 
 describe("ExeDevRuntimeServiceProvider", () => {
+  it("removes Code Storage values from copied fork configuration", () => {
+    expect(
+      sanitizeRemoteConfigurationEnvironment(
+        'PUBLIC_ORIGIN="https://dispatch.example"\nCODE_STORAGE_REPOSITORY="dispatch"\nexport CODE_STORAGE_REPOSITORY_TOKEN="secret"\n',
+      ),
+    ).toBe('PUBLIC_ORIGIN="https://dispatch.example"\n');
+  });
+
   it("implements both consolidated service provider contracts", () => {
     const provider = new ExeDevRuntimeServiceProvider();
     expectTypeOf(provider).toMatchTypeOf<AgentServiceProvider>();
