@@ -133,6 +133,7 @@ export default chatKitEndpoint({
           }
         },
         onError: async ({ error }) => {
+          console.error("[memory-catcher] inference stream failed", safeInferenceError(error));
           try {
             await synthesisRun.fail(error);
           } finally {
@@ -161,4 +162,9 @@ export default chatKitEndpoint({
 function positiveIntegerEnv(name: string, fallback: number): number {
   const value = Number(process.env[name] ?? fallback);
   return Number.isSafeInteger(value) && value > 0 ? value : fallback;
+}
+
+function safeInferenceError(error: unknown): { name: string; message?: string } {
+  if (!(error instanceof Error)) return { name: typeof error };
+  return { name: error.name, message: error.message.slice(0, 500) };
 }
