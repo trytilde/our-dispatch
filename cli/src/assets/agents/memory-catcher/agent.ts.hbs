@@ -77,9 +77,10 @@ export default chatKitEndpoint({
         }
         throw error;
       }
-      const history = await context.session.history();
       const messages = await convertToAiSdkMessages({
-        messages: [...history.items, ...context.messages],
+        // A synthesis lease is one isolated batch. Prior retries contain stale
+        // lease owners and must never influence the current mutation binding.
+        messages: context.messages,
         chatkit: context.chatkit,
       });
       const closeMcp = () => void mcp.closeMcp();
