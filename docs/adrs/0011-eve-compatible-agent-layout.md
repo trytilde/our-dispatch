@@ -16,6 +16,7 @@
 - Agent runtime code imports SDKs directly and never imports provider packages.
 - Fork-owned `configuration/templates/agent/` defines future agent scaffolds.
 - Default agent tool loop stops at 50 steps. No unbounded model/tool cycle.
+- Default agents own context compaction through a bounded `prepareStep` loop; see ADR-0033.
 
 ## Context
 

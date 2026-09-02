@@ -1,4 +1,11 @@
-import type { JsonObject, JsonValue, SkillsClient } from "@trytilde/sdk";
+import type {
+  ChatKitCompactionCheckpoint,
+  ChatKitCompactionLifecycle,
+  ChatKitAutomaticMemoryProjection,
+  JsonObject,
+  JsonValue,
+  SkillsClient,
+} from "@trytilde/sdk";
 import { isJsonObject } from "@trytilde/sdk/json";
 import {
   type ChatKitContextClient,
@@ -21,6 +28,7 @@ import type { Client } from "./client";
 import type { ToolSet } from "ai";
 import { createMCPClient, type CreateMCPClientOptions, type TildeMCPClientHandle } from "./mcp";
 import { createChatKitSessionTools, type ChatKitToolSession } from "./chatkit-session-tools";
+import { createMemorySynthesisTools } from "./memory-synthesis-tools";
 import {
   type VerifiedWebhookRequest,
   type VerifyWebhookOptions,
@@ -34,6 +42,7 @@ const TILDE_SESSION_ID_HEADER = "x-tilde-session-id";
 const TILDE_USER_ID_HEADER = "x-tilde-user-id";
 const EXTERNAL_USER_ID_HEADER = "x-external-user-id";
 const EXTERNAL_USER_PROVIDER_HEADER = "x-external-user-provider";
+const PERSONAL_TOOL_CAPABILITY_DELIVERY_HEADER = "x-tilde-chatkit-delegated-user-token";
 const TILDE_CHATKIT_AGENT_INSTANCE_ID_HEADER = "x-tilde-agent-instance-id";
 const TILDE_CHATKIT_TARGET_INSTANCE_ID_HEADER = "x-tilde-target-instance-id";
 const TILDE_CHATKIT_TRIGGER_MESSAGE_ID_HEADER = "x-tilde-trigger-message-id";
@@ -47,11 +56,14 @@ export type { ChatKitContextClient, ChatKitConvertedMessage };
 export type ChatKitSessionHistoryOptions = {
   nextPageToken?: string;
   pageSize?: number;
+  fromLastCompaction?: boolean;
+  agentId?: string;
 };
 
 export type ChatKitSessionHistory = {
   items: ChatKitHistoryMessage[];
   nextPageToken?: string;
+  checkpoint?: ChatKitCompactionCheckpoint;
 };
 
 export type ChatKitSessionClient = {
@@ -62,6 +74,16 @@ export type ChatKitSessionClient = {
     options: Omit<CreateMCPClientOptions, "client" | "chatkit">,
   ): Promise<TildeMCPClientHandle>;
   history(options?: ChatKitSessionHistoryOptions): Promise<ChatKitSessionHistory>;
+  reportCompaction(input: {
+    agentId: string;
+    compactionId: string;
+    lifecycle: ChatKitCompactionLifecycle;
+  }): Promise<{ eventId: string }>;
+  memorySynthesisTools(): ToolSet;
+  recallAutomaticMemory(input: {
+    messageId: string;
+    maxTokens?: number;
+  }): Promise<ChatKitAutomaticMemoryProjection>;
 };
 
 export type ChatKitEndpointContext = ChatKitEndpointProviderContext & {
@@ -83,6 +105,12 @@ export type ChatKitEndpointContext = ChatKitEndpointProviderContext & {
   skills: SkillsClient;
   session: ChatKitSessionClient;
   chatkit: ChatKitContextClient;
+  /** Request-scoped MCP connection with the verified speaker capability kept private. */
+  mcp: {
+    connect<TTools extends ToolSet = ToolSet>(
+      options: Omit<CreateMCPClientOptions<TTools>, "client">,
+    ): Promise<TildeMCPClientHandle<TTools>>;
+  };
   $provider?: { id: string; tools: ToolSet };
 };
 
@@ -242,18 +270,55 @@ export function chatKitEndpoint(
     });
 
     const client = options.client;
+    const personalToolCapability = optionalHeader(
+      request.headers,
+      PERSONAL_TOOL_CAPABILITY_DELIVERY_HEADER,
+    );
+    const personalToolClientNonce = crypto.randomUUID();
+    const personalToolProtocolSessionId = crypto.randomUUID();
+    const mcp = {
+      connect<TTools extends ToolSet = ToolSet>(
+        mcpOptions: Omit<CreateMCPClientOptions<TTools>, "client">,
+      ) {
+        return createMCPClient({
+          ...mcpOptions,
+          client,
+          headers: {
+            ...mcpOptions.headers,
+            ...(personalToolCapability
+              ? {
+                  "x-tilde-personal-tool-capability": personalToolCapability,
+                  "x-tilde-personal-tool-client-nonce": personalToolClientNonce,
+                  "x-tilde-personal-tool-protocol-session-id": personalToolProtocolSessionId,
+                }
+              : {}),
+          },
+        });
+      },
+    };
     const sessionTools = toolSession ? createChatKitSessionTools(client, toolSession) : undefined;
     const currentRequestMessageIds = messageIds(body.messages);
     const session: ChatKitSessionClient = {
       id: sessionId.value,
+      memorySynthesisTools() {
+        return createMemorySynthesisTools(client.memory.synthesisSession(sessionId.value));
+      },
+      recallAutomaticMemory(input) {
+        const agentId = body.agent?.id;
+        if (!agentId) throw new TypeError("Automatic memory requires the verified receiving agent");
+        return client.chatkit.recallAutomaticMemory({
+          sessionId: sessionId.value,
+          agentId,
+          ...input,
+        });
+      },
       ...(toolSession && sessionTools
         ? {
             providerId: toolSession.providerId,
             tools: sessionTools,
             createMCPClient: (mcpOptions: Omit<CreateMCPClientOptions, "client" | "chatkit">) =>
-              createMCPClient({
+              mcp.connect({
                 ...mcpOptions,
-                client,
                 chatkit: {
                   sessionId: toolSession.id,
                   boundTools: sessionTools,
@@ -261,7 +326,39 @@ export function chatKitEndpoint(
               }),
           }
         : {}),
+      reportCompaction(input) {
+        return client.chatkit.reportCompactionEvent({
+          sessionId: sessionId.value,
+          ...input,
+        });
+      },
       async history(historyOptions = {}) {
+        if (
+          historyOptions.fromLastCompaction &&
+          (historyOptions.pageSize !== undefined || historyOptions.nextPageToken !== undefined)
+        ) {
+          throw new TypeError("fromLastCompaction requires the unpaginated history helper");
+        }
+        if (historyOptions.fromLastCompaction) {
+          if (!historyOptions.agentId?.trim())
+            throw new TypeError("fromLastCompaction requires agentId");
+          const items: JsonValue[] = [];
+          let checkpoint: ChatKitCompactionCheckpoint | undefined;
+          let nextPageToken: string | undefined;
+          do {
+            const page = await client.chatkit.getCompactedHistory<JsonValue>({
+              sessionId: sessionId.value,
+              agentId: historyOptions.agentId,
+              pageSize: 100,
+              ...(nextPageToken ? { nextPageToken } : {}),
+            });
+            checkpoint ??= page.checkpoint;
+            items.push(...page.items);
+            nextPageToken = page.nextPageToken;
+          } while (nextPageToken);
+          const normalized = normalizeHistoryItems(items, currentRequestMessageIds);
+          return checkpoint ? { checkpoint, items: normalized } : { items: normalized };
+        }
         if (historyOptions.pageSize === undefined && historyOptions.nextPageToken === undefined) {
           const items: JsonValue[] = [];
           let nextPageToken: string | undefined;
@@ -358,9 +455,11 @@ export function chatKitEndpoint(
       options.requestTimeoutMs === undefined
         ? request.signal
         : AbortSignal.any([request.signal, AbortSignal.timeout(options.requestTimeoutMs)]);
+    const forwardedHeaders = new Headers(request.headers);
+    forwardedHeaders.delete(PERSONAL_TOOL_CAPABILITY_DELIVERY_HEADER);
     const forwarded = new Request(request.url, {
       method: request.method,
-      headers: request.headers,
+      headers: forwardedHeaders,
       body: forwardedBody,
       signal,
       duplex: "half",
@@ -387,6 +486,7 @@ export function chatKitEndpoint(
       skills: client.skills,
       session,
       chatkit,
+      mcp,
       ...(toolSession && sessionTools
         ? { $provider: { id: toolSession.providerId, tools: sessionTools } }
         : {}),

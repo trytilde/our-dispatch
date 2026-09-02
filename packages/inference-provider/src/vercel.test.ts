@@ -1,6 +1,6 @@
 import { VercelPlatform } from "@tryopenbot/platform-integrations";
 import { describe, expect, it, vi } from "vite-plus/test";
-import { VercelInferenceProvider } from "./vercel.js";
+import { HOSTED_INFERENCE_BILLING, VercelInferenceProvider } from "./vercel.js";
 
 describe("VercelInferenceProvider", () => {
   it("provisions and persists the canonical AI Gateway secret", async () => {
@@ -70,6 +70,34 @@ describe("VercelInferenceProvider", () => {
       "AI_MODEL",
       expect.anything(),
       expect.anything(),
+    );
+  });
+
+  it("enables credit metering only for managed project OIDC", async () => {
+    const managedSetEnvironment = vi.fn(async () => undefined);
+    await new VercelInferenceProvider(new VercelPlatform({ managed: true })).initialize({
+      repositoryRoot: "/repository",
+      environment: {},
+      setEnvironment: managedSetEnvironment,
+      setSecret: vi.fn(async () => undefined),
+    });
+    expect(managedSetEnvironment).toHaveBeenCalledWith(
+      HOSTED_INFERENCE_BILLING,
+      "1",
+      expect.any(String),
+    );
+
+    const directSetEnvironment = vi.fn(async () => undefined);
+    await new VercelInferenceProvider(new VercelPlatform({ request: vi.fn() })).initialize({
+      repositoryRoot: "/repository",
+      environment: { AI_GATEWAY_API_KEY: "owner-key" },
+      setEnvironment: directSetEnvironment,
+      setSecret: vi.fn(async () => undefined),
+    });
+    expect(directSetEnvironment).toHaveBeenCalledWith(
+      HOSTED_INFERENCE_BILLING,
+      "0",
+      expect.any(String),
     );
   });
 });

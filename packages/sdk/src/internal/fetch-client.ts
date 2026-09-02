@@ -37,8 +37,8 @@ export async function requestJson<T>(
     throw await errorFromResponse(response);
   }
 
-  if (response.status === 204) {
-    return undefined as T;
-  }
-  return (await response.json()) as T;
+  if (response.status === 204) return undefined as T;
+  const body = await response.text();
+  if (!body) return undefined as T;
+  return JSON.parse(body) as T;
 }

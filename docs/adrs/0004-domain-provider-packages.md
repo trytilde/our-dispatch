@@ -65,6 +65,16 @@ flowchart LR
 
 ## Updates
 
+- 2026-09-02T12:45:00+02:00: Kept hosted-inference metering outside the
+  inference provider. Provider initialization only classifies managed project
+  OIDC versus direct-key/subscription inference; the authored agent composes
+  the public SDK billing controller with its durable AgentRun effect ledger.
+  Every Gateway call reserves because BYOK may fall back to charged system
+  credentials and fallback cannot be disabled. The authoritative generation
+  receipt releases BYOK reservations; zero-credit organizations cannot start a
+  Gateway call. A planned, uncertain, or reconciled inference effect without a
+  recoverable model response terminally fails its AgentRun; automatic replay is
+  forbidden and a later owner request starts a new run.
 - 2026-08-29T14:55:00Z: Made the Agent Provider omit memory from new bundle
   requests. Tilde memory banks are paid, opt-in resources; agent creation must
   not enroll or fail on them implicitly. Bundle omission preserves an existing

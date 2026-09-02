@@ -19,6 +19,23 @@ git check-ignore -v .env.local .data .vercel .openbot-deploy
 
 Never stage credentials, setup codes, browser profiles, local databases, Vercel metadata, decrypted deployment files, or test artifacts.
 
+## Metadata Semantics Guard
+
+Inspect every changed metadata read and write:
+
+```bash
+base="$(git merge-base HEAD origin/main)"
+git diff "$base"..HEAD -- '*.ts' '*.tsx' '*.hbs' '*.json' | \
+  rg -n 'metadata|providerMetadata|provider_metadata|Record<string, unknown>|\.pointer\(' || true
+```
+
+Metadata is allowed only for provider-specific facts that cannot be normalized
+and opaque client extensions that core code never reads. Fail the handoff when
+agent templates, SDKs, control routes, client runtime, UI, or provider
+composition use metadata for internal authorization, identity, routing,
+lifecycle, retries, relationships, models, budgets, runs, jobs, compaction, or
+memory semantics. Require a typed Tilde/OpenBot contract instead.
+
 ## Required Gates
 
 For non-trivial code changes:
@@ -77,6 +94,8 @@ OpenBot uses Changesets with one fixed group for every workspace package. Follow
 - E2E or desktop packaging was run when relevant, or the handoff names what was not run.
 - Generated contracts match protobuf sources.
 - Diff contains no secrets, local state, generated noise, or unrelated edits.
+- Changed metadata is provider-specific or client-opaque and has no internal
+  OpenBot/Tilde semantics.
 - A valid changeset is present when release impact requires one, or the handoff explains why none is needed.
 - Changed provider contract interfaces are defined in `src/core.ts` or `src/core/index.ts`, re-exported by the package root, and reflected in the package README's `Public API` section.
 - New or changed major UX surfaces and state interactions consume `packages/client-runtime` contracts. `apps/web` and `apps/desktop` added no local wire types, fetch/SSE parsing, or duplicate snapshots; only presentation-only state is component-local.

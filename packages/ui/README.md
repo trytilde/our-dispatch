@@ -18,6 +18,8 @@ The package root exports the complete workspace surface:
 - Connectors: `ConnectorAccountGrid`, `ConnectorSetupDialog`,
   `connectorSelectionViewFromPart`, and `isConnectorSelectionPart` render the
   agent's in-chat connector account picker and schema-driven credential setup.
+- Capability changes: `CapabilityApprovalCard` renders the server-authored cost, security, and
+  rollback preview with exact Yes/No actions inside the active conversation.
 - Plugins and routines: `PluginsCatalog` renders provider-backed tool and skill assignments;
   `RoutineProvidersSettings` manages user-facing trigger-provider connections; and
   `RoutineSettings` renders searchable, filterable routine management with edit, status, and
@@ -27,8 +29,8 @@ The package root exports the complete workspace surface:
   `ConnectionCard`, `FileCard`, `FileViewer`, `MediaViewer`, `AudioPlayer`,
   `LinkPreviewCard`, `LinkHoverPreview`, `DiagramCard`, `CodeBlock`,
   `DiffBlock`, `CitationLink`, and `InlinePath`.
-- Agent activity: `AgentActivity`, `ActivityQueue`, `ActivityTimeline`,
-  `AsyncTasksPanel`, and `ConversationOutlinePanel`.
+- Agent activity: `AgentActivity`, `ActivityQueue`, `ActivityTimeline`, and
+  `WorkOverview` for durable goals, tasks, and background-agent controls.
 - Computer: `AgentWorkspacePanel`, `ComputerStagePlaceholder`,
   `ComputerMonitorStrip`, `ComputerReconnectBanner`, `ComputerRebuildBanner`,
   `ComputerRebuildDialog`, `ComputerFailureDialog`, and the remaining Computer

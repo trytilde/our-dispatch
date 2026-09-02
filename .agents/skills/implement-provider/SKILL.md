@@ -15,6 +15,14 @@ Keep provider-specific behavior behind its domain core contract and keep composi
 4. Implement only the initialization or lifecycle capabilities the provider supports. Every hook must be idempotent: repeated calls reconcile stable resources and never create duplicates. Keep vendor-specific get/create/update/delete sequences and configuration persistence inside the adapter; CLI code only schedules hooks. An inference provider may provision accounts or credentials, but providers must not supply model factories, prompts, AI SDK tools, or arbitrary vendor functions to authored agents. Code under `configuration/agent/`, including `subagents/`, must integrate its SDKs directly and must not import provider packages. Put shared non-provider runtime utilities in a purpose-specific package.
 5. Add focused contract and artifact tests, then run the provider package checks before broader repository gates.
 
+Provider metadata is limited to vendor-specific facts that cannot be
+normalized into the provider's core contract, and only the concrete adapter
+may interpret it. IDs, lifecycle relationships, routing, deployment state,
+models, budgets, credentials, and fields shared across providers belong in
+typed provider/platform contracts. Do not use metadata to avoid changing
+`src/core.ts`, generated Tilde contracts, configuration, or deployment output
+types.
+
 ## Provider layout
 
 - Define every domain provider contract interface, such as `AgentProvider`, `ComputerProvider`, `SkillProvider`, or `ToolProvider`, in `src/core.ts`. When the contract needs supporting core modules, use `src/core/index.ts` as its entrypoint instead.
@@ -67,3 +75,5 @@ Keep provider-specific behavior behind its domain core contract and keep composi
 ## Verification
 
 Run the focused platform and provider tests and typechecks. Audit the diff for duplicated Tilde/Vercel helpers, cross-domain provider utility imports, provider contract interfaces outside `src/core.ts` or `src/core/index.ts`, embedded whole-file templates, non-Handlebars generation, raw provider-asset copies, stale flat-provider imports, secrets, and unrelated generated output. Run `pnpm check` and `pnpm build` when the change affects deployment artifacts or shared contracts.
+Also audit metadata: every metadata key must be provider-specific, name its sole
+adapter owner, and remain invisible to core OpenBot behavior and renderers.

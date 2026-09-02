@@ -5,6 +5,7 @@ import {
   type ToolChipRow,
 } from "./beautiful-ui/blocks/tool-chips-block.js";
 import { isConnectorSelectionPart } from "./connector-components.js";
+import { capabilityChangeApprovalFromPart } from "@tryopenbot/client-runtime";
 import { stringify, type MessagePart } from "./rich-message-components.js";
 
 /* Assistant output is split into standalone blocks: text stays in chat
@@ -28,7 +29,12 @@ export function splitMessageSegments(parts: readonly MessagePart[]): MessageSegm
       if (!text.trim()) continue;
       const followedByTool = parts
         .slice(index + 1)
-        .some((candidate) => isToolPart(candidate) && !isConnectorSelectionPart(candidate));
+        .some(
+          (candidate) =>
+            isToolPart(candidate) &&
+            !isConnectorSelectionPart(candidate) &&
+            !capabilityChangeApprovalFromPart(candidate),
+        );
       if (followedByTool) {
         const activityPart = { ...part, type: "reasoning" };
         if (previous?.kind === "run") previous.parts.push(activityPart);
@@ -41,7 +47,7 @@ export function splitMessageSegments(parts: readonly MessagePart[]): MessageSegm
     }
     // A completed connector-selection tool call renders as its own
     // interactive card row, never as a collapsed tool chip.
-    if (isConnectorSelectionPart(part)) {
+    if (isConnectorSelectionPart(part) || capabilityChangeApprovalFromPart(part)) {
       segments.push({ kind: "other", part });
       continue;
     }

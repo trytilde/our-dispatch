@@ -27,6 +27,14 @@ describe("TildeAgentProvider", () => {
     expect(new TildeAgentProvider(config).platforms.map(({ id }) => id)).toEqual(["tilde"]);
   });
 
+  it("rejects an unknown automatic-memory mode before provisioning", async () => {
+    const context = await agentContext("scout");
+    context.environment.OPENBOT_AUTOMATIC_MEMORY_MODE = "surprise";
+    await expect(new TildeAgentProvider(config).deployable.deploy(context)).rejects.toThrow(
+      "OPENBOT_AUTOMATIC_MEMORY_MODE must be none, personal, personal_plus_agent, or team",
+    );
+  });
+
   it("provisions a resource-constrained agent with only a fixed MCP server", async () => {
     const skills = vi.spyOn(TildeSkillReconciler.prototype, "bundleSkills").mockResolvedValue({
       custom: [
@@ -43,6 +51,9 @@ describe("TildeAgentProvider", () => {
       .spyOn(TildeToolReconciler.prototype, "deployExternalResources")
       .mockResolvedValue();
     const context = await agentContext("scout");
+    context.environment.OPENBOT_PERSONAL_TOOL_FEDERATION_MODE = "all";
+    context.environment.OPENBOT_AUTOMATIC_MEMORY_MODE = "team";
+    context.environment.AGENT_SCOUT_AUTOMATIC_MEMORY_MODE = "personal_plus_agent";
     const persistedSecrets: string[] = [];
     context.persistence = {
       setEnvironment: async () => undefined,
@@ -63,18 +74,31 @@ describe("TildeAgentProvider", () => {
         requests.push(request.clone());
         const path = new URL(request.url).pathname;
         if (request.method === "PUT" && path.endsWith("/agents/scout/provision")) {
-          const body = (await request.json()) as { memory?: unknown };
+          const body = (await request.json()) as { memory?: { wiki?: unknown } };
           expect(body).toMatchObject({
-            agent: { credential_strategy: "rotate", endpoint: { concurrency_policy: "queue" } },
+            agent: {
+              automatic_memory_mode: "personal_plus_agent",
+              credential_strategy: "rotate",
+              endpoint: { concurrency_policy: "queue" },
+            },
             mcp_server: {
               enabled: true,
               id: "openbot-scout",
               dynamic_tool_discovery: false,
               enable_tilde_control_plane: false,
+              user_tool_federation_mode: "all",
+              user_tool_federation_selections: [],
             },
             skill_registry: { enabled: false },
+            memory: {
+              bank: {
+                enabled: true,
+                name: "OpenBot scout memory",
+                synthesizer_agent_id: "memory-catcher",
+              },
+            },
           });
-          expect(body.memory).toBeUndefined();
+          expect(body.memory?.wiki).toBeUndefined();
           return Response.json(operation("queued", false));
         }
         if (request.method === "GET" && path.endsWith("/agents/scout/provision")) {
@@ -227,11 +251,13 @@ describe("TildeAgentProvider", () => {
         const request = input instanceof Request ? input : new Request(input, init);
         const path = new URL(request.url).pathname;
         if (request.method === "PUT" && path.endsWith("/agents/scout/provision")) {
-          expect(await request.json()).toMatchObject({
-            agent: { credential_strategy: "preserve" },
+          const body = (await request.json()) as { memory?: unknown };
+          expect(body).toMatchObject({
+            agent: { automatic_memory_mode: "none", credential_strategy: "preserve" },
             mcp_server: { id: "legacy-mcp", enable_tilde_control_plane: true },
             skill_registry: { id: "11111111-1111-4111-8111-111111111111" },
           });
+          expect(body.memory).toEqual({ bank: { enabled: false } });
           return Response.json(operation("active", false, "legacy-mcp"));
         }
         if (request.method === "PUT" && path.endsWith("/agents/scout/avatar")) {

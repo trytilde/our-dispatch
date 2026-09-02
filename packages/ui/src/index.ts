@@ -213,6 +213,10 @@ export {
   type ConnectorSelectionView,
 } from "./connector-components.js";
 export {
+  CapabilityApprovalCard,
+  type CapabilityApprovalCardProps,
+} from "./capability-approval-components.js";
+export {
   ConnectionCard,
   type ConnectionView,
   FileCard,
@@ -362,6 +366,13 @@ export {
 } from "./onboarding.js";
 export { clockLabel, relativeRunTime } from "./relative-time.js";
 export { AgentDetailsPane, type AgentDetailsPaneProps } from "./agent-details-pane.js";
+export {
+  WorkOverview,
+  type BackgroundJobView,
+  type WorkGoalView,
+  type WorkOverviewProps,
+  type WorkTaskView,
+} from "./work-overview.js";
 export { RoutinesSection, type RoutinesSectionProps } from "./routines-section.js";
 export {
   editableTriggersFrom,

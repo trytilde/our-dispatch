@@ -49,6 +49,7 @@ import { materializeFileTemplate, renderFileTemplatePath } from "@tryopenbot/uti
 import {
   agentTemplateDirectory,
   scaffoldAgentTemplates,
+  scaffoldMemoryCatcherAgent,
   scaffoldPrimaryAgent,
 } from "./agent-scaffold.js";
 import { loadConfigurationModule } from "./configuration-loader.js";
@@ -434,6 +435,7 @@ export async function initializeOpenBot(options: InitializationOptions): Promise
   );
   await scaffoldAgentTemplates(options.repositoryRoot, inferenceTemplateFiles(selectedProviders));
   await scaffoldPrimaryAgent(options.repositoryRoot, "Factory", { existing: "preserve" });
+  await scaffoldMemoryCatcherAgent(options.repositoryRoot, { existing: "preserve" });
   await rm(configurationIgnorePath, { force: true });
   await runner.run("vp", ["install"], { cwd: options.repositoryRoot });
 }
@@ -591,6 +593,7 @@ async function reconfigureOpenBot(
     configurationAssets.tsconfig,
   );
   await scaffoldPrimaryAgent(options.repositoryRoot, "Factory", { existing: "preserve" });
+  await scaffoldMemoryCatcherAgent(options.repositoryRoot, { existing: "preserve" });
   await runner.run("vp", ["install"], { cwd: options.repositoryRoot });
 }
 

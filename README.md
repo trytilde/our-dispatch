@@ -68,6 +68,29 @@ Init offers Vercel AI Gateway or a ChatGPT subscription through Codex for local 
 
 The selected inference provider seeds its SDK-specific `inference.ts.hbs` into the fork-owned default agent template. When init changes inference providers, it migrates the future template and existing agents only when each affected file still exactly matches the previous provider scaffold; fork-owned edits stop the switch with an explicit migration error. Generated agents keep the same AI SDK call shape and import vendor SDKs directly. Codex app-server receives the ordinary OpenBot AI SDK tool set through the provider package's local MCP bridge. Sampling controls and strict structured-output behavior remain subject to the community provider's documented limitations.
 
+Tilde-managed Vercel project OIDC enables hosted inference billing. The agent
+reserves organization AI credits before each Gateway call, persists the
+generation identity through the current AgentRun effect ledger, and settles the
+authoritative Gateway receipt before recording run cost. Direct owner Gateway
+keys, Gateway BYOK generations, and Codex subscription inference are excluded.
+Every Gateway call reserves first because Vercel BYOK can fall back to charged
+system credentials and fallback cannot be disabled. An authoritative BYOK
+receipt releases the reservation, but an organization with zero Tilde credits
+cannot start a Gateway call even when BYOK is configured.
+
+Gateway receipts supply authoritative hosted cost, so hosted jobs do not need
+manual price-rate configuration. Non-hosted jobs declaring
+`max_cost_microusd` still require
+`OPENBOT_MODEL_INPUT_COST_MICROUSD_PER_MILLION` and
+`OPENBOT_MODEL_OUTPUT_COST_MICROUSD_PER_MILLION`. AgentRun budgets are checked
+after each model call and can overshoot by that final call; reservation preflight
+still prevents spending beyond the organization's available Tilde credits.
+
+If a durable inference effect is planned, uncertain, or recovered after its
+response is lost, OpenBot never repeats that provider call automatically. It
+marks the current AgentRun failed after exact billing reconciliation; a later
+owner request creates a new run explicitly.
+
 Root `.env`, `.env.local`, and root SOPS files are intentionally unsupported. Fork configuration comes only from `configuration/.env` and `configuration/secrets.enc.yaml`; contributor machines and CI supply repository-maintenance values through their process environment, so contributor configuration cannot silently propagate into forks.
 
 `openbot dev` checks every runtime provider, starts the shared Computer through Microsandbox, and reconciles Tilde resources for every authored agent before starting the watched control/agent server. Vercel service providers perform no remote development deployment, and a configured Vercel Sandbox provider delegates development to Microsandbox. Computer image inputs are watched; changes rebuild the image and replace the local sandbox while preserving its `/workspace` volume. Tilde creates or updates each local-running Vercel AI SDK endpoint, synchronizes authored skills and an exact registry, creates one MCP server, and enables the Tilde control-plane toolkit per standard agent. A `computer-use-only` specialist instead retains a fixed non-dynamic MCP server, reconciles away non-system mappings, and passes only its process-local CUA tools to the model; Tilde's invariant human-handoff helper remains on the server but is filtered out. It has no skill, discovered remote-tool, or control-plane model surface. A Vercel service deployment also enables its proxied MCP connection where policy allows it. Their IDs are maintained as `AGENT_<ID>_*` values in `configuration/.env`; one-time endpoint credentials remain encrypted. Each reconciliation first checks stable identity and current fields, creates missing resources, and updates only drift. Run the command under the Tilde tunnel when ChatKit must reach local agent routes.

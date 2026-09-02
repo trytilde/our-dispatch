@@ -20,7 +20,7 @@ export interface WorkspaceSearch {
   connector?: string;
   dialog?: "new-agent";
   /** Opens the agent details pane; `routine` deep-links a routine (`new` = draft). */
-  details?: "routines";
+  details?: "work";
   routine?: string;
 }
 
@@ -30,8 +30,8 @@ function validateWorkspaceSearch(search: Record<string, unknown>): WorkspaceSear
       ? { connector: search.connector }
       : {}),
     ...(search.dialog === "new-agent" ? { dialog: "new-agent" as const } : {}),
-    ...(search.details === "routines" ? { details: "routines" as const } : {}),
-    ...(search.details === "routines" && typeof search.routine === "string" && search.routine
+    ...(search.details === "work" ? { details: "work" as const } : {}),
+    ...(search.details === "work" && typeof search.routine === "string" && search.routine
       ? { routine: search.routine }
       : {}),
   };

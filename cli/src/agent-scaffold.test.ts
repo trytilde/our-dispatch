@@ -10,6 +10,7 @@ import {
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { discoverAgents } from "@tryopenbot/agent-service-provider";
 import { setImmediate } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
 import { VercelAgentServiceProvider } from "@tryopenbot/agent-service-provider";
@@ -21,6 +22,7 @@ import {
   agentTemplateDirectory,
   scaffoldAgent,
   scaffoldAgentTemplates,
+  scaffoldMemoryCatcherAgent,
   scaffoldPrimaryAgent,
 } from "./agent-scaffold.js";
 
@@ -57,12 +59,26 @@ describe("agent scaffolding", () => {
     expect(agentSource).toContain("process.env.AGENT_RESEARCH_ASSISTANT_API_KEY!");
     expect(agentSource).not.toContain("requiredEnv");
     expect(agentSource).not.toContain("runtime-providers");
+    expect(agentSource).toContain("context.mcp.connect");
+    expect(agentSource).not.toContain("createMCPClient({");
     expect(agentSource).not.toContain("@tryopenbot/agent-provider");
     expect(agentSource).not.toContain("@tryopenbot/tools-provider");
     expect(agentSource).toContain("AGENT_RESEARCH_ASSISTANT_MCP_SERVER_ID");
     expect(agentSource).toContain("tools: await localTools(sessionId)");
     expect(agentSource).toContain("createCuaTools");
     expect(agentSource).toContain("existingToolNames: Object.keys(standardTools)");
+    expect(agentSource).toContain(
+      'import createProposeSelfExtensionTool from "./tools/propose_self_extension.js"',
+    );
+    expect(agentSource).toContain(
+      "propose_self_extension: createProposeSelfExtensionTool({ client, sessionId })",
+    );
+    const proposalToolSource = await readFile(
+      join(directory, "tools/propose_self_extension.ts"),
+      "utf8",
+    );
+    expect(proposalToolSource).toContain('requestingAgentId: "research-assistant"');
+    expect(proposalToolSource).toContain("options.client.selfExtension.propose");
     expect(agentSource).toContain("createTildeAttachmentMessageHandlers(client, context)");
     expect(agentSource).toContain("createTildeMediaUploader");
     expect(agentSource).toContain("createTildeMediaDownloader");
@@ -71,20 +87,46 @@ describe("agent scaffolding", () => {
     expect(agentSource).not.toContain("function addTools");
     expect(agentSource).not.toContain("searchSkillRegistry");
     expect(agentSource).not.toContain("TILDE_BASE_URL");
-    expect(agentSource).toContain("prepareInference(tools, request.signal)");
+    expect(agentSource).toContain("prepareInference(tools, request.signal, jobModelId)");
+    expect(agentSource).toContain("HostedInferenceBillingController");
+    expect(agentSource).toContain("OPENBOT_HOSTED_INFERENCE_BILLING");
+    expect(agentSource).toContain("onLanguageModelCallStart");
+    expect(agentSource).toContain("onLanguageModelCallEnd");
+    expect(agentSource).toContain("inferenceBilling.preflight");
+    expect(agentSource).toContain("inferenceBilling.fail");
+    expect(agentSource).toContain("effectScope: `continuation:");
+    expect(agentSource).toContain("status: creditsExhausted ? 402 : 503");
+    const costBudgetGate = agentSource.slice(
+      agentSource.indexOf("jobBudget?.max_cost_microusd"),
+      agentSource.indexOf("const history"),
+    );
+    expect(costBudgetGate).toContain("!costMeterAvailable()");
+    expect(costBudgetGate).toContain("!hostedInferenceBillingEnabled");
+    expect(costBudgetGate).toContain("cost_meter_unavailable");
+    const billingPreflight = agentSource.slice(
+      agentSource.indexOf("await inferenceBilling.preflight"),
+      agentSource.indexOf("const streamOptions"),
+    );
+    expect(billingPreflight).toContain('status: creditsExhausted ? "paused" : "failed"');
+    expect(billingPreflight).not.toContain('status: "waiting"');
+    expect(billingPreflight).toContain("run failed safely");
+    expect(agentSource).toContain("agentRun ??= await client.chatkit.runs.create");
+    expect(agentSource).toContain("idempotencyKey: triggerId");
+    expect(agentSource).toContain("!requiresReconciliation");
+    expect(agentSource).toContain("model_failed_before_provider_start");
     expect(agentSource).not.toContain("@ai-sdk/openai");
     expect(agentSource).not.toContain("OPENAI_API_KEY");
     expect(agentSource).not.toContain("openai(");
     expect(agentSource).toContain("instructions,");
     const inferenceSource = await readFile(join(directory, "inference.ts"), "utf8");
-    expect(inferenceSource).toContain('process.env.AI_MODEL ?? "openai/gpt-5.6-sol"');
+    expect(inferenceSource).toContain('modelId ?? process.env.AI_MODEL ?? "openai/gpt-5.6-sol"');
     expect(inferenceSource).toContain('reasoning: "medium"');
     expect(agentSource).not.toContain("Your name is");
     expect(agentSource).not.toContain("lib/identity");
     const instructionsSource = await readFile(join(directory, "instructions.ts"), "utf8");
     expect(instructionsSource).toContain("process.env.AGENT_RESEARCH_ASSISTANT_NAME!");
     expect(instructionsSource).toContain("Your name is ${agentName}.");
-    expect(instructionsSource).toContain("emit user-visible text only");
+    expect(instructionsSource).toContain("acknowledge the request");
     expect(instructionsSource).toContain("Use search_skills");
     expect(instructionsSource).toContain("ordinary direct tools");
     await expect(access(join(directory, "lib/identity.ts"))).rejects.toMatchObject({
@@ -104,6 +146,15 @@ describe("agent scaffolding", () => {
     );
     expect(await readFile(join(directory, "tools/copy_to_computer.ts"), "utf8")).toContain(
       "createCopyToComputerTool",
+    );
+    expect(await readFile(join(directory, "tools/manage_goals.ts"), "utf8")).toContain(
+      'encodeURIComponent("research-assistant")',
+    );
+    expect(await readFile(join(directory, "tools/manage_tasks.ts"), "utf8")).toContain(
+      'encodeURIComponent("research-assistant")',
+    );
+    expect(await readFile(join(directory, "tools/manage_routines.ts"), "utf8")).toContain(
+      'const agentId = "research-assistant"',
     );
     expect(
       await readFile(join(root, "configuration/agent/skills/create-agent/SKILL.md"), "utf8"),
@@ -159,6 +210,50 @@ describe("agent scaffolding", () => {
       ),
     ).toContain("Custom instructions for Custom Agent");
     expect(await readFile(customTemplate, "utf8")).toContain("AGENT_ID_JSON");
+  });
+
+  it("materializes the least-privilege Memory Catcher agent", async () => {
+    const root = await temporaryRepository();
+    await scaffoldAgentTemplates(root);
+    await scaffoldPrimaryAgent(root, "Factory");
+    const catcher = await scaffoldMemoryCatcherAgent(root);
+    const directory = join(root, "configuration/agent/subagents/memory-catcher");
+
+    expect(catcher).toMatchObject({ id: "memory-catcher", name: "Memory Catcher", directory });
+    expect((await readdir(directory)).toSorted()).toEqual([
+      "agent.ts",
+      "inference.ts",
+      "instructions.ts",
+      "instrumentation.ts",
+      "skills",
+      "tools",
+    ]);
+    const catcherSource = await readFile(join(directory, "agent.ts"), "utf8");
+    expect(catcherSource).toContain("prepareInference(tools as ToolSet, request.signal)");
+    expect(catcherSource).toContain("createMemorySynthesisInferenceRun");
+    expect(catcherSource).toContain("OPENBOT_HOSTED_INFERENCE_BILLING");
+    expect(catcherSource).toContain("onLanguageModelCallStart");
+    expect(catcherSource).toContain("failForReconciliation");
+    expect(catcherSource).not.toContain('model: "zai/glm-5.3-flash"');
+    expect(await readFile(join(directory, "instructions.ts"), "utf8")).toContain(
+      "Never, ever invoke sendMessage",
+    );
+    expect(await readFile(join(directory, "skills/memory-synthesis/SKILL.md"), "utf8")).toContain(
+      "OpenViking/OKF",
+    );
+    await expect(access(join(directory, "tools/bash.ts"))).resolves.toBeUndefined();
+    expect(await readFile(join(directory, "inference.ts"), "utf8")).toContain(
+      'modelId ?? process.env.AI_MODEL ?? "openai/gpt-5.6-sol"',
+    );
+    await expect(discoverAgents(root)).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          slug: "memory-catcher",
+          path: join(directory, "agent.ts"),
+          instrumentationPath: join(directory, "instrumentation.ts"),
+        }),
+      ]),
+    );
   });
 
   it("never exposes a partial agent when a late template fails", async () => {
@@ -217,6 +312,13 @@ describe("agent scaffolding", () => {
     expect(inference).toContain("createCodexAppServer");
     expect(inference).toContain('const defaultModel = "gpt-5.6-sol"');
     expect(inference).toContain("createSdkMcpServer");
+    await scaffoldMemoryCatcherAgent(root);
+    const catcherInference = await readFile(
+      join(root, "configuration/agent/subagents/memory-catcher/inference.ts"),
+      "utf8",
+    );
+    expect(catcherInference).toContain("createCodexAppServer");
+    expect(catcherInference).toContain('const defaultModel = "gpt-5.6-sol"');
     await expect(
       new VercelAgentServiceProvider().check({
         devMode: true,

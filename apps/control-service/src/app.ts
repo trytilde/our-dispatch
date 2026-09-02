@@ -10,6 +10,7 @@ import type { ComputerProvider } from "@tryopenbot/computer-service-provider";
 import { registerAgentCreation, type AgentCreationOptions } from "./agent-create.js";
 import { registerTildeChatProxy, type TildeChatProxyOptions } from "./chat-proxy.js";
 import { registerTildeProxy, type TildeProxyOptions } from "./tilde-proxy.js";
+import { registerCapabilityApprovalRoutes } from "./capability-approvals.js";
 import { registerConnectorAuthorizedRoute } from "./connector-authorized.js";
 import { registerComputerPreview } from "./computer-preview.js";
 import { registerOwnerAuth, requireOwner } from "./auth.js";
@@ -39,6 +40,7 @@ export function createApp(options: AppOptions = {}): Hono {
     const middleware = requireOwner(options.authProvider, options);
     app.use("/api/chat/*", middleware);
     app.use("/api/tilde/*", middleware);
+    app.use("/api/capability-approvals/*", middleware);
     app.use("/api/computer/*", middleware);
     app.use("/api/agents", middleware);
     app.use("/api/agents/*", middleware);
@@ -53,6 +55,7 @@ export function createApp(options: AppOptions = {}): Hono {
   registerAgentCreation(app, { environment: options.environment, ...options.agentCreation });
   registerTildeChatProxy(app, options.tildeChatProxy);
   registerTildeProxy(app, options.tildeProxy ?? options.tildeChatProxy);
+  registerCapabilityApprovalRoutes(app, options.tildeProxy ?? options.tildeChatProxy);
   registerConnectorAuthorizedRoute(app);
   if (existsSync(webRoot)) {
     const cacheHeaders = (

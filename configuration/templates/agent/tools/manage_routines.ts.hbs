@@ -1,0 +1,76 @@
+import { tool } from "ai";
+import { z } from "zod";
+
+interface RoutineToolOptions {
+  baseUrl: string;
+  headers: () => Record<string, string>;
+  teamId: string;
+}
+
+export default function createManageRoutinesTool(options: RoutineToolOptions) {
+  const root = `${options.baseUrl}/api/v1/team/${encodeURIComponent(options.teamId)}/chatkit/routines`;
+  const agentId = {{{AGENT_ID_JSON}}};
+  return tool({
+    description:
+      "Manage your durable recurring work. Create, inspect, update, pause, resume, or delete routines. Schedules are minute-granularity cron expressions evaluated in UTC.",
+    inputSchema: z.object({
+      action: z.enum(["create", "list", "get", "update", "pause", "resume", "delete"]),
+      routine_id: z.string().uuid().optional(),
+      title: z.string().min(1).optional(),
+      prompt: z.string().min(1).optional(),
+      schedule: z.string().min(1).optional(),
+      enabled: z.boolean().optional(),
+    }),
+    async execute(input) {
+      if (input.action === "create" && (!input.title || !input.prompt || !input.schedule))
+        throw new Error("manage_routines create requires title, prompt, and schedule");
+      if (["get", "update", "pause", "resume", "delete"].includes(input.action) && !input.routine_id)
+        throw new Error(`manage_routines ${input.action} requires routine_id`);
+
+      const itemUrl = input.routine_id ? `${root}/${encodeURIComponent(input.routine_id)}` : root;
+      const method =
+        input.action === "create"
+          ? "POST"
+          : input.action === "update" || input.action === "pause" || input.action === "resume"
+            ? "PATCH"
+            : input.action === "delete"
+              ? "DELETE"
+              : "GET";
+      const body =
+        input.action === "create"
+          ? {
+              agent_inbox_id: agentId,
+              title: input.title,
+              prompt: input.prompt,
+              schedule: input.schedule,
+              enabled: input.enabled ?? true,
+            }
+          : input.action === "update"
+            ? {
+                title: input.title,
+                prompt: input.prompt,
+                schedule: input.schedule,
+                enabled: input.enabled,
+              }
+            : input.action === "pause"
+              ? { enabled: false }
+              : input.action === "resume"
+                ? { enabled: true }
+                : undefined;
+      const response = await fetch(itemUrl, {
+        method,
+        headers: { ...options.headers(), ...(body ? { "content-type": "application/json" } : {}) },
+        body: body ? JSON.stringify(body) : undefined,
+      });
+      const payload = (await response.json()) as {
+        items?: Array<{ agent_inbox_id?: string; [key: string]: unknown }>;
+        [key: string]: unknown;
+      };
+      if (!response.ok)
+        throw new Error(`Routine operation failed (${response.status}): ${JSON.stringify(payload)}`);
+      if (input.action === "list" && payload && Array.isArray(payload.items))
+        return { ...payload, items: payload.items.filter((routine: { agent_inbox_id?: string }) => routine.agent_inbox_id === agentId) };
+      return payload;
+    },
+  });
+}

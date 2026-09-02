@@ -97,7 +97,7 @@ jobs:
         run: vp install --frozen-lockfile
 
       - name: Build and sign
-        run: pnpm release:desktop -- build --platform ${{ matrix.platform }} --channel ${{ inputs.channel }}
+        run: vp run release:desktop -- build --platform ${{ matrix.platform }} --channel ${{ inputs.channel }}
         env:
           MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
           MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
@@ -114,7 +114,7 @@ jobs:
 
       - name: Publish artifacts
         if: ${{ !inputs.dry_run }}
-        run: pnpm release:desktop -- publish --channel ${{ inputs.channel }} --yes
+        run: vp run release:desktop -- publish --channel ${{ inputs.channel }} --yes
 
       - name: Upload artifacts for inspection
         if: ${{ inputs.dry_run }}
@@ -162,4 +162,4 @@ jobs:
       # Rebuilt from every release entry in the bucket, so a mac-only run leaves the
       # linux entry standing rather than replacing the manifest with one platform.
       - name: Publish version.json
-        run: pnpm release:desktop -- manifest --channel ${{ inputs.channel }} --yes
+        run: vp run release:desktop -- manifest --channel ${{ inputs.channel }} --yes

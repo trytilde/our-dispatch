@@ -53,6 +53,22 @@ import { createTildeRoutineClient, createTildeSignalClient } from "../tilde-sett
 import { createTildePluginsClient } from "../tilde-plugins.js";
 import { QueuedTurnPageSchema, type QueuedTurnPage } from "../contracts/queue.js";
 import {
+  RoomInvitationListSchema,
+  RoomInvitationSchema,
+  RoomRosterSchema,
+  type InviteRoomUserInput,
+  type RoomInvitation,
+  type RoomParticipant,
+} from "../contracts/rooms.js";
+import {
+  BackgroundJobPageSchema,
+  BackgroundJobSchema,
+  WorkGoalPageSchema,
+  WorkTaskPageSchema,
+  type BackgroundJob,
+  type WorkSnapshot,
+} from "../contracts/work.js";
+import {
   ChatSessionPageSchema,
   ChatSessionSchema,
   SidebarResponseSchema,
@@ -115,6 +131,16 @@ export interface OpenBotClient {
   updateSessionReadState(sessionId: string, unread: boolean): Promise<SessionUserState>;
   interruptSession(sessionId: string): Promise<void>;
   getMessages(sessionId: string, nextPageToken?: string | null): Promise<ChatMessagePage>;
+  getRoomRoster(sessionId: string): Promise<RoomParticipant[]>;
+  getRoomInvitations(sessionId: string): Promise<RoomInvitation[]>;
+  inviteRoomUser(sessionId: string, input: InviteRoomUserInput): Promise<RoomInvitation>;
+  decideRoomInvitation(
+    sessionId: string,
+    invitationId: string,
+    decision: "accept" | "decline",
+  ): Promise<RoomInvitation>;
+  revokeRoomInvitation(sessionId: string, invitationId: string): Promise<RoomInvitation>;
+  leaveRoom(sessionId: string, participantInstanceId: string): Promise<void>;
   sendMessage(
     agentId: string,
     sessionId: string,
@@ -136,6 +162,21 @@ export interface OpenBotClient {
   steerQueuedTurn(id: string): Promise<void>;
   deleteQueuedTurn(id: string): Promise<void>;
   reorderQueuedTurn(id: string, queuePosition: number): Promise<void>;
+  getWork(agentId: string, sessionId: string): Promise<WorkSnapshot>;
+  getBackgroundJob(agentId: string, sessionId: string, jobId: string): Promise<BackgroundJob>;
+  steerBackgroundJob(
+    agentId: string,
+    sessionId: string,
+    jobId: string,
+    instruction: string,
+  ): Promise<BackgroundJob>;
+  stopBackgroundJob(agentId: string, sessionId: string, jobId: string): Promise<BackgroundJob>;
+  resumeBackgroundJob(
+    agentId: string,
+    sessionId: string,
+    jobId: string,
+    instruction?: string,
+  ): Promise<BackgroundJob>;
   listRoutines(agentId: string): Promise<Routine[]>;
   createRoutine(input: CreateRoutineInput): Promise<Routine[]>;
   updateRoutine(groupId: string, agentId: string, input: UpdateRoutineInput): Promise<Routine[]>;
@@ -377,6 +418,56 @@ export function createOpenBotClient(options: OpenBotClientOptions = {}): OpenBot
         ChatMessagePageSchema,
       );
     },
+    getRoomRoster: (sessionId) =>
+      json(chatPath(`sessions/${encodeURIComponent(sessionId)}/participants`), RoomRosterSchema),
+    getRoomInvitations: (sessionId) =>
+      json(
+        chatPath(`sessions/${encodeURIComponent(sessionId)}/invitations`),
+        RoomInvitationListSchema,
+      ),
+    inviteRoomUser: (sessionId, input) =>
+      json(
+        chatPath(`sessions/${encodeURIComponent(sessionId)}/invitations`),
+        RoomInvitationSchema,
+        {
+          method: "POST",
+          body: JSON.stringify({
+            invitee_user_id: input.inviteeUserId,
+            role: input.role ?? "member",
+            participant: {
+              participant_type: input.participant.type,
+              inbox_id: input.participant.inboxId,
+              instance_id: input.participant.instanceId,
+              display_name: input.participant.displayName,
+              external_id: input.participant.externalId,
+              default_to_participant_instance_id: input.participant.defaultToParticipantInstanceId,
+            },
+          }),
+        },
+      ),
+    decideRoomInvitation: (sessionId, invitationId, decision) =>
+      json(
+        chatPath(
+          `sessions/${encodeURIComponent(sessionId)}/invitations/${encodeURIComponent(invitationId)}/decision`,
+        ),
+        RoomInvitationSchema,
+        { method: "POST", body: JSON.stringify({ decision }) },
+      ),
+    revokeRoomInvitation: (sessionId, invitationId) =>
+      json(
+        chatPath(
+          `sessions/${encodeURIComponent(sessionId)}/invitations/${encodeURIComponent(invitationId)}`,
+        ),
+        RoomInvitationSchema,
+        { method: "DELETE" },
+      ),
+    leaveRoom: (sessionId, participantInstanceId) =>
+      empty(
+        chatPath(
+          `sessions/${encodeURIComponent(sessionId)}/participants/${encodeURIComponent(participantInstanceId)}`,
+        ),
+        { method: "DELETE" },
+      ),
     sendMessage: (agentId, sessionId, text, attachmentIds = []) =>
       json(
         chatPath(
@@ -470,6 +561,49 @@ export function createOpenBotClient(options: OpenBotClientOptions = {}): OpenBot
         body: JSON.stringify({ queue_position: queuePosition }),
         headers: { "content-type": "application/json" },
       }),
+    async getWork(agentId, sessionId) {
+      const root = `agents/${encodeURIComponent(agentId)}/sessions/${encodeURIComponent(sessionId)}`;
+      const [goals, tasks, jobs] = await Promise.all([
+        json(chatPath(`${root}/goals?page_size=100`), WorkGoalPageSchema),
+        json(chatPath(`${root}/tasks?page_size=100`), WorkTaskPageSchema),
+        json(chatPath(`${root}/jobs?page_size=100`), BackgroundJobPageSchema),
+      ]);
+      return { goals: goals.items, tasks: tasks.items, jobs: jobs.items };
+    },
+    getBackgroundJob: (agentId, sessionId, jobId) =>
+      json(
+        chatPath(
+          `agents/${encodeURIComponent(agentId)}/sessions/${encodeURIComponent(sessionId)}/jobs/${encodeURIComponent(jobId)}`,
+        ),
+        BackgroundJobSchema,
+      ),
+    steerBackgroundJob: (agentId, sessionId, jobId, instruction) =>
+      json(
+        chatPath(
+          `agents/${encodeURIComponent(agentId)}/sessions/${encodeURIComponent(sessionId)}/jobs/${encodeURIComponent(jobId)}/steer`,
+        ),
+        BackgroundJobSchema,
+        {
+          method: "POST",
+          body: JSON.stringify({ instruction, idempotency_key: globalThis.crypto.randomUUID() }),
+        },
+      ),
+    stopBackgroundJob: (agentId, sessionId, jobId) =>
+      json(
+        chatPath(
+          `agents/${encodeURIComponent(agentId)}/sessions/${encodeURIComponent(sessionId)}/jobs/${encodeURIComponent(jobId)}/stop`,
+        ),
+        BackgroundJobSchema,
+        { method: "POST", body: JSON.stringify({ reason: "Stopped by owner" }) },
+      ),
+    resumeBackgroundJob: (agentId, sessionId, jobId, instruction) =>
+      json(
+        chatPath(
+          `agents/${encodeURIComponent(agentId)}/sessions/${encodeURIComponent(sessionId)}/jobs/${encodeURIComponent(jobId)}/resume`,
+        ),
+        BackgroundJobSchema,
+        { method: "POST", body: JSON.stringify({ instruction }) },
+      ),
     ...routines,
     ...signals,
     async createConnectorAccount(input) {

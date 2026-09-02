@@ -1,5 +1,10 @@
 import type { ReactNode } from "react";
 import {
+  capabilityChangeApprovalFromPart,
+  type CapabilityChangeApproval,
+} from "@tryopenbot/client-runtime";
+import { CapabilityApprovalCard } from "./capability-approval-components.js";
+import {
   ConnectorAccountGrid,
   connectorSelectionViewFromPart,
   type ConnectorAccountView,
@@ -42,6 +47,13 @@ export interface MessageContentProps {
   resolveAttachmentUrl: (sessionId: string, attachmentId: string) => Promise<string>;
   rewriteUrl?: (url: string) => string;
   connectorActions?: ConnectorPartActions;
+  capabilityApprovalActions?: {
+    onDecision: (
+      approval: CapabilityChangeApproval,
+      decision: "approve" | "reject",
+    ) => Promise<CapabilityChangeApproval>;
+    loadCurrent: (approval: CapabilityChangeApproval) => Promise<CapabilityChangeApproval>;
+  };
 }
 
 export function MessageContent({
@@ -49,6 +61,7 @@ export function MessageContent({
   resolveAttachmentUrl,
   rewriteUrl = (url) => url,
   connectorActions,
+  capabilityApprovalActions,
 }: MessageContentProps) {
   if (message.type === "ui" && message.parts) {
     const mediaParts = message.parts.filter(
@@ -68,6 +81,7 @@ export function MessageContent({
             resolveAttachmentUrl,
             rewriteUrl,
             connectorActions,
+            capabilityApprovalActions,
           ),
         )}
       </div>
@@ -104,9 +118,28 @@ function renderPart(
   resolveAttachmentUrl: MessageContentProps["resolveAttachmentUrl"],
   rewriteUrl: NonNullable<MessageContentProps["rewriteUrl"]>,
   connectorActions?: ConnectorPartActions,
+  capabilityApprovalActions?: MessageContentProps["capabilityApprovalActions"],
 ): ReactNode {
   const key = `${part.type}-${part.tool_invocation_id ?? part.toolCallId ?? part.attachment_id ?? part.attachmentId ?? index}`;
   const connectorSelection = connectorSelectionViewFromPart(part);
+  const capabilityApproval = capabilityChangeApprovalFromPart(part);
+  if (capabilityApproval)
+    return (
+      <CapabilityApprovalCard
+        approval={capabilityApproval}
+        key={key}
+        loadCurrent={
+          capabilityApprovalActions
+            ? () => capabilityApprovalActions.loadCurrent(capabilityApproval)
+            : undefined
+        }
+        onDecision={
+          capabilityApprovalActions
+            ? (decision) => capabilityApprovalActions.onDecision(capabilityApproval, decision)
+            : undefined
+        }
+      />
+    );
   if (connectorSelection) {
     return (
       <ConnectorAccountGrid

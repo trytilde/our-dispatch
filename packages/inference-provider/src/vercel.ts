@@ -10,6 +10,7 @@ const AI_GATEWAY_API_KEY = "AI_GATEWAY_API_KEY";
 const AI_GATEWAY_KEY_NAME = "VERCEL_AI_GATEWAY_API_KEY_NAME";
 const AI_MODEL = "AI_MODEL";
 const INFERENCE_PROVIDER = "INFERENCE_PROVIDER";
+export const HOSTED_INFERENCE_BILLING = "OPENBOT_HOSTED_INFERENCE_BILLING";
 
 export const VERCEL_INFERENCE_PROVIDER = "vercel-ai-gateway";
 export const DEFAULT_VERCEL_MODEL = "openai/gpt-5.6-sol";
@@ -62,6 +63,11 @@ export class VercelInferenceProvider implements InferenceProvider {
       INFERENCE_PROVIDER,
       VERCEL_INFERENCE_PROVIDER,
       "Inference implementation used by authored agents.",
+    );
+    await context.setEnvironment(
+      HOSTED_INFERENCE_BILLING,
+      this.platform.managed ? "1" : "0",
+      "Meter managed project-OIDC inference against organization AI credits.",
     );
     if (providerChanged || !context.environment[AI_MODEL]?.trim())
       await context.setEnvironment(

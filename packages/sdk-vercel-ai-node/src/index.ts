@@ -1,4 +1,47 @@
 export {
+  type GatewayGenerationReceipt,
+  HostedInferenceBillingController,
+  HostedInferenceCreditsExhaustedError,
+  HostedInferenceReconciliationRequiredError,
+  type HostedInferenceBillingControllerOptions,
+} from "./hosted-inference-billing";
+export {
+  type CreateMemorySynthesisInferenceRunOptions,
+  createMemorySynthesisInferenceRun,
+  didMemorySynthesisFinish,
+  InvalidMemorySynthesisInvocationError,
+  type MemorySynthesisInferenceRun,
+  type MemorySynthesisInvocation,
+  MemorySynthesisRunAlreadyClaimedError,
+  MemorySynthesisRunCompletedError,
+  MemorySynthesisRunTerminalError,
+  parseMemorySynthesisInvocation,
+} from "./memory-synthesis-inference";
+export {
+  type AgentRunControllerOptions,
+  type AgentRunControllerResult,
+  type AgentRunStore,
+  type AgentRunTurnResult,
+  type AgentRunUsage,
+  UncertainAgentRunEffectError,
+  executeRunEffect,
+  reactivateAgentRun,
+  runAgentObjective,
+  runAgentHostOnce,
+} from "./agent-run-controller";
+export {
+  CHATKIT_COMPACTION_PROMPT,
+  CHATKIT_COMPACTION_SUMMARY_PREFIX,
+  type ChatKitCompactionController,
+  type ChatKitCompactionSummarizer,
+  type ChatKitCompactionSummaryResult,
+  type CreateChatKitCompactionControllerOptions,
+  chatKitCompactionCheckpointMessage,
+  composeChatKitCompactionPrepareStep,
+  createChatKitCompactionController,
+  estimateModelMessagesTokens,
+} from "./chatkit-compaction";
+export {
   type ChatKitAttachmentFilePartHandlerOptions,
   createChatKitAttachmentFilePartHandler,
 } from "./chatkit-attachments";
@@ -164,11 +207,16 @@ export {
   chatKitEndpoint,
   TILDE_CHATKIT_RESPONSE_MODE_HEADER,
 } from "./handler";
+export { createMemorySynthesisTools, restrictMemorySynthesisTools } from "./memory-synthesis-tools";
+export {
+  composeChatKitAutomaticMemoryMessages,
+  createChatKitAutomaticMemoryController,
+  type ChatKitAutomaticMemoryController,
+} from "./automatic-memory";
 export { type ChatKitToolSession, createChatKitSessionTools } from "./chatkit-session-tools";
 export {
   type ChatKitConnectionOptions,
   chatkitConnectionHeaders,
-  type ChatKitSessionPermissions,
   type CreateMCPClientOptions,
   createMCPClient,
   type TildeMCPClient,

@@ -1,0 +1,116 @@
+import { randomUUID } from "node:crypto";
+import { tool } from "ai";
+import { z } from "zod";
+
+interface AgentJobsToolOptions {
+  baseUrl: string;
+  headers: () => Record<string, string>;
+  sessionId: string;
+  teamId: string;
+}
+
+const status = z.enum([
+  "queued",
+  "running",
+  "input-required",
+  "paused",
+  "completed",
+  "failed",
+  "stopped",
+]);
+
+export default function createManageAgentJobsTool(options: AgentJobsToolOptions) {
+  const root = `${options.baseUrl}/api/v1/team/${encodeURIComponent(options.teamId)}/chatkit/agents/${encodeURIComponent({{{AGENT_ID_JSON}}})}/sessions/${encodeURIComponent(options.sessionId)}/jobs`;
+  return tool({
+    description:
+      "Run child agents as durable background jobs. Delegate independent work in parallel, inspect it later, steer or stop it, resume interrupted jobs, and collect terminal results. Do not select a model unless the user explicitly requested one.",
+    inputSchema: z.object({
+      action: z.enum(["list_agents", "delegate", "list", "inspect", "steer", "stop", "resume", "collect_result"]),
+      job_id: z.string().uuid().optional(),
+      child_agent_id: z.string().min(1).optional(),
+      objective: z.string().min(1).optional(),
+      instruction: z.string().min(1).optional(),
+      reason: z.string().min(1).optional(),
+      status: status.optional(),
+      model_id: z.string().min(1).optional(),
+      max_duration_seconds: z.number().int().positive().optional(),
+      max_input_tokens: z.number().int().positive().optional(),
+      max_output_tokens: z.number().int().positive().optional(),
+      max_cost_microusd: z.number().int().positive().optional(),
+      idempotency_key: z.string().min(1).optional(),
+    }),
+    async execute(input) {
+      if (input.action === "list_agents") {
+        const response = await fetch(
+          `${options.baseUrl}/api/v1/team/${encodeURIComponent(options.teamId)}/chatkit/agents?page_size=100`,
+          { headers: options.headers() },
+        );
+        const payload = (await response.json()) as {
+          items?: Array<{ id?: string; display_name?: string; description?: string }>;
+          [key: string]: unknown;
+        };
+        if (!response.ok)
+          throw new Error(`Agent discovery failed (${response.status}): ${JSON.stringify(payload)}`);
+        return {
+          ...payload,
+          items: Array.isArray(payload.items)
+            ? payload.items
+                .filter(
+                  (agent): agent is { id: string; display_name?: string; description?: string } =>
+                    typeof agent.id === "string" && agent.id !== {{{AGENT_ID_JSON}}},
+                )
+                .map((agent) => ({
+                  id: agent.id,
+                  display_name: agent.display_name,
+                  description: agent.description,
+                }))
+            : [],
+        };
+      }
+      if (input.action === "delegate" && (!input.child_agent_id || !input.objective))
+        throw new Error("delegate requires child_agent_id and objective");
+      if (["inspect", "steer", "stop", "resume", "collect_result"].includes(input.action) && !input.job_id)
+        throw new Error(`${input.action} requires job_id`);
+      if (input.action === "steer" && !input.instruction)
+        throw new Error("steer requires instruction");
+
+      const suffix = input.job_id ? `/${encodeURIComponent(input.job_id)}` : "";
+      const actionSuffix =
+        input.action === "inspect" || input.action === "list" || input.action === "delegate"
+          ? ""
+          : `/${input.action.replace("_", "-")}`;
+      const method = input.action === "list" || input.action === "inspect" ? "GET" : "POST";
+      const body =
+        input.action === "delegate"
+          ? {
+              child_agent_id: input.child_agent_id,
+              objective: input.objective,
+              idempotency_key: input.idempotency_key ?? randomUUID(),
+              ...(input.model_id === undefined ? {} : { model_id: input.model_id }),
+              budget: {
+                max_duration_seconds: input.max_duration_seconds,
+                max_input_tokens: input.max_input_tokens,
+                max_output_tokens: input.max_output_tokens,
+                max_cost_microusd: input.max_cost_microusd,
+              },
+            }
+          : input.action === "steer"
+            ? { instruction: input.instruction, idempotency_key: input.idempotency_key ?? randomUUID() }
+            : input.action === "stop"
+              ? { reason: input.reason }
+              : input.action === "resume"
+                ? { instruction: input.instruction }
+                : undefined;
+      const query = input.action === "list" && input.status ? `?status=${encodeURIComponent(input.status)}` : "";
+      const response = await fetch(`${root}${suffix}${actionSuffix}${query}`, {
+        method,
+        headers: { ...options.headers(), ...(body ? { "content-type": "application/json" } : {}) },
+        body: body ? JSON.stringify(body) : undefined,
+      });
+      const payload = await response.json();
+      if (!response.ok)
+        throw new Error(`Agent job operation failed (${response.status}): ${JSON.stringify(payload)}`);
+      return payload;
+    },
+  });
+}

@@ -720,6 +720,38 @@ describe("bare OpenBot server", () => {
     expect(upstreamCalls).toBe(0);
   });
 
+  it("allows only the room operations consumed by Client Runtime", async () => {
+    const calls: Array<[string, string]> = [];
+    const chatApp = createApp({
+      tildeChatProxy: {
+        apiKey: "secret-api-key",
+        orgId: "openbot-org",
+        teamId: "openbot-team",
+        baseUrl: "https://tilde.test",
+        fetch: async (input, request) => {
+          const url =
+            typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+          calls.push([request?.method ?? "GET", new URL(url).pathname]);
+          return Response.json({});
+        },
+      },
+    });
+    const routes: Array<[string, string]> = [
+      ["GET", "sessions/session-one/participants"],
+      ["POST", "sessions/session-one/invitations"],
+      ["POST", "sessions/session-one/invitations/invite-one/decision"],
+      ["DELETE", "sessions/session-one/invitations/invite-one"],
+      ["DELETE", "sessions/session-one/participants/human-instance"],
+    ];
+    for (const [method, path] of routes) {
+      const response = await chatApp.request(`https://openbot.test/api/chat/${path}`, { method });
+      expect(response.status).toBe(200);
+    }
+    expect(calls).toEqual(
+      routes.map(([method, path]) => [method, `/api/v1/team/openbot-team/chatkit/${path}`]),
+    );
+  });
+
   it("proxies root ChatKit attachment content only for the configured org and team", async () => {
     const calls: string[] = [];
     const chatApp = createApp({

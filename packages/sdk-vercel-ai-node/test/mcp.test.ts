@@ -98,6 +98,28 @@ describe("createMCPClient", () => {
     });
   });
 
+  it("does not let arbitrary headers override the typed ChatKit session", async () => {
+    const client = createClient({
+      baseUrl: "https://api.example.test",
+      teamId: "team_123",
+      apiKey: "tilde-key",
+    });
+
+    await createMCPClient({
+      client,
+      serverId: "server_1",
+      chatkit: { sessionId: "trusted-session" },
+      headers: {
+        "x-tilde-chatkit-session-id": "overridden-session",
+      },
+    });
+
+    const config = mocks.createVercelMCPClient.mock.calls.at(-1)?.[0] as
+      | { transport: { headers: Record<string, string> } }
+      | undefined;
+    expect(config?.transport.headers["x-tilde-chatkit-session-id"]).toBe("trusted-session");
+  });
+
   it("adds trusted session-bound tools without requiring agent registration", async () => {
     const client = createClient({
       baseUrl: "https://api.example.test",

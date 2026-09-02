@@ -41,7 +41,36 @@ export type TildeToolReconcilerConfig = { platform: TildePlatform } | { client: 
 export const tildeAgentProviderInitialization: ProviderInitialization = {
   id: "tilde-agent-resources",
   label: "Tilde agent resources",
-  questions: [],
+  questions: [
+    {
+      id: "automatic-memory-mode",
+      prompt: "Automatic memory mode",
+      description:
+        "Choose which durable memory banks ordinary bots may recall automatically. The default is off and can be overridden per bot later.",
+      defaultValue: "none",
+      input: "select",
+      required: false,
+      choices: [
+        { value: "none", label: "Off", description: "Do not create or recall automatic memory." },
+        {
+          value: "personal",
+          label: "Personal",
+          description: "Recall only the authenticated owner's personal memory.",
+        },
+        {
+          value: "personal_plus_agent",
+          label: "Personal and bot",
+          description: "Recall personal memory and provision a bot-owned bank.",
+        },
+        {
+          value: "team",
+          label: "Team",
+          description: "Recall authorized team memory without provisioning a bot-owned bank.",
+        },
+      ],
+      destination: { kind: "environment", key: "OPENBOT_AUTOMATIC_MEMORY_MODE" },
+    },
+  ],
 };
 
 const maxConcurrentRequests = 10;
