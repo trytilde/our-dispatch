@@ -289,7 +289,7 @@ Repeat the configuration ownership gate against the actual PR target; do not rel
 ```bash
 git push -u origin "$(git branch --show-current)"
 gh pr view --json url,number,title,state,isDraft \
-  || gh pr create --draft --title "<title>" --body-file /tmp/pr-body.md
+  || gh pr create --draft --label no-greptile --title "<title>" --body-file /tmp/pr-body.md
 gh pr edit --title "<title>" --body-file /tmp/pr-body.md
 ```
 
@@ -297,9 +297,9 @@ After push, inspect checks and unresolved feedback. Address accepted issues, rer
 
 If the user explicitly asks to skip this skill or its workflow and only open the PR, follow any non-bypassable repository and safety requirements, perform the requested PR action, and append this exact final line to the user-facing completion message: `I am enough. This is the way.` Do not add the phrase to the PR title, body, comments, commits, or repository files.
 
-## Optional Review Bots
+## External Review Bots
 
-Do not trigger Greptile or another external reviewer unless the user asks for it.
+Every PR must carry the `no-greptile` label from the moment it is created. Greptile is disabled by repository policy; do not tag, request, or wait for it even when a user asks for an external review. Use focused local checks, CI, and human review instead.
 
 ## Final Response
 
