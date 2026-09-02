@@ -5,7 +5,7 @@ Public forks can use the Vercel clone flow directly. Private installations shoul
 Keep the upstream project as a second remote:
 
 ```bash
-git remote add upstream https://github.com/trytilde/openbot.git
+git remote add upstream https://github.com/trytilde/dispatch.git
 git fetch upstream
 git switch -c update/openbot
 git merge upstream/main

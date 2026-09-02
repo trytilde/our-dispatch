@@ -26,7 +26,7 @@ describe("CodeStorageGitProvider", () => {
   it("uses the setup-only organization key to create a synced repo and persist only its token", async () => {
     const getRemoteURL = vi
       .fn()
-      .mockResolvedValue("https://t:repository-jwt@tilde.code.storage/trytilde/openbot.git");
+      .mockResolvedValue("https://t:repository-jwt@tilde.code.storage/trytilde/dispatch.git");
     const createRepo = vi.fn().mockResolvedValue({ getRemoteURL });
     const setSecret = vi.fn();
     const provider = new CodeStorageGitProvider({
@@ -37,7 +37,7 @@ describe("CodeStorageGitProvider", () => {
       repositoryRoot: "/repo",
       environment: {
         [codeStorageOrganizationEnvironmentName]: "tilde",
-        [codeStorageRepositoryEnvironmentName]: "trytilde/openbot",
+        [codeStorageRepositoryEnvironmentName]: "trytilde/dispatch",
         [codeStorageSetupPrivateKeyTransientName]: "organization-private-key",
         [codeStorageGitHubSyncModeEnvironmentName]: "github-app",
         [codeStorageGitHubOwnerEnvironmentName]: "trytilde",
@@ -50,7 +50,7 @@ describe("CodeStorageGitProvider", () => {
     });
 
     expect(createRepo).toHaveBeenCalledWith({
-      id: "trytilde/openbot",
+      id: "trytilde/dispatch",
       defaultBranch: "main",
       baseRepo: { owner: "trytilde", name: "openbot", defaultBranch: "main" },
     });
@@ -103,7 +103,7 @@ describe("CodeStorageGitProvider", () => {
     });
     const deployment = context({
       [codeStorageOrganizationEnvironmentName]: "tilde",
-      [codeStorageRepositoryEnvironmentName]: "trytilde/openbot",
+      [codeStorageRepositoryEnvironmentName]: "trytilde/dispatch",
       [codeStorageRepositoryTokenSecretName]: "repository-jwt",
     });
 
@@ -113,7 +113,7 @@ describe("CodeStorageGitProvider", () => {
       "remote",
       "set-url",
       "origin",
-      "https://t:repository-jwt@tilde.code.storage/trytilde/openbot.git",
+      "https://t:repository-jwt@tilde.code.storage/trytilde/dispatch.git",
     ]);
     expect(calls).toContainEqual(["push", "--set-upstream", "origin", "main"]);
   });
@@ -121,7 +121,7 @@ describe("CodeStorageGitProvider", () => {
   it("derives a repository path from the existing GitHub origin", async () => {
     const setEnvironment = vi.fn();
     const provider = new CodeStorageGitProvider({
-      runGit: async () => "git@github.com:trytilde/openbot.git\n",
+      runGit: async () => "git@github.com:trytilde/dispatch.git\n",
     });
 
     await provider.initialize({
@@ -132,7 +132,7 @@ describe("CodeStorageGitProvider", () => {
     });
     expect(setEnvironment).toHaveBeenCalledWith(
       codeStorageRepositoryEnvironmentName,
-      "trytilde/openbot",
+      "trytilde/dispatch",
       expect.any(String),
     );
   });

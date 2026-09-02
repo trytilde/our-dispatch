@@ -163,6 +163,10 @@ export {
   type SlackChatKitMessageMetadata,
 } from "./chatkit-provider-metadata";
 export {
+  type ChatKitAgentJobBudget,
+  type ChatKitAgentJobExecutionContext,
+  type ChatKitAgentRunExecutionContext,
+  type ChatKitExecutionContext,
   type ChatKitRequestAgent,
   type ChatKitRequestAgentAvatar,
   type ChatKitRequestApproval,
@@ -183,6 +187,7 @@ export {
   isChatKitRequestMessage,
   parseChatKitRequestAgent,
   parseChatKitRequestBody,
+  parseChatKitExecutionContext,
 } from "./chatkit-request";
 export {
   type ChatKitIdentityKind,

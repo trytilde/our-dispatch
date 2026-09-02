@@ -11,7 +11,7 @@ function context(devMode = false): DeploymentContext {
     repositoryRoot: "/source/openbot",
     environment: {
       CODE_STORAGE_ORGANIZATION: "tilde",
-      CODE_STORAGE_REPOSITORY: "trytilde/openbot",
+      CODE_STORAGE_REPOSITORY: "trytilde/dispatch",
       CODE_STORAGE_REPOSITORY_TOKEN: "repository-only-token",
       TILDE_API_KEY: "tilde-secret",
       TILDE_BEARER_TOKEN: "human-deployment-token",

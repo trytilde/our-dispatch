@@ -45783,6 +45783,43 @@
           }
         }
       },
+      "ChatKitAgentJobExecutionContext": {
+        "type": "object",
+        "description": "One generation of a durable delegated child-agent job.",
+        "required": [
+          "jobId",
+          "generation",
+          "childSessionId"
+        ],
+        "properties": {
+          "budget": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/AgentJobBudget"
+              }
+            ]
+          },
+          "childSessionId": {
+            "$ref": "#/components/schemas/WrappedUuidV4"
+          },
+          "generation": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "jobId": {
+            "$ref": "#/components/schemas/WrappedUuidV4"
+          },
+          "modelId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
       "ChatKitAgentPaginatedResponse": {
         "type": "object",
         "required": [
@@ -45796,6 +45833,32 @@
             }
           },
           "next_page_token": {
+            "type": "string"
+          }
+        }
+      },
+      "ChatKitAgentRunExecutionContext": {
+        "type": "object",
+        "description": "One generation of a provider-neutral durable AgentRun.",
+        "required": [
+          "hidden",
+          "runId",
+          "workerId",
+          "generation"
+        ],
+        "properties": {
+          "generation": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "hidden": {
+            "type": "boolean"
+          },
+          "runId": {
+            "$ref": "#/components/schemas/WrappedUuidV4"
+          },
+          "workerId": {
             "type": "string"
           }
         }
@@ -45818,6 +45881,7 @@
           "concurrency_policy",
           "chat_request",
           "actor",
+          "missing_send_retry_count",
           "created_at",
           "updated_at"
         ],
@@ -45858,6 +45922,11 @@
           },
           "id": {
             "type": "string"
+          },
+          "missing_send_retry_count": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
           },
           "org_id": {
             "type": "string"
@@ -46235,6 +46304,53 @@
           }
         ],
         "description": "Agent-authored lifecycle payload for one context compaction attempt."
+      },
+      "ChatKitExecutionContext": {
+        "oneOf": [
+          {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ChatKitAgentRunExecutionContext"
+              },
+              {
+                "type": "object",
+                "required": [
+                  "kind"
+                ],
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "agent_run"
+                    ]
+                  }
+                }
+              }
+            ]
+          },
+          {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ChatKitAgentJobExecutionContext"
+              },
+              {
+                "type": "object",
+                "required": [
+                  "kind"
+                ],
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "agent_job"
+                    ]
+                  }
+                }
+              }
+            ]
+          }
+        ],
+        "description": "Trusted durable execution context supplied by ChatKit to an HTTP agent.\n\nThis is Tilde-owned control state, not conversation or provider metadata."
       },
       "ChatKitIdentityKind": {
         "type": "string",
@@ -47088,6 +47204,27 @@
           "parts"
         ],
         "properties": {
+          "context": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ChatMessageContext"
+              }
+            ]
+          },
+          "createdAt": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/WrappedChronoDateTime",
+                "description": "Canonical persistence timestamp when this message already exists."
+              }
+            ]
+          },
           "id": {
             "type": "string"
           },
@@ -47122,6 +47259,53 @@
             "$ref": "#/components/schemas/MessageRole"
           }
         }
+      },
+      "ChatMessageContext": {
+        "oneOf": [
+          {
+            "type": "object",
+            "required": [
+              "event_id",
+              "event_type",
+              "type"
+            ],
+            "properties": {
+              "event_id": {
+                "$ref": "#/components/schemas/WrappedUuidV4"
+              },
+              "event_type": {
+                "type": "string"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "participant_lifecycle"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "attempt",
+              "type"
+            ],
+            "properties": {
+              "attempt": {
+                "type": "integer",
+                "format": "int64",
+                "minimum": 0
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "missing_send_retry"
+                ]
+              }
+            }
+          }
+        ],
+        "description": "Server-authored context for a synthetic HTTP-agent message."
       },
       "ChatMessagePart": {
         "oneOf": [
@@ -47380,7 +47564,7 @@
               },
               {
                 "$ref": "#/components/schemas/ChatKitRequestAgent",
-                "description": "Canonical public metadata for the agent receiving this turn."
+                "description": "Canonical public profile for the agent receiving this turn."
               }
             ]
           },
@@ -47388,6 +47572,17 @@
             "type": [
               "string",
               "null"
+            ]
+          },
+          "execution": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ChatKitExecutionContext",
+                "description": "Server-authored durable execution context for this invocation."
+              }
             ]
           },
           "messages": {
@@ -48636,6 +48831,10 @@
           "dek_alias"
         ],
         "properties": {
+          "browser_password_manager_eligible": {
+            "type": "boolean",
+            "description": "Allow Browser form filling to enumerate this credential."
+          },
           "dek_alias": {
             "type": "string"
           },
@@ -50169,6 +50368,10 @@
         "properties": {
           "authorization": {
             "$ref": "#/components/schemas/ResourceAuthorizationModes"
+          },
+          "browser_password_manager_eligible": {
+            "type": "boolean",
+            "description": "Allow Browser form filling to enumerate this credential."
           },
           "dek_alias": {
             "type": "string"
@@ -53272,11 +53475,15 @@
           "id",
           "type",
           "metadata",
+          "browser_password_manager_eligible",
           "encryptedSecretValue",
           "created_at",
           "updated_at"
         ],
         "properties": {
+          "browser_password_manager_eligible": {
+            "type": "boolean"
+          },
           "created_at": {
             "$ref": "#/components/schemas/WrappedChronoDateTime"
           },
@@ -53303,11 +53510,15 @@
           "id",
           "type",
           "metadata",
+          "browser_password_manager_eligible",
           "summaryValue",
           "created_at",
           "updated_at"
         ],
         "properties": {
+          "browser_password_manager_eligible": {
+            "type": "boolean"
+          },
           "created_at": {
             "$ref": "#/components/schemas/WrappedChronoDateTime"
           },
@@ -54475,6 +54686,36 @@
           }
         ],
         "description": "A message in an inbox - can be either a simple text message or a rich UI message"
+      },
+      "MessageActorContext": {
+        "type": "object",
+        "description": "Trusted principal attached by ChatKit when a message enters the canonical log.",
+        "properties": {
+          "external_user_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "external_user_provider": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "external_user_provider_account_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "tilde_user_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
       },
       "MessageFormat": {
         "type": "string",
@@ -58585,6 +58826,13 @@
           "group"
         ]
       },
+      "ResourceServerCredentialPurpose": {
+        "type": "string",
+        "description": "Tilde-owned purpose for a resource-server credential.",
+        "enum": [
+          "organization_ai_gateway"
+        ]
+      },
       "ResourceServerCredentialSerialized": {
         "type": "object",
         "required": [
@@ -58630,6 +58878,17 @@
           "org_id": {
             "type": "string",
             "description": "Tenant scope populated from the Postgres row."
+          },
+          "purpose": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ResourceServerCredentialPurpose",
+                "description": "Internal normalized purpose. This is never inferred from metadata."
+              }
+            ]
           },
           "team_id": {
             "type": "string"
@@ -59933,12 +60192,17 @@
           "org_id",
           "team_id",
           "authorization",
+          "purpose",
+          "correlation",
           "created_at",
           "updated_at"
         ],
         "properties": {
           "authorization": {
             "$ref": "#/components/schemas/ResourceAuthorizationModes"
+          },
+          "correlation": {
+            "$ref": "#/components/schemas/SessionCorrelation"
           },
           "created_at": {
             "$ref": "#/components/schemas/WrappedChronoDateTime"
@@ -59988,6 +60252,9 @@
               }
             ]
           },
+          "purpose": {
+            "$ref": "#/components/schemas/SessionPurpose"
+          },
           "team_id": {
             "type": "string"
           },
@@ -59999,6 +60266,70 @@
           },
           "updated_at": {
             "$ref": "#/components/schemas/WrappedChronoDateTime"
+          }
+        }
+      },
+      "SessionCorrelation": {
+        "type": "object",
+        "description": "Typed server-owned lineage and source correlation for a session.",
+        "properties": {
+          "agent_job_id": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/WrappedUuidV4"
+              }
+            ]
+          },
+          "memory_bank_id": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/WrappedUuidV4"
+              }
+            ]
+          },
+          "parent_agent_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "source_namespace": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "source_session_key": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "source_signal_delivery_id": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/WrappedUuidV4"
+              }
+            ]
+          },
+          "source_signal_trigger_id": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/WrappedUuidV4"
+              }
+            ]
           }
         }
       },
@@ -60065,6 +60396,16 @@
             "$ref": "#/components/schemas/ChatKitParticipantRole"
           }
         }
+      },
+      "SessionPurpose": {
+        "type": "string",
+        "description": "Server-owned lifecycle purpose for a ChatKit session.",
+        "enum": [
+          "conversation",
+          "memory_synthesis",
+          "signal_delivery",
+          "agent_job"
+        ]
       },
       "SessionUserMembership": {
         "type": "object",
@@ -60378,6 +60719,22 @@
           "updated_at"
         ],
         "properties": {
+          "actor": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/MessageActorContext"
+              }
+            ]
+          },
+          "audience_user_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "cached_agent_representation": {
             "oneOf": [
               {
@@ -62442,6 +62799,24 @@
           "updated_at"
         ],
         "properties": {
+          "actor": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/MessageActorContext",
+                "description": "Server-authored principal that originated this message."
+              }
+            ]
+          },
+          "audience_user_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Optional disclosure boundary for a response that used one user's personal tools."
+          },
           "cached_agent_representation": {
             "oneOf": [
               {
@@ -62674,6 +63049,7 @@
           "name",
           "documentation",
           "categories",
+          "input_schema",
           "metadata",
           "created_at",
           "updated_at",
@@ -62683,6 +63059,16 @@
           "tool_group_endpoint_type"
         ],
         "properties": {
+          "annotations": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/WrappedJsonValue"
+              }
+            ]
+          },
           "categories": {
             "type": "array",
             "items": {
@@ -62695,11 +63081,24 @@
           "documentation": {
             "type": "string"
           },
+          "input_schema": {
+            "$ref": "#/components/schemas/WrappedJsonValue"
+          },
           "metadata": {
             "$ref": "#/components/schemas/Metadata"
           },
           "name": {
             "type": "string"
+          },
+          "output_schema": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/WrappedJsonValue"
+              }
+            ]
           },
           "tool_group_categories": {
             "type": "array",
@@ -63087,6 +63486,12 @@
           "credential_sources"
         ],
         "properties": {
+          "catalog_provider_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "categories": {
             "type": "array",
             "items": {
@@ -63256,6 +63661,16 @@
           "categories"
         ],
         "properties": {
+          "annotations": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/WrappedJsonValue"
+              }
+            ]
+          },
           "categories": {
             "type": "array",
             "items": {
@@ -63526,6 +63941,22 @@
           "updated_at"
         ],
         "properties": {
+          "actor": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/MessageActorContext"
+              }
+            ]
+          },
+          "audience_user_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "cached_agent_representation": {
             "oneOf": [
               {
@@ -64087,6 +64518,13 @@
           "dek_alias"
         ],
         "properties": {
+          "browser_password_manager_eligible": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "Allow Browser form filling to enumerate this credential."
+          },
           "dek_alias": {
             "type": "string"
           },
@@ -65049,6 +65487,10 @@
         "properties": {
           "authorization": {
             "$ref": "#/components/schemas/ResourceAuthorizationModes"
+          },
+          "browser_password_manager_eligible": {
+            "type": "boolean",
+            "description": "Whether this credential can be offered to Browser form filling."
           },
           "created_at": {
             "$ref": "#/components/schemas/WrappedChronoDateTime"

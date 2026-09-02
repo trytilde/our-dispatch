@@ -3,7 +3,7 @@
   "changelog": [
     "@changesets/changelog-github",
     {
-      "repo": "trytilde/openbot"
+      "repo": "trytilde/dispatch"
     }
   ],
   "commit": false,

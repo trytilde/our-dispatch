@@ -91,8 +91,10 @@ export type ChatKitEndpointContext = ChatKitEndpointProviderContext & {
   rawBody: Uint8Array;
   body: ChatKitRequestBody;
   messages: ChatKitRequestMessage[];
-  /** Canonical public metadata for the agent receiving this turn. */
+  /** Canonical public profile for the agent receiving this turn. */
   agent?: ChatKitRequestAgent;
+  /** Trusted durable execution state authored by Tilde. */
+  execution?: ChatKitRequestBody["execution"];
   webhookId: string;
   timestamp: number;
   orgId: string;
@@ -470,6 +472,7 @@ export function chatKitEndpoint(
       body: endpointBody,
       messages: endpointBody.messages,
       ...(endpointBody.agent ? { agent: endpointBody.agent } : {}),
+      ...(endpointBody.execution ? { execution: endpointBody.execution } : {}),
       ...chatKitProviderContext(body.messages),
       webhookId: verified.webhookId,
       timestamp: verified.timestamp,

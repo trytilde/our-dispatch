@@ -13,6 +13,6 @@ describe("remoteRepository", () => {
   });
 
   it("names the canonical repository", () => {
-    expect(upstreamRepository).toBe("trytilde/openbot");
+    expect(upstreamRepository).toBe("trytilde/dispatch");
   });
 });

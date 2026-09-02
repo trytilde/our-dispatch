@@ -126,15 +126,9 @@ function assertToolSet(tools: Record<string, unknown>): asserts tools is ToolSet
       throw new TypeError(`MCP tool ${name} is not a Vercel AI SDK tool`);
 }
 
-function queuedRequestCutoff(messages: readonly { metadata?: unknown }[]): string | undefined {
+function queuedRequestCutoff(messages: readonly { createdAt?: string }[]): string | undefined {
   return messages
-    .map((message) => {
-      if (typeof message.metadata !== "object" || message.metadata === null)
-        return undefined;
-      const metadata = message.metadata as Record<string, unknown>;
-      const value = metadata.createdAt ?? metadata.created_at;
-      return typeof value === "string" ? value : undefined;
-    })
+    .map((message) => message.createdAt)
     .filter((value): value is string => Boolean(value))
     .sort()
     .at(-1);
@@ -146,9 +140,10 @@ export default chatKitEndpoint({
   webhookSigningKey: process.env.AGENT_{{AGENT_ENV_PREFIX}}_WEBHOOK_SIGNING_KEY!,
   requestTimeoutMs: 285_000,
   async handler(request, context) {
-    const durableInvocation = parseDurableInvocation(context.messages);
-    const jobModelId = durableInvocation.job?.modelId;
-    const jobBudget = durableInvocation.job?.budget;
+    const jobExecution = context.execution?.kind === "agent_job" ? context.execution : undefined;
+    const runExecution = context.execution?.kind === "agent_run" ? context.execution : undefined;
+    const jobModelId = jobExecution?.modelId;
+    const jobBudget = jobExecution?.budget;
     const trigger = context.messages.at(-1);
     const triggerId = trigger?.id ?? context.webhookId;
     let agentRun = await client.chatkit.runs.getActive({
@@ -178,8 +173,8 @@ export default chatKitEndpoint({
       },
     });
     let currentAgentRun = agentRun;
-    const hiddenRunId = durableInvocation.run?.runId;
-    const hiddenRunWorker = durableInvocation.run?.workerId;
+    const hiddenRunId = runExecution?.runId;
+    const hiddenRunWorker = runExecution?.workerId;
     const runWorkerId = hiddenRunWorker ?? crypto.randomUUID();
     const claimedRuns = hiddenRunWorker
       ? [currentAgentRun]
@@ -300,7 +295,7 @@ export default chatKitEndpoint({
             ]
           : undefined,
       compactedThroughMessageId:
-        durableInvocation.run?.hidden
+        runExecution?.hidden
           ? requestHistory
               .map((message) => message.id)
               .filter((id): id is string => typeof id === "string" && id.length > 0)
@@ -493,52 +488,6 @@ export default chatKitEndpoint({
 function positiveIntegerEnv(name: string, fallback: number): number {
   const parsed = Number.parseInt(process.env[name] ?? "", 10);
   return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : fallback;
-}
-
-type AgentJobBudget = {
-  max_duration_seconds?: number;
-  max_input_tokens?: number;
-  max_output_tokens?: number;
-  max_cost_microusd?: number;
-};
-
-function parseDurableInvocation(messages: readonly { metadata?: unknown }[]): {
-  run?: { hidden: boolean; runId: string; workerId: string; generation?: number };
-  job?: { modelId?: string; budget?: AgentJobBudget };
-} {
-  const metadata = messages
-    .map((message) => message.metadata)
-    .findLast((value): value is Record<string, unknown> =>
-      typeof value === "object" && value !== null,
-    );
-  if (!metadata) return {};
-  const rawRun = metadata.tildeAgentRun;
-  const rawJob = metadata.tildeAgentJob;
-  const run = typeof rawRun === "object" && rawRun !== null ? rawRun as Record<string, unknown> : undefined;
-  const job = typeof rawJob === "object" && rawJob !== null ? rawJob as Record<string, unknown> : undefined;
-  const budget = job && typeof job.budget === "object" && job.budget !== null
-    ? job.budget as AgentJobBudget
-    : undefined;
-  return {
-    ...(run && run.hidden === true && typeof run.runId === "string" && typeof run.workerId === "string"
-      ? {
-          run: {
-            hidden: true,
-            runId: run.runId,
-            workerId: run.workerId,
-            ...(typeof run.generation === "number" ? { generation: run.generation } : {}),
-          },
-        }
-      : {}),
-    ...(job
-      ? {
-          job: {
-            ...(typeof job.modelId === "string" ? { modelId: job.modelId } : {}),
-            ...(budget ? { budget } : {}),
-          },
-        }
-      : {}),
-  };
 }
 
 function estimateCostMicrousd(

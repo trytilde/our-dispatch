@@ -66,14 +66,14 @@ describe("OpenBot repository bootstrap", () => {
       calls.some(
         ([command, args]) =>
           command === "git" &&
-          args.join(" ") === "remote add upstream https://github.com/trytilde/openbot.git",
+          args.join(" ") === "remote add upstream https://github.com/trytilde/dispatch.git",
       ),
     ).toBe(true);
   });
 
   it("creates a public fork in the requested GitHub organization", async () => {
     const destination = await temporaryDirectory();
-    const { prompts, input } = testPrompts(" trytilde/our-openbot ", "public");
+    const { prompts, input } = testPrompts(" trytilde/our-dispatch ", "public");
     const { runner, run } = testRunner(destination);
 
     await bootstrapOpenBotRepository({ destination, prompts, runner });
@@ -89,13 +89,13 @@ describe("OpenBot repository bootstrap", () => {
         ([command, args]) =>
           command === "gh" &&
           args.join(" ") ===
-            "repo fork trytilde/openbot --org trytilde --fork-name our-openbot --clone=false",
+            "repo fork trytilde/dispatch --org trytilde --fork-name our-dispatch --clone=false",
       ),
     ).toBe(true);
     expect(
       run.mock.calls.some(
         ([command, args]) =>
-          command === "gh" && args.join(" ") === "repo clone trytilde/our-openbot .",
+          command === "gh" && args.join(" ") === "repo clone trytilde/our-dispatch .",
       ),
     ).toBe(true);
   });
@@ -185,7 +185,8 @@ function testRunner(destination: string, options: { canonicalPackageName?: strin
     if (command === "git" && args.join(" ") === "rev-parse HEAD")
       return { stdout: `${canonicalHead}\n`, stderr: "" };
     if (command === "git" && args.join(" ") === "remote get-url upstream")
-      if (upstreamAdded) return { stdout: "https://github.com/trytilde/openbot.git\n", stderr: "" };
+      if (upstreamAdded)
+        return { stdout: "https://github.com/trytilde/dispatch.git\n", stderr: "" };
       else throw new Error("upstream is not configured");
     if (command === "git" && args.join(" ").startsWith("remote add upstream")) upstreamAdded = true;
     return { stdout: "", stderr: "" };
