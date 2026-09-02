@@ -26,7 +26,7 @@ const client = createClient({
 
 export default chatKitEndpoint({
   client,
-  responseMode: "tool",
+  responseMode: "agentLoop",
   webhookSigningKey: process.env.AGENT_{{AGENT_ENV_PREFIX}}_WEBHOOK_SIGNING_KEY!,
   requestTimeoutMs: 285_000,
   async handler(request, context) {
