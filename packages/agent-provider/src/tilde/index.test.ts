@@ -43,6 +43,7 @@ describe("TildeAgentProvider", () => {
       .spyOn(TildeToolReconciler.prototype, "deployExternalResources")
       .mockResolvedValue();
     const context = await agentContext("scout");
+    context.environment.OPENBOT_PERSONAL_TOOL_FEDERATION_MODE = "all";
     const persistedSecrets: string[] = [];
     context.persistence = {
       setEnvironment: async () => undefined,
@@ -71,6 +72,8 @@ describe("TildeAgentProvider", () => {
               id: "openbot-scout",
               dynamic_tool_discovery: false,
               enable_tilde_control_plane: false,
+              user_tool_federation_mode: "all",
+              user_tool_federation_selections: [],
             },
             skill_registry: { enabled: false },
           });

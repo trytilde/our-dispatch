@@ -1,9 +1,9 @@
 import { configHeaders } from "@trytilde/sdk";
 import {
+  type ChatKitEndpointContext,
   chatKitEndpoint,
   convertToAiSdkMessages,
   createClient,
-  createMCPClient,
 } from "@trytilde/sdk-vercel-ai-node";
 import {
   createTildeAttachmentMessageHandlers,
@@ -69,9 +69,9 @@ async function localTools(sessionId: string): Promise<ToolSet> {
 
 async function managedMcpTools(
   sessionId: string,
+  context: Pick<ChatKitEndpointContext, "mcp">,
 ): Promise<{ tools: ToolSet; closeMcp: () => Promise<void> }> {
-  const handle = await createMCPClient({
-    client,
+  const handle = await context.mcp.connect({
     agentId: {{{AGENT_ID_JSON}}},
     serverId: mcpServerId,
     chatkit: { sessionId },
@@ -123,7 +123,7 @@ export default chatKitEndpoint({
       onCacheMessage: attachmentHandlers.onCacheMessage,
       onHydrateMessage: attachmentHandlers.onHydrateMessage,
     });
-    const { tools, closeMcp } = await managedMcpTools(context.sessionId);
+    const { tools, closeMcp } = await managedMcpTools(context.sessionId, context);
     const inference = await prepareInference(tools, request.signal);
     const result = streamText({
       ...inference,

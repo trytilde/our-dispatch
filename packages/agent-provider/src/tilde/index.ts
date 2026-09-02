@@ -33,6 +33,7 @@ import {
   AgentProvisioningStatus,
   ChatKitAgentConcurrencyPolicy,
   ResourceAccessMode,
+  UserToolFederationMode,
   createTildeApiClient,
   type TildeApiClient,
   type AgentPermissions,
@@ -214,6 +215,8 @@ export class TildeAgentProvider implements AgentProvider {
                   name: `OpenBot ${slug}`,
                   dynamic_tool_discovery: policy.enableMcpDynamicToolDiscovery ?? true,
                   enable_tilde_control_plane: policy.enableTildeControlPlane ?? true,
+                  user_tool_federation_mode: personalToolFederationMode(context.environment),
+                  user_tool_federation_selections: [],
                 },
           skill_registry:
             policy.enableSkillRegistry === false
@@ -558,6 +561,15 @@ function requireAgent(context: DeploymentContext): { id: string; path: string } 
 
 function endpointValue(endpointUrl: URL): string {
   return endpointUrl.toString();
+}
+
+function personalToolFederationMode(
+  environment: Record<string, string | undefined>,
+): UserToolFederationMode {
+  const value = environment.OPENBOT_PERSONAL_TOOL_FEDERATION_MODE?.trim().toLowerCase();
+  if (value === "all") return UserToolFederationMode.ALL;
+  if (value === "selected") return UserToolFederationMode.SELECTED;
+  return UserToolFederationMode.NONE;
 }
 
 function jsonRecord(value: unknown): JsonRecord | undefined {

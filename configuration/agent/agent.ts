@@ -27,6 +27,7 @@ import copyFromComputer from "./tools/copy_from_computer.js";
 import copyToComputer from "./tools/copy_to_computer.js";
 import glob from "./tools/glob.js";
 import grep from "./tools/grep.js";
+import createProposeSelfExtensionTool from "./tools/propose_self_extension.js";
 import readFile from "./tools/read_file.js";
 import screenshot from "./tools/screenshot.js";
 import writeFile from "./tools/write_file.js";
@@ -56,6 +57,7 @@ function localTools(sessionId: string): ToolSet {
     copy_to_computer: copyToComputer(downloadMedia),
     glob,
     grep,
+    propose_self_extension: createProposeSelfExtensionTool({ client, sessionId }),
     read_file: readFile,
     screenshot: screenshot(uploadMedia),
     write_file: writeFile,

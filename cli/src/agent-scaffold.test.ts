@@ -57,6 +57,8 @@ describe("agent scaffolding", () => {
     expect(agentSource).toContain("process.env.AGENT_RESEARCH_ASSISTANT_API_KEY!");
     expect(agentSource).not.toContain("requiredEnv");
     expect(agentSource).not.toContain("runtime-providers");
+    expect(agentSource).toContain("context.mcp.connect");
+    expect(agentSource).not.toContain("createMCPClient({");
     expect(agentSource).not.toContain("@tryopenbot/agent-provider");
     expect(agentSource).not.toContain("@tryopenbot/tools-provider");
     expect(agentSource).toContain("AGENT_RESEARCH_ASSISTANT_MCP_SERVER_ID");

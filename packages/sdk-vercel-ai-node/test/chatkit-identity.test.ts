@@ -182,12 +182,12 @@ describe("chatkitConnectionHeaders", () => {
     });
   });
 
-  it("serializes requested permissions alongside the session", () => {
-    const headers = chatkitConnectionHeaders({
-      sessionId: "s1",
-      permissions: { delegateToOtherAgents: true },
-    });
-    expect(headers["x-tilde-chatkit-permissions"]).toBe('{"delegateToOtherAgents":true}');
+  it("sends only the session, never a claim about what this agent may do", () => {
+    // Reach is read from the agent's own record server-side. A permission sent
+    // from here would be a claim by whoever holds the credentials, and two
+    // clients connecting as the same agent could then have different reach.
+    const headers = chatkitConnectionHeaders({ sessionId: "s1" });
+    expect(Object.keys(headers)).toEqual(["x-tilde-chatkit-session-id"]);
   });
 
   it("sends nothing when the connection is not session-scoped", () => {

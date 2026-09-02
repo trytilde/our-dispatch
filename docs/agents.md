@@ -10,6 +10,14 @@ The directory remains named `sandbox/` only to follow Eve's project layout where
 
 Authored agents must not import OpenBot provider packages or `configuration/index.ts`. Integrate model, MCP, skill, Composio, and other vendor SDKs directly in `agent.ts`, `tools/`, or `lib/`. When an integration should be standard for new agents, update `configuration/templates/agent/`; edit existing agents explicitly.
 
+Personal tool federation is opt-in. Set
+`OPENBOT_PERSONAL_TOOL_FEDERATION_MODE=all` to let each verified ChatKit
+speaker bring every active personal account to a shared agent, or `selected`
+to enforce the MCP server's provider/tool allowlist. The default is `none`.
+Generated agents use `context.mcp.connect(...)`; Tilde resolves accounts
+and brokers credentials per request, while user IDs and opaque capabilities
+remain outside model arguments and portable agent configuration.
+
 All agents share one OpenBot Computer, filesystem, and process identity. If an agent's authored `sandbox/workspace/**` contains files, deployment seeds them once into `/workspace/<id>`. The computer service uses the fixed agent ID to choose that default directory, but it is not a security boundary: agents can use absolute paths, see sibling directories, and administer the shared machine. Changes to authored seed files do not update an already deployed agent directory.
 
 Run `pnpm openbot new-agent` and enter the display name to scaffold a complete subagent safely; then edit its ordinary source files in the fork. The command loads every `configuration/templates/agent/**/*.hbs` file, preserves its relative path, removes the `.hbs` suffix, and renders strict agent values. Init seeds that fork-owned template when it is missing and uses it for the primary Factory agent; factory-only skills render from `configuration/templates/factory/**/*.hbs` into the primary agent alone. Later init runs preserve template changes, and template edits affect only future agents. This command only changes the authored filesystem before invoking normal idempotent development reconciliation.

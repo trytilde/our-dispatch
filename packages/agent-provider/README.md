@@ -37,3 +37,8 @@ making a paid bank a prerequisite for new-agent creation. OpenBot claims endpoin
 uploads a deterministic canonical avatar to the stable agent profile,
 then retains its ChatKit realtime channel plus credential-bearing
 deployment-platform integrations.
+
+`OPENBOT_PERSONAL_TOOL_FEDERATION_MODE` configures each reconciled MCP server as
+`none` (default), `selected`, or `all`. Tilde still resolves the verified speaker
+and brokers personal credentials per request; OpenBot persists no user identity,
+account selection, or delegated capability in repository configuration.

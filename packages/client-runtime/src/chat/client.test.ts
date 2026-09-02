@@ -483,6 +483,68 @@ describe("OpenBot client", () => {
       ),
     ).toContain("https://openbot.test/api/chat/_upload?url=");
   });
+
+  it("uses one same-origin room contract for roster and invitation decisions", async () => {
+    const calls: Array<{ url: string; method: string; body?: unknown }> = [];
+    const participant = {
+      participant_type: "human",
+      participant_handle: "p123abc",
+      membership_source: "invitation",
+      role: "member",
+      principal_user_id: "user-two",
+      joined_at: "2026-09-01T10:00:00Z",
+      instance: { id: "human-instance" },
+      inbox: { id: "web-channel" },
+    };
+    const invitation = {
+      id: "invite-one",
+      session_id: "session-one",
+      org_id: "org-one",
+      team_id: "team-one",
+      invitee_user_id: "user-two",
+      invited_by_user_id: "user-one",
+      role: "member",
+      participant: {
+        participant_type: "human",
+        inbox_id: "web-channel",
+        display_name: "User two",
+      },
+      status: "pending",
+      created_at: "2026-09-01T10:00:00Z",
+      updated_at: "2026-09-01T10:00:00Z",
+    };
+    const client = createOpenBotClient({
+      fetch: async (input, init) => {
+        const url = requestUrl(input);
+        calls.push({
+          url,
+          method: init?.method ?? "GET",
+          ...(typeof init?.body === "string" ? { body: JSON.parse(init.body) } : {}),
+        });
+        if (url.endsWith("/participants")) return Response.json([participant]);
+        return Response.json(invitation);
+      },
+    });
+
+    await expect(client.getRoomRoster("session-one")).resolves.toHaveLength(1);
+    await client.inviteRoomUser("session-one", {
+      inviteeUserId: "user-two",
+      participant: { type: "human", inboxId: "web-channel", displayName: "User two" },
+    });
+    await client.decideRoomInvitation("session-one", "invite-one", "accept");
+    await client.revokeRoomInvitation("session-one", "invite-one");
+    await client.leaveRoom("session-one", "human-instance");
+
+    expect(calls.map((call) => [call.method, call.url])).toEqual([
+      ["GET", "/api/chat/sessions/session-one/participants"],
+      ["POST", "/api/chat/sessions/session-one/invitations"],
+      ["POST", "/api/chat/sessions/session-one/invitations/invite-one/decision"],
+      ["DELETE", "/api/chat/sessions/session-one/invitations/invite-one"],
+      ["DELETE", "/api/chat/sessions/session-one/participants/human-instance"],
+    ]);
+    expect(calls[1]?.body).toMatchObject({ invitee_user_id: "user-two" });
+    expect(calls[2]?.body).toEqual({ decision: "accept" });
+  });
 });
 
 function socketTicket(): ChatKitRealtimeSocketTicket {

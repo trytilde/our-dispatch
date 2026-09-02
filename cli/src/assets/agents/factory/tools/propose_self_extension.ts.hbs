@@ -1,0 +1,61 @@
+import { tool } from "ai";
+import { z } from "zod";
+import type { Client, JsonObject } from "@trytilde/sdk";
+
+/** Propose-only capability tool; it exposes no approval, execution, or rollback action. */
+export default function createProposeSelfExtensionTool(options: {
+  client: Client;
+  sessionId: string;
+}) {
+  return tool({
+    description:
+      "Propose a missing connector, MCP server, skill registry, custom tool, bot, memory bank, or wiki for explicit human review. This never creates the resource and cannot approve its own proposal.",
+    inputSchema: z.object({
+      idempotency_key: z.string().min(1),
+      category: z.enum(["connector", "mcp_server", "skill_registry", "custom_tool", "agent", "memory_bank", "wiki"]),
+      title: z.string().min(1),
+      rationale: z.string().min(1),
+      desired_state: z.record(z.string(), z.unknown()),
+      expires_in_seconds: z.number().int().min(300).max(604_800).optional(),
+    }),
+    async execute(input) {
+      const proposal = await options.client.selfExtension.propose({
+        requestingAgentId: {{{AGENT_ID_JSON}}},
+        sessionId: options.sessionId,
+        idempotencyKey: input.idempotency_key,
+        category: input.category,
+        title: input.title,
+        rationale: input.rationale,
+        desiredState: input.desired_state as JsonObject,
+        expiresInSeconds: input.expires_in_seconds,
+      });
+      return {
+        status: "approval_required",
+        instructions: "A secure Yes/No capability approval card is visible to the owner. Do not ask for free-text approval or credentials in chat; stop this turn and resume only from the durable owner decision.",
+        capability_change_approval: {
+          id: proposal.id,
+          title: proposal.title,
+          rationale: proposal.rationale,
+          category: proposal.category,
+          status: proposal.status,
+          preview: {
+            permissions: proposal.preview.permissions,
+            credentials: proposal.preview.credentials,
+            cost_summary: proposal.preview.costSummary,
+            security_summary: proposal.preview.securitySummary,
+            rollback_plan: proposal.preview.rollbackPlan,
+          },
+          approval: {
+            approval_id: proposal.approval.approvalId,
+            proposal_id: proposal.approval.proposalId,
+            proposal_hash: proposal.approval.proposalHash,
+            proposal_generation: proposal.approval.proposalGeneration,
+            status: proposal.approval.status,
+            title: proposal.approval.title,
+            instructions: proposal.approval.instructions,
+          },
+        },
+      };
+    },
+  });
+}

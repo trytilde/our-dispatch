@@ -53,6 +53,14 @@ import { createTildeRoutineClient, createTildeSignalClient } from "../tilde-sett
 import { createTildePluginsClient } from "../tilde-plugins.js";
 import { QueuedTurnPageSchema, type QueuedTurnPage } from "../contracts/queue.js";
 import {
+  RoomInvitationListSchema,
+  RoomInvitationSchema,
+  RoomRosterSchema,
+  type InviteRoomUserInput,
+  type RoomInvitation,
+  type RoomParticipant,
+} from "../contracts/rooms.js";
+import {
   ChatSessionPageSchema,
   ChatSessionSchema,
   SidebarResponseSchema,
@@ -115,6 +123,16 @@ export interface OpenBotClient {
   updateSessionReadState(sessionId: string, unread: boolean): Promise<SessionUserState>;
   interruptSession(sessionId: string): Promise<void>;
   getMessages(sessionId: string, nextPageToken?: string | null): Promise<ChatMessagePage>;
+  getRoomRoster(sessionId: string): Promise<RoomParticipant[]>;
+  getRoomInvitations(sessionId: string): Promise<RoomInvitation[]>;
+  inviteRoomUser(sessionId: string, input: InviteRoomUserInput): Promise<RoomInvitation>;
+  decideRoomInvitation(
+    sessionId: string,
+    invitationId: string,
+    decision: "accept" | "decline",
+  ): Promise<RoomInvitation>;
+  revokeRoomInvitation(sessionId: string, invitationId: string): Promise<RoomInvitation>;
+  leaveRoom(sessionId: string, participantInstanceId: string): Promise<void>;
   sendMessage(
     agentId: string,
     sessionId: string,
@@ -377,6 +395,56 @@ export function createOpenBotClient(options: OpenBotClientOptions = {}): OpenBot
         ChatMessagePageSchema,
       );
     },
+    getRoomRoster: (sessionId) =>
+      json(chatPath(`sessions/${encodeURIComponent(sessionId)}/participants`), RoomRosterSchema),
+    getRoomInvitations: (sessionId) =>
+      json(
+        chatPath(`sessions/${encodeURIComponent(sessionId)}/invitations`),
+        RoomInvitationListSchema,
+      ),
+    inviteRoomUser: (sessionId, input) =>
+      json(
+        chatPath(`sessions/${encodeURIComponent(sessionId)}/invitations`),
+        RoomInvitationSchema,
+        {
+          method: "POST",
+          body: JSON.stringify({
+            invitee_user_id: input.inviteeUserId,
+            role: input.role ?? "member",
+            participant: {
+              participant_type: input.participant.type,
+              inbox_id: input.participant.inboxId,
+              instance_id: input.participant.instanceId,
+              display_name: input.participant.displayName,
+              external_id: input.participant.externalId,
+              default_to_participant_instance_id: input.participant.defaultToParticipantInstanceId,
+            },
+          }),
+        },
+      ),
+    decideRoomInvitation: (sessionId, invitationId, decision) =>
+      json(
+        chatPath(
+          `sessions/${encodeURIComponent(sessionId)}/invitations/${encodeURIComponent(invitationId)}/decision`,
+        ),
+        RoomInvitationSchema,
+        { method: "POST", body: JSON.stringify({ decision }) },
+      ),
+    revokeRoomInvitation: (sessionId, invitationId) =>
+      json(
+        chatPath(
+          `sessions/${encodeURIComponent(sessionId)}/invitations/${encodeURIComponent(invitationId)}`,
+        ),
+        RoomInvitationSchema,
+        { method: "DELETE" },
+      ),
+    leaveRoom: (sessionId, participantInstanceId) =>
+      empty(
+        chatPath(
+          `sessions/${encodeURIComponent(sessionId)}/participants/${encodeURIComponent(participantInstanceId)}`,
+        ),
+        { method: "DELETE" },
+      ),
     sendMessage: (agentId, sessionId, text, attachmentIds = []) =>
       json(
         chatPath(

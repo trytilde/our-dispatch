@@ -9,6 +9,9 @@ Framework-neutral client behavior shared by OpenBot web and Electron clients.
 - `contracts/sidebar` owns agents, sessions, pagination, and sorting.
 - `contracts/agents` owns the durable background agent-setup start and status payloads.
 - `contracts/messages` owns conversation messages and parts.
+- `contracts/capability-approvals` validates tokenless, proposal-hash-bound approval cards and
+  submits their exact Yes/No binding through the authenticated control-service boundary. Unknown
+  proposal fields are stripped and the nested approval must bind to the same proposal identifier.
 - `contracts/events` owns generic one-session SSE envelopes, participant lifecycle activity, and the closed ChatKit realtime event union.
 - `contracts/workspace` owns aggregate bootstrap, conversation snapshot, turn-submission,
   and consolidated ChatKit search responses plus the durable event revision used to reconnect the
@@ -18,6 +21,8 @@ Framework-neutral client behavior shared by OpenBot web and Electron clients.
 - `contracts/installation` owns control-service health, public native-auth discovery, and the selected installation.
 - `contracts/attachments` owns attachment metadata and upload handshakes.
 - `contracts/queue` owns queued agent turns.
+- `contracts/rooms` owns the dormant durable roster, role, invitation, and departure contract.
+  Owner UI remains deferred until human identity discovery can replace raw user identifiers.
 - `contracts/connectors` owns connector (Tilde tool-provider) configuration: the `configure_connector` tool's `connector_selection` payload, provider and account schemas, `connectorSetupFields` schema-to-form flattening, `connectorAuthorizedReturnUrl`, `waitForConnectorAccountActive` polling, and the structured hand-back message builders.
 - `contracts/plugins`, `contracts/routines`, and `contracts/signals` own the client projections of
   native Tilde settings resources. Their transport uses the installation's operation-allowlisted

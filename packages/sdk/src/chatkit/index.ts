@@ -3,6 +3,8 @@ import { requestJson } from "../internal/fetch-client";
 import { buildUrl, pathWithParams, teamPath } from "../internal/paths";
 import type { JsonObject, JsonValue } from "../tools";
 import { MessagesClient } from "./messages";
+import { ChatKitRoomsClient } from "./rooms";
+export * from "./rooms";
 
 const REGISTER_HTTP_AGENT_PATH = "/api/v1/team/{team_id}/chatkit/agents/http-vercel-ai-sdk";
 const REGISTER_VERCEL_UI_CHANNEL_PATH = "/api/v1/team/{team_id}/chatkit/channels/vercel-ui";
@@ -150,10 +152,12 @@ export type InvokeSessionProviderToolResult = {
 export class ChatKitClient {
   readonly #config: NormalizedConfig;
   readonly #messages: MessagesClient;
+  readonly rooms: ChatKitRoomsClient;
 
   constructor(config: NormalizedConfig, messages = new MessagesClient(config)) {
     this.#config = config;
     this.#messages = messages;
+    this.rooms = new ChatKitRoomsClient(config);
   }
 
   async registerHttpVercelAiSdkAgent(input: {

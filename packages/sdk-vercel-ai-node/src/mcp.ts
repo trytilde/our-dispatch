@@ -10,41 +10,6 @@ import { isJsonObject } from "@trytilde/sdk/json";
 import type { ToolExecutionOptions, ToolSet } from "ai";
 
 /**
- * What an agent may do inside the ChatKit session its connection is scoped to.
- *
- * These are *narrowing hints*, not grants. The runtime supplies them, so they
- * cannot be the authority — otherwise an agent would widen its own reach by
- * editing its own client options. Tilde intersects every entry with the
- * caller's real grants, so `true` means "anything this agent already has
- * visibility on", never "anything in the team".
- */
-export type ChatKitSessionPermissions = {
-  /**
-   * Allow delegating to other agents by opening a child session.
-   *
-   * `true` permits any agent this one can already see; a list is intended to
-   * narrow that further to the named agent inbox ids.
-   *
-   * Today Tilde enforces delegation with a visibility check on the target
-   * agent, which is the actual authority. The list narrowing is sent but not
-   * yet applied server-side, so treat it as a declaration of intent rather
-   * than a control.
-   */
-  delegateToOtherAgents?: true | string[];
-  /**
-   * Allow the agent to create a multi-party session and choose who is in it.
-   *
-   * Declared now and not yet implemented server-side: agent-initiated
-   * membership is deliberately out of the first release, so every roster is one
-   * a human chose. Passing it today is accepted and ignored.
-   */
-  createMultiplayerSessions?: {
-    withAgents?: true | string[];
-    withUsers?: true | string[];
-  };
-};
-
-/**
  * Scopes an MCP connection to one ChatKit session.
  *
  * A scoped connection is offered extra tools by Tilde:
@@ -59,6 +24,12 @@ export type ChatKitSessionPermissions = {
  * conversation the caller was not authorized for cannot be addressed. Reaching
  * a new agent needs no setup — it appears in `chatkit_list_agents` as soon as
  * this agent has visibility on it.
+ *
+ * Which of these appear is decided by Tilde from the agent's own record, not
+ * declared here. An agent that has not been granted delegation is simply not
+ * offered the delegation tools, so nothing needs to be configured in the
+ * client, and a client cannot widen its own reach by asking for more. Change
+ * what an agent may reach on its page in Tilde.
  */
 export type ChatKitConnectionOptions = {
   /**
@@ -68,7 +39,6 @@ export type ChatKitConnectionOptions = {
    * caller may not use it, rather than quietly omitting the session tools.
    */
   sessionId: string;
-  permissions?: ChatKitSessionPermissions;
   /** Session-bound tools created from trusted ChatKit endpoint context. */
   boundTools?: ToolSet;
 };
@@ -96,9 +66,6 @@ export type CreateMCPClientOptions<TTools extends ToolSet = ToolSet> = Omit<
 /** Header carrying the ChatKit session id. Mirrors `CHATKIT_SESSION_HEADER`. */
 const CHATKIT_SESSION_HEADER = "x-tilde-chatkit-session-id";
 
-/** Header carrying the requested, server-narrowed session permissions. */
-const CHATKIT_PERMISSIONS_HEADER = "x-tilde-chatkit-permissions";
-
 /**
  * Build the ChatKit scoping headers for a connection.
  *
@@ -112,11 +79,7 @@ export function chatkitConnectionHeaders(
   if (sessionId.length === 0) {
     throw new TypeError("createMCPClient chatkit.sessionId must not be empty");
   }
-  const headers: Record<string, string> = { [CHATKIT_SESSION_HEADER]: sessionId };
-  if (chatkit.permissions) {
-    headers[CHATKIT_PERMISSIONS_HEADER] = JSON.stringify(chatkit.permissions);
-  }
-  return headers;
+  return { [CHATKIT_SESSION_HEADER]: sessionId };
 }
 
 export type TildeMCPClient<TTools extends ToolSet = ToolSet> = Omit<MCPClient, "tools"> & {
@@ -158,8 +121,8 @@ export async function createMCPClient<TTools extends ToolSet = ToolSet>(
       url: options.client.mcp.getServerUrl({ id: options.serverId }),
       headers: {
         ...clientHeaders,
-        ...chatkitConnectionHeaders(options.chatkit),
         ...options.headers,
+        ...chatkitConnectionHeaders(options.chatkit),
         "x-api-key": apiKey,
       },
       ...(options.client.config.fetch ? { fetch: options.client.config.fetch } : {}),

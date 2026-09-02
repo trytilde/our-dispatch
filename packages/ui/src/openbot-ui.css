@@ -4306,6 +4306,68 @@ body.resizing-workspace .rich-chat.workspace-shell {
 }
 
 /* In-chat connector account selection (configure_connector tool). */
+.capability-approval-card {
+  max-width: 560px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  background: var(--surface);
+  box-shadow: var(--shadow-card);
+}
+.capability-approval-copy {
+  display: grid;
+  gap: 8px;
+  padding: 16px;
+}
+.capability-approval-copy > small {
+  color: var(--ink-2);
+  text-transform: capitalize;
+}
+.capability-approval-copy > strong {
+  font-size: 16px;
+}
+.capability-approval-copy p {
+  margin: 0;
+}
+.capability-approval-copy dl {
+  display: grid;
+  gap: 8px;
+  margin: 4px 0 0;
+}
+.capability-approval-copy dl > div {
+  display: grid;
+  grid-template-columns: 72px 1fr;
+  gap: 8px;
+}
+.capability-approval-copy dt {
+  color: var(--ink-2);
+}
+.capability-approval-copy dd {
+  margin: 0;
+}
+.capability-approval-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 12px 16px;
+  border-top: 1px solid var(--line);
+  background: var(--inset);
+}
+.capability-approval-actions button {
+  min-width: 72px;
+  padding: 7px 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--ink);
+}
+.capability-approval-actions button.primary {
+  background: var(--accent);
+  color: #fff;
+}
+.capability-approval-error {
+  color: var(--red);
+}
 .connector-select {
   min-width: min(420px, 74vw);
   display: grid;

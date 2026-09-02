@@ -101,6 +101,166 @@
         ]
       }
     },
+    "/api/v1/billing/ai-credits/receipts": {
+      "post": {
+        "tags": [
+          "billing",
+          "v1"
+        ],
+        "summary": "Commit an AI Gateway receipt",
+        "description": "Commits the exact providerMetadata.gateway cost idempotently and releases the reservation remainder.",
+        "operationId": "billing-ai-credit-receipt-commit",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CommitAiCreditReceiptBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Updated AI-credit balance",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrganizationAiCreditContext"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/billing/ai-credits/reservations": {
+      "post": {
+        "tags": [
+          "billing",
+          "v1"
+        ],
+        "summary": "Reserve organization AI credits",
+        "description": "Agent-authenticated preflight that prevents concurrent model calls from double-spending one organization balance.",
+        "operationId": "billing-ai-credit-reserve",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReserveAiCreditsBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Reserved AI credits",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AiCreditReservation"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "billing",
+          "v1"
+        ],
+        "summary": "Release an AI-credit reservation",
+        "description": "Releases reserved credits after a model request fails before an authoritative receipt exists.",
+        "operationId": "billing-ai-credit-reservation-release",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReleaseAiCreditReservationBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Updated AI-credit balance",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrganizationAiCreditContext"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/billing/ai-credits/topups": {
+      "post": {
+        "tags": [
+          "billing",
+          "v1"
+        ],
+        "summary": "Top up organization AI credits",
+        "description": "Creates one durable top-up row before requesting an Autumn/Stripe checkout. Replays with the same idempotency key return the same row and payment URL.",
+        "operationId": "billing-ai-credit-topup-create",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateAiCreditTopupBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "AI-credit checkout",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AiCreditTopup"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid amount or idempotency key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Organization administrator required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/billing/autumn/{operation}": {
       "post": {
         "tags": [
@@ -194,7 +354,7 @@
           "v1"
         ],
         "summary": "Get organization billing context",
-        "description": "Returns product subscriptions, effective access, human seat quantities, payment state, and Hindsight memory-bank capacity from the local billing projection.",
+        "description": "Returns product subscriptions, effective access, human seat quantities, payment state, and AI-credit balance from the local billing projection.",
         "operationId": "billing-context-get",
         "responses": {
           "200": {
@@ -219,206 +379,6 @@
           },
           "403": {
             "description": "Organization membership required",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/billing/internal/memory-banks/quantity": {
-      "post": {
-        "tags": [
-          "billing",
-          "v1"
-        ],
-        "summary": "Commit Hindsight memory-bank quantity",
-        "description": "System-only lifecycle endpoint. A successful creation requires a live reservation_id in the body; omit it when recording a deletion or retrying an already-authoritative quantity.",
-        "operationId": "billing-memory-bank-reservation-commit",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CommitMemoryBankReservationBody"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Updated memory-bank billing context",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/MemoryBankBillingContext"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Invalid quantity transition",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Authentication failed",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "System administrator required",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "410": {
-            "description": "Reservation expired or consumed",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/billing/internal/memory-banks/reservations": {
-      "post": {
-        "tags": [
-          "billing",
-          "v1"
-        ],
-        "summary": "Reserve Hindsight memory-bank capacity",
-        "description": "System-only lifecycle endpoint used by the Hindsight resource owner before creating one bank. The returned reservation must be committed or released.",
-        "operationId": "billing-memory-bank-reservation-create",
-        "responses": {
-          "200": {
-            "description": "Reserved memory-bank capacity",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/MemoryBankCreationReservation"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Authentication failed",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "402": {
-            "description": "Stripe payment action required",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "System administrator required",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "503": {
-            "description": "Concurrent reconciliation in progress",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/billing/internal/memory-banks/reservations/{reservation_id}": {
-      "delete": {
-        "tags": [
-          "billing",
-          "v1"
-        ],
-        "summary": "Release Hindsight memory-bank reservation",
-        "description": "System-only lifecycle endpoint used when Hindsight resource creation fails after reserving capacity.",
-        "operationId": "billing-memory-bank-reservation-release",
-        "parameters": [
-          {
-            "name": "reservation_id",
-            "in": "path",
-            "description": "Reservation id",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Updated memory-bank billing context",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/MemoryBankBillingContext"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Authentication failed",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "System administrator required",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "410": {
-            "description": "Reservation missing or no longer pending",
             "content": {
               "application/json": {
                 "schema": {
@@ -8004,6 +7964,112 @@
         }
       }
     },
+    "/api/v1/team/{team_id}/chatkit/agents/{agent_id}/sessions/{session_id}/automatic-memory/recall": {
+      "post": {
+        "tags": [
+          "chatkit",
+          "v1"
+        ],
+        "summary": "Recall automatic memory for a durable message",
+        "description": "Authenticates the active recipient agent, derives the effective actor from the stored triggering message and session, applies bank visibility, and returns a provenance-bearing projection.",
+        "operationId": "chatkit-recall-automatic-memory",
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "description": "Team ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "agent_id",
+            "in": "path",
+            "description": "Active recipient agent",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "session_id",
+            "in": "path",
+            "description": "Session ID",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/WrappedUuidV4"
+            }
+          },
+          {
+            "name": "team_id",
+            "in": "path",
+            "description": "Team ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecallChatKitAutomaticMemoryBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Bounded automatic-memory projection",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChatKitAutomaticMemoryProjection"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
     "/api/v1/team/{team_id}/chatkit/agents/{agent_id}/status": {
       "patch": {
         "tags": [
@@ -10059,6 +10125,486 @@
             "bearer_token": []
           }
         ]
+      }
+    },
+    "/api/v1/team/{team_id}/chatkit/self-extension-proposals": {
+      "get": {
+        "tags": [
+          "chatkit",
+          "v1"
+        ],
+        "summary": "List safe extension proposals",
+        "description": "Lists redacted proposal review snapshots for the authorized team.",
+        "operationId": "chatkit-list-self-extension-proposals",
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/SelfExtensionStatus"
+            }
+          },
+          {
+            "name": "requesting_agent_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "team_id",
+            "in": "path",
+            "description": "Team ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/SelfExtensionProposal"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "chatkit",
+          "v1"
+        ],
+        "summary": "Propose a safe agent extension",
+        "description": "Creates a durable, server-validated proposal with a redacted diff, permission and credential requirements, cost and egress implications, affected audiences, and exact rollback plan. The requesting agent cannot approve or execute it.",
+        "operationId": "chatkit-propose-self-extension",
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "team_id",
+            "in": "path",
+            "description": "Team ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateSelfExtensionProposalInner"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SelfExtensionProposal"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/team/{team_id}/chatkit/self-extension-proposals/{proposal_id}": {
+      "get": {
+        "tags": [
+          "chatkit",
+          "v1"
+        ],
+        "summary": "Inspect a safe extension proposal",
+        "description": "Returns the complete redacted review document and durable execution receipts.",
+        "operationId": "chatkit-get-self-extension-proposal",
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "proposal_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "team_id",
+            "in": "path",
+            "description": "Team ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SelfExtensionProposal"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/team/{team_id}/chatkit/self-extension-proposals/{proposal_id}/approve": {
+      "post": {
+        "tags": [
+          "chatkit",
+          "v1"
+        ],
+        "summary": "Approve a safe extension proposal",
+        "description": "Records an explicit human owner/admin approval and queues durable execution. Agent callers cannot approve.",
+        "operationId": "chatkit-approve-self-extension-proposal",
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "proposal_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "team_id",
+            "in": "path",
+            "description": "Team ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SelfExtensionProposal"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/team/{team_id}/chatkit/self-extension-proposals/{proposal_id}/cancel": {
+      "post": {
+        "tags": [
+          "chatkit",
+          "v1"
+        ],
+        "summary": "Cancel a safe extension proposal",
+        "description": "Cancels a pending or approved proposal before execution starts.",
+        "operationId": "chatkit-cancel-self-extension-proposal",
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "proposal_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "team_id",
+            "in": "path",
+            "description": "Team ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SelfExtensionProposal"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/team/{team_id}/chatkit/self-extension-proposals/{proposal_id}/decision": {
+      "post": {
+        "tags": [
+          "chatkit",
+          "v1"
+        ],
+        "summary": "Answer a capability-change approval",
+        "description": "Atomically records an authenticated human Yes/No against the exact proposal hash and generation, completes its linked Human Approval, and queues approved work.",
+        "operationId": "chatkit-decide-capability-change",
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "proposal_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "team_id",
+            "in": "path",
+            "description": "Team ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DecideCapabilityChangeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SelfExtensionProposal"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/team/{team_id}/chatkit/self-extension-proposals/{proposal_id}/outputs/claim": {
+      "post": {
+        "tags": [
+          "chatkit",
+          "v1"
+        ],
+        "summary": "Claim safe extension outputs",
+        "description": "Returns and consumes encrypted one-time execution values to an explicit human owner/admin reviewer. Agent callers cannot claim outputs.",
+        "operationId": "chatkit-claim-self-extension-proposal-outputs",
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "proposal_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "team_id",
+            "in": "path",
+            "description": "Team ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SelfExtensionProposalOutputs"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/team/{team_id}/chatkit/self-extension-proposals/{proposal_id}/reject": {
+      "post": {
+        "tags": [
+          "chatkit",
+          "v1"
+        ],
+        "summary": "Reject a safe extension proposal",
+        "description": "Records an explicit human owner/admin rejection without creating resources.",
+        "operationId": "chatkit-reject-self-extension-proposal",
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "proposal_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "team_id",
+            "in": "path",
+            "description": "Team ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SelfExtensionProposal"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/team/{team_id}/chatkit/self-extension-proposals/{proposal_id}/rollback": {
+      "post": {
+        "tags": [
+          "chatkit",
+          "v1"
+        ],
+        "summary": "Roll back a safe extension proposal",
+        "description": "Queues durable reverse-order cleanup of only resources recorded as created by this proposal.",
+        "operationId": "chatkit-rollback-self-extension-proposal",
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "proposal_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "team_id",
+            "in": "path",
+            "description": "Team ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SelfExtensionProposal"
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/api/v1/team/{team_id}/chatkit/session": {
@@ -12577,6 +13123,376 @@
           },
           "500": {
             "description": "Internal Server Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {},
+          {
+            "api_key": []
+          },
+          {
+            "bearer_token": []
+          }
+        ]
+      }
+    },
+    "/api/v1/team/{team_id}/chatkit/sessions/{session_id}/invitations": {
+      "get": {
+        "tags": [
+          "chatkit",
+          "v1"
+        ],
+        "summary": "List ChatKit room invitations",
+        "description": "Lists durable invitation lifecycle state for a room manager or the canonical invitee.",
+        "operationId": "chatkit-list-room-invitations",
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/WrappedUuidV4"
+            }
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "next_page_token",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "name": "team_id",
+            "in": "path",
+            "description": "Team ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChatKitRoomInvitationPaginatedResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {},
+          {
+            "api_key": []
+          },
+          {
+            "bearer_token": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "chatkit",
+          "v1"
+        ],
+        "summary": "Invite a user to a ChatKit room",
+        "description": "Creates or refreshes a pending invitation under session ownership authority. The invitation does not expose room content before acceptance.",
+        "operationId": "chatkit-create-room-invitation",
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/WrappedUuidV4"
+            }
+          },
+          {
+            "name": "team_id",
+            "in": "path",
+            "description": "Team ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateChatKitRoomInvitationRequestInner"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChatKitRoomInvitation"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {},
+          {
+            "api_key": []
+          },
+          {
+            "bearer_token": []
+          }
+        ]
+      }
+    },
+    "/api/v1/team/{team_id}/chatkit/sessions/{session_id}/invitations/{invitation_id}": {
+      "delete": {
+        "tags": [
+          "chatkit",
+          "v1"
+        ],
+        "summary": "Revoke a ChatKit room invitation",
+        "description": "Revokes one pending invitation under session ownership authority.",
+        "operationId": "chatkit-revoke-room-invitation",
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/WrappedUuidV4"
+            }
+          },
+          {
+            "name": "invitation_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/WrappedUuidV4"
+            }
+          },
+          {
+            "name": "team_id",
+            "in": "path",
+            "description": "Team ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChatKitRoomInvitation"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {},
+          {
+            "api_key": []
+          },
+          {
+            "bearer_token": []
+          }
+        ]
+      }
+    },
+    "/api/v1/team/{team_id}/chatkit/sessions/{session_id}/invitations/{invitation_id}/decision": {
+      "post": {
+        "tags": [
+          "chatkit",
+          "v1"
+        ],
+        "summary": "Decide a ChatKit room invitation",
+        "description": "Accepts or declines a pending invitation as its canonical invitee. Acceptance grants session visibility and activates the bound human participant.",
+        "operationId": "chatkit-decide-room-invitation",
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/WrappedUuidV4"
+            }
+          },
+          {
+            "name": "invitation_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/WrappedUuidV4"
+            }
+          },
+          {
+            "name": "team_id",
+            "in": "path",
+            "description": "Team ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DecideChatKitRoomInvitationRequestInner"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChatKitRoomInvitation"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
             "content": {
               "application/json": {
                 "schema": {
@@ -23597,7 +24513,7 @@
           "v1"
         ],
         "summary": "Create a memory bank",
-        "description": "Create an isolated Hindsight-backed memory bank and its enabled private tool provider.",
+        "description": "Create an isolated HelixDB graph/vector memory bank and its enabled private tool provider.",
         "operationId": "create-memory-bank",
         "parameters": [
           {
@@ -23635,6 +24551,68 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/MemoryBank"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/team/{team_id}/memory/banks/visible": {
+      "get": {
+        "tags": [
+          "memory",
+          "v1"
+        ],
+        "summary": "List effective visible memory banks",
+        "description": "List current-team and personal banks visible to the effective user through public mode, a direct grant, or an Identity group grant.",
+        "operationId": "list-visible-memory-banks",
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "next_page_token",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "name": "team_id",
+            "in": "path",
+            "description": "Team ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemoryBankPaginatedResponse"
                 }
               }
             }
@@ -24140,7 +25118,7 @@
           "v1"
         ],
         "summary": "Check memory bank health",
-        "description": "Check Tilde provisioning state and Hindsight reachability.",
+        "description": "Check Tilde provisioning state and HelixDB reachability.",
         "operationId": "check-memory-bank-health",
         "parameters": [
           {
@@ -25146,6 +26124,173 @@
                   "items": {
                     "$ref": "#/components/schemas/MemorySourceBinding"
                   }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/team/{team_id}/memory/synthesis-sessions/{session_id}/documents": {
+      "delete": {
+        "tags": [
+          "memory",
+          "v1"
+        ],
+        "operationId": "delete-synthesis-session-memory",
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/WrappedUuidV4"
+            }
+          },
+          {
+            "name": "team_id",
+            "in": "path",
+            "description": "Team ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeleteMemoryDocumentBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        }
+      }
+    },
+    "/api/v1/team/{team_id}/memory/synthesis-sessions/{session_id}/recall": {
+      "post": {
+        "tags": [
+          "memory",
+          "v1"
+        ],
+        "operationId": "recall-synthesis-session-memory",
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/WrappedUuidV4"
+            }
+          },
+          {
+            "name": "team_id",
+            "in": "path",
+            "description": "Team ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecallMemoryBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemoryOperationResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/team/{team_id}/memory/synthesis-sessions/{session_id}/retain": {
+      "post": {
+        "tags": [
+          "memory",
+          "v1"
+        ],
+        "operationId": "retain-synthesis-session-memory",
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/WrappedUuidV4"
+            }
+          },
+          {
+            "name": "team_id",
+            "in": "path",
+            "description": "Team ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RetainMemoryBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemoryOperationResponse"
                 }
               }
             }
@@ -36888,6 +38033,96 @@
         }
       }
     },
+    "/api/v1/user/{user_id}/memory/banks/{bank_id}/synthesizer": {
+      "put": {
+        "tags": [
+          "memory",
+          "v1"
+        ],
+        "summary": "Assign a personal bank synthesizer",
+        "description": "Assigns an agent and creates the bank's stable synthesis session so queued evidence can flush.",
+        "operationId": "assign-personal-memory-bank-synthesizer",
+        "parameters": [
+          {
+            "name": "user_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "bank_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/WrappedUuidV4"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssignMemoryBankSynthesizerBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemoryBank"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "memory",
+          "v1"
+        ],
+        "summary": "Clear a personal bank synthesizer",
+        "description": "Stops background synthesis while preserving queued evidence for a later assignment.",
+        "operationId": "clear-personal-memory-bank-synthesizer",
+        "parameters": [
+          {
+            "name": "user_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "bank_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/WrappedUuidV4"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemoryBank"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/user/{user_id}/memory/banks/{bank_id}/template": {
       "get": {
         "tags": [
@@ -37174,18 +38409,8 @@
           "memory",
           "v1"
         ],
-        "summary": "List personal source memory-bank bindings",
-        "description": "Inspect selected personal banks and synchronization state for one personal source.",
         "operationId": "list-personal-memory-source-bindings",
         "parameters": [
-          {
-            "name": "user_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
           {
             "name": "source_kind",
             "in": "query",
@@ -37197,6 +38422,14 @@
           {
             "name": "source_id",
             "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "user_id",
+            "in": "path",
             "required": true,
             "schema": {
               "type": "string"
@@ -37224,8 +38457,6 @@
           "memory",
           "v1"
         ],
-        "summary": "Replace personal source memory-bank bindings",
-        "description": "Atomically replace a personal source's selected personal banks and durably queue a full backfill.",
         "operationId": "replace-personal-memory-source-bindings",
         "parameters": [
           {
@@ -37270,9 +38501,7 @@
           "memory",
           "v1"
         ],
-        "summary": "Retry personal source synchronization",
-        "description": "Retry every personal memory-bank binding for a personal source.",
-        "operationId": "retry-personal-memory-source-sync",
+        "operationId": "retry-personal-memory-source-bindings",
         "parameters": [
           {
             "name": "user_id",
@@ -40711,6 +41940,10 @@
           "endpoint"
         ],
         "properties": {
+          "automatic_memory_mode": {
+            "type": "string",
+            "description": "Automatic memory selection (`none`, `personal`, `personal_plus_agent`, or `team`)."
+          },
           "credential_strategy": {
             "$ref": "#/components/schemas/AgentCredentialStrategy"
           },
@@ -40823,6 +42056,75 @@
           "unavailable"
         ]
       },
+      "AiCreditReservation": {
+        "type": "object",
+        "description": "A short-lived, single-use reservation for an inference request.",
+        "required": [
+          "id",
+          "reserved_microusd",
+          "expires_at"
+        ],
+        "properties": {
+          "expires_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "id": {
+            "type": "string"
+          },
+          "reserved_microusd": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "AiCreditTopup": {
+        "type": "object",
+        "description": "Durable checkout state for one organization AI-credit purchase.",
+        "required": [
+          "id",
+          "org_id",
+          "amount_microusd",
+          "status",
+          "idempotency_key"
+        ],
+        "properties": {
+          "amount_microusd": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "autumn_reference": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "idempotency_key": {
+            "type": "string"
+          },
+          "last_error": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "org_id": {
+            "type": "string"
+          },
+          "payment_url": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "status": {
+            "type": "string"
+          }
+        }
+      },
       "ApplyOntologyTemplateResult": {
         "type": "object",
         "description": "Result of an idempotent ontology-template installation.",
@@ -40888,6 +42190,21 @@
           "approved",
           "rejected"
         ]
+      },
+      "AssignMemoryBankSynthesizerBody": {
+        "type": "object",
+        "required": [
+          "synthesizer_agent_id",
+          "synthesizer_team_id"
+        ],
+        "properties": {
+          "synthesizer_agent_id": {
+            "type": "string"
+          },
+          "synthesizer_team_id": {
+            "type": "string"
+          }
+        }
       },
       "Attachment": {
         "type": "object",
@@ -41126,15 +42443,15 @@
         "required": [
           "org_id",
           "products",
-          "memory_banks",
+          "ai_credits",
           "can_manage_billing"
         ],
         "properties": {
+          "ai_credits": {
+            "$ref": "#/components/schemas/OrganizationAiCreditContext"
+          },
           "can_manage_billing": {
             "type": "boolean"
-          },
-          "memory_banks": {
-            "$ref": "#/components/schemas/MemoryBankBillingContext"
           },
           "org_id": {
             "type": "string"
@@ -41425,6 +42742,51 @@
             "type": "string"
           }
         }
+      },
+      "CapabilityChangeApproval": {
+        "type": "object",
+        "description": "Model-visible capability confirmation. It deliberately contains no approval token.",
+        "required": [
+          "approval_id",
+          "proposal_id",
+          "proposal_hash",
+          "proposal_generation",
+          "status",
+          "title",
+          "instructions"
+        ],
+        "properties": {
+          "approval_id": {
+            "type": "string"
+          },
+          "instructions": {
+            "type": "string"
+          },
+          "proposal_generation": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "proposal_hash": {
+            "type": "string"
+          },
+          "proposal_id": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          }
+        }
+      },
+      "CapabilityChangeDecision": {
+        "type": "string",
+        "description": "The only supported decisions for an inline capability confirmation.",
+        "enum": [
+          "approve",
+          "reject"
+        ]
       },
       "ChangeResourceOwnershipRequest": {
         "type": "object",
@@ -41832,6 +43194,90 @@
           "cancelled"
         ]
       },
+      "ChatKitAutomaticMemoryItem": {
+        "type": "object",
+        "description": "One provenance-bearing memory supplied to the active recipient agent.",
+        "required": [
+          "bank_id",
+          "bank_name",
+          "memory_id",
+          "memory_type",
+          "content"
+        ],
+        "properties": {
+          "bank_id": {
+            "$ref": "#/components/schemas/WrappedUuidV4"
+          },
+          "bank_name": {
+            "type": "string"
+          },
+          "content": {
+            "type": "string"
+          },
+          "evidence_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "learned_by_agent_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "memory_id": {
+            "type": "string"
+          },
+          "memory_type": {
+            "type": "string"
+          },
+          "source": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "ChatKitAutomaticMemoryMode": {
+        "type": "string",
+        "description": "High-level automatic-memory policy persisted on an agent or channel.",
+        "enum": [
+          "none",
+          "personal",
+          "personal_plus_agent",
+          "team"
+        ]
+      },
+      "ChatKitAutomaticMemoryProjection": {
+        "type": "object",
+        "description": "Bounded deterministic projection intended as a dynamic instruction suffix.",
+        "required": [
+          "items",
+          "rendered",
+          "estimated_tokens",
+          "truncated"
+        ],
+        "properties": {
+          "estimated_tokens": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ChatKitAutomaticMemoryItem"
+            }
+          },
+          "rendered": {
+            "type": "string"
+          },
+          "truncated": {
+            "type": "boolean"
+          }
+        }
+      },
       "ChatKitChatProviderConfigField": {
         "type": "object",
         "description": "Provider-specific configuration field for a ChatKit chat provider.",
@@ -41925,6 +43371,7 @@
           "participant_type",
           "participant_handle",
           "membership_source",
+          "role",
           "joined_at",
           "instance",
           "inbox"
@@ -41947,6 +43394,15 @@
           },
           "participant_type": {
             "$ref": "#/components/schemas/ChatKitParticipantType"
+          },
+          "principal_user_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "role": {
+            "$ref": "#/components/schemas/ChatKitParticipantRole"
           }
         }
       },
@@ -42000,8 +43456,18 @@
         "description": "How a durable conversation participant was admitted to a session.",
         "enum": [
           "explicit",
+          "invitation",
           "provider",
           "recipient"
+        ]
+      },
+      "ChatKitParticipantRole": {
+        "type": "string",
+        "description": "A participant's collaboration role inside a ChatKit room.\n\nSession authorization remains authoritative: this role never widens the\nsession visibility or ownership planes.",
+        "enum": [
+          "owner",
+          "admin",
+          "member"
         ]
       },
       "ChatKitParticipantType": {
@@ -42100,6 +43566,93 @@
             "description": "Authenticated Tilde API path that serves the current avatar bytes."
           }
         }
+      },
+      "ChatKitRoomInvitation": {
+        "type": "object",
+        "description": "One durable room invitation. The participant descriptor is fixed by the\ninviter, while acceptance is restricted to `invitee_user_id`.",
+        "required": [
+          "id",
+          "session_id",
+          "org_id",
+          "team_id",
+          "invitee_user_id",
+          "invited_by_user_id",
+          "role",
+          "participant",
+          "status",
+          "created_at",
+          "updated_at"
+        ],
+        "properties": {
+          "created_at": {
+            "$ref": "#/components/schemas/WrappedChronoDateTime"
+          },
+          "id": {
+            "$ref": "#/components/schemas/WrappedUuidV4"
+          },
+          "invited_by_user_id": {
+            "type": "string"
+          },
+          "invitee_user_id": {
+            "type": "string"
+          },
+          "org_id": {
+            "type": "string"
+          },
+          "participant": {
+            "$ref": "#/components/schemas/ChatKitParticipantInput"
+          },
+          "role": {
+            "$ref": "#/components/schemas/ChatKitParticipantRole"
+          },
+          "session_id": {
+            "$ref": "#/components/schemas/WrappedUuidV4"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ChatKitRoomInvitationStatus"
+          },
+          "team_id": {
+            "type": "string"
+          },
+          "updated_at": {
+            "$ref": "#/components/schemas/WrappedChronoDateTime"
+          }
+        }
+      },
+      "ChatKitRoomInvitationDecision": {
+        "type": "string",
+        "description": "A user's decision for one pending room invitation.",
+        "enum": [
+          "accept",
+          "decline"
+        ]
+      },
+      "ChatKitRoomInvitationPaginatedResponse": {
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ChatKitRoomInvitation"
+            }
+          },
+          "next_page_token": {
+            "type": "string"
+          }
+        }
+      },
+      "ChatKitRoomInvitationStatus": {
+        "type": "string",
+        "description": "Durable lifecycle of an invitation to a private or team ChatKit room.",
+        "enum": [
+          "pending",
+          "accepted",
+          "declined",
+          "revoked"
+        ]
       },
       "ChatKitSearchAgent": {
         "type": "object",
@@ -43057,23 +44610,57 @@
           }
         }
       },
-      "CommitMemoryBankReservationBody": {
+      "CommitAiCreditReceiptBody": {
         "type": "object",
-        "description": "Public request body for committing a Hindsight reservation.",
+        "description": "Public body for committing the exact Gateway receipt after inference.",
         "required": [
-          "active_banks"
+          "reservation_id",
+          "actual_cost_microusd",
+          "model_id",
+          "input_tokens",
+          "output_tokens",
+          "tags",
+          "idempotency_key"
         ],
         "properties": {
-          "active_banks": {
+          "actual_cost_microusd": {
             "type": "integer",
             "format": "int64"
           },
-          "reservation_id": {
+          "generation_id": {
             "type": [
               "string",
               "null"
-            ],
-            "description": "Provide when committing a successful creation; omit when recording a\ndeletion or retrying an already-authoritative quantity."
+            ]
+          },
+          "idempotency_key": {
+            "type": "string"
+          },
+          "input_tokens": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "model_id": {
+            "type": "string"
+          },
+          "output_tokens": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "provider": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "reservation_id": {
+            "type": "string"
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           }
         }
       },
@@ -43532,6 +45119,23 @@
           }
         }
       },
+      "CreateAiCreditTopupBody": {
+        "type": "object",
+        "description": "Public body for creating an organization AI-credit checkout.",
+        "required": [
+          "amount_microusd",
+          "idempotency_key"
+        ],
+        "properties": {
+          "amount_microusd": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "idempotency_key": {
+            "type": "string"
+          }
+        }
+      },
       "CreateApiKeyInner": {
         "type": "object",
         "properties": {
@@ -43684,6 +45288,25 @@
             "items": {
               "$ref": "#/components/schemas/CreateAttachmentUploadResponse"
             }
+          }
+        }
+      },
+      "CreateChatKitRoomInvitationRequestInner": {
+        "type": "object",
+        "description": "Request body for inviting a user to one ChatKit room.",
+        "required": [
+          "invitee_user_id",
+          "participant"
+        ],
+        "properties": {
+          "invitee_user_id": {
+            "type": "string"
+          },
+          "participant": {
+            "$ref": "#/components/schemas/ChatKitParticipantInput"
+          },
+          "role": {
+            "$ref": "#/components/schemas/ChatKitParticipantRole"
           }
         }
       },
@@ -44101,6 +45724,19 @@
           },
           "name": {
             "type": "string"
+          },
+          "synthesizer_agent_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Synthesis agent. When omitted, the server resolves and persists its configured default."
+          },
+          "synthesizer_team_id": {
+            "type": [
+              "string",
+              "null"
+            ]
           }
         }
       },
@@ -44517,6 +46153,55 @@
                 "description": "Optional FK into managed-credential's `user_credential` table. Most\ncallers leave this `None` at create time and let brokering link it."
               }
             ]
+          }
+        }
+      },
+      "CreateSelfExtensionProposalInner": {
+        "type": "object",
+        "description": "Agent-authored intent submitted to the server for validation and previewing.",
+        "required": [
+          "requesting_agent_id",
+          "idempotency_key",
+          "category",
+          "title",
+          "rationale",
+          "desired_state"
+        ],
+        "properties": {
+          "category": {
+            "$ref": "#/components/schemas/SelfExtensionCategory"
+          },
+          "desired_state": {
+            "$ref": "#/components/schemas/WrappedJsonValue",
+            "description": "Provider/domain desired state. Plaintext credential fields are rejected."
+          },
+          "expires_in_seconds": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "idempotency_key": {
+            "type": "string"
+          },
+          "rationale": {
+            "type": "string"
+          },
+          "requesting_agent_id": {
+            "type": "string"
+          },
+          "run_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "session_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "title": {
+            "type": "string"
           }
         }
       },
@@ -45819,7 +47504,7 @@
       },
       "CurrentSeatStatus": {
         "type": "string",
-        "description": "Current caller's seat state. Agent identities never consume seats.",
+        "description": "Current caller's seat state. Machine identities never consume seats.",
         "enum": [
           "active",
           "not_assigned",
@@ -46056,6 +47741,43 @@
             "items": {
               "type": "string"
             }
+          }
+        }
+      },
+      "DecideCapabilityChangeRequest": {
+        "type": "object",
+        "description": "Exact client binding posted when a human presses Yes or No.",
+        "required": [
+          "approval_id",
+          "proposal_hash",
+          "proposal_generation",
+          "decision"
+        ],
+        "properties": {
+          "approval_id": {
+            "type": "string"
+          },
+          "decision": {
+            "$ref": "#/components/schemas/CapabilityChangeDecision"
+          },
+          "proposal_generation": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "proposal_hash": {
+            "type": "string"
+          }
+        }
+      },
+      "DecideChatKitRoomInvitationRequestInner": {
+        "type": "object",
+        "description": "Request body for accepting or declining a room invitation.",
+        "required": [
+          "decision"
+        ],
+        "properties": {
+          "decision": {
+            "$ref": "#/components/schemas/ChatKitRoomInvitationDecision"
           }
         }
       },
@@ -49001,6 +50723,16 @@
               "string",
               "null"
             ]
+          },
+          "user_tool_federation_mode": {
+            "$ref": "#/components/schemas/UserToolFederationMode",
+            "description": "Personal tools the lifecycle MCP server may resolve for an\nauthenticated ChatKit speaker."
+          },
+          "user_tool_federation_selections": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/UserToolFederationSelection"
+            }
           }
         }
       },
@@ -49095,6 +50827,30 @@
               "null"
             ]
           },
+          "synthesis_session_id": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/WrappedUuidV4",
+                "description": "Stable private ChatKit session reused only for this bank's synthesis."
+              }
+            ]
+          },
+          "synthesizer_agent_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Concrete agent selected to synthesize this bank's queued evidence."
+          },
+          "synthesizer_team_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "team_id": {
             "type": [
               "string",
@@ -49112,53 +50868,6 @@
           }
         }
       },
-      "MemoryBankBillingContext": {
-        "type": "object",
-        "description": "Organization-level Hindsight memory-bank capacity.",
-        "required": [
-          "included",
-          "active",
-          "billable",
-          "confirmed_billable",
-          "pending_reservations",
-          "can_create",
-          "requires_payment_method"
-        ],
-        "properties": {
-          "active": {
-            "type": "integer",
-            "format": "int64"
-          },
-          "billable": {
-            "type": "integer",
-            "format": "int64"
-          },
-          "can_create": {
-            "type": "boolean"
-          },
-          "confirmed_billable": {
-            "type": "integer",
-            "format": "int64"
-          },
-          "included": {
-            "type": "integer",
-            "format": "int64"
-          },
-          "payment_url": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "pending_reservations": {
-            "type": "integer",
-            "format": "int64"
-          },
-          "requires_payment_method": {
-            "type": "boolean"
-          }
-        }
-      },
       "MemoryBankConfig": {
         "type": "object",
         "required": [
@@ -49171,27 +50880,6 @@
           },
           "overrides": {
             "description": "Only values explicitly overridden for this bank."
-          }
-        }
-      },
-      "MemoryBankCreationReservation": {
-        "type": "object",
-        "description": "A short-lived paid-capacity reservation returned to the Hindsight owner.\nThe owner must commit it after resource creation or release it on failure.",
-        "required": [
-          "reservation_id",
-          "expires_at",
-          "billing"
-        ],
-        "properties": {
-          "billing": {
-            "$ref": "#/components/schemas/MemoryBankBillingContext"
-          },
-          "expires_at": {
-            "type": "string",
-            "format": "date-time"
-          },
-          "reservation_id": {
-            "type": "string"
           }
         }
       },
@@ -49346,7 +51034,7 @@
                 "type": "string"
               }
             },
-            "description": "Explicit Hindsight observation scopes. Each inner list is consolidated\nindependently, preventing observations from crossing actor boundaries."
+            "description": "Explicit actor observation scopes. Each inner list is consolidated\nindependently, preventing observations from crossing actor boundaries."
           },
           "tags": {
             "type": "array",
@@ -49368,7 +51056,7 @@
       "MemoryProvider": {
         "type": "string",
         "enum": [
-          "hindsight"
+          "helix"
         ]
       },
       "MemorySourceBinding": {
@@ -49387,12 +51075,6 @@
         "properties": {
           "created_at": {
             "$ref": "#/components/schemas/WrappedChronoDateTime"
-          },
-          "created_by_user_id": {
-            "type": [
-              "string",
-              "null"
-            ]
           },
           "detached": {
             "type": "boolean",
@@ -49423,6 +51105,12 @@
           },
           "org_id": {
             "type": "string"
+          },
+          "owner_user_id": {
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "source_id": {
             "type": "string"
@@ -50019,6 +51707,50 @@
           }
         }
       },
+      "OrganizationAiCreditContext": {
+        "type": "object",
+        "description": "Organization AI-credit balance expressed in integer micro-US dollars.",
+        "required": [
+          "org_id",
+          "granted_microusd",
+          "topup_remaining_microusd",
+          "spent_microusd",
+          "reserved_microusd",
+          "available_microusd"
+        ],
+        "properties": {
+          "available_microusd": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "current_period_end": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "granted_microusd": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "org_id": {
+            "type": "string"
+          },
+          "reserved_microusd": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "spent_microusd": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "topup_remaining_microusd": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
       "OrganizationMemberWithUser": {
         "type": "object",
         "required": [
@@ -50486,6 +52218,58 @@
           "suspended",
           "canceled"
         ]
+      },
+      "ProposalCredentialRequirement": {
+        "type": "object",
+        "description": "A required credential descriptor. It intentionally cannot carry a value.",
+        "required": [
+          "credential_type",
+          "purpose",
+          "brokered_by"
+        ],
+        "properties": {
+          "brokered_by": {
+            "type": "string"
+          },
+          "credential_type": {
+            "type": "string"
+          },
+          "purpose": {
+            "type": "string"
+          },
+          "required_fields": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "ProposalPermissionChange": {
+        "type": "object",
+        "description": "One permission or audience expansion shown before approval.",
+        "required": [
+          "permission",
+          "plane",
+          "reason"
+        ],
+        "properties": {
+          "permission": {
+            "type": "string"
+          },
+          "plane": {
+            "type": "string"
+          },
+          "principals": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "reason": {
+            "type": "string"
+          }
+        }
       },
       "ProviderAppProvisioningResponse": {
         "type": "object",
@@ -52185,6 +53969,25 @@
           }
         }
       },
+      "RecallChatKitAutomaticMemoryBody": {
+        "type": "object",
+        "description": "Body for recipient-bound recall tied to one durable triggering message.",
+        "required": [
+          "message_id"
+        ],
+        "properties": {
+          "max_tokens": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "message_id": {
+            "$ref": "#/components/schemas/WrappedUuidV4"
+          }
+        }
+      },
       "RecallMemoryBody": {
         "type": "object",
         "required": [
@@ -52471,6 +54274,10 @@
           "authorization": {
             "$ref": "#/components/schemas/ResourceAuthorizationModes"
           },
+          "automatic_memory_mode": {
+            "$ref": "#/components/schemas/ChatKitAutomaticMemoryMode",
+            "description": "Automatic recall and retention policy. Disabled unless explicitly selected."
+          },
           "concurrency_policy": {
             "$ref": "#/components/schemas/ChatKitAgentConcurrencyPolicy",
             "description": "How new messages are handled while this agent is already responding."
@@ -52505,6 +54312,13 @@
               "$ref": "#/components/schemas/WrappedUuidV4"
             },
             "description": "Memory banks that should ingest conversations involving this agent."
+          },
+          "personal_tool_mcp_server_instance_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Lifecycle-verified MCP server that may receive invocation-scoped\npersonal-tool capabilities for this agent."
           },
           "streaming": {
             "type": "boolean"
@@ -52869,6 +54683,18 @@
           "symmetric"
         ]
       },
+      "ReleaseAiCreditReservationBody": {
+        "type": "object",
+        "description": "Public body for releasing a reservation when inference fails.",
+        "required": [
+          "reservation_id"
+        ],
+        "properties": {
+          "reservation_id": {
+            "type": "string"
+          }
+        }
+      },
       "RemoveChatKitParticipantResponse": {
         "type": "object",
         "description": "Response for removing a ChatKit participant.",
@@ -53095,6 +54921,23 @@
           },
           "supports_summary": {
             "type": "boolean"
+          }
+        }
+      },
+      "ReserveAiCreditsBody": {
+        "type": "object",
+        "description": "Public body for reserving AI credits before one model request.",
+        "required": [
+          "estimated_cost_microusd",
+          "idempotency_key"
+        ],
+        "properties": {
+          "estimated_cost_microusd": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "idempotency_key": {
+            "type": "string"
           }
         }
       },
@@ -54307,6 +56150,255 @@
           }
         }
       },
+      "SelfExtensionCategory": {
+        "type": "string",
+        "description": "Resource families an agent may propose but never directly provision.",
+        "enum": [
+          "connector",
+          "mcp_server",
+          "skill_registry",
+          "custom_tool",
+          "agent",
+          "memory_bank",
+          "wiki"
+        ]
+      },
+      "SelfExtensionPreview": {
+        "type": "object",
+        "description": "Server-authored review document rendered by every client without category branches.",
+        "required": [
+          "resource_diff",
+          "cost_summary",
+          "security_summary",
+          "rollback_plan"
+        ],
+        "properties": {
+          "affected_agents": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "affected_users": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "cost_summary": {
+            "type": "string"
+          },
+          "credentials": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProposalCredentialRequirement"
+            }
+          },
+          "egress_destinations": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "permissions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProposalPermissionChange"
+            }
+          },
+          "resource_diff": {
+            "$ref": "#/components/schemas/WrappedJsonValue",
+            "description": "Concrete desired-state diff with secret references but no secret values."
+          },
+          "rollback_plan": {
+            "type": "string"
+          },
+          "security_summary": {
+            "type": "string"
+          }
+        }
+      },
+      "SelfExtensionProposal": {
+        "type": "object",
+        "description": "Public proposal snapshot. It never returns worker leases or secret material.",
+        "required": [
+          "id",
+          "org_id",
+          "team_id",
+          "requesting_agent_id",
+          "calling_subject_id",
+          "category",
+          "status",
+          "title",
+          "rationale",
+          "desired_state",
+          "preview",
+          "approval",
+          "generation",
+          "outputs_available",
+          "expires_at",
+          "created_at",
+          "updated_at"
+        ],
+        "properties": {
+          "approval": {
+            "$ref": "#/components/schemas/CapabilityChangeApproval",
+            "description": "Secret-free binding used by clients to render and submit the exact approval."
+          },
+          "approved_by_user_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "calling_subject_id": {
+            "type": "string"
+          },
+          "category": {
+            "$ref": "#/components/schemas/SelfExtensionCategory"
+          },
+          "continuation": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/WrappedJsonValue",
+                "description": "Secret-free server-authored provider setup continuation."
+              }
+            ]
+          },
+          "created_at": {
+            "$ref": "#/components/schemas/WrappedChronoDateTime"
+          },
+          "desired_state": {
+            "$ref": "#/components/schemas/WrappedJsonValue"
+          },
+          "error_message": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "expires_at": {
+            "$ref": "#/components/schemas/WrappedChronoDateTime"
+          },
+          "generation": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "id": {
+            "type": "string"
+          },
+          "org_id": {
+            "type": "string"
+          },
+          "outputs_available": {
+            "type": "boolean"
+          },
+          "preview": {
+            "$ref": "#/components/schemas/SelfExtensionPreview"
+          },
+          "rationale": {
+            "type": "string"
+          },
+          "requesting_agent_id": {
+            "type": "string"
+          },
+          "requesting_user_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "resources": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SelfExtensionResource"
+            }
+          },
+          "run_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "session_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "status": {
+            "$ref": "#/components/schemas/SelfExtensionStatus"
+          },
+          "team_id": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "updated_at": {
+            "$ref": "#/components/schemas/WrappedChronoDateTime"
+          }
+        }
+      },
+      "SelfExtensionProposalOutputs": {
+        "type": "object",
+        "description": "One-time execution values, returned only to an authorized human reviewer.",
+        "properties": {
+          "values": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "propertyNames": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "SelfExtensionResource": {
+        "type": "object",
+        "description": "A resource receipt used for idempotency and exact rollback ownership.",
+        "required": [
+          "kind",
+          "key",
+          "id",
+          "created_by_proposal"
+        ],
+        "properties": {
+          "created_by_proposal": {
+            "type": "boolean"
+          },
+          "id": {
+            "type": "string"
+          },
+          "key": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          }
+        }
+      },
+      "SelfExtensionStatus": {
+        "type": "string",
+        "description": "Durable proposal lifecycle. Execution and rollback are leased worker states.",
+        "enum": [
+          "pending",
+          "approved",
+          "executing",
+          "executed",
+          "rejected",
+          "cancelled",
+          "expired",
+          "rollback_queued",
+          "rolling_back",
+          "rolled_back",
+          "error"
+        ]
+      },
       "SelfProfileAvatarResponse": {
         "type": "object",
         "required": [
@@ -54636,6 +56728,15 @@
           },
           "participant_type": {
             "$ref": "#/components/schemas/ChatKitParticipantType"
+          },
+          "principal_user_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "role": {
+            "$ref": "#/components/schemas/ChatKitParticipantRole"
           }
         }
       },
@@ -58335,6 +60436,16 @@
         "type": "object",
         "description": "Request body for updating a registered HTTP Vercel AI SDK agent.",
         "properties": {
+          "automatic_memory_mode": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ChatKitAutomaticMemoryMode"
+              }
+            ]
+          },
           "concurrency_policy": {
             "oneOf": [
               {
@@ -58372,6 +60483,13 @@
               "$ref": "#/components/schemas/WrappedUuidV4"
             },
             "description": "Replaces the complete memory-bank selection when present."
+          },
+          "personal_tool_mcp_server_instance_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Replace the MCP server allowed to receive invocation-scoped personal\ntool capabilities. An empty string clears the binding."
           },
           "streaming": {
             "type": [

@@ -168,7 +168,6 @@ export { type ChatKitToolSession, createChatKitSessionTools } from "./chatkit-se
 export {
   type ChatKitConnectionOptions,
   chatkitConnectionHeaders,
-  type ChatKitSessionPermissions,
   type CreateMCPClientOptions,
   createMCPClient,
   type TildeMCPClient,

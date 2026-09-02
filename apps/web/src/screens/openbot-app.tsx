@@ -11,6 +11,9 @@ import {
   type AttachmentCompletion,
   type ChatAgent,
   type ChatMessage,
+  type CapabilityChangeApproval,
+  decideCapabilityChange,
+  getCapabilityChange,
   connectorAuthorizedReturnUrl,
   type ConnectorProvider,
   type CreateConnectorAccountResult,
@@ -551,6 +554,30 @@ export function OpenBotApp() {
       setConnectorRoute(selection.providerTypeId);
     },
   };
+  const capabilityApprovalActions = {
+    loadCurrent: (approval: CapabilityChangeApproval) => getCapabilityChange("", approval.id),
+    onDecision: async (
+      approval: CapabilityChangeApproval,
+      decision: "approve" | "reject",
+    ): Promise<CapabilityChangeApproval> => {
+      let updated: CapabilityChangeApproval;
+      try {
+        updated = await decideCapabilityChange("", approval, decision);
+      } catch {
+        throw new Error("The capability decision could not be recorded. Please try again.");
+      }
+      try {
+        await openBotRuntime.actions.sendMessage({
+          text: `Capability change ${decision === "approve" ? "approved" : "declined"} by the authenticated owner. proposal_id=${updated.id}. Continue the original task from this durable decision and use only server-provided setup continuations.`,
+        });
+      } catch {
+        openBotRuntime.actions.setError(
+          "The capability decision was recorded, but the agent could not be resumed.",
+        );
+      }
+      return updated;
+    },
+  };
 
   function openConnectorSetup(selection: ConnectorSelectionView): void {
     setConnectorSetup({ selection, loading: selection.credentialSources.length === 0 });
@@ -843,6 +870,7 @@ export function OpenBotApp() {
                           {...messageActions}
                         >
                           <MessageContent
+                            capabilityApprovalActions={capabilityApprovalActions}
                             message={message}
                             resolveAttachmentUrl={resolveAttachmentUrl}
                             rewriteUrl={rewriteUrl}
@@ -909,6 +937,7 @@ export function OpenBotApp() {
                       rendered.push(
                         <div className="message-block" key={key}>
                           <MessageContent
+                            capabilityApprovalActions={capabilityApprovalActions}
                             connectorActions={connectorActions}
                             message={{ ...message, type: "ui", parts: [segment.part] }}
                             resolveAttachmentUrl={resolveAttachmentUrl}
@@ -969,6 +998,7 @@ export function OpenBotApp() {
               <div className="thread-root-group">
                 <ConversationMessage role={threadRoot.role} createdAt={threadRoot.created_at}>
                   <MessageContent
+                    capabilityApprovalActions={capabilityApprovalActions}
                     message={threadRoot}
                     resolveAttachmentUrl={(selectedSessionId, attachmentId) =>
                       openBotRuntime.client.getAttachmentDownloadUrl(

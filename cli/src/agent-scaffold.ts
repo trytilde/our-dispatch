@@ -34,6 +34,10 @@ const defaultAgentTemplates = [
   ["tools/copy_to_computer.ts", "./assets/agents/factory/tools/copy_to_computer.ts.hbs"],
   ["tools/glob.ts", "./assets/agents/factory/tools/glob.ts.hbs"],
   ["tools/grep.ts", "./assets/agents/factory/tools/grep.ts.hbs"],
+  [
+    "tools/propose_self_extension.ts",
+    "./assets/agents/factory/tools/propose_self_extension.ts.hbs",
+  ],
   ["tools/read_file.ts", "./assets/agents/factory/tools/read_file.ts.hbs"],
   ["tools/screenshot.ts", "./assets/agents/factory/tools/screenshot.ts.hbs"],
   ["tools/write_file.ts", "./assets/agents/factory/tools/write_file.ts.hbs"],
@@ -84,6 +88,7 @@ const requiredAgentTemplatePaths = [
   "tools/copy_to_computer.ts.hbs",
   "tools/glob.ts.hbs",
   "tools/grep.ts.hbs",
+  "tools/propose_self_extension.ts.hbs",
   "tools/read_file.ts.hbs",
   "tools/screenshot.ts.hbs",
   "tools/write_file.ts.hbs",

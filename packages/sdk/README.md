@@ -10,7 +10,11 @@ pnpm add @trytilde/sdk
 ## Public API
 
 - `createConfig(input)` normalizes Tilde team, organization, URL, and authentication settings.
-- `createClient(config?)` creates the core client with ChatKit, MCP, messages, and skills APIs.
+- `createClient(config?)` creates the core client with ChatKit, MCP, messages, skills, and
+  human-reviewed self-extension APIs.
+- `SelfExtensionClient` proposes, inspects, lists, cancels, waits for, or rolls back durable
+  capability changes. Human credentials are required by Tilde for approval, output claims, and
+  provider setup continuation; model-facing code should expose only `propose`.
 - `createTildeGrpcReverseProxy(options)` exposes a credential-injecting gRPC reverse proxy.
 - `wrapMcpClientWithLocalTools(options)` combines remote MCP tools with process-local tools.
 - `ChatKitClient.registerAgentTools(input)` reconciles an agent's process-local tool catalog.
@@ -19,6 +23,8 @@ pnpm add @trytilde/sdk
   active turn bound by ChatKit.
 - `ChatKitClient.invokeSessionProviderTool(input)` invokes a reaction, thread, or poll action using
   trusted session routing rather than model-supplied provider identifiers.
+- `ChatKitClient.rooms` creates rooms, manages durable rosters and invitations, and exposes bounded
+  deterministic group-turn orchestration without moving personal credentials into room state.
 - `McpClient.addFunctions(input)` and `McpClient.removeFunctions(input)` atomically reconcile up to 500 function mappings from one tool provider instance.
 - `SkillPackage` and `SkillsClient` discover, download, verify, and materialize managed skills.
 - `recordCodingAgentEvent(options)` records harness-neutral session, message, and tool lifecycle events in canonical ChatKit sessions.

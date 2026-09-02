@@ -34,6 +34,7 @@ const TILDE_SESSION_ID_HEADER = "x-tilde-session-id";
 const TILDE_USER_ID_HEADER = "x-tilde-user-id";
 const EXTERNAL_USER_ID_HEADER = "x-external-user-id";
 const EXTERNAL_USER_PROVIDER_HEADER = "x-external-user-provider";
+const PERSONAL_TOOL_CAPABILITY_DELIVERY_HEADER = "x-tilde-chatkit-delegated-user-token";
 const TILDE_CHATKIT_AGENT_INSTANCE_ID_HEADER = "x-tilde-agent-instance-id";
 const TILDE_CHATKIT_TARGET_INSTANCE_ID_HEADER = "x-tilde-target-instance-id";
 const TILDE_CHATKIT_TRIGGER_MESSAGE_ID_HEADER = "x-tilde-trigger-message-id";
@@ -83,6 +84,12 @@ export type ChatKitEndpointContext = ChatKitEndpointProviderContext & {
   skills: SkillsClient;
   session: ChatKitSessionClient;
   chatkit: ChatKitContextClient;
+  /** Request-scoped MCP connection with the verified speaker capability kept private. */
+  mcp: {
+    connect<TTools extends ToolSet = ToolSet>(
+      options: Omit<CreateMCPClientOptions<TTools>, "client">,
+    ): Promise<TildeMCPClientHandle<TTools>>;
+  };
   $provider?: { id: string; tools: ToolSet };
 };
 
@@ -242,6 +249,32 @@ export function chatKitEndpoint(
     });
 
     const client = options.client;
+    const personalToolCapability = optionalHeader(
+      request.headers,
+      PERSONAL_TOOL_CAPABILITY_DELIVERY_HEADER,
+    );
+    const personalToolClientNonce = crypto.randomUUID();
+    const personalToolProtocolSessionId = crypto.randomUUID();
+    const mcp = {
+      connect<TTools extends ToolSet = ToolSet>(
+        mcpOptions: Omit<CreateMCPClientOptions<TTools>, "client">,
+      ) {
+        return createMCPClient({
+          ...mcpOptions,
+          client,
+          headers: {
+            ...mcpOptions.headers,
+            ...(personalToolCapability
+              ? {
+                  "x-tilde-personal-tool-capability": personalToolCapability,
+                  "x-tilde-personal-tool-client-nonce": personalToolClientNonce,
+                  "x-tilde-personal-tool-protocol-session-id": personalToolProtocolSessionId,
+                }
+              : {}),
+          },
+        });
+      },
+    };
     const sessionTools = toolSession ? createChatKitSessionTools(client, toolSession) : undefined;
     const currentRequestMessageIds = messageIds(body.messages);
     const session: ChatKitSessionClient = {
@@ -251,9 +284,8 @@ export function chatKitEndpoint(
             providerId: toolSession.providerId,
             tools: sessionTools,
             createMCPClient: (mcpOptions: Omit<CreateMCPClientOptions, "client" | "chatkit">) =>
-              createMCPClient({
+              mcp.connect({
                 ...mcpOptions,
-                client,
                 chatkit: {
                   sessionId: toolSession.id,
                   boundTools: sessionTools,
@@ -358,9 +390,11 @@ export function chatKitEndpoint(
       options.requestTimeoutMs === undefined
         ? request.signal
         : AbortSignal.any([request.signal, AbortSignal.timeout(options.requestTimeoutMs)]);
+    const forwardedHeaders = new Headers(request.headers);
+    forwardedHeaders.delete(PERSONAL_TOOL_CAPABILITY_DELIVERY_HEADER);
     const forwarded = new Request(request.url, {
       method: request.method,
-      headers: request.headers,
+      headers: forwardedHeaders,
       body: forwardedBody,
       signal,
       duplex: "half",
@@ -387,6 +421,7 @@ export function chatKitEndpoint(
       skills: client.skills,
       session,
       chatkit,
+      mcp,
       ...(toolSession && sessionTools
         ? { $provider: { id: toolSession.providerId, tools: sessionTools } }
         : {}),

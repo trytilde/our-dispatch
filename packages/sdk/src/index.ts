@@ -21,19 +21,41 @@ export {
   type ChatKitSessionParticipant,
   type ChatKitSessionWithParticipants,
   ChatKitClient,
+  ChatKitRoomsClient,
   type ConvertedChatKitMessage,
   type CreateChatKitMessageInput,
   type InvokeSessionProviderToolInput,
   type InvokeSessionProviderToolResult,
   MessagesClient,
+  runBoundedRoomGroup,
+  type GroupTurn,
   type RegisteredChatKitAgent,
   type RegisteredChatKitChannel,
+  type RoomInvitation,
+  type RoomInvitationStatus,
+  type RoomParticipant,
+  type RoomParticipantInput,
+  type RoomRole,
+  type RoomVisibility,
   type ReportToolExecutionInput,
   type SendSessionMessageInput,
   type SendSessionMessageResult,
   type ToolExecutionState,
 } from "./chatkit";
 export { Client, createClient } from "./client";
+export {
+  type CapabilityChangeApproval,
+  type ProposeSelfExtensionInput,
+  type ProviderSetupContinuation,
+  type SelfExtensionCategory,
+  SelfExtensionClient,
+  type SelfExtensionCredentialRequirement,
+  type SelfExtensionPermissionChange,
+  type SelfExtensionPreview,
+  type SelfExtensionProposal,
+  type SelfExtensionResource,
+  type SelfExtensionStatus,
+} from "./self-extension";
 export { type Config, configHeaders, createConfig, type NormalizedConfig } from "./config";
 export { ApiError } from "./errors";
 export { isJsonObject, isRecord, parseJsonValue, stringField, trimmedStringField } from "./json.js";

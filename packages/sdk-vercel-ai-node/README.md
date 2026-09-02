@@ -17,9 +17,14 @@ pnpm add @trytilde/sdk @trytilde/sdk-vercel-ai-node zod
   progress messages are reserved for explicit requests or genuinely long-running work.
 - `createMCPClient(options)` creates a Tilde-authenticated AI SDK MCP client, registers local tools
   for the owning ChatKit agent, and records local and dynamic child executions. Pass `agentId` when
-  supplying `tools`; use `chatkit.sessionId` to correlate executions to the active session. Inside
-  a tool-mode endpoint, `context.session.createMCPClient(options)` also injects the current
-  session's bound provider tools without registering them as authored local tools.
+  supplying `tools`; use `chatkit.sessionId` to correlate executions to the active session. Tilde
+  derives the tools and agents reachable from that session from the authenticated agent record;
+  callers cannot declare permissions in this client. `context.mcp.connect(options)` constructs a
+  request-scoped connection in every endpoint mode. Inside a tool-mode endpoint,
+  `context.session.createMCPClient(options)` also injects the current session's bound provider tools
+  without registering them as authored local tools. When Tilde supplies a verified speaker-bound
+  personal-tool capability, both request-scoped helpers forward it privately to MCP with fresh
+  nonce and protocol-session bindings; the capability is removed before application code runs.
 - `createChatKitSessionTools(client, session)` constructs the trusted, provider-aware `sendMessage`,
   reaction, thread, AgentMail, and Linq poll tools used by tool-mode endpoints.
 - `toolEndpoint(options)` exposes signed, Zod-validated custom tool discovery and invocation.

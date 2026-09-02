@@ -177,6 +177,10 @@ export type AgentReachScope = {
 };
 
 export type AgentSpec = {
+    /**
+     * Automatic memory selection (`none`, `personal`, `personal_plus_agent`, or `team`).
+     */
+    automatic_memory_mode?: string;
     credential_strategy?: AgentCredentialStrategy;
     display_name: string;
     endpoint: AgentEndpointSpec;
@@ -216,6 +220,29 @@ export enum AgentToolStatus {
 }
 
 /**
+ * A short-lived, single-use reservation for an inference request.
+ */
+export type AiCreditReservation = {
+    expires_at: string;
+    id: string;
+    reserved_microusd: number;
+};
+
+/**
+ * Durable checkout state for one organization AI-credit purchase.
+ */
+export type AiCreditTopup = {
+    amount_microusd: number;
+    autumn_reference?: string | null;
+    id: string;
+    idempotency_key: string;
+    last_error?: string | null;
+    org_id: string;
+    payment_url?: string | null;
+    status: string;
+};
+
+/**
  * Result of an idempotent ontology-template installation.
  */
 export type ApplyOntologyTemplateResult = {
@@ -241,6 +268,11 @@ export enum ApprovalDecision {
     APPROVED = 'approved',
     REJECTED = 'rejected'
 }
+
+export type AssignMemoryBankSynthesizerBody = {
+    synthesizer_agent_id: string;
+    synthesizer_team_id: string;
+};
 
 /**
  * ChatKit-owned attachment metadata.
@@ -313,8 +345,8 @@ export type AutoProvisionToolGroupInstanceResponse = {
  * Typed billing bootstrap response for the selected organization.
  */
 export type BillingContext = {
+    ai_credits: OrganizationAiCreditContext;
     can_manage_billing: boolean;
-    memory_banks: MemoryBankBillingContext;
     org_id: string;
     products: Array<ProductBillingContext>;
 };
@@ -421,6 +453,27 @@ export type CancelHumanApprovalActionRequest = {
     id?: string;
     token?: string;
 };
+
+/**
+ * Model-visible capability confirmation. It deliberately contains no approval token.
+ */
+export type CapabilityChangeApproval = {
+    approval_id: string;
+    instructions: string;
+    proposal_generation: number;
+    proposal_hash: string;
+    proposal_id: string;
+    status: string;
+    title: string;
+};
+
+/**
+ * The only supported decisions for an inline capability confirmation.
+ */
+export enum CapabilityChangeDecision {
+    APPROVE = 'approve',
+    REJECT = 'reject'
+}
 
 /**
  * Body used by root-specific ownership-change operations. The target owner is
@@ -574,6 +627,40 @@ export enum ChatKitAgentTurnQueueStatus {
 }
 
 /**
+ * One provenance-bearing memory supplied to the active recipient agent.
+ */
+export type ChatKitAutomaticMemoryItem = {
+    bank_id: WrappedUuidV4;
+    bank_name: string;
+    content: string;
+    evidence_ids?: Array<string>;
+    learned_by_agent_id?: string | null;
+    memory_id: string;
+    memory_type: string;
+    source?: string | null;
+};
+
+/**
+ * High-level automatic-memory policy persisted on an agent or channel.
+ */
+export enum ChatKitAutomaticMemoryMode {
+    NONE = 'none',
+    PERSONAL = 'personal',
+    PERSONAL_PLUS_AGENT = 'personal_plus_agent',
+    TEAM = 'team'
+}
+
+/**
+ * Bounded deterministic projection intended as a dynamic instruction suffix.
+ */
+export type ChatKitAutomaticMemoryProjection = {
+    estimated_tokens: number;
+    items: Array<ChatKitAutomaticMemoryItem>;
+    rendered: string;
+    truncated: boolean;
+};
+
+/**
  * Provider-specific configuration field for a ChatKit chat provider.
  */
 export type ChatKitChatProviderConfigField = {
@@ -629,6 +716,8 @@ export type ChatKitParticipant = {
     membership_source: ChatKitParticipantMembershipSource;
     participant_handle: string;
     participant_type: ChatKitParticipantType;
+    principal_user_id?: string | null;
+    role: ChatKitParticipantRole;
 };
 
 /**
@@ -656,8 +745,21 @@ export type ChatKitParticipantInput = {
  */
 export enum ChatKitParticipantMembershipSource {
     EXPLICIT = 'explicit',
+    INVITATION = 'invitation',
     PROVIDER = 'provider',
     RECIPIENT = 'recipient'
+}
+
+/**
+ * A participant's collaboration role inside a ChatKit room.
+ *
+ * Session authorization remains authoritative: this role never widens the
+ * session visibility or ownership planes.
+ */
+export enum ChatKitParticipantRole {
+    OWNER = 'owner',
+    ADMIN = 'admin',
+    MEMBER = 'member'
 }
 
 /**
@@ -708,6 +810,47 @@ export type ChatKitRequestAgentAvatar = {
      */
     url: string;
 };
+
+/**
+ * One durable room invitation. The participant descriptor is fixed by the
+ * inviter, while acceptance is restricted to `invitee_user_id`.
+ */
+export type ChatKitRoomInvitation = {
+    created_at: WrappedChronoDateTime;
+    id: WrappedUuidV4;
+    invited_by_user_id: string;
+    invitee_user_id: string;
+    org_id: string;
+    participant: ChatKitParticipantInput;
+    role: ChatKitParticipantRole;
+    session_id: WrappedUuidV4;
+    status: ChatKitRoomInvitationStatus;
+    team_id: string;
+    updated_at: WrappedChronoDateTime;
+};
+
+/**
+ * A user's decision for one pending room invitation.
+ */
+export enum ChatKitRoomInvitationDecision {
+    ACCEPT = 'accept',
+    DECLINE = 'decline'
+}
+
+export type ChatKitRoomInvitationPaginatedResponse = {
+    items: Array<ChatKitRoomInvitation>;
+    next_page_token?: string;
+};
+
+/**
+ * Durable lifecycle of an invitation to a private or team ChatKit room.
+ */
+export enum ChatKitRoomInvitationStatus {
+    PENDING = 'pending',
+    ACCEPTED = 'accepted',
+    DECLINED = 'declined',
+    REVOKED = 'revoked'
+}
 
 /**
  * Agent context included when an agent identity or display name matched.
@@ -1003,15 +1146,18 @@ export type CloudWhoamiResponse = {
 };
 
 /**
- * Public request body for committing a Hindsight reservation.
+ * Public body for committing the exact Gateway receipt after inference.
  */
-export type CommitMemoryBankReservationBody = {
-    active_banks: number;
-    /**
-     * Provide when committing a successful creation; omit when recording a
-     * deletion or retrying an already-authoritative quantity.
-     */
-    reservation_id?: string | null;
+export type CommitAiCreditReceiptBody = {
+    actual_cost_microusd: number;
+    generation_id?: string | null;
+    idempotency_key: string;
+    input_tokens: number;
+    model_id: string;
+    output_tokens: number;
+    provider?: string | null;
+    reservation_id: string;
+    tags: Array<string>;
 };
 
 export type CommonProviderInstallationPage = {
@@ -1146,6 +1292,14 @@ export type ConnectProxiedMcpServerResponse = {
     tool_group_instance: ToolGroupInstanceSerialized;
 };
 
+/**
+ * Public body for creating an organization AI-credit checkout.
+ */
+export type CreateAiCreditTopupBody = {
+    amount_microusd: number;
+    idempotency_key: string;
+};
+
 export type CreateApiKeyInner = {
     description?: string | null;
     id?: string | null;
@@ -1196,6 +1350,15 @@ export type CreateAttachmentUploadsInner = {
  */
 export type CreateAttachmentUploadsResponse = {
     items: Array<CreateAttachmentUploadResponse>;
+};
+
+/**
+ * Request body for inviting a user to one ChatKit room.
+ */
+export type CreateChatKitRoomInvitationRequestInner = {
+    invitee_user_id: string;
+    participant: ChatKitParticipantInput;
+    role?: ChatKitParticipantRole;
 };
 
 /**
@@ -1317,6 +1480,11 @@ export type CreateMemoryBankBody = {
      */
     initial_grants?: Array<ResourceGrantRequest>;
     name: string;
+    /**
+     * Synthesis agent. When omitted, the server resolves and persists its configured default.
+     */
+    synthesizer_agent_id?: string | null;
+    synthesizer_team_id?: string | null;
 };
 
 /**
@@ -1436,6 +1604,24 @@ export type CreateReverseProxyProfileInner = {
     provider_id: string;
     resource_server_credential_id?: null | WrappedUuidV4;
     user_credential_id?: null | WrappedUuidV4;
+};
+
+/**
+ * Agent-authored intent submitted to the server for validation and previewing.
+ */
+export type CreateSelfExtensionProposalInner = {
+    category: SelfExtensionCategory;
+    /**
+     * Provider/domain desired state. Plaintext credential fields are rejected.
+     */
+    desired_state: WrappedJsonValue;
+    expires_in_seconds?: number;
+    idempotency_key: string;
+    rationale: string;
+    requesting_agent_id: string;
+    run_id?: string | null;
+    session_id?: string | null;
+    title: string;
 };
 
 /**
@@ -1775,7 +1961,7 @@ export type CredentialSourceSerialized = {
 };
 
 /**
- * Current caller's seat state. Agent identities never consume seats.
+ * Current caller's seat state. Machine identities never consume seats.
  */
 export enum CurrentSeatStatus {
     ACTIVE = 'active',
@@ -1840,6 +2026,23 @@ export type DataUiPart = {
 
 export type DebugAuthProfilesResponse = {
     profiles: Array<string>;
+};
+
+/**
+ * Exact client binding posted when a human presses Yes or No.
+ */
+export type DecideCapabilityChangeRequest = {
+    approval_id: string;
+    decision: CapabilityChangeDecision;
+    proposal_generation: number;
+    proposal_hash: string;
+};
+
+/**
+ * Request body for accepting or declining a room invitation.
+ */
+export type DecideChatKitRoomInvitationRequestInner = {
+    decision: ChatKitRoomInvitationDecision;
 };
 
 export type DeleteChatKitAgentTurnQueueItemResponse = {
@@ -2823,6 +3026,12 @@ export type McpServerSpec = {
     enabled: boolean;
     id?: string | null;
     name?: string | null;
+    /**
+     * Personal tools the lifecycle MCP server may resolve for an
+     * authenticated ChatKit speaker.
+     */
+    user_tool_federation_mode?: UserToolFederationMode;
+    user_tool_federation_selections?: Array<UserToolFederationSelection>;
 };
 
 /**
@@ -2848,23 +3057,15 @@ export type MemoryBank = {
     provider_bank_id: string;
     status: MemoryBankStatus;
     status_message?: string | null;
+    synthesis_session_id?: null | WrappedUuidV4;
+    /**
+     * Concrete agent selected to synthesize this bank's queued evidence.
+     */
+    synthesizer_agent_id?: string | null;
+    synthesizer_team_id?: string | null;
     team_id?: string | null;
     tool_group_instance_id?: string | null;
     updated_at: WrappedChronoDateTime;
-};
-
-/**
- * Organization-level Hindsight memory-bank capacity.
- */
-export type MemoryBankBillingContext = {
-    active: number;
-    billable: number;
-    can_create: boolean;
-    confirmed_billable: number;
-    included: number;
-    payment_url?: string | null;
-    pending_reservations: number;
-    requires_payment_method: boolean;
 };
 
 export type MemoryBankConfig = {
@@ -2876,16 +3077,6 @@ export type MemoryBankConfig = {
      * Only values explicitly overridden for this bank.
      */
     overrides: unknown;
-};
-
-/**
- * A short-lived paid-capacity reservation returned to the Hindsight owner.
- * The owner must commit it after resource creation or release it on failure.
- */
-export type MemoryBankCreationReservation = {
-    billing: MemoryBankBillingContext;
-    expires_at: string;
-    reservation_id: string;
 };
 
 export type MemoryBankDocumentList = {
@@ -2934,7 +3125,7 @@ export type MemoryDocument = {
     document_id: string;
     metadata?: unknown;
     /**
-     * Explicit Hindsight observation scopes. Each inner list is consolidated
+     * Explicit actor observation scopes. Each inner list is consolidated
      * independently, preventing observations from crossing actor boundaries.
      */
     observation_scopes?: Array<Array<string>>;
@@ -2946,12 +3137,11 @@ export type MemoryOperationResponse = {
 };
 
 export enum MemoryProvider {
-    HINDSIGHT = 'hindsight'
+    HELIX = 'helix'
 }
 
 export type MemorySourceBinding = {
     created_at: WrappedChronoDateTime;
-    created_by_user_id?: string | null;
     /**
      * True while a detached source is waiting for provider document cleanup.
      */
@@ -2962,6 +3152,7 @@ export type MemorySourceBinding = {
     last_synced_generation?: number | null;
     memory_bank_id: WrappedUuidV4;
     org_id: string;
+    owner_user_id?: string | null;
     source_id: string;
     source_kind: MemorySourceKind;
     team_id?: string | null;
@@ -3143,6 +3334,19 @@ export type Organization = {
     updated_at: WrappedChronoDateTime;
 };
 
+/**
+ * Organization AI-credit balance expressed in integer micro-US dollars.
+ */
+export type OrganizationAiCreditContext = {
+    available_microusd: number;
+    current_period_end?: string | null;
+    granted_microusd: number;
+    org_id: string;
+    reserved_microusd: number;
+    spent_microusd: number;
+    topup_remaining_microusd: number;
+};
+
 export type OrganizationMemberWithUser = {
     membership: UserOrganization;
     user: User;
@@ -3289,6 +3493,26 @@ export enum ProductSubscriptionStatus {
     SUSPENDED = 'suspended',
     CANCELED = 'canceled'
 }
+
+/**
+ * A required credential descriptor. It intentionally cannot carry a value.
+ */
+export type ProposalCredentialRequirement = {
+    brokered_by: string;
+    credential_type: string;
+    purpose: string;
+    required_fields?: Array<string>;
+};
+
+/**
+ * One permission or audience expansion shown before approval.
+ */
+export type ProposalPermissionChange = {
+    permission: string;
+    plane: string;
+    principals?: Array<string>;
+    reason: string;
+};
 
 /**
  * Response for setup or app provisioning lifecycle calls.
@@ -3738,6 +3962,14 @@ export type ReasoningUiPart = {
     text?: string | null;
 };
 
+/**
+ * Body for recipient-bound recall tied to one durable triggering message.
+ */
+export type RecallChatKitAutomaticMemoryBody = {
+    max_tokens?: number | null;
+    message_id: WrappedUuidV4;
+};
+
 export type RecallMemoryBody = {
     max_tokens?: number | null;
     query: string;
@@ -3831,6 +4063,10 @@ export type RegisterChatKitChatProviderResponse = {
 export type RegisterHttpVercelAiSdkAgentRequestInner = {
     authorization?: ResourceAuthorizationModes;
     /**
+     * Automatic recall and retention policy. Disabled unless explicitly selected.
+     */
+    automatic_memory_mode?: ChatKitAutomaticMemoryMode;
+    /**
      * How new messages are handled while this agent is already responding.
      */
     concurrency_policy?: ChatKitAgentConcurrencyPolicy;
@@ -3843,6 +4079,11 @@ export type RegisterHttpVercelAiSdkAgentRequestInner = {
      * Memory banks that should ingest conversations involving this agent.
      */
     memory_bank_ids?: Array<WrappedUuidV4> | null;
+    /**
+     * Lifecycle-verified MCP server that may receive invocation-scoped
+     * personal-tool capabilities for this agent.
+     */
+    personal_tool_mcp_server_instance_id?: string | null;
     streaming?: boolean;
     timeout_ms?: number | null;
 };
@@ -3936,6 +4177,13 @@ export enum RelationshipDirectionality {
 }
 
 /**
+ * Public body for releasing a reservation when inference fails.
+ */
+export type ReleaseAiCreditReservationBody = {
+    reservation_id: string;
+};
+
+/**
  * Response for removing a ChatKit participant.
  */
 export type RemoveChatKitParticipantResponse = {
@@ -3993,6 +4241,14 @@ export type ReportedAgentTool = {
     identity_snapshot?: null | WrappedJsonValue;
     summary?: string | null;
     supports_summary?: boolean;
+};
+
+/**
+ * Public body for reserving AI credits before one model request.
+ */
+export type ReserveAiCreditsBody = {
+    estimated_cost_microusd: number;
+    idempotency_key: string;
 };
 
 export type ResolveLoginProviderResponse = {
@@ -4361,6 +4617,106 @@ export type SelectDebugAuthProfileRequest = {
     profile: string;
 };
 
+/**
+ * Resource families an agent may propose but never directly provision.
+ */
+export enum SelfExtensionCategory {
+    CONNECTOR = 'connector',
+    MCP_SERVER = 'mcp_server',
+    SKILL_REGISTRY = 'skill_registry',
+    CUSTOM_TOOL = 'custom_tool',
+    AGENT = 'agent',
+    MEMORY_BANK = 'memory_bank',
+    WIKI = 'wiki'
+}
+
+/**
+ * Server-authored review document rendered by every client without category branches.
+ */
+export type SelfExtensionPreview = {
+    affected_agents?: Array<string>;
+    affected_users?: Array<string>;
+    cost_summary: string;
+    credentials?: Array<ProposalCredentialRequirement>;
+    egress_destinations?: Array<string>;
+    permissions?: Array<ProposalPermissionChange>;
+    /**
+     * Concrete desired-state diff with secret references but no secret values.
+     */
+    resource_diff: WrappedJsonValue;
+    rollback_plan: string;
+    security_summary: string;
+};
+
+/**
+ * Public proposal snapshot. It never returns worker leases or secret material.
+ */
+export type SelfExtensionProposal = {
+    /**
+     * Secret-free binding used by clients to render and submit the exact approval.
+     */
+    approval: CapabilityChangeApproval;
+    approved_by_user_id?: string | null;
+    calling_subject_id: string;
+    category: SelfExtensionCategory;
+    continuation?: null | WrappedJsonValue;
+    created_at: WrappedChronoDateTime;
+    desired_state: WrappedJsonValue;
+    error_message?: string | null;
+    expires_at: WrappedChronoDateTime;
+    generation: number;
+    id: string;
+    org_id: string;
+    outputs_available: boolean;
+    preview: SelfExtensionPreview;
+    rationale: string;
+    requesting_agent_id: string;
+    requesting_user_id?: string | null;
+    resources?: Array<SelfExtensionResource>;
+    run_id?: string | null;
+    session_id?: string | null;
+    status: SelfExtensionStatus;
+    team_id: string;
+    title: string;
+    updated_at: WrappedChronoDateTime;
+};
+
+/**
+ * One-time execution values, returned only to an authorized human reviewer.
+ */
+export type SelfExtensionProposalOutputs = {
+    values?: {
+        [key: string]: string;
+    };
+};
+
+/**
+ * A resource receipt used for idempotency and exact rollback ownership.
+ */
+export type SelfExtensionResource = {
+    created_by_proposal: boolean;
+    id: string;
+    key: string;
+    kind: string;
+};
+
+/**
+ * Durable proposal lifecycle. Execution and rollback are leased worker states.
+ */
+export enum SelfExtensionStatus {
+    PENDING = 'pending',
+    APPROVED = 'approved',
+    EXECUTING = 'executing',
+    EXECUTED = 'executed',
+    REJECTED = 'rejected',
+    CANCELLED = 'cancelled',
+    EXPIRED = 'expired',
+    ROLLBACK_QUEUED = 'rollback_queued',
+    ROLLING_BACK = 'rolling_back',
+    ROLLED_BACK = 'rolled_back',
+    ERROR = 'error'
+}
+
 export type SelfProfileAvatarResponse = {
     avatar: UserAvatar;
 };
@@ -4456,6 +4812,8 @@ export type SessionParticipantIdentity = {
     membership_source: ChatKitParticipantMembershipSource;
     participant_handle: string;
     participant_type: ChatKitParticipantType;
+    principal_user_id?: string | null;
+    role?: ChatKitParticipantRole;
 };
 
 /**
@@ -5535,6 +5893,7 @@ export type UpdateHostedOpenBotComputerImageRequest = {
  * Request body for updating a registered HTTP Vercel AI SDK agent.
  */
 export type UpdateHttpVercelAiSdkAgentRequestInner = {
+    automatic_memory_mode?: null | ChatKitAutomaticMemoryMode;
     concurrency_policy?: null | ChatKitAgentConcurrencyPolicy;
     display_name?: string | null;
     endpoint_url?: string | null;
@@ -5543,6 +5902,11 @@ export type UpdateHttpVercelAiSdkAgentRequestInner = {
      * Replaces the complete memory-bank selection when present.
      */
     memory_bank_ids?: Array<WrappedUuidV4> | null;
+    /**
+     * Replace the MCP server allowed to receive invocation-scoped personal
+     * tool capabilities. An empty string clears the binding.
+     */
+    personal_tool_mcp_server_instance_id?: string | null;
     streaming?: boolean | null;
     timeout_ms?: number | null;
 };
@@ -6254,6 +6618,87 @@ export type ChatkitCompleteSlackProviderProvisionedSetupResponses = {
 
 export type ChatkitCompleteSlackProviderProvisionedSetupResponse = ChatkitCompleteSlackProviderProvisionedSetupResponses[keyof ChatkitCompleteSlackProviderProvisionedSetupResponses];
 
+export type BillingAiCreditReceiptCommitData = {
+    body: CommitAiCreditReceiptBody;
+    path?: never;
+    query?: never;
+    url: '/api/v1/billing/ai-credits/receipts';
+};
+
+export type BillingAiCreditReceiptCommitResponses = {
+    /**
+     * Updated AI-credit balance
+     */
+    200: OrganizationAiCreditContext;
+};
+
+export type BillingAiCreditReceiptCommitResponse = BillingAiCreditReceiptCommitResponses[keyof BillingAiCreditReceiptCommitResponses];
+
+export type BillingAiCreditReservationReleaseData = {
+    body: ReleaseAiCreditReservationBody;
+    path?: never;
+    query?: never;
+    url: '/api/v1/billing/ai-credits/reservations';
+};
+
+export type BillingAiCreditReservationReleaseResponses = {
+    /**
+     * Updated AI-credit balance
+     */
+    200: OrganizationAiCreditContext;
+};
+
+export type BillingAiCreditReservationReleaseResponse = BillingAiCreditReservationReleaseResponses[keyof BillingAiCreditReservationReleaseResponses];
+
+export type BillingAiCreditReserveData = {
+    body: ReserveAiCreditsBody;
+    path?: never;
+    query?: never;
+    url: '/api/v1/billing/ai-credits/reservations';
+};
+
+export type BillingAiCreditReserveResponses = {
+    /**
+     * Reserved AI credits
+     */
+    200: AiCreditReservation;
+};
+
+export type BillingAiCreditReserveResponse = BillingAiCreditReserveResponses[keyof BillingAiCreditReserveResponses];
+
+export type BillingAiCreditTopupCreateData = {
+    body: CreateAiCreditTopupBody;
+    path?: never;
+    query?: never;
+    url: '/api/v1/billing/ai-credits/topups';
+};
+
+export type BillingAiCreditTopupCreateErrors = {
+    /**
+     * Invalid amount or idempotency key
+     */
+    400: Error;
+    /**
+     * Authentication failed
+     */
+    401: Error;
+    /**
+     * Organization administrator required
+     */
+    403: Error;
+};
+
+export type BillingAiCreditTopupCreateError = BillingAiCreditTopupCreateErrors[keyof BillingAiCreditTopupCreateErrors];
+
+export type BillingAiCreditTopupCreateResponses = {
+    /**
+     * AI-credit checkout
+     */
+    200: AiCreditTopup;
+};
+
+export type BillingAiCreditTopupCreateResponse = BillingAiCreditTopupCreateResponses[keyof BillingAiCreditTopupCreateResponses];
+
 export type BillingAutumnBridgePostData = {
     /**
      * Opaque JSON forwarded to Autumn
@@ -6329,118 +6774,6 @@ export type BillingContextGetResponses = {
 };
 
 export type BillingContextGetResponse = BillingContextGetResponses[keyof BillingContextGetResponses];
-
-export type BillingMemoryBankReservationCommitData = {
-    body: CommitMemoryBankReservationBody;
-    path?: never;
-    query?: never;
-    url: '/api/v1/billing/internal/memory-banks/quantity';
-};
-
-export type BillingMemoryBankReservationCommitErrors = {
-    /**
-     * Invalid quantity transition
-     */
-    400: Error;
-    /**
-     * Authentication failed
-     */
-    401: Error;
-    /**
-     * System administrator required
-     */
-    403: Error;
-    /**
-     * Reservation expired or consumed
-     */
-    410: Error;
-};
-
-export type BillingMemoryBankReservationCommitError = BillingMemoryBankReservationCommitErrors[keyof BillingMemoryBankReservationCommitErrors];
-
-export type BillingMemoryBankReservationCommitResponses = {
-    /**
-     * Updated memory-bank billing context
-     */
-    200: MemoryBankBillingContext;
-};
-
-export type BillingMemoryBankReservationCommitResponse = BillingMemoryBankReservationCommitResponses[keyof BillingMemoryBankReservationCommitResponses];
-
-export type BillingMemoryBankReservationCreateData = {
-    body?: never;
-    path?: never;
-    query?: never;
-    url: '/api/v1/billing/internal/memory-banks/reservations';
-};
-
-export type BillingMemoryBankReservationCreateErrors = {
-    /**
-     * Authentication failed
-     */
-    401: Error;
-    /**
-     * Stripe payment action required
-     */
-    402: Error;
-    /**
-     * System administrator required
-     */
-    403: Error;
-    /**
-     * Concurrent reconciliation in progress
-     */
-    503: Error;
-};
-
-export type BillingMemoryBankReservationCreateError = BillingMemoryBankReservationCreateErrors[keyof BillingMemoryBankReservationCreateErrors];
-
-export type BillingMemoryBankReservationCreateResponses = {
-    /**
-     * Reserved memory-bank capacity
-     */
-    200: MemoryBankCreationReservation;
-};
-
-export type BillingMemoryBankReservationCreateResponse = BillingMemoryBankReservationCreateResponses[keyof BillingMemoryBankReservationCreateResponses];
-
-export type BillingMemoryBankReservationReleaseData = {
-    body?: never;
-    path: {
-        /**
-         * Reservation id
-         */
-        reservation_id: string;
-    };
-    query?: never;
-    url: '/api/v1/billing/internal/memory-banks/reservations/{reservation_id}';
-};
-
-export type BillingMemoryBankReservationReleaseErrors = {
-    /**
-     * Authentication failed
-     */
-    401: Error;
-    /**
-     * System administrator required
-     */
-    403: Error;
-    /**
-     * Reservation missing or no longer pending
-     */
-    410: Error;
-};
-
-export type BillingMemoryBankReservationReleaseError = BillingMemoryBankReservationReleaseErrors[keyof BillingMemoryBankReservationReleaseErrors];
-
-export type BillingMemoryBankReservationReleaseResponses = {
-    /**
-     * Updated memory-bank billing context
-     */
-    200: MemoryBankBillingContext;
-};
-
-export type BillingMemoryBankReservationReleaseResponse = BillingMemoryBankReservationReleaseResponses[keyof BillingMemoryBankReservationReleaseResponses];
 
 export type BillingProductEnrollCurrentHumanData = {
     body?: never;
@@ -9828,6 +10161,43 @@ export type ChatkitClaimAgentResourceBundleOutputsResponses = {
 
 export type ChatkitClaimAgentResourceBundleOutputsResponse = ChatkitClaimAgentResourceBundleOutputsResponses[keyof ChatkitClaimAgentResourceBundleOutputsResponses];
 
+export type ChatkitRecallAutomaticMemoryData = {
+    body: RecallChatKitAutomaticMemoryBody;
+    path: {
+        /**
+         * Team ID
+         */
+        team_id: string;
+        /**
+         * Active recipient agent
+         */
+        agent_id: string;
+        /**
+         * Session ID
+         */
+        session_id: WrappedUuidV4;
+    };
+    query?: never;
+    url: '/api/v1/team/{team_id}/chatkit/agents/{agent_id}/sessions/{session_id}/automatic-memory/recall';
+};
+
+export type ChatkitRecallAutomaticMemoryErrors = {
+    403: Error;
+    404: Error;
+    500: Error;
+};
+
+export type ChatkitRecallAutomaticMemoryError = ChatkitRecallAutomaticMemoryErrors[keyof ChatkitRecallAutomaticMemoryErrors];
+
+export type ChatkitRecallAutomaticMemoryResponses = {
+    /**
+     * Bounded automatic-memory projection
+     */
+    200: ChatKitAutomaticMemoryProjection;
+};
+
+export type ChatkitRecallAutomaticMemoryResponse = ChatkitRecallAutomaticMemoryResponses[keyof ChatkitRecallAutomaticMemoryResponses];
+
 export type ChatkitSetAgentStatusData = {
     body: SetChatKitResourceStatusRequest;
     path: {
@@ -10561,6 +10931,179 @@ export type ChatkitHydrateConvertedMessagesResponses = {
 };
 
 export type ChatkitHydrateConvertedMessagesResponse = ChatkitHydrateConvertedMessagesResponses[keyof ChatkitHydrateConvertedMessagesResponses];
+
+export type ChatkitListSelfExtensionProposalsData = {
+    body?: never;
+    path: {
+        /**
+         * Team ID
+         */
+        team_id: string;
+    };
+    query?: {
+        status?: SelfExtensionStatus;
+        requesting_agent_id?: string;
+        page_size?: number;
+    };
+    url: '/api/v1/team/{team_id}/chatkit/self-extension-proposals';
+};
+
+export type ChatkitListSelfExtensionProposalsResponses = {
+    200: Array<SelfExtensionProposal>;
+};
+
+export type ChatkitListSelfExtensionProposalsResponse = ChatkitListSelfExtensionProposalsResponses[keyof ChatkitListSelfExtensionProposalsResponses];
+
+export type ChatkitProposeSelfExtensionData = {
+    body: CreateSelfExtensionProposalInner;
+    path: {
+        /**
+         * Team ID
+         */
+        team_id: string;
+    };
+    query?: never;
+    url: '/api/v1/team/{team_id}/chatkit/self-extension-proposals';
+};
+
+export type ChatkitProposeSelfExtensionResponses = {
+    201: SelfExtensionProposal;
+};
+
+export type ChatkitProposeSelfExtensionResponse = ChatkitProposeSelfExtensionResponses[keyof ChatkitProposeSelfExtensionResponses];
+
+export type ChatkitGetSelfExtensionProposalData = {
+    body?: never;
+    path: {
+        /**
+         * Team ID
+         */
+        team_id: string;
+        proposal_id: string;
+    };
+    query?: never;
+    url: '/api/v1/team/{team_id}/chatkit/self-extension-proposals/{proposal_id}';
+};
+
+export type ChatkitGetSelfExtensionProposalResponses = {
+    200: SelfExtensionProposal;
+};
+
+export type ChatkitGetSelfExtensionProposalResponse = ChatkitGetSelfExtensionProposalResponses[keyof ChatkitGetSelfExtensionProposalResponses];
+
+export type ChatkitApproveSelfExtensionProposalData = {
+    body?: never;
+    path: {
+        /**
+         * Team ID
+         */
+        team_id: string;
+        proposal_id: string;
+    };
+    query?: never;
+    url: '/api/v1/team/{team_id}/chatkit/self-extension-proposals/{proposal_id}/approve';
+};
+
+export type ChatkitApproveSelfExtensionProposalResponses = {
+    200: SelfExtensionProposal;
+};
+
+export type ChatkitApproveSelfExtensionProposalResponse = ChatkitApproveSelfExtensionProposalResponses[keyof ChatkitApproveSelfExtensionProposalResponses];
+
+export type ChatkitCancelSelfExtensionProposalData = {
+    body?: never;
+    path: {
+        /**
+         * Team ID
+         */
+        team_id: string;
+        proposal_id: string;
+    };
+    query?: never;
+    url: '/api/v1/team/{team_id}/chatkit/self-extension-proposals/{proposal_id}/cancel';
+};
+
+export type ChatkitCancelSelfExtensionProposalResponses = {
+    200: SelfExtensionProposal;
+};
+
+export type ChatkitCancelSelfExtensionProposalResponse = ChatkitCancelSelfExtensionProposalResponses[keyof ChatkitCancelSelfExtensionProposalResponses];
+
+export type ChatkitDecideCapabilityChangeData = {
+    body: DecideCapabilityChangeRequest;
+    path: {
+        /**
+         * Team ID
+         */
+        team_id: string;
+        proposal_id: string;
+    };
+    query?: never;
+    url: '/api/v1/team/{team_id}/chatkit/self-extension-proposals/{proposal_id}/decision';
+};
+
+export type ChatkitDecideCapabilityChangeResponses = {
+    200: SelfExtensionProposal;
+};
+
+export type ChatkitDecideCapabilityChangeResponse = ChatkitDecideCapabilityChangeResponses[keyof ChatkitDecideCapabilityChangeResponses];
+
+export type ChatkitClaimSelfExtensionProposalOutputsData = {
+    body?: never;
+    path: {
+        /**
+         * Team ID
+         */
+        team_id: string;
+        proposal_id: string;
+    };
+    query?: never;
+    url: '/api/v1/team/{team_id}/chatkit/self-extension-proposals/{proposal_id}/outputs/claim';
+};
+
+export type ChatkitClaimSelfExtensionProposalOutputsResponses = {
+    200: SelfExtensionProposalOutputs;
+};
+
+export type ChatkitClaimSelfExtensionProposalOutputsResponse = ChatkitClaimSelfExtensionProposalOutputsResponses[keyof ChatkitClaimSelfExtensionProposalOutputsResponses];
+
+export type ChatkitRejectSelfExtensionProposalData = {
+    body?: never;
+    path: {
+        /**
+         * Team ID
+         */
+        team_id: string;
+        proposal_id: string;
+    };
+    query?: never;
+    url: '/api/v1/team/{team_id}/chatkit/self-extension-proposals/{proposal_id}/reject';
+};
+
+export type ChatkitRejectSelfExtensionProposalResponses = {
+    200: SelfExtensionProposal;
+};
+
+export type ChatkitRejectSelfExtensionProposalResponse = ChatkitRejectSelfExtensionProposalResponses[keyof ChatkitRejectSelfExtensionProposalResponses];
+
+export type ChatkitRollbackSelfExtensionProposalData = {
+    body?: never;
+    path: {
+        /**
+         * Team ID
+         */
+        team_id: string;
+        proposal_id: string;
+    };
+    query?: never;
+    url: '/api/v1/team/{team_id}/chatkit/self-extension-proposals/{proposal_id}/rollback';
+};
+
+export type ChatkitRollbackSelfExtensionProposalResponses = {
+    200: SelfExtensionProposal;
+};
+
+export type ChatkitRollbackSelfExtensionProposalResponse = ChatkitRollbackSelfExtensionProposalResponses[keyof ChatkitRollbackSelfExtensionProposalResponses];
 
 export type ListSessionsData = {
     body?: never;
@@ -11579,6 +12122,115 @@ export type ChatkitCreateSessionResponses = {
 };
 
 export type ChatkitCreateSessionResponse = ChatkitCreateSessionResponses[keyof ChatkitCreateSessionResponses];
+
+export type ChatkitListRoomInvitationsData = {
+    body?: never;
+    path: {
+        /**
+         * Team ID
+         */
+        team_id: string;
+        session_id: WrappedUuidV4;
+    };
+    query?: {
+        page_size?: number;
+        next_page_token?: string | null;
+    };
+    url: '/api/v1/team/{team_id}/chatkit/sessions/{session_id}/invitations';
+};
+
+export type ChatkitListRoomInvitationsErrors = {
+    400: Error;
+    404: Error;
+};
+
+export type ChatkitListRoomInvitationsError = ChatkitListRoomInvitationsErrors[keyof ChatkitListRoomInvitationsErrors];
+
+export type ChatkitListRoomInvitationsResponses = {
+    200: ChatKitRoomInvitationPaginatedResponse;
+};
+
+export type ChatkitListRoomInvitationsResponse = ChatkitListRoomInvitationsResponses[keyof ChatkitListRoomInvitationsResponses];
+
+export type ChatkitCreateRoomInvitationData = {
+    body: CreateChatKitRoomInvitationRequestInner;
+    path: {
+        /**
+         * Team ID
+         */
+        team_id: string;
+        session_id: WrappedUuidV4;
+    };
+    query?: never;
+    url: '/api/v1/team/{team_id}/chatkit/sessions/{session_id}/invitations';
+};
+
+export type ChatkitCreateRoomInvitationErrors = {
+    400: Error;
+    404: Error;
+};
+
+export type ChatkitCreateRoomInvitationError = ChatkitCreateRoomInvitationErrors[keyof ChatkitCreateRoomInvitationErrors];
+
+export type ChatkitCreateRoomInvitationResponses = {
+    200: ChatKitRoomInvitation;
+};
+
+export type ChatkitCreateRoomInvitationResponse = ChatkitCreateRoomInvitationResponses[keyof ChatkitCreateRoomInvitationResponses];
+
+export type ChatkitRevokeRoomInvitationData = {
+    body?: never;
+    path: {
+        /**
+         * Team ID
+         */
+        team_id: string;
+        session_id: WrappedUuidV4;
+        invitation_id: WrappedUuidV4;
+    };
+    query?: never;
+    url: '/api/v1/team/{team_id}/chatkit/sessions/{session_id}/invitations/{invitation_id}';
+};
+
+export type ChatkitRevokeRoomInvitationErrors = {
+    400: Error;
+    404: Error;
+};
+
+export type ChatkitRevokeRoomInvitationError = ChatkitRevokeRoomInvitationErrors[keyof ChatkitRevokeRoomInvitationErrors];
+
+export type ChatkitRevokeRoomInvitationResponses = {
+    200: ChatKitRoomInvitation;
+};
+
+export type ChatkitRevokeRoomInvitationResponse = ChatkitRevokeRoomInvitationResponses[keyof ChatkitRevokeRoomInvitationResponses];
+
+export type ChatkitDecideRoomInvitationData = {
+    body: DecideChatKitRoomInvitationRequestInner;
+    path: {
+        /**
+         * Team ID
+         */
+        team_id: string;
+        session_id: WrappedUuidV4;
+        invitation_id: WrappedUuidV4;
+    };
+    query?: never;
+    url: '/api/v1/team/{team_id}/chatkit/sessions/{session_id}/invitations/{invitation_id}/decision';
+};
+
+export type ChatkitDecideRoomInvitationErrors = {
+    400: Error;
+    404: Error;
+};
+
+export type ChatkitDecideRoomInvitationError = ChatkitDecideRoomInvitationErrors[keyof ChatkitDecideRoomInvitationErrors];
+
+export type ChatkitDecideRoomInvitationResponses = {
+    200: ChatKitRoomInvitation;
+};
+
+export type ChatkitDecideRoomInvitationResponse = ChatkitDecideRoomInvitationResponses[keyof ChatkitDecideRoomInvitationResponses];
 
 export type ChatkitJoinSessionData = {
     body: AddChatKitParticipantRequestInner;
@@ -15906,6 +16558,27 @@ export type CreateMemoryBankResponses = {
 
 export type CreateMemoryBankResponse = CreateMemoryBankResponses[keyof CreateMemoryBankResponses];
 
+export type ListVisibleMemoryBanksData = {
+    body?: never;
+    path: {
+        /**
+         * Team ID
+         */
+        team_id: string;
+    };
+    query?: {
+        page_size?: number;
+        next_page_token?: string | null;
+    };
+    url: '/api/v1/team/{team_id}/memory/banks/visible';
+};
+
+export type ListVisibleMemoryBanksResponses = {
+    200: MemoryBankPaginatedResponse;
+};
+
+export type ListVisibleMemoryBanksResponse = ListVisibleMemoryBanksResponses[keyof ListVisibleMemoryBanksResponses];
+
 export type DeleteMemoryBankData = {
     body?: never;
     path: {
@@ -16417,6 +17090,63 @@ export type RetryMemorySourceSyncResponses = {
 };
 
 export type RetryMemorySourceSyncResponse = RetryMemorySourceSyncResponses[keyof RetryMemorySourceSyncResponses];
+
+export type DeleteSynthesisSessionMemoryData = {
+    body: DeleteMemoryDocumentBody;
+    path: {
+        /**
+         * Team ID
+         */
+        team_id: string;
+        session_id: WrappedUuidV4;
+    };
+    query?: never;
+    url: '/api/v1/team/{team_id}/memory/synthesis-sessions/{session_id}/documents';
+};
+
+export type DeleteSynthesisSessionMemoryResponses = {
+    204: void;
+};
+
+export type DeleteSynthesisSessionMemoryResponse = DeleteSynthesisSessionMemoryResponses[keyof DeleteSynthesisSessionMemoryResponses];
+
+export type RecallSynthesisSessionMemoryData = {
+    body: RecallMemoryBody;
+    path: {
+        /**
+         * Team ID
+         */
+        team_id: string;
+        session_id: WrappedUuidV4;
+    };
+    query?: never;
+    url: '/api/v1/team/{team_id}/memory/synthesis-sessions/{session_id}/recall';
+};
+
+export type RecallSynthesisSessionMemoryResponses = {
+    200: MemoryOperationResponse;
+};
+
+export type RecallSynthesisSessionMemoryResponse = RecallSynthesisSessionMemoryResponses[keyof RecallSynthesisSessionMemoryResponses];
+
+export type RetainSynthesisSessionMemoryData = {
+    body: RetainMemoryBody;
+    path: {
+        /**
+         * Team ID
+         */
+        team_id: string;
+        session_id: WrappedUuidV4;
+    };
+    query?: never;
+    url: '/api/v1/team/{team_id}/memory/synthesis-sessions/{session_id}/retain';
+};
+
+export type RetainSynthesisSessionMemoryResponses = {
+    200: MemoryOperationResponse;
+};
+
+export type RetainSynthesisSessionMemoryResponse = RetainSynthesisSessionMemoryResponses[keyof RetainSynthesisSessionMemoryResponses];
 
 export type ReconcileOpenbotAgentBundleData = {
     body: ReconcileOpenBotAgentBundleBody;
@@ -20882,6 +21612,38 @@ export type ListPersonalMemoryBankSourceBindingsResponses = {
 
 export type ListPersonalMemoryBankSourceBindingsResponse = ListPersonalMemoryBankSourceBindingsResponses[keyof ListPersonalMemoryBankSourceBindingsResponses];
 
+export type ClearPersonalMemoryBankSynthesizerData = {
+    body?: never;
+    path: {
+        user_id: string;
+        bank_id: WrappedUuidV4;
+    };
+    query?: never;
+    url: '/api/v1/user/{user_id}/memory/banks/{bank_id}/synthesizer';
+};
+
+export type ClearPersonalMemoryBankSynthesizerResponses = {
+    200: MemoryBank;
+};
+
+export type ClearPersonalMemoryBankSynthesizerResponse = ClearPersonalMemoryBankSynthesizerResponses[keyof ClearPersonalMemoryBankSynthesizerResponses];
+
+export type AssignPersonalMemoryBankSynthesizerData = {
+    body: AssignMemoryBankSynthesizerBody;
+    path: {
+        user_id: string;
+        bank_id: WrappedUuidV4;
+    };
+    query?: never;
+    url: '/api/v1/user/{user_id}/memory/banks/{bank_id}/synthesizer';
+};
+
+export type AssignPersonalMemoryBankSynthesizerResponses = {
+    200: MemoryBank;
+};
+
+export type AssignPersonalMemoryBankSynthesizerResponse = AssignPersonalMemoryBankSynthesizerResponses[keyof AssignPersonalMemoryBankSynthesizerResponses];
+
 export type ExportPersonalMemoryBankTemplateData = {
     body?: never;
     path: {
@@ -21011,7 +21773,7 @@ export type ReplacePersonalMemorySourceBindingsResponses = {
 
 export type ReplacePersonalMemorySourceBindingsResponse = ReplacePersonalMemorySourceBindingsResponses[keyof ReplacePersonalMemorySourceBindingsResponses];
 
-export type RetryPersonalMemorySourceSyncData = {
+export type RetryPersonalMemorySourceBindingsData = {
     body: RetryMemorySourceBody;
     path: {
         user_id: string;
@@ -21020,11 +21782,11 @@ export type RetryPersonalMemorySourceSyncData = {
     url: '/api/v1/user/{user_id}/memory/source-bindings/retry';
 };
 
-export type RetryPersonalMemorySourceSyncResponses = {
+export type RetryPersonalMemorySourceBindingsResponses = {
     200: Array<MemorySourceBinding>;
 };
 
-export type RetryPersonalMemorySourceSyncResponse = RetryPersonalMemorySourceSyncResponses[keyof RetryPersonalMemorySourceSyncResponses];
+export type RetryPersonalMemorySourceBindingsResponse = RetryPersonalMemorySourceBindingsResponses[keyof RetryPersonalMemorySourceBindingsResponses];
 
 export type SignalsListPersonalDeliveriesData = {
     body?: never;

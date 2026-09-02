@@ -213,6 +213,10 @@ export {
   type ConnectorSelectionView,
 } from "./connector-components.js";
 export {
+  CapabilityApprovalCard,
+  type CapabilityApprovalCardProps,
+} from "./capability-approval-components.js";
+export {
   ConnectionCard,
   type ConnectionView,
   FileCard,
