@@ -20,4 +20,4 @@
 "@tryopenbot/git-provider": patch
 ---
 
-Keep Code Storage credentials out of the materialized trusted runtime so its inner development lifecycle cannot reset deployed source.
+Keep the scoped Code Storage repository authoritative inside trusted exe.dev runtimes.

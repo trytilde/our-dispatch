@@ -3,7 +3,7 @@ import { ExeDevRuntimeServiceProvider } from "@tryopenbot/agent-service-provider
 import { TildeAuthProvider } from "@tryopenbot/auth-provider";
 import { Configuration } from "@tryopenbot/configuration";
 import { ExeDevComputerProvider } from "@tryopenbot/computer-service-provider";
-import { CodeStorageGitProvider, LocalGitProvider } from "@tryopenbot/git-provider";
+import { CodeStorageGitProvider } from "@tryopenbot/git-provider";
 import { ResourceAccessMode } from "@trytilde/sdk/api";
 import { VercelInferenceProvider } from "@tryopenbot/inference-provider";
 import { ExeDevPlatform, TildePlatform, VercelPlatform } from "@tryopenbot/platform-integrations";
@@ -51,7 +51,6 @@ export default Configuration({
     }),
     computer: new ExeDevComputerProvider({ platform: exe }),
     inference: new VercelInferenceProvider(vercel),
-    git:
-      process.env.EXE_DEV_INSIDE_VM === "1" ? new LocalGitProvider() : new CodeStorageGitProvider(),
+    git: new CodeStorageGitProvider(),
   },
 });

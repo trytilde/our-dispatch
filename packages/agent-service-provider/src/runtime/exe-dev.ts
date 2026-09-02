@@ -291,7 +291,7 @@ function renderRemoteEnvironment(
   return `${Object.entries(values)
     .filter((entry): entry is [string, string] => entry[1] !== undefined)
     .filter(([name]) => /^[A-Z][A-Z0-9_]*$/.test(name))
-    .filter(([name]) => !name.startsWith("CODE_STORAGE_"))
+    .filter(([name]) => name !== "CODE_STORAGE_SETUP_PRIVATE_KEY")
     .filter(([name]) => name !== "TILDE_BEARER_TOKEN")
     .sort(([left], [right]) => left.localeCompare(right))
     .map(([name, value]) => `${name}=${JSON.stringify(value)}`)
@@ -300,21 +300,11 @@ function renderRemoteEnvironment(
 
 async function readConfigurationEnvironment(repositoryRoot: string): Promise<string> {
   try {
-    return sanitizeRemoteConfigurationEnvironment(
-      await readFile(resolve(repositoryRoot, "configuration/.env"), "utf8"),
-    );
+    return await readFile(resolve(repositoryRoot, "configuration/.env"), "utf8");
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") return "";
     throw error;
   }
-}
-
-/** Removes outer-deployment source credentials from configuration copied into the inner runtime. */
-export function sanitizeRemoteConfigurationEnvironment(environment: string): string {
-  return environment
-    .split("\n")
-    .filter((line) => !/^\s*(?:export\s+)?CODE_STORAGE_/.test(line))
-    .join("\n");
 }
 
 async function waitForHealth(request: typeof fetch, origin: string): Promise<void> {
