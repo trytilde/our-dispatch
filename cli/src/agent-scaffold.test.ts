@@ -229,6 +229,8 @@ describe("agent scaffolding", () => {
       "tools",
     ]);
     const catcherSource = await readFile(join(directory, "agent.ts"), "utf8");
+    expect(catcherSource).toContain('responseMode: "agentLoop"');
+    expect(catcherSource).not.toContain('responseMode: "tool"');
     expect(catcherSource).toContain("prepareInference(tools as ToolSet, request.signal)");
     expect(catcherSource).toContain("createMemorySynthesisInferenceRun");
     expect(catcherSource).toContain("OPENBOT_HOSTED_INFERENCE_BILLING");
