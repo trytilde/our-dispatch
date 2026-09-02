@@ -41,4 +41,42 @@ describe("materialized self-extension tools", () => {
       expect(tool).not.toContain(".rollback(");
     }
   });
+
+  it("materializes durable billing and automatic memory without replacing the fork tool loop", async () => {
+    for (const sourcePath of [
+      "agent/agent.ts",
+      "agent/subagents/pirate-poet/agent.ts",
+      "templates/agent/agent.ts.hbs",
+    ]) {
+      const source = await readFile(resolve(configurationRoot, sourcePath), "utf8");
+      expect(source).toContain('responseMode: "tool"');
+      expect(source).toContain("prepareChatKitAgentStep");
+      expect(source).toContain("createChatKitAutomaticMemoryController");
+      expect(source).toContain("HostedInferenceBillingController");
+      expect(source).toContain("effectScope: `continuation:");
+      expect(source).toContain("createChatKitCompactionController");
+      expect(source).toContain("client.chatkit.runs.appendStep");
+    }
+  });
+
+  it("materializes the final lease-validated Memory Catcher contract", async () => {
+    const source = await readFile(
+      resolve(configurationRoot, "agent/subagents/memory-catcher/agent.ts"),
+      "utf8",
+    );
+    const inference = await readFile(
+      resolve(configurationRoot, "agent/subagents/memory-catcher/inference.ts"),
+      "utf8",
+    );
+    expect(source).toContain("createMemorySynthesisInferenceRun");
+    expect(source).toContain(
+      "client.memory.synthesisSession(context.sessionId).validateBatch(input)",
+    );
+    expect(source).toContain("didMemorySynthesisFinish");
+    expect(source).toContain("failForReconciliation");
+    expect(source).toContain("onLanguageModelCallStart");
+    expect(source).toContain("OPENBOT_HOSTED_INFERENCE_BILLING");
+    expect(inference).toContain('modelId ?? process.env.AI_MODEL ?? "openai/gpt-5.6-sol"');
+    expect(source).not.toContain('model: "zai/glm-5.3-flash"');
+  });
 });
