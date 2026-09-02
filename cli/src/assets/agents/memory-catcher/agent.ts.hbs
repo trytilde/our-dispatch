@@ -1,0 +1,64 @@
+import {
+  chatKitEndpoint,
+  convertToAiSdkMessages,
+  createClient,
+  createMCPClient,
+  restrictMemorySynthesisTools,
+} from "@trytilde/sdk-vercel-ai-node";
+import { consumeStream, convertToModelMessages, stepCountIs, streamText } from "ai";
+import type { ToolSet } from "@ai-sdk/provider-utils";
+import { prepareInference } from "./inference.js";
+import instructions from "./instructions.js";
+
+const client = createClient({
+  apiKey: process.env.AGENT_{{AGENT_ENV_PREFIX}}_API_KEY!,
+  orgId: process.env.TILDE_ORG_ID!,
+  orgSubdomain: false,
+  teamId: process.env.TILDE_TEAM_ID!,
+});
+
+export default chatKitEndpoint({
+  client,
+  responseMode: "tool",
+  webhookSigningKey: process.env.AGENT_{{AGENT_ENV_PREFIX}}_WEBHOOK_SIGNING_KEY!,
+  requestTimeoutMs: 285_000,
+  async handler(request, context) {
+    const localTools = context.session.memorySynthesisTools();
+    const mcp = await createMCPClient({
+      client,
+      agentId: {{{AGENT_ID_JSON}}},
+      serverId: process.env.AGENT_{{AGENT_ENV_PREFIX}}_MCP_SERVER_ID!,
+      chatkit: { sessionId: context.sessionId },
+      tools: localTools,
+    });
+    // This strict allowlist also excludes remote batch wrappers, so they cannot
+    // be used to reach a filtered communication or control-plane tool.
+    const tools = restrictMemorySynthesisTools(await mcp.mcp.tools(), localTools);
+    try {
+      const history = await context.session.history();
+      const messages = await convertToAiSdkMessages({
+        messages: [...history.items, ...context.messages],
+        chatkit: context.chatkit,
+      });
+      const closeMcp = () => void mcp.closeMcp();
+      const inference = await prepareInference(tools as ToolSet, request.signal);
+      const result = streamText({
+        ...inference,
+        instructions,
+        messages: await convertToModelMessages(messages),
+        stopWhen: stepCountIs(50),
+        abortSignal: request.signal,
+        onFinish: closeMcp,
+        onError: closeMcp,
+        onAbort: closeMcp,
+      });
+      return result.toUIMessageStreamResponse({
+        consumeSseStream: consumeStream,
+        originalMessages: messages,
+      });
+    } catch (error) {
+      await mcp.closeMcp();
+      throw error;
+    }
+  },
+});

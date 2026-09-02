@@ -1,9 +1,9 @@
 import { stepCountIs } from "ai";
 import type { ToolSet } from "@ai-sdk/provider-utils";
 
-export async function prepareInference(tools: ToolSet, _abortSignal?: AbortSignal) {
+export async function prepareInference(tools: ToolSet, _abortSignal?: AbortSignal, modelId?: string) {
   return {
-    model: process.env.AI_MODEL ?? "openai/gpt-5.6-sol",
+    model: modelId ?? process.env.AI_MODEL ?? "openai/gpt-5.6-sol",
     reasoning: "medium" as const,
     // Leave room for substantial tool work while bounding faulty or cyclic runs.
     stopWhen: stepCountIs(50),

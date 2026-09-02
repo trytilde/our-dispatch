@@ -16,16 +16,37 @@ export {
   teamPath,
 } from "@trytilde/api-client";
 export {
+  type AgentJob,
+  type AgentJobArtifact,
+  type AgentJobBudget,
+  AgentJobsClient,
+  type AgentJobStatus,
+  type AgentRun,
+  type AgentRunBudget,
+  type AgentRunEffectReceipt,
+  AgentRunsClient,
+  type AgentRunStatus,
   type AgentToolRegistration,
+  type ChatKitAgentMemorySettings,
   type ChatKitAttachment,
+  type ChatKitCompactionCheckpoint,
+  type ChatKitCompactionLifecycle,
+  type ChatKitAutomaticMemoryItem,
+  type ChatKitAutomaticMemoryMode,
+  type ChatKitAutomaticMemoryProjection,
   type ChatKitSessionParticipant,
   type ChatKitSessionWithParticipants,
   ChatKitClient,
   ChatKitRoomsClient,
+  ChatKitRoutinesClient,
+  ChatKitWorkClient,
   type ConvertedChatKitMessage,
   type CreateChatKitMessageInput,
   type InvokeSessionProviderToolInput,
   type InvokeSessionProviderToolResult,
+  type Goal,
+  GoalClient,
+  type GoalStatus,
   MessagesClient,
   runBoundedRoomGroup,
   type GroupTurn,
@@ -38,8 +59,12 @@ export {
   type RoomRole,
   type RoomVisibility,
   type ReportToolExecutionInput,
+  type Routine,
   type SendSessionMessageInput,
   type SendSessionMessageResult,
+  type Task,
+  TaskClient,
+  type TaskStatus,
   type ToolExecutionState,
 } from "./chatkit";
 export { Client, createClient } from "./client";
@@ -58,6 +83,23 @@ export {
 } from "./self-extension";
 export { type Config, configHeaders, createConfig, type NormalizedConfig } from "./config";
 export { ApiError } from "./errors";
+export {
+  type AiCreditContext,
+  type AiCreditReservation,
+  AiCreditsClient,
+  BillingClient,
+  type CommitAiCreditReceiptInput,
+} from "./billing";
+export {
+  MemoryBankClient,
+  MemoryClient,
+  MemorySynthesisSessionClient,
+  type MemoryBankSummary,
+  type MemoryDocumentInput,
+  type MemoryDocumentRecord,
+  type MemorySourceBindingInput,
+  type MemoryType,
+} from "./memory";
 export { isJsonObject, isRecord, parseJsonValue, stringField, trimmedStringField } from "./json.js";
 export {
   type CreateTildeGrpcReverseProxyOptions,

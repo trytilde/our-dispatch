@@ -22,6 +22,7 @@ export * from "./contracts/routines.js";
 export * from "./contracts/sidebar.js";
 export * from "./contracts/signals.js";
 export * from "./contracts/workspaces.js";
+export * from "./contracts/work.js";
 export * from "./errors.js";
 export * from "./onboarding.js";
 export * from "./queue.js";

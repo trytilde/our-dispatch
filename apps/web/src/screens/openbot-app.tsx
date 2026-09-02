@@ -131,15 +131,15 @@ export function OpenBotApp() {
     });
   };
   // The details pane and its drill-in routine live in the URL too, so deep
-  // links can open a routine directly (`?details=routines&routine=<id|new>`).
-  const detailsOpen = workspaceSearch.details === "routines";
+  // links can open a routine directly (`?details=work&routine=<id|new>`).
+  const detailsOpen = workspaceSearch.details === "work";
   const routineParam = workspaceSearch.routine;
   const setDetailsRoute = (open: boolean, routine?: string): void => {
     void navigate({
       to: "/",
       search: (current: WorkspaceSearch) => ({
         ...current,
-        details: open ? ("routines" as const) : undefined,
+        details: open ? ("work" as const) : undefined,
         routine: open ? routine : undefined,
       }),
       replace: !open,
@@ -1017,6 +1017,7 @@ export function OpenBotApp() {
 
       <AgentDetailsContainer
         agentId={agentId}
+        sessionId={sessionId}
         onClose={() => setDetailsRoute(false)}
         onOpenRoutine={(routineId) => setDetailsRoute(true, routineId)}
         open={detailsOpen && Boolean(selectedAgent)}

@@ -19,6 +19,7 @@ export const DEFAULT_CODEX_MODEL = "gpt-5.6-sol";
 const INFERENCE_PROVIDER = "INFERENCE_PROVIDER";
 const AI_MODEL = "AI_MODEL";
 const VERCEL_SUPPORT_LARGE_FUNCTIONS = "VERCEL_SUPPORT_LARGE_FUNCTIONS";
+const HOSTED_INFERENCE_BILLING = "OPENBOT_HOSTED_INFERENCE_BILLING";
 const AUTH_DESCRIPTION = "Codex ChatGPT subscription credential cache.";
 
 export const codexInferenceProviderInitialization: ProviderInitialization = {
@@ -78,6 +79,11 @@ export class CodexInferenceProvider implements InferenceProvider {
       INFERENCE_PROVIDER,
       CODEX_INFERENCE_PROVIDER,
       "Inference implementation used by authored agents.",
+    );
+    await context.setEnvironment(
+      HOSTED_INFERENCE_BILLING,
+      "0",
+      "Do not bill subscription-backed inference as managed Gateway usage.",
     );
     if (providerChanged || !context.environment[AI_MODEL]?.trim())
       await context.setEnvironment(

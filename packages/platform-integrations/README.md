@@ -9,6 +9,9 @@ Canonical installation-level integrations for platforms shared by multiple OpenB
 - `ExeDevPlatform` owns the shared VM name, 2-vCPU/8-GB sizing defaults, remote checkout path, SSH
   hostname, and public HTTPS origin consumed by the exe.dev runtime and Computer providers.
 - `tilde/errors` and `tilde/fetch` normalize Tilde client failures and compose provider cancellation into platform requests.
+- `deployHostedOpenBotRelease` uploads prebuilt Tilde Cloud releases and forwards only the narrow
+  runtime configuration allowlist, including the non-secret hosted-inference billing marker while
+  excluding Vercel credentials and other control-plane secrets.
 - `vercel/deployment` owns project lookup/creation, account scoping, runtime environment installation, and deployment URL parsing. `vercel/registry` owns Container Registry account resolution.
 
 Domain providers retain their role-specific initialization questions, entity mapping, and domain error translation. They reference platform instances through `platforms`; renderers collect each platform once by stable ID.

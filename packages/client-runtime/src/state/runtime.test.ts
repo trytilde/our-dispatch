@@ -1066,6 +1066,85 @@ describe("OpenBot runtime routines slice", () => {
   });
 });
 
+describe("OpenBot runtime work slice", () => {
+  const snapshot = {
+    goals: [
+      {
+        id: "goal-one",
+        objective: "Ship release",
+        status: "active" as const,
+        updated_at: "2026-09-02T10:00:00Z",
+      },
+    ],
+    tasks: [],
+    jobs: [],
+  };
+
+  it("stores durable work by agent and session and refreshes after steering", async () => {
+    const getWork = vi.fn(async () => snapshot);
+    const steerBackgroundJob = vi.fn(async () => ({
+      id: "job-one",
+      child_agent_id: "researcher",
+      objective: "Compare releases",
+      status: "running" as const,
+      transcript_message_ids: [],
+      artifacts: [],
+      created_at: "2026-09-02T10:00:00Z",
+      updated_at: "2026-09-02T10:00:00Z",
+    }));
+    const runtime = createRoutineRuntime({ getWork, steerBackgroundJob });
+
+    await runtime.actions.refreshWork("factory", "session-one");
+    await runtime.actions.steerBackgroundJob(
+      "factory",
+      "session-one",
+      "job-one",
+      "Focus on migration risk",
+    );
+
+    expect(getWork).toHaveBeenCalledTimes(2);
+    expect(steerBackgroundJob).toHaveBeenCalledWith(
+      "factory",
+      "session-one",
+      "job-one",
+      "Focus on migration risk",
+    );
+    expect(runtime.store.getState().work.byConversation).toMatchObject({
+      '["factory","session-one"]': snapshot,
+    });
+    runtime.dispose();
+  });
+
+  it("schedules and cancels work polling without publishing timer handles", async () => {
+    const scheduled: { callback: () => void; delay: number; handle: number }[] = [];
+    const cancelled: unknown[] = [];
+    const getWork = vi.fn(async () => snapshot);
+    const runtime = createRoutineRuntime(
+      { getWork },
+      {
+        schedule: (callback, delay) => {
+          const handle = scheduled.length + 1;
+          scheduled.push({ callback, delay, handle });
+          return handle as unknown as ReturnType<typeof setTimeout>;
+        },
+        cancelScheduled: (handle) => cancelled.push(handle),
+      },
+    );
+
+    runtime.actions.startWorkPolling("factory", "session-one");
+    await vi.waitFor(() => expect(getWork).toHaveBeenCalledOnce());
+    expect(scheduled).toMatchObject([{ delay: 2_000 }]);
+
+    scheduled[0]?.callback();
+    await vi.waitFor(() => expect(getWork).toHaveBeenCalledTimes(2));
+    await vi.waitFor(() => expect(scheduled).toHaveLength(2));
+    runtime.actions.stopWorkPolling();
+    expect(cancelled).toEqual([scheduled[1]?.handle]);
+    expect(runtime.store.getState().work).not.toHaveProperty("pollHandle");
+    runtime.dispose();
+  });
+});
+
 describe("OpenBot runtime signals slice", () => {
   it("refreshes providers, instances, and per-instance deliveries", async () => {
     const runtime = createRoutineRuntime({

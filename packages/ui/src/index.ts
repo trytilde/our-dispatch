@@ -366,6 +366,13 @@ export {
 } from "./onboarding.js";
 export { clockLabel, relativeRunTime } from "./relative-time.js";
 export { AgentDetailsPane, type AgentDetailsPaneProps } from "./agent-details-pane.js";
+export {
+  WorkOverview,
+  type BackgroundJobView,
+  type WorkGoalView,
+  type WorkOverviewProps,
+  type WorkTaskView,
+} from "./work-overview.js";
 export { RoutinesSection, type RoutinesSectionProps } from "./routines-section.js";
 export {
   editableTriggersFrom,

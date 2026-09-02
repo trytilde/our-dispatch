@@ -1,0 +1,52 @@
+import { tool } from "ai";
+import { z } from "zod";
+
+interface GoalToolOptions {
+  baseUrl: string;
+  headers: () => Record<string, string>;
+  sessionId: string;
+  teamId: string;
+}
+
+export default function createManageGoalsTool(options: GoalToolOptions) {
+  const root = `${options.baseUrl}/api/v1/team/${encodeURIComponent(options.teamId)}/chatkit/agents/${encodeURIComponent({{{AGENT_ID_JSON}}})}/sessions/${encodeURIComponent(options.sessionId)}/goals`;
+  return tool({
+    description:
+      "Manage your durable objective for this conversation. Create a goal for substantial multi-step work, update progress as it advances, and mark it completed, failed, or canceled when terminal.",
+    inputSchema: z.object({
+      action: z.enum(["create", "list", "get", "update"]),
+      goal_id: z.string().uuid().optional(),
+      objective: z.string().min(1).optional(),
+      status: z.enum(["active", "completed", "failed", "canceled"]).optional(),
+      progress_percent: z.number().int().min(0).max(100).optional(),
+      progress_note: z.string().min(1).optional(),
+      status_reason: z.string().min(1).optional(),
+    }),
+    async execute(input) {
+      const goalUrl = input.goal_id ? `${root}/${encodeURIComponent(input.goal_id)}` : root;
+      const method = input.action === "create" ? "POST" : input.action === "update" ? "PATCH" : "GET";
+      if ((input.action === "get" || input.action === "update") && !input.goal_id)
+        throw new Error(`manage_goals ${input.action} requires goal_id`);
+      if (input.action === "create" && !input.objective)
+        throw new Error("manage_goals create requires objective");
+      const body =
+        method === "GET"
+          ? undefined
+          : JSON.stringify({
+              objective: input.objective,
+              status: input.status,
+              progress_percent: input.progress_percent,
+              progress_note: input.progress_note,
+              status_reason: input.status_reason,
+            });
+      const response = await fetch(goalUrl, {
+        method,
+        headers: { ...options.headers(), ...(body ? { "content-type": "application/json" } : {}) },
+        body,
+      });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(`Goal operation failed (${response.status}): ${JSON.stringify(payload)}`);
+      return payload;
+    },
+  });
+}

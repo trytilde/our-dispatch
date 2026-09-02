@@ -819,7 +819,7 @@ describe("chatKitEndpoint", () => {
 
   it("loads full session history when no pagination params are passed", async () => {
     const fetchMock = vi.fn(async (input: Parameters<typeof fetch>[0]) => {
-      const url = String(input);
+      const url = input instanceof Request ? input.url : input instanceof URL ? input.href : input;
       if (url.endsWith("page_size=100")) {
         return Response.json({
           items: [
@@ -957,6 +957,74 @@ describe("chatKitEndpoint", () => {
     );
     expect(response.status).toBe(200);
     expect(handler).toHaveBeenCalledOnce();
+  });
+
+  it("loads the latest checkpoint and only retained and newer history", async () => {
+    const checkpoint = {
+      event_id: "event-1",
+      revision: 42,
+      compaction_id: "compaction-1",
+      session_id: "session_1",
+      agent_id: "factory",
+      summary: "Stable checkpoint",
+      compacted_through_message_id: "msg_1",
+      compacted_message_ids: ["msg_1"],
+      retained_message_ids: ["msg_2"],
+      input_tokens: 1_000,
+      output_tokens: 50,
+      ended_at: "2026-09-01T10:00:00Z",
+    };
+    const fetchMock = vi.fn(async (input: Parameters<typeof fetch>[0]) => {
+      const url = input instanceof Request ? input.url : input instanceof URL ? input.href : input;
+      if (url.includes("messages/from-last-compaction"))
+        return Response.json({
+          checkpoint,
+          items: [
+            { id: "msg_2", role: "assistant", type: "text", text: "retained" },
+            { id: "msg_3", role: "user", type: "text", text: "new" },
+          ],
+        });
+      return Response.json({ items: [] });
+    });
+    const handler = vi.fn(async (_request: Request, context) => {
+      await expect(
+        context.session.history({ fromLastCompaction: true, agentId: "factory" }),
+      ).resolves.toEqual({
+        checkpoint: {
+          eventId: "event-1",
+          revision: 42,
+          compactionId: "compaction-1",
+          sessionId: "session_1",
+          agentId: "factory",
+          summary: "Stable checkpoint",
+          compactedThroughMessageId: "msg_1",
+          compactedMessageIds: ["msg_1"],
+          retainedMessageIds: ["msg_2"],
+          inputTokens: 1_000,
+          outputTokens: 50,
+          endedAt: "2026-09-01T10:00:00Z",
+        },
+        items: [
+          { id: "msg_2", role: "assistant", type: "text", text: "retained" },
+          { id: "msg_3", role: "user", type: "text", text: "new" },
+        ],
+      });
+      return new Response("ok");
+    });
+    const endpoint = testChatKitEndpoint({
+      webhookSigningKey: key,
+      client: {
+        baseUrl: "https://api.example.test",
+        apiKey: "test-key",
+        fetch: fetchMock as typeof fetch,
+      },
+      handler,
+    });
+
+    const response = await endpoint(signedRequest({ messages: [] }));
+
+    expect(response.status).toBe(200);
+    expect(fetchMock).toHaveBeenCalledOnce();
   });
 
   it("caches converted messages in one batch by default inside a ChatKit endpoint handler", async () => {

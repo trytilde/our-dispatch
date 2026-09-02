@@ -161,6 +161,162 @@ body {
   align-items: center;
   gap: 5px;
 }
++ .work-overview,
+.work-job-detail {
+  display: grid;
+  gap: 18px;
+}
+.agent-work-pane {
+  display: grid;
+  gap: 24px;
+}
+.agent-work-pane > :last-child {
+  padding-top: 18px;
+  border-top: 1px solid var(--border);
+}
+.work-goal {
+  display: grid;
+  gap: 8px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+}
+.work-goal header,
+.work-job-detail > header,
+.work-steer > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.work-goal h3,
+.work-goal p,
+.work-job-detail p,
+.work-section h3,
+.work-job-detail h4 {
+  margin: 0;
+}
+.work-goal header,
+.work-section h3,
+.work-muted,
+.work-empty {
+  color: var(--muted-foreground);
+  font-size: 12px;
+}
+.work-goal progress {
+  width: 100%;
+  accent-color: var(--accent);
+}
+.work-section {
+  display: grid;
+  gap: 7px;
+}
+.work-section > div {
+  display: grid;
+  gap: 2px;
+}
+.work-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 9px;
+  min-height: 48px;
+  padding: 8px 4px;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  background: transparent;
+  color: inherit;
+  text-align: left;
+}
+.work-row > div,
+.work-row > span:nth-child(2) {
+  display: grid;
+  min-width: 0;
+}
+.work-row strong,
+.work-row small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.work-row small,
+.work-row > span:last-child {
+  color: var(--muted-foreground);
+  font-size: 11px;
+}
+.work-job-row {
+  width: 100%;
+  cursor: pointer;
+}
+.work-job-row:hover {
+  background: var(--hover);
+}
+.work-task-mark {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--muted-foreground);
+}
+.work-task-mark.completed {
+  background: #22c55e;
+}
+.work-task-mark.running,
+.work-task-mark.working {
+  background: var(--accent);
+}
+.work-task-mark.input-required,
+.work-task-mark.auth-required,
+.work-task-mark.paused {
+  background: #f59e0b;
+}
+.work-task-mark.failed,
+.work-task-mark.rejected {
+  background: #ef4444;
+}
+.work-status {
+  border-radius: 999px;
+  padding: 3px 8px;
+  background: var(--hover);
+  color: var(--muted-foreground);
+  font-size: 11px;
+}
+.work-job-detail pre {
+  overflow: auto;
+  max-height: 240px;
+  padding: 10px;
+  border-radius: 8px;
+  background: var(--hover);
+  font-size: 11px;
+}
+.work-job-detail ul {
+  margin: 8px 0 0;
+  padding-left: 18px;
+}
+.work-back {
+  justify-self: start;
+  border: 0;
+  background: transparent;
+  color: var(--muted-foreground);
+  cursor: pointer;
+}
+.work-steer {
+  display: grid;
+  gap: 7px;
+}
+.work-steer textarea {
+  min-height: 82px;
+  resize: vertical;
+  padding: 9px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+}
+.work-error {
+  color: #dc2626;
+}
+
 .session-list button i {
   flex: 0 0 auto;
   width: 5px;

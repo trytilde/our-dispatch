@@ -53,7 +53,11 @@ describe("deployHostedOpenBotRelease", () => {
       devMode: false,
       repositoryRoot: root,
       environment: { OPENBOT_HOSTED_INSTANCE_ID: "instance-one" },
-      configuration: { TILDE_API_KEY: "instance-key", VERCEL_TOKEN: "must-not-forward" },
+      configuration: {
+        TILDE_API_KEY: "instance-key",
+        OPENBOT_HOSTED_INFERENCE_BILLING: "1",
+        VERCEL_TOKEN: "must-not-forward",
+      },
       inputs: new DeploymentOutputs(),
       report: () => undefined,
     };
@@ -68,6 +72,7 @@ describe("deployHostedOpenBotRelease", () => {
       environment: Record<string, string>;
     };
     expect(configured.environment.TILDE_API_KEY).toBe("instance-key");
+    expect(configured.environment.OPENBOT_HOSTED_INFERENCE_BILLING).toBe("1");
     expect(configured.environment.VERCEL_TOKEN).toBeUndefined();
     const created = (await requests[1]!.clone().json()) as { files: Array<{ sha1: string }> };
     expect(created.files[0]?.sha1).toMatch(/^[a-f0-9]{40}$/);

@@ -38,6 +38,10 @@ const defaultAgentTemplates = [
     "tools/propose_self_extension.ts",
     "./assets/agents/factory/tools/propose_self_extension.ts.hbs",
   ],
+  ["tools/manage_agent_jobs.ts", "./assets/agents/factory/tools/manage_agent_jobs.ts.hbs"],
+  ["tools/manage_goals.ts", "./assets/agents/factory/tools/manage_goals.ts.hbs"],
+  ["tools/manage_routines.ts", "./assets/agents/factory/tools/manage_routines.ts.hbs"],
+  ["tools/manage_tasks.ts", "./assets/agents/factory/tools/manage_tasks.ts.hbs"],
   ["tools/read_file.ts", "./assets/agents/factory/tools/read_file.ts.hbs"],
   ["tools/screenshot.ts", "./assets/agents/factory/tools/screenshot.ts.hbs"],
   ["tools/write_file.ts", "./assets/agents/factory/tools/write_file.ts.hbs"],
@@ -68,6 +72,29 @@ const subagentTemplates = [
   ["skills/self-edit/SKILL.md", "./assets/agents/subagent/skills/self-edit/SKILL.md.hbs"],
 ] as const;
 
+const memoryCatcherTemplates = [
+  ["agent.ts", "./assets/agents/memory-catcher/agent.ts.hbs"],
+  ["instructions.ts", "./assets/agents/memory-catcher/instructions.ts.hbs"],
+  ["instrumentation.ts", "./assets/agents/factory/instrumentation.ts.hbs"],
+  ["tools/await_shell.ts", "./assets/agents/factory/tools/await_shell.ts.hbs"],
+  ["tools/bash.ts", "./assets/agents/factory/tools/bash.ts.hbs"],
+  ["tools/copy_from_computer.ts", "./assets/agents/factory/tools/copy_from_computer.ts.hbs"],
+  ["tools/copy_to_computer.ts", "./assets/agents/factory/tools/copy_to_computer.ts.hbs"],
+  ["tools/glob.ts", "./assets/agents/factory/tools/glob.ts.hbs"],
+  ["tools/grep.ts", "./assets/agents/factory/tools/grep.ts.hbs"],
+  ["tools/read_file.ts", "./assets/agents/factory/tools/read_file.ts.hbs"],
+  ["tools/screenshot.ts", "./assets/agents/factory/tools/screenshot.ts.hbs"],
+  ["tools/write_file.ts", "./assets/agents/factory/tools/write_file.ts.hbs"],
+  [
+    "skills/memory-synthesis/SKILL.md",
+    "./assets/agents/memory-catcher/skills/memory-synthesis/SKILL.md.hbs",
+  ],
+  [
+    "skills/memory-quality/SKILL.md",
+    "./assets/agents/memory-catcher/skills/memory-quality/SKILL.md.hbs",
+  ],
+] as const;
+
 /** Rendered only into the primary factory agent, never into scaffolded subagents. */
 const factoryAgentTemplates = [
   ["skills/create-agent/SKILL.md", "./assets/agents/factory/skills/create-agent/SKILL.md.hbs"],
@@ -89,6 +116,10 @@ const requiredAgentTemplatePaths = [
   "tools/glob.ts.hbs",
   "tools/grep.ts.hbs",
   "tools/propose_self_extension.ts.hbs",
+  "tools/manage_agent_jobs.ts.hbs",
+  "tools/manage_goals.ts.hbs",
+  "tools/manage_routines.ts.hbs",
+  "tools/manage_tasks.ts.hbs",
   "tools/read_file.ts.hbs",
   "tools/screenshot.ts.hbs",
   "tools/write_file.ts.hbs",
@@ -182,6 +213,29 @@ export async function scaffoldAgent(
   return materializeAgent(repositoryRoot, directory, id, name, false);
 }
 
+/** Materialize the least-privilege background memory synthesizer. */
+export async function scaffoldMemoryCatcherAgent(
+  repositoryRoot: string,
+  options: { existing?: "error" | "preserve" } = {},
+): Promise<ScaffoldedAgent> {
+  const id = "memory-catcher";
+  const directory = resolve(repositoryRoot, subagentDirectory, id);
+  if (await exists(directory)) {
+    if (options.existing === "preserve") return { id, name: "Memory Catcher", directory };
+    throw new Error(`Agent ${id} already exists`);
+  }
+  return materializeAgent(
+    repositoryRoot,
+    directory,
+    id,
+    "Memory Catcher",
+    false,
+    memoryCatcherTemplates,
+    false,
+    true,
+  );
+}
+
 /** Materialize the one primary authored agent. */
 export async function scaffoldPrimaryAgent(
   repositoryRoot: string,
@@ -204,6 +258,9 @@ async function materializeAgent(
   id: string,
   name: string,
   createSubagentDirectory: boolean,
+  overlays: readonly (readonly [string, string])[] = [],
+  includeDefaultTemplates = true,
+  includeInferenceTemplate = false,
 ): Promise<ScaffoldedAgent> {
   // Build outside configuration/ so the orchestrator cannot discover a half-written agent.
   // Publishing with one same-filesystem rename makes the complete template visible atomically.
@@ -219,24 +276,11 @@ async function materializeAgent(
     AGENT_ENV_PREFIX: id.replace(/-/g, "_").toUpperCase(),
   };
   try {
-    const templateDirectory = resolve(repositoryRoot, agentTemplateDirectory);
-    const templates = await discoverAgentTemplates(templateDirectory);
-    for (const template of templates) {
-      const relativePath = relative(templateDirectory, template).replaceAll("\\", "/");
-      await materializeFileTemplate(
-        template,
-        resolve(stagingDirectory, relativePath.slice(0, -".hbs".length)),
-        values,
-        { flag: "wx", mode: 0o600 },
-      );
-    }
-    const roleTemplateDirectory = resolve(
-      repositoryRoot,
-      createSubagentDirectory ? factoryTemplateDirectory : subagentTemplateDirectory,
-    );
-    if (await exists(roleTemplateDirectory)) {
-      for (const template of await walkAgentTemplates(roleTemplateDirectory)) {
-        const relativePath = relative(roleTemplateDirectory, template).replaceAll("\\", "/");
+    if (includeDefaultTemplates) {
+      const templateDirectory = resolve(repositoryRoot, agentTemplateDirectory);
+      const templates = await discoverAgentTemplates(templateDirectory);
+      for (const template of templates) {
+        const relativePath = relative(templateDirectory, template).replaceAll("\\", "/");
         await materializeFileTemplate(
           template,
           resolve(stagingDirectory, relativePath.slice(0, -".hbs".length)),
@@ -244,6 +288,39 @@ async function materializeAgent(
           { flag: "wx", mode: 0o600 },
         );
       }
+      const roleTemplateDirectory = resolve(
+        repositoryRoot,
+        createSubagentDirectory ? factoryTemplateDirectory : subagentTemplateDirectory,
+      );
+      if (await exists(roleTemplateDirectory)) {
+        for (const template of await walkAgentTemplates(roleTemplateDirectory)) {
+          const relativePath = relative(roleTemplateDirectory, template).replaceAll("\\", "/");
+          await materializeFileTemplate(
+            template,
+            resolve(stagingDirectory, relativePath.slice(0, -".hbs".length)),
+            values,
+            { flag: "wx", mode: 0o600 },
+          );
+        }
+      }
+    }
+    for (const [outputPath, sourcePath] of overlays) {
+      const destination = resolve(stagingDirectory, outputPath);
+      await mkdir(dirname(destination), { recursive: true, mode: 0o700 });
+      await materializeFileTemplate(
+        fileURLToPath(new URL(sourcePath, import.meta.url)),
+        destination,
+        values,
+        { flag: "wx", mode: 0o600 },
+      );
+    }
+    if (includeInferenceTemplate) {
+      await materializeFileTemplate(
+        resolve(repositoryRoot, agentTemplateDirectory, "inference.ts.hbs"),
+        resolve(stagingDirectory, "inference.ts"),
+        values,
+        { flag: "wx", mode: 0o600 },
+      );
     }
     if (createSubagentDirectory)
       await mkdir(resolve(stagingDirectory, "subagents"), { recursive: true, mode: 0o700 });

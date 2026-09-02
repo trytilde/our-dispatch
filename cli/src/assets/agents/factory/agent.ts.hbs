@@ -1,9 +1,17 @@
 import { configHeaders } from "@trytilde/sdk";
 import {
   type ChatKitEndpointContext,
+  chatKitCompactionCheckpointMessage,
   chatKitEndpoint,
+  composeChatKitCompactionPrepareStep,
+  composeChatKitAutomaticMemoryMessages,
   convertToAiSdkMessages,
+  createChatKitCompactionController,
+  createChatKitAutomaticMemoryController,
   createClient,
+  HostedInferenceBillingController,
+  HostedInferenceCreditsExhaustedError,
+  HostedInferenceReconciliationRequiredError,
 } from "@trytilde/sdk-vercel-ai-node";
 import {
   createTildeAttachmentMessageHandlers,
@@ -14,6 +22,7 @@ import {
 import {
   consumeStream,
   convertToModelMessages,
+  type PrepareStepFunction,
   streamText,
 } from "ai";
 import type { ToolSet } from "@ai-sdk/provider-utils";
@@ -27,6 +36,10 @@ import copyToComputer from "./tools/copy_to_computer.js";
 import glob from "./tools/glob.js";
 import grep from "./tools/grep.js";
 import createProposeSelfExtensionTool from "./tools/propose_self_extension.js";
+import createManageAgentJobsTool from "./tools/manage_agent_jobs.js";
+import createManageGoalsTool from "./tools/manage_goals.js";
+import createManageRoutinesTool from "./tools/manage_routines.js";
+import createManageTasksTool from "./tools/manage_tasks.js";
 import readFile from "./tools/read_file.js";
 import screenshot from "./tools/screenshot.js";
 import writeFile from "./tools/write_file.js";
@@ -56,6 +69,29 @@ async function localTools(sessionId: string): Promise<ToolSet> {
     copy_to_computer: copyToComputer(downloadMedia),
     glob,
     grep,
+    manage_agent_jobs: createManageAgentJobsTool({
+      baseUrl: client.config.baseUrl,
+      headers: () => Object.fromEntries(configHeaders(client.config).entries()),
+      sessionId,
+      teamId: process.env.TILDE_TEAM_ID!,
+    }),
+    manage_goals: createManageGoalsTool({
+      baseUrl: client.config.baseUrl,
+      headers: () => Object.fromEntries(configHeaders(client.config).entries()),
+      sessionId,
+      teamId: process.env.TILDE_TEAM_ID!,
+    }),
+    manage_routines: createManageRoutinesTool({
+      baseUrl: client.config.baseUrl,
+      headers: () => Object.fromEntries(configHeaders(client.config).entries()),
+      teamId: process.env.TILDE_TEAM_ID!,
+    }),
+    manage_tasks: createManageTasksTool({
+      baseUrl: client.config.baseUrl,
+      headers: () => Object.fromEntries(configHeaders(client.config).entries()),
+      sessionId,
+      teamId: process.env.TILDE_TEAM_ID!,
+    }),
     propose_self_extension: createProposeSelfExtensionTool({ client, sessionId }),
     read_file: readFile,
     screenshot: screenshot(uploadMedia),
@@ -110,7 +146,79 @@ export default chatKitEndpoint({
   webhookSigningKey: process.env.AGENT_{{AGENT_ENV_PREFIX}}_WEBHOOK_SIGNING_KEY!,
   requestTimeoutMs: 285_000,
   async handler(request, context) {
-    const history = await context.session.history();
+    const durableInvocation = parseDurableInvocation(context.messages);
+    const jobModelId = durableInvocation.job?.modelId;
+    const jobBudget = durableInvocation.job?.budget;
+    const trigger = context.messages.at(-1);
+    const triggerId = trigger?.id ?? context.webhookId;
+    let agentRun = await client.chatkit.runs.getActive({
+      sessionId: context.sessionId,
+      agentId: {{{AGENT_ID_JSON}}},
+    });
+    if (agentRun?.status === "paused" || agentRun?.status === "stalled") {
+      agentRun = await client.chatkit.runs.reactivate({
+        sessionId: context.sessionId,
+        agentId: {{{AGENT_ID_JSON}}},
+        runId: agentRun.id,
+      });
+    }
+    agentRun ??= await client.chatkit.runs.create({
+      sessionId: context.sessionId,
+      agentId: {{{AGENT_ID_JSON}}},
+      objective: requestObjective(context.messages),
+      idempotencyKey: triggerId,
+      budget: {
+        maxSteps: positiveIntegerEnv("OPENBOT_AGENT_RUN_MAX_STEPS", 500),
+        maxDurationSeconds:
+          jobBudget?.max_duration_seconds ??
+          positiveIntegerEnv("OPENBOT_AGENT_RUN_MAX_SECONDS", 3_600),
+        maxInputTokens: jobBudget?.max_input_tokens,
+        maxOutputTokens: jobBudget?.max_output_tokens,
+        maxCostMicrousd: jobBudget?.max_cost_microusd,
+      },
+    });
+    let currentAgentRun = agentRun;
+    const hiddenRunId = durableInvocation.run?.runId;
+    const hiddenRunWorker = durableInvocation.run?.workerId;
+    const runWorkerId = hiddenRunWorker ?? crypto.randomUUID();
+    const claimedRuns = hiddenRunWorker
+      ? [currentAgentRun]
+      : await client.chatkit.runs.claim({
+          sessionId: context.sessionId,
+          agentId: {{{AGENT_ID_JSON}}},
+          workerId: runWorkerId,
+          limit: 10,
+          leaseSeconds: 300,
+        });
+    const ownsRunLease = claimedRuns.some((candidate) => candidate.id === currentAgentRun.id);
+    if (hiddenRunId && hiddenRunId !== currentAgentRun.id)
+      throw new Error("Hidden AgentRun invocation does not match the active run");
+    if (!ownsRunLease)
+      return Response.json({ status: "run_already_claimed", run_id: currentAgentRun.id }, { status: 202 });
+    const hostedInferenceBillingEnabled =
+      process.env.OPENBOT_HOSTED_INFERENCE_BILLING === "1";
+    if (
+      jobBudget?.max_cost_microusd !== undefined &&
+      !hostedInferenceBillingEnabled &&
+      !costMeterAvailable()
+    ) {
+      if (ownsRunLease)
+        await client.chatkit.runs.transition({
+          sessionId: context.sessionId,
+          agentId: {{{AGENT_ID_JSON}}},
+          runId: currentAgentRun.id,
+          status: "failed",
+          reason: "cost_meter_unavailable",
+          expectedGeneration: currentAgentRun.generation,
+          workerId: runWorkerId,
+        });
+      return Response.json({ error: "cost_meter_unavailable" }, { status: 422 });
+    }
+
+    const history = await context.session.history({
+      fromLastCompaction: true,
+      agentId: {{{AGENT_ID_JSON}}},
+    });
     const cutoff = queuedRequestCutoff(context.messages);
     const requestHistory = cutoff
       ? history.items.filter((message) => !message.created_at || message.created_at <= cutoff)
@@ -126,17 +234,348 @@ export default chatKitEndpoint({
       onHydrateMessage: attachmentHandlers.onHydrateMessage,
     });
     const { tools, closeMcp } = await managedMcpTools(context.sessionId, context);
-    const inference = await prepareInference(tools, request.signal);
-    const result = streamText({
+    let mcpClosed = false;
+    const closeMcpOnce = async (): Promise<void> => {
+      if (mcpClosed) return;
+      mcpClosed = true;
+      await closeMcp();
+    };
+    let inference: Awaited<ReturnType<typeof prepareInference>>;
+    try {
+      inference = await prepareInference(tools, request.signal, jobModelId);
+    } catch (error) {
+      await closeMcpOnce();
+      throw error;
+    }
+    const inferenceModelId = jobModelId ?? process.env.AI_MODEL ?? "openai/gpt-5.6-sol";
+    const inferenceBilling = new HostedInferenceBillingController({
+      enabled: hostedInferenceBillingEnabled,
+      credits: client.billing.aiCredits,
+      effects: client.chatkit.runs,
+      sessionId: context.sessionId,
+      agentId: {{{AGENT_ID_JSON}}},
+      runId: currentAgentRun.id,
+      runGeneration: currentAgentRun.generation,
+      workerId: runWorkerId,
+      stepId: `${currentAgentRun.generation}:${currentAgentRun.continuationCount + 1}`,
+      estimatedCostMicrousd: positiveIntegerEnv(
+        "OPENBOT_HOSTED_INFERENCE_RESERVE_MICROUSD",
+        250_000,
+      ),
+      tags: ["hosted-openbot", `agent:${{{AGENT_ID_JSON}}}`],
+    });
+    const triggerMessageId = context.messages.at(-1)?.id;
+    const automaticMemory = triggerMessageId
+      ? await createChatKitAutomaticMemoryController({
+          session: context.session,
+          maxTokens: 2_000,
+        })
+          .recall({ messageId: triggerMessageId })
+          .catch(() => {
+            console.warn("Automatic memory recall unavailable; continuing without memory");
+            return undefined;
+          })
+      : undefined;
+    const convertedModelMessages = await convertToModelMessages(messages);
+    const modelMessages = composeChatKitAutomaticMemoryMessages({
+      checkpoint: history.checkpoint
+        ? chatKitCompactionCheckpointMessage(history.checkpoint)
+        : undefined,
+      memory: automaticMemory?.message,
+      tail: convertedModelMessages,
+    });
+    const sourceMessageIds = [...requestHistory, ...context.messages]
+      .map((message) => message.id)
+      .filter((id): id is string => typeof id === "string" && id.length > 0);
+    const compaction = createChatKitCompactionController({
+      session: context.session,
+      agentId: {{{AGENT_ID_JSON}}},
+      sourceMessageIds:
+        sourceMessageIds.length === convertedModelMessages.length
+          ? [
+              ...(history.checkpoint ? [null] : []),
+              ...(automaticMemory?.message ? [null] : []),
+              ...sourceMessageIds,
+            ]
+          : undefined,
+      compactedThroughMessageId:
+        durableInvocation.run?.hidden
+          ? requestHistory
+              .map((message) => message.id)
+              .filter((id): id is string => typeof id === "string" && id.length > 0)
+              .at(-1)
+          : sourceMessageIds.at(-1),
+      contextWindowTokens: positiveIntegerEnv("OPENBOT_AGENT_CONTEXT_WINDOW_TOKENS", 128_000),
+    });
+    const providerPrepareStep =
+      "prepareStep" in inference && typeof inference.prepareStep === "function"
+        ? (inference.prepareStep as PrepareStepFunction<ToolSet>)
+        : undefined;
+    try {
+      await inferenceBilling.preflight(inferenceModelId);
+    } catch (error) {
+      await closeMcpOnce();
+      if (
+        error instanceof HostedInferenceCreditsExhaustedError ||
+        error instanceof HostedInferenceReconciliationRequiredError
+      ) {
+        const creditsExhausted = error instanceof HostedInferenceCreditsExhaustedError;
+        const reason = creditsExhausted
+          ? "ai_credits_exhausted"
+          : "inference_reconciliation_required";
+        await client.chatkit.runs.transition({
+          sessionId: context.sessionId,
+          agentId: {{{AGENT_ID_JSON}}},
+          runId: currentAgentRun.id,
+          status: creditsExhausted ? "paused" : "failed",
+          reason,
+          expectedGeneration: currentAgentRun.generation,
+          workerId: runWorkerId,
+        });
+        return Response.json(
+          {
+            error: reason,
+            message: creditsExhausted
+              ? "This organization has no Tilde AI Credits available. Add credits to continue."
+              : "A previous model call was settled or left uncertain without a recoverable response. The run failed safely and no duplicate request was sent.",
+          },
+          { status: creditsExhausted ? 402 : 503 },
+        );
+      }
+      throw error;
+    }
+    const streamOptions = {
       ...inference,
       abortSignal: request.signal,
       instructions,
-      messages: await convertToModelMessages(messages),
-      onFinish: () => void closeMcp(),
-    });
+      messages: modelMessages,
+      prepareStep: composeChatKitCompactionPrepareStep(
+        providerPrepareStep,
+        compaction.prepareStep,
+      ),
+      onLanguageModelCallStart: inferenceBilling.onLanguageModelCallStart,
+      onLanguageModelCallEnd: inferenceBilling.onLanguageModelCallEnd,
+      onChunk: inferenceBilling.onChunk,
+      onFinish: async (finish) => {
+        try {
+          if (!ownsRunLease) return;
+          const continuationBoundary =
+            finish.finishReason === "length" ||
+            finish.finishReason === "tool-calls" ||
+            finish.steps.length >= 50;
+          const usage = finish.totalUsage;
+          const toolCallCount = finish.steps.reduce(
+            (count, step) => count + step.toolCalls.length,
+            0,
+          );
+          const toolPattern = finish.steps
+            .flatMap((step) => step.toolCalls)
+            .map((call) => JSON.stringify([call.toolName, call.input]))
+            .join("|");
+          currentAgentRun = await client.chatkit.runs.appendStep({
+            sessionId: context.sessionId,
+            agentId: {{{AGENT_ID_JSON}}},
+            runId: currentAgentRun.id,
+            workerId: runWorkerId,
+            stepId: `${currentAgentRun.generation}:${currentAgentRun.continuationCount + 1}`,
+            continuation: currentAgentRun.continuationCount + 1,
+            toolCallCount,
+            progressFingerprint: toolPattern || undefined,
+            responseFingerprint: finish.text.trim() || undefined,
+            inputTokens: usage.inputTokens ?? 0,
+            outputTokens: usage.outputTokens ?? 0,
+            costMicrousd: inferenceBilling.enabled
+              ? inferenceBilling.totalCostMicrousd
+              : estimateCostMicrousd(
+                  usage.inputTokens ?? 0,
+                  usage.outputTokens ?? 0,
+                  jobBudget?.max_cost_microusd !== undefined,
+                ),
+            elapsedMs: 0,
+            outcome: continuationBoundary ? "waiting" : "completed",
+            payload: { finishReason: finish.finishReason },
+          });
+          if (currentAgentRun.status === "failed") return;
+          const nextStatus =
+            currentAgentRun.noProgressCount >= 3
+              ? "paused"
+              : currentAgentRun.repeatedPatternCount >= 3
+                ? "stalled"
+                : continuationBoundary
+                  ? "waiting"
+                  : "completed";
+          await client.chatkit.runs.transition({
+            sessionId: context.sessionId,
+            agentId: {{{AGENT_ID_JSON}}},
+            runId: currentAgentRun.id,
+            status: nextStatus,
+            expectedGeneration: currentAgentRun.generation,
+            workerId: runWorkerId,
+            ...(nextStatus === "completed"
+              ? { result: { response: finish.text } }
+              : {
+                  reason:
+                    nextStatus === "paused"
+                      ? "three_no_progress_continuations"
+                      : nextStatus === "stalled"
+                        ? "repeated_tool_or_response_pattern"
+                        : "model_or_step_boundary",
+                }),
+          });
+        } finally {
+          await closeMcpOnce();
+        }
+      },
+      onAbort: async () => {
+        try {
+          const requiresReconciliation = await inferenceBilling.fail(request.signal.reason);
+          if (ownsRunLease && !requiresReconciliation)
+            await client.chatkit.runs.transition({
+              sessionId: context.sessionId,
+              agentId: {{{AGENT_ID_JSON}}},
+              runId: currentAgentRun.id,
+              status: "waiting",
+              reason: "request_aborted_for_continuation",
+              expectedGeneration: currentAgentRun.generation,
+              workerId: runWorkerId,
+            });
+        } finally {
+          await closeMcpOnce();
+        }
+      },
+      onError: async ({ error }) => {
+        try {
+          const requiresReconciliation = await inferenceBilling.fail(error);
+          if (ownsRunLease && !requiresReconciliation)
+            await client.chatkit.runs.transition({
+              sessionId: context.sessionId,
+              agentId: {{{AGENT_ID_JSON}}},
+              runId: currentAgentRun.id,
+              status: "waiting",
+              reason: "model_failed_before_provider_start",
+              expectedGeneration: currentAgentRun.generation,
+              workerId: runWorkerId,
+            });
+        } finally {
+          await closeMcpOnce();
+        }
+      },
+    } satisfies Parameters<typeof streamText>[0];
+    let result: ReturnType<typeof streamText>;
+    try {
+      result = streamText(streamOptions);
+    } catch (error) {
+      const requiresReconciliation = await inferenceBilling.fail(error);
+      try {
+        if (ownsRunLease && !requiresReconciliation)
+          await client.chatkit.runs.transition({
+            sessionId: context.sessionId,
+            agentId: {{{AGENT_ID_JSON}}},
+            runId: currentAgentRun.id,
+            status: "waiting",
+            reason: "model_failed_before_provider_start",
+            expectedGeneration: currentAgentRun.generation,
+            workerId: runWorkerId,
+          });
+      } finally {
+        await closeMcpOnce();
+      }
+      throw error;
+    }
     return result.toUIMessageStreamResponse({
       consumeSseStream: consumeStream,
       originalMessages: messages,
     });
   },
 });
+
+function positiveIntegerEnv(name: string, fallback: number): number {
+  const parsed = Number.parseInt(process.env[name] ?? "", 10);
+  return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+type AgentJobBudget = {
+  max_duration_seconds?: number;
+  max_input_tokens?: number;
+  max_output_tokens?: number;
+  max_cost_microusd?: number;
+};
+
+function parseDurableInvocation(messages: readonly { metadata?: unknown }[]): {
+  run?: { hidden: boolean; runId: string; workerId: string; generation?: number };
+  job?: { modelId?: string; budget?: AgentJobBudget };
+} {
+  const metadata = messages
+    .map((message) => message.metadata)
+    .findLast((value): value is Record<string, unknown> =>
+      typeof value === "object" && value !== null,
+    );
+  if (!metadata) return {};
+  const rawRun = metadata.tildeAgentRun;
+  const rawJob = metadata.tildeAgentJob;
+  const run = typeof rawRun === "object" && rawRun !== null ? rawRun as Record<string, unknown> : undefined;
+  const job = typeof rawJob === "object" && rawJob !== null ? rawJob as Record<string, unknown> : undefined;
+  const budget = job && typeof job.budget === "object" && job.budget !== null
+    ? job.budget as AgentJobBudget
+    : undefined;
+  return {
+    ...(run && run.hidden === true && typeof run.runId === "string" && typeof run.workerId === "string"
+      ? {
+          run: {
+            hidden: true,
+            runId: run.runId,
+            workerId: run.workerId,
+            ...(typeof run.generation === "number" ? { generation: run.generation } : {}),
+          },
+        }
+      : {}),
+    ...(job
+      ? {
+          job: {
+            ...(typeof job.modelId === "string" ? { modelId: job.modelId } : {}),
+            ...(budget ? { budget } : {}),
+          },
+        }
+      : {}),
+  };
+}
+
+function estimateCostMicrousd(
+  inputTokens: number,
+  outputTokens: number,
+  required: boolean,
+): number {
+  const inputPerMillion = Number(
+    process.env.OPENBOT_MODEL_INPUT_COST_MICROUSD_PER_MILLION ?? 0,
+  );
+  const outputPerMillion = Number(
+    process.env.OPENBOT_MODEL_OUTPUT_COST_MICROUSD_PER_MILLION ?? 0,
+  );
+  if (required && (!(inputPerMillion > 0) || !(outputPerMillion > 0)))
+    throw new Error("cost_meter_unavailable");
+  return Math.ceil(
+    (inputTokens * inputPerMillion + outputTokens * outputPerMillion) / 1_000_000,
+  );
+}
+
+function costMeterAvailable(): boolean {
+  return (
+    Number(process.env.OPENBOT_MODEL_INPUT_COST_MICROUSD_PER_MILLION ?? 0) > 0 &&
+    Number(process.env.OPENBOT_MODEL_OUTPUT_COST_MICROUSD_PER_MILLION ?? 0) > 0
+  );
+}
+
+function requestObjective(
+  messages: readonly { parts: readonly ({ type: string; text?: string } | Record<string, unknown>)[] }[],
+): string {
+  const text = messages
+    .flatMap((message) => message.parts)
+    .filter(
+      (part): part is { type: "text"; text: string } =>
+        part.type === "text" && typeof part.text === "string",
+    )
+    .map((part) => part.text)
+    .join("\n")
+    .trim();
+  return text || "Respond to the latest ChatKit message";
+}

@@ -8,8 +8,9 @@ import {
   RoutinesSection,
   SignalProviderDialog,
   type SignalTestStatus,
+  WorkOverview,
 } from "@tryopenbot/ui";
-import { errorMessage, signalProviderById } from "@tryopenbot/client-runtime";
+import { errorMessage, signalProviderById, workConversationKey } from "@tryopenbot/client-runtime";
 import { openBotRuntime } from "../runtime.js";
 
 /**
@@ -20,6 +21,7 @@ import { openBotRuntime } from "../runtime.js";
 
 export interface AgentDetailsContainerProps {
   agentId: string;
+  sessionId: string;
   open: boolean;
   /** `undefined` = overview, `"new"` = draft, otherwise a routine group id. */
   routineParam: string | undefined;
@@ -29,12 +31,14 @@ export interface AgentDetailsContainerProps {
 
 export function AgentDetailsContainer({
   agentId,
+  sessionId,
   open,
   routineParam,
   onClose,
   onOpenRoutine,
 }: AgentDetailsContainerProps) {
   const routinesState = useStore(openBotRuntime.store, (state) => state.routines);
+  const workState = useStore(openBotRuntime.store, (state) => state.work);
   const signals = useStore(openBotRuntime.store, (state) => state.signals);
   const sidebar = useStore(openBotRuntime.store, (state) => state.sidebar);
   const [saveFailed, setSaveFailed] = useState(false);
@@ -56,6 +60,9 @@ export function AgentDetailsContainer({
     [agentId, routinesState.byAgentId],
   );
   const settled = agentId in routinesState.byAgentId;
+  const workKey = workConversationKey(agentId, sessionId);
+  const work = workState.byConversation[workKey] ?? { goals: [], tasks: [], jobs: [] };
+  const workLoading = workState.loadingByConversation[workKey] ?? false;
   // Each agent's list settles on its own, so the empty state waits per agent.
   if (settledAgentRef.current !== agentId) {
     settledAgentRef.current = agentId;
@@ -70,6 +77,12 @@ export function AgentDetailsContainer({
     void openBotRuntime.actions.refreshSignalInstances().catch(() => undefined);
     return () => openBotRuntime.actions.stopRoutinePolling();
   }, [agentId, open]);
+
+  useEffect(() => {
+    if (!open || !agentId || !sessionId || routineParam) return;
+    openBotRuntime.actions.startWorkPolling(agentId, sessionId);
+    return () => openBotRuntime.actions.stopWorkPolling();
+  }, [agentId, open, routineParam, sessionId]);
 
   const routine =
     routineParam && routineParam !== "new"
@@ -218,6 +231,18 @@ export function AgentDetailsContainer({
     if (session) void openBotRuntime.actions.selectSession(agentId, session);
   }
 
+  async function steerJob(jobId: string, instruction: string): Promise<void> {
+    await openBotRuntime.actions.steerBackgroundJob(agentId, sessionId, jobId, instruction);
+  }
+
+  async function stopJob(jobId: string): Promise<void> {
+    await openBotRuntime.actions.stopBackgroundJob(agentId, sessionId, jobId);
+  }
+
+  async function resumeJob(jobId: string, instruction?: string): Promise<void> {
+    await openBotRuntime.actions.resumeBackgroundJob(agentId, sessionId, jobId, instruction);
+  }
+
   const connectProvider = connectProviderId
     ? signalProviderById(signals.providers, connectProviderId)
     : undefined;
@@ -226,11 +251,11 @@ export function AgentDetailsContainer({
     <>
       <AgentDetailsPane
         {...(routineLevel
-          ? { backLabel: "Back to Routines", onBack: () => onOpenRoutine(undefined) }
+          ? { backLabel: "Back to Work", onBack: () => onOpenRoutine(undefined) }
           : { onAdd: () => onOpenRoutine("new") })}
         onClose={onClose}
         open={open}
-        title={routineLevel ? "Routine" : "Routines"}
+        title={routineLevel ? "Routine" : "Work"}
       >
         {routineLevel ? (
           <RoutineEditor
@@ -251,13 +276,46 @@ export function AgentDetailsContainer({
             togglePending={togglePending}
           />
         ) : (
-          <RoutinesSection
-            onCreate={() => onOpenRoutine("new")}
-            onOpen={onOpenRoutine}
-            providers={signals.providers}
-            routines={routines}
-            settled={settledRef.current}
-          />
+          <div className="agent-work-pane">
+            <WorkOverview
+              goals={work.goals.map((goal) => ({
+                id: goal.id,
+                objective: goal.objective,
+                status: goal.status,
+                progressPercent: goal.progress_percent,
+                progressNote: goal.progress_note,
+              }))}
+              tasks={work.tasks.map((task) => ({
+                id: task.id,
+                summary: task.summary,
+                status: task.status,
+                progressPercent: task.progress_percent,
+                progressNote: task.progress_note,
+              }))}
+              jobs={work.jobs.map((job) => ({
+                id: job.id,
+                childAgentId: job.child_agent_id,
+                objective: job.objective,
+                status: job.status,
+                updatedAt: job.updated_at,
+                result: job.result,
+                error: job.error,
+                transcriptMessageIds: job.transcript_message_ids,
+                artifacts: job.artifacts,
+              }))}
+              loading={workLoading}
+              onResume={(jobId, instruction) => void resumeJob(jobId, instruction)}
+              onSteer={(jobId, instruction) => void steerJob(jobId, instruction)}
+              onStop={(jobId) => void stopJob(jobId)}
+            />
+            <RoutinesSection
+              onCreate={() => onOpenRoutine("new")}
+              onOpen={onOpenRoutine}
+              providers={signals.providers}
+              routines={routines}
+              settled={settledRef.current}
+            />
+          </div>
         )}
       </AgentDetailsPane>
       {connectProvider ? (

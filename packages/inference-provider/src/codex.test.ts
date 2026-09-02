@@ -45,6 +45,11 @@ describe("CodexInferenceProvider", () => {
       expect.any(String),
     );
     expect(setEnvironment).toHaveBeenCalledWith(
+      "OPENBOT_HOSTED_INFERENCE_BILLING",
+      "0",
+      expect.any(String),
+    );
+    expect(setEnvironment).toHaveBeenCalledWith(
       "AI_MODEL",
       DEFAULT_CODEX_MODEL,
       expect.any(String),

@@ -89,17 +89,139 @@ describe("agent resource lifecycle", () => {
           remove: async () => undefined,
           deployable: {
             plan: async () => ({ summary: "agent" }),
-            deploy: async (context) => {
+            deploy: async (context: DeploymentContext) => {
               deployedAgentIds.push(context.agentId!);
             },
           },
-        } as AgentProvider,
+        } as unknown as AgentProvider,
         agentService: {
           baseUrl: () => new URL("http://127.0.0.1:4100"),
         } as unknown as AgentServiceProvider,
       },
     });
 
+    expect(deployedAgentIds).toEqual(["research-assistant"]);
+  });
+
+  it("includes Memory Catcher when reconciling one dependent agent", async () => {
+    vi.mocked(discoverAgents).mockResolvedValueOnce([
+      {
+        slug: "memory-catcher",
+        kind: "subagent",
+        directory: "/repository/configuration/agent/subagents/memory-catcher",
+        path: "/repository/configuration/agent/subagents/memory-catcher/agent.ts",
+      },
+      {
+        slug: "research-assistant",
+        kind: "subagent",
+        directory: "/repository/configuration/agent/subagents/research-assistant",
+        path: "/repository/configuration/agent/subagents/research-assistant/agent.ts",
+      },
+      {
+        slug: "unrelated-agent",
+        kind: "subagent",
+        directory: "/repository/configuration/agent/subagents/unrelated-agent",
+        path: "/repository/configuration/agent/subagents/unrelated-agent/agent.ts",
+      },
+    ]);
+    const deployedAgentIds: string[] = [];
+
+    await reconcileAgentResources({
+      repositoryRoot: "/repository",
+      agentIds: ["research-assistant"],
+      environment: { OPENBOT_AUTOMATIC_MEMORY_MODE: "personal_plus_agent" },
+      devMode: true,
+      providers: {
+        agent: {
+          deployable: {
+            plan: async () => ({ summary: "agent" }),
+            deploy: async (context: DeploymentContext) => {
+              deployedAgentIds.push(context.agentId!);
+            },
+          },
+        } as unknown as AgentProvider,
+        agentService: {
+          baseUrl: () => new URL("http://127.0.0.1:4100"),
+        } as unknown as AgentServiceProvider,
+      },
+    });
+
+    expect(deployedAgentIds).toEqual(["memory-catcher", "research-assistant"]);
+  });
+
+  it("includes Memory Catcher for a per-agent memory override", async () => {
+    vi.mocked(discoverAgents).mockResolvedValueOnce([
+      {
+        slug: "memory-catcher",
+        kind: "subagent",
+        directory: "/repository/configuration/agent/subagents/memory-catcher",
+        path: "/repository/configuration/agent/subagents/memory-catcher/agent.ts",
+      },
+      {
+        slug: "research-assistant",
+        kind: "subagent",
+        directory: "/repository/configuration/agent/subagents/research-assistant",
+        path: "/repository/configuration/agent/subagents/research-assistant/agent.ts",
+      },
+    ]);
+    const deployedAgentIds: string[] = [];
+
+    await reconcileAgentResources({
+      repositoryRoot: "/repository",
+      environment: { AGENT_RESEARCH_ASSISTANT_AUTOMATIC_MEMORY_MODE: "personal_plus_agent" },
+      devMode: true,
+      providers: {
+        agent: {
+          deployable: {
+            plan: async () => ({ summary: "agent" }),
+            deploy: async (context: DeploymentContext) => {
+              deployedAgentIds.push(context.agentId!);
+            },
+          },
+        } as unknown as AgentProvider,
+        agentService: {
+          baseUrl: () => new URL("http://127.0.0.1:4100"),
+        } as unknown as AgentServiceProvider,
+      },
+    });
+
+    expect(deployedAgentIds).toEqual(["memory-catcher", "research-assistant"]);
+  });
+
+  it("does not deploy Memory Catcher while automatic memory is default-off", async () => {
+    vi.mocked(discoverAgents).mockResolvedValueOnce([
+      {
+        slug: "memory-catcher",
+        kind: "subagent",
+        directory: "/repository/configuration/agent/subagents/memory-catcher",
+        path: "/repository/configuration/agent/subagents/memory-catcher/agent.ts",
+      },
+      {
+        slug: "research-assistant",
+        kind: "subagent",
+        directory: "/repository/configuration/agent/subagents/research-assistant",
+        path: "/repository/configuration/agent/subagents/research-assistant/agent.ts",
+      },
+    ]);
+    const deployedAgentIds: string[] = [];
+    await reconcileAgentResources({
+      repositoryRoot: "/repository",
+      environment: {},
+      devMode: true,
+      providers: {
+        agent: {
+          deployable: {
+            plan: async () => ({ summary: "agent" }),
+            deploy: async (context: DeploymentContext) => {
+              deployedAgentIds.push(context.agentId!);
+            },
+          },
+        } as unknown as AgentProvider,
+        agentService: {
+          baseUrl: () => new URL("http://127.0.0.1:4100"),
+        } as unknown as AgentServiceProvider,
+      },
+    });
     expect(deployedAgentIds).toEqual(["research-assistant"]);
   });
 
@@ -146,6 +268,59 @@ describe("agent resource lifecycle", () => {
     release();
     await deployment;
     expect(peak).toBe(10);
+  });
+
+  it("reconciles Memory Catcher before agents whose banks depend on it", async () => {
+    vi.mocked(discoverAgents).mockResolvedValueOnce([
+      {
+        slug: "factory",
+        kind: "primary",
+        directory: "/repository/configuration/agent",
+        path: "/repository/configuration/agent/agent.ts",
+      },
+      {
+        slug: "memory-catcher",
+        kind: "subagent",
+        directory: "/repository/configuration/agent/subagents/memory-catcher",
+        path: "/repository/configuration/agent/subagents/memory-catcher/agent.ts",
+      },
+      {
+        slug: "research-assistant",
+        kind: "subagent",
+        directory: "/repository/configuration/agent/subagents/research-assistant",
+        path: "/repository/configuration/agent/subagents/research-assistant/agent.ts",
+      },
+    ]);
+    const calls: string[] = [];
+    let catcherReady = false;
+
+    await reconcileAgentResources({
+      repositoryRoot: "/repository",
+      environment: { OPENBOT_AUTOMATIC_MEMORY_MODE: "personal_plus_agent" },
+      devMode: true,
+      providers: {
+        agent: {
+          deployable: {
+            plan: async () => ({ summary: "agent" }),
+            deploy: async (context: DeploymentContext) => {
+              if (context.agentId === "memory-catcher") {
+                calls.push("memory-catcher");
+                catcherReady = true;
+                return;
+              }
+              expect(catcherReady).toBe(true);
+              calls.push(context.agentId!);
+            },
+          },
+        } as unknown as AgentProvider,
+        agentService: {
+          baseUrl: () => new URL("http://127.0.0.1:4100"),
+        } as unknown as AgentServiceProvider,
+      },
+    });
+
+    expect(calls[0]).toBe("memory-catcher");
+    expect(calls.toSorted()).toEqual(["factory", "memory-catcher", "research-assistant"]);
   });
 
   it("serializes repository persistence without poisoning the queue after a failure", async () => {

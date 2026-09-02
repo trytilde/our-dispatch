@@ -61,6 +61,14 @@ import {
   type RoomParticipant,
 } from "../contracts/rooms.js";
 import {
+  BackgroundJobPageSchema,
+  BackgroundJobSchema,
+  WorkGoalPageSchema,
+  WorkTaskPageSchema,
+  type BackgroundJob,
+  type WorkSnapshot,
+} from "../contracts/work.js";
+import {
   ChatSessionPageSchema,
   ChatSessionSchema,
   SidebarResponseSchema,
@@ -154,6 +162,21 @@ export interface OpenBotClient {
   steerQueuedTurn(id: string): Promise<void>;
   deleteQueuedTurn(id: string): Promise<void>;
   reorderQueuedTurn(id: string, queuePosition: number): Promise<void>;
+  getWork(agentId: string, sessionId: string): Promise<WorkSnapshot>;
+  getBackgroundJob(agentId: string, sessionId: string, jobId: string): Promise<BackgroundJob>;
+  steerBackgroundJob(
+    agentId: string,
+    sessionId: string,
+    jobId: string,
+    instruction: string,
+  ): Promise<BackgroundJob>;
+  stopBackgroundJob(agentId: string, sessionId: string, jobId: string): Promise<BackgroundJob>;
+  resumeBackgroundJob(
+    agentId: string,
+    sessionId: string,
+    jobId: string,
+    instruction?: string,
+  ): Promise<BackgroundJob>;
   listRoutines(agentId: string): Promise<Routine[]>;
   createRoutine(input: CreateRoutineInput): Promise<Routine[]>;
   updateRoutine(groupId: string, agentId: string, input: UpdateRoutineInput): Promise<Routine[]>;
@@ -538,6 +561,49 @@ export function createOpenBotClient(options: OpenBotClientOptions = {}): OpenBot
         body: JSON.stringify({ queue_position: queuePosition }),
         headers: { "content-type": "application/json" },
       }),
+    async getWork(agentId, sessionId) {
+      const root = `agents/${encodeURIComponent(agentId)}/sessions/${encodeURIComponent(sessionId)}`;
+      const [goals, tasks, jobs] = await Promise.all([
+        json(chatPath(`${root}/goals?page_size=100`), WorkGoalPageSchema),
+        json(chatPath(`${root}/tasks?page_size=100`), WorkTaskPageSchema),
+        json(chatPath(`${root}/jobs?page_size=100`), BackgroundJobPageSchema),
+      ]);
+      return { goals: goals.items, tasks: tasks.items, jobs: jobs.items };
+    },
+    getBackgroundJob: (agentId, sessionId, jobId) =>
+      json(
+        chatPath(
+          `agents/${encodeURIComponent(agentId)}/sessions/${encodeURIComponent(sessionId)}/jobs/${encodeURIComponent(jobId)}`,
+        ),
+        BackgroundJobSchema,
+      ),
+    steerBackgroundJob: (agentId, sessionId, jobId, instruction) =>
+      json(
+        chatPath(
+          `agents/${encodeURIComponent(agentId)}/sessions/${encodeURIComponent(sessionId)}/jobs/${encodeURIComponent(jobId)}/steer`,
+        ),
+        BackgroundJobSchema,
+        {
+          method: "POST",
+          body: JSON.stringify({ instruction, idempotency_key: globalThis.crypto.randomUUID() }),
+        },
+      ),
+    stopBackgroundJob: (agentId, sessionId, jobId) =>
+      json(
+        chatPath(
+          `agents/${encodeURIComponent(agentId)}/sessions/${encodeURIComponent(sessionId)}/jobs/${encodeURIComponent(jobId)}/stop`,
+        ),
+        BackgroundJobSchema,
+        { method: "POST", body: JSON.stringify({ reason: "Stopped by owner" }) },
+      ),
+    resumeBackgroundJob: (agentId, sessionId, jobId, instruction) =>
+      json(
+        chatPath(
+          `agents/${encodeURIComponent(agentId)}/sessions/${encodeURIComponent(sessionId)}/jobs/${encodeURIComponent(jobId)}/resume`,
+        ),
+        BackgroundJobSchema,
+        { method: "POST", body: JSON.stringify({ instruction }) },
+      ),
     ...routines,
     ...signals,
     async createConnectorAccount(input) {

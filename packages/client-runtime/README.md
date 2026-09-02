@@ -23,6 +23,9 @@ Framework-neutral client behavior shared by OpenBot web and Electron clients.
 - `contracts/queue` owns queued agent turns.
 - `contracts/rooms` owns the dormant durable roster, role, invitation, and departure contract.
   Owner UI remains deferred until human identity discovery can replace raw user identifiers.
+- `contracts/work` owns durable goal, task, and background-job projections. The runtime work slice
+  keeps one shared snapshot and polling lifecycle per active agent conversation, including owner
+  steer, stop, and resume actions used by both web and packaged Electron rendering.
 - `contracts/connectors` owns connector (Tilde tool-provider) configuration: the `configure_connector` tool's `connector_selection` payload, provider and account schemas, `connectorSetupFields` schema-to-form flattening, `connectorAuthorizedReturnUrl`, `waitForConnectorAccountActive` polling, and the structured hand-back message builders.
 - `contracts/plugins`, `contracts/routines`, and `contracts/signals` own the client projections of
   native Tilde settings resources. Their transport uses the installation's operation-allowlisted

@@ -33,13 +33,13 @@ const codex = createCodexAppServer({
   },
 });
 
-export async function prepareInference(tools: ToolSet, abortSignal?: AbortSignal) {
+export async function prepareInference(tools: ToolSet, abortSignal?: AbortSignal, modelId?: string) {
   const mcp = createSdkMcpServer({
     name: "openbot-tools",
     tools: await codexTools(tools, abortSignal),
   });
   return {
-    model: codex(process.env.AI_MODEL ?? defaultModel, {
+    model: codex(modelId ?? process.env.AI_MODEL ?? defaultModel, {
       mcpServers: { openbot: mcp },
     }),
     reasoning: "medium" as const,

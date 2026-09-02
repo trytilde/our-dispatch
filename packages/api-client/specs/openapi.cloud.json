@@ -8070,6 +8070,1877 @@
         ]
       }
     },
+    "/api/v1/team/{team_id}/chatkit/agents/{agent_id}/sessions/{session_id}/goals": {
+      "get": {
+        "tags": [
+          "chatkit",
+          "v1"
+        ],
+        "summary": "List agent goals",
+        "description": "Lists goals owned by the authenticated ChatKit agent in one active session.",
+        "operationId": "chatkit-list-goals",
+        "parameters": [
+          {
+            "name": "page_size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "next_page_token",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "oneOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "$ref": "#/components/schemas/GoalStatus"
+                }
+              ]
+            }
+          },
+          {
+            "name": "team_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "agent_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/WrappedUuidV4"
+            }
+          },
+          {
+            "name": "team_id",
+            "in": "path",
+            "description": "Team ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GoalPaginatedResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "chatkit",
+          "v1"
+        ],
+        "summary": "Create an agent goal",
+        "description": "Creates a durable goal for the authenticated ChatKit agent in one active session.",
+        "operationId": "chatkit-create-goal",
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "agent_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/WrappedUuidV4"
+            }
+          },
+          {
+            "name": "team_id",
+            "in": "path",
+            "description": "Team ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateGoalRequestInner"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Goal"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/team/{team_id}/chatkit/agents/{agent_id}/sessions/{session_id}/goals/{goal_id}": {
+      "get": {
+        "tags": [
+          "chatkit",
+          "v1"
+        ],
+        "summary": "Get an agent goal",
+        "description": "Gets one goal owned by the authenticated ChatKit agent.",
+        "operationId": "chatkit-get-goal",
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "agent_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/WrappedUuidV4"
+            }
+          },
+          {
+            "name": "goal_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/WrappedUuidV4"
+            }
+          },
+          {
+            "name": "team_id",
+            "in": "path",
+            "description": "Team ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Goal"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "chatkit",
+          "v1"
+        ],
+        "summary": "Update an agent goal",
+        "description": "Updates progress or terminal state for one agent-owned goal.",
+        "operationId": "chatkit-update-goal",
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "agent_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/WrappedUuidV4"
+            }
+          },
+          {
+            "name": "goal_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/WrappedUuidV4"
+            }
+          },
+          {
+            "name": "team_id",
+            "in": "path",
+            "description": "Team ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateGoalRequestInner"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Goal"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/team/{team_id}/chatkit/agents/{agent_id}/sessions/{session_id}/jobs": {
+      "get": {
+        "tags": [
+          "chatkit",
+          "v1"
+        ],
+        "summary": "List background agent jobs",
+        "description": "Lists one parent agent's durable children.",
+        "operationId": "chatkit-list-agent-jobs",
+        "parameters": [
+          {
+            "name": "page_size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "next_page_token",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "oneOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "$ref": "#/components/schemas/AgentJobStatus"
+                }
+              ]
+            }
+          },
+          {
+            "name": "team_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "agent_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/WrappedUuidV4"
+            }
+          },
+          {
+            "name": "team_id",
+            "in": "path",
+            "description": "Team ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentJobPaginatedResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "chatkit",
+          "v1"
+        ],
+        "summary": "Delegate a background agent job",
+        "description": "Durably delegates one idempotent child-agent objective.",
+        "operationId": "chatkit-delegate-agent-job",
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "agent_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/WrappedUuidV4"
+            }
+          },
+          {
+            "name": "team_id",
+            "in": "path",
+            "description": "Team ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DelegateAgentJobRequestInner"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentJob"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/team/{team_id}/chatkit/agents/{agent_id}/sessions/{session_id}/jobs/{job_id}": {
+      "get": {
+        "tags": [
+          "chatkit",
+          "v1"
+        ],
+        "summary": "Inspect a background agent job",
+        "description": "Returns durable state, transcript references, and artifacts.",
+        "operationId": "chatkit-get-agent-job",
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "agent_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/WrappedUuidV4"
+            }
+          },
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/WrappedUuidV4"
+            }
+          },
+          {
+            "name": "team_id",
+            "in": "path",
+            "description": "Team ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentJob"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/team/{team_id}/chatkit/agents/{agent_id}/sessions/{session_id}/jobs/{job_id}/collect-result": {
+      "post": {
+        "tags": [
+          "chatkit",
+          "v1"
+        ],
+        "summary": "Collect a background agent job result",
+        "description": "Returns a terminal result and durable child references.",
+        "operationId": "chatkit-collect-agent-job-result",
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "agent_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/WrappedUuidV4"
+            }
+          },
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/WrappedUuidV4"
+            }
+          },
+          {
+            "name": "team_id",
+            "in": "path",
+            "description": "Team ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentJob"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/team/{team_id}/chatkit/agents/{agent_id}/sessions/{session_id}/jobs/{job_id}/resume": {
+      "post": {
+        "tags": [
+          "chatkit",
+          "v1"
+        ],
+        "summary": "Resume a background agent job",
+        "description": "Requeues an interrupted child with a new generation.",
+        "operationId": "chatkit-resume-agent-job",
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "agent_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/WrappedUuidV4"
+            }
+          },
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/WrappedUuidV4"
+            }
+          },
+          {
+            "name": "team_id",
+            "in": "path",
+            "description": "Team ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResumeAgentJobRequestInner"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentJob"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/team/{team_id}/chatkit/agents/{agent_id}/sessions/{session_id}/jobs/{job_id}/steer": {
+      "post": {
+        "tags": [
+          "chatkit",
+          "v1"
+        ],
+        "summary": "Steer a background agent job",
+        "description": "Durably appends an idempotent child instruction.",
+        "operationId": "chatkit-steer-agent-job",
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "agent_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/WrappedUuidV4"
+            }
+          },
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/WrappedUuidV4"
+            }
+          },
+          {
+            "name": "team_id",
+            "in": "path",
+            "description": "Team ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SteerAgentJobRequestInner"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentJob"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/team/{team_id}/chatkit/agents/{agent_id}/sessions/{session_id}/jobs/{job_id}/stop": {
+      "post": {
+        "tags": [
+          "chatkit",
+          "v1"
+        ],
+        "summary": "Stop a background agent job",
+        "description": "Durably records an owner interrupt.",
+        "operationId": "chatkit-stop-agent-job",
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "agent_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/WrappedUuidV4"
+            }
+          },
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/WrappedUuidV4"
+            }
+          },
+          {
+            "name": "team_id",
+            "in": "path",
+            "description": "Team ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StopAgentJobRequestInner"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentJob"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/team/{team_id}/chatkit/agents/{agent_id}/sessions/{session_id}/runs": {
+      "post": {
+        "tags": [
+          "chatkit",
+          "v1"
+        ],
+        "summary": "Create or recover an AgentRun",
+        "description": "Creates an idempotent durable objective for the active agent.",
+        "operationId": "chatkit-create-agent-run",
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "agent_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/WrappedUuidV4"
+            }
+          },
+          {
+            "name": "team_id",
+            "in": "path",
+            "description": "Team ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateAgentRunInner"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentRun"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/team/{team_id}/chatkit/agents/{agent_id}/sessions/{session_id}/runs/active": {
+      "get": {
+        "tags": [
+          "chatkit",
+          "v1"
+        ],
+        "summary": "Get the active AgentRun",
+        "description": "Returns the latest non-terminal run for automatic continuation or user-message reactivation.",
+        "operationId": "chatkit-get-active-agent-run",
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "agent_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/WrappedUuidV4"
+            }
+          },
+          {
+            "name": "team_id",
+            "in": "path",
+            "description": "Team ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "type": "null"
+                    },
+                    {
+                      "$ref": "#/components/schemas/AgentRun"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/team/{team_id}/chatkit/agents/{agent_id}/sessions/{session_id}/runs/claim": {
+      "post": {
+        "tags": [
+          "chatkit",
+          "v1"
+        ],
+        "summary": "Claim due AgentRuns",
+        "description": "Atomically leases due runs to one host worker.",
+        "operationId": "chatkit-claim-agent-runs",
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "agent_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/WrappedUuidV4"
+            }
+          },
+          {
+            "name": "team_id",
+            "in": "path",
+            "description": "Team ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ClaimAgentRunsInner"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AgentRun"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/team/{team_id}/chatkit/agents/{agent_id}/sessions/{session_id}/runs/{run_id}": {
+      "get": {
+        "tags": [
+          "chatkit",
+          "v1"
+        ],
+        "summary": "Get an AgentRun",
+        "description": "Gets one durable agent execution.",
+        "operationId": "chatkit-get-agent-run",
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "agent_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/WrappedUuidV4"
+            }
+          },
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/WrappedUuidV4"
+            }
+          },
+          {
+            "name": "team_id",
+            "in": "path",
+            "description": "Team ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentRun"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/team/{team_id}/chatkit/agents/{agent_id}/sessions/{session_id}/runs/{run_id}/control": {
+      "post": {
+        "tags": [
+          "chatkit",
+          "v1"
+        ],
+        "summary": "Control an AgentRun",
+        "description": "Lets an authorized owner pause, resume, or cancel a run while atomically invalidating any worker lease.",
+        "operationId": "chatkit-control-agent-run",
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "agent_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/WrappedUuidV4"
+            }
+          },
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/WrappedUuidV4"
+            }
+          },
+          {
+            "name": "team_id",
+            "in": "path",
+            "description": "Team ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ControlAgentRunInner"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentRun"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/team/{team_id}/chatkit/agents/{agent_id}/sessions/{session_id}/runs/{run_id}/effects/finish": {
+      "post": {
+        "tags": [
+          "chatkit",
+          "v1"
+        ],
+        "summary": "Finish an AgentRun effect",
+        "description": "Commits an effect output or marks its outcome uncertain.",
+        "operationId": "chatkit-finish-agent-run-effect",
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "agent_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/WrappedUuidV4"
+            }
+          },
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/WrappedUuidV4"
+            }
+          },
+          {
+            "name": "team_id",
+            "in": "path",
+            "description": "Team ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecordAgentRunEffectInner"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentRunEffectReceipt"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/team/{team_id}/chatkit/agents/{agent_id}/sessions/{session_id}/runs/{run_id}/effects/lookup": {
+      "get": {
+        "tags": [
+          "chatkit",
+          "v1"
+        ],
+        "summary": "Lookup an AgentRun effect",
+        "description": "Returns a committed, planned, or uncertain effect by deterministic input fingerprint.",
+        "operationId": "chatkit-get-agent-run-effect",
+        "parameters": [
+          {
+            "name": "tool_name",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "input_fingerprint",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "team_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "agent_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/WrappedUuidV4"
+            }
+          },
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/WrappedUuidV4"
+            }
+          },
+          {
+            "name": "team_id",
+            "in": "path",
+            "description": "Team ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "type": "null"
+                    },
+                    {
+                      "$ref": "#/components/schemas/AgentRunEffectReceipt"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/team/{team_id}/chatkit/agents/{agent_id}/sessions/{session_id}/runs/{run_id}/effects/prepare": {
+      "post": {
+        "tags": [
+          "chatkit",
+          "v1"
+        ],
+        "summary": "Prepare an AgentRun effect",
+        "description": "Persists deterministic effect intent before executing an external side effect.",
+        "operationId": "chatkit-prepare-agent-run-effect",
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "agent_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/WrappedUuidV4"
+            }
+          },
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/WrappedUuidV4"
+            }
+          },
+          {
+            "name": "team_id",
+            "in": "path",
+            "description": "Team ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecordAgentRunEffectInner"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentRunEffectReceipt"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/team/{team_id}/chatkit/agents/{agent_id}/sessions/{session_id}/runs/{run_id}/steps": {
+      "post": {
+        "tags": [
+          "chatkit",
+          "v1"
+        ],
+        "summary": "Append an AgentRun step",
+        "description": "Idempotently appends accounting and progress under the current lease.",
+        "operationId": "chatkit-append-agent-run-step",
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "agent_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/WrappedUuidV4"
+            }
+          },
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/WrappedUuidV4"
+            }
+          },
+          {
+            "name": "team_id",
+            "in": "path",
+            "description": "Team ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AppendAgentRunStepInner"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentRun"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/team/{team_id}/chatkit/agents/{agent_id}/sessions/{session_id}/runs/{run_id}/transition": {
+      "post": {
+        "tags": [
+          "chatkit",
+          "v1"
+        ],
+        "summary": "Transition an AgentRun",
+        "description": "Pauses, resumes, stalls, completes, fails, or cancels a run durably.",
+        "operationId": "chatkit-transition-agent-run",
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "agent_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/WrappedUuidV4"
+            }
+          },
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/WrappedUuidV4"
+            }
+          },
+          {
+            "name": "team_id",
+            "in": "path",
+            "description": "Team ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TransitionAgentRunInner"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentRun"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/team/{team_id}/chatkit/agents/{agent_id}/sessions/{session_id}/tasks": {
+      "get": {
+        "tags": [
+          "chatkit",
+          "v1"
+        ],
+        "summary": "List agent tasks",
+        "description": "Lists tasks owned by the authenticated ChatKit agent in one active session.",
+        "operationId": "chatkit-list-tasks",
+        "parameters": [
+          {
+            "name": "page_size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "next_page_token",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "name": "goal_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "oneOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "$ref": "#/components/schemas/WrappedUuidV4"
+                }
+              ]
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "oneOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "$ref": "#/components/schemas/TaskStatus"
+                }
+              ]
+            }
+          },
+          {
+            "name": "team_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "agent_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/WrappedUuidV4"
+            }
+          },
+          {
+            "name": "team_id",
+            "in": "path",
+            "description": "Team ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskPaginatedResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "chatkit",
+          "v1"
+        ],
+        "summary": "Create an agent task",
+        "description": "Creates an executable task with same-session dependencies for the authenticated ChatKit agent.",
+        "operationId": "chatkit-create-task",
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "agent_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/WrappedUuidV4"
+            }
+          },
+          {
+            "name": "team_id",
+            "in": "path",
+            "description": "Team ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateTaskRequestInner"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Task"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/team/{team_id}/chatkit/agents/{agent_id}/sessions/{session_id}/tasks/{task_id}": {
+      "get": {
+        "tags": [
+          "chatkit",
+          "v1"
+        ],
+        "summary": "Get an agent task",
+        "description": "Gets one task owned by the authenticated ChatKit agent.",
+        "operationId": "chatkit-get-task",
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "agent_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/WrappedUuidV4"
+            }
+          },
+          {
+            "name": "task_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/WrappedUuidV4"
+            }
+          },
+          {
+            "name": "team_id",
+            "in": "path",
+            "description": "Team ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Task"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "chatkit",
+          "v1"
+        ],
+        "summary": "Update an agent task",
+        "description": "Updates task content, dependencies, progress, or terminal state without allowing terminal tasks to reopen.",
+        "operationId": "chatkit-update-task",
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "agent_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/WrappedUuidV4"
+            }
+          },
+          {
+            "name": "task_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/WrappedUuidV4"
+            }
+          },
+          {
+            "name": "team_id",
+            "in": "path",
+            "description": "Team ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateTaskRequestInner"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Task"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/team/{team_id}/chatkit/agents/{agent_id}/status": {
       "patch": {
         "tags": [
@@ -13143,6 +15014,209 @@
         ]
       }
     },
+    "/api/v1/team/{team_id}/chatkit/sessions/{session_id}/compaction-events": {
+      "post": {
+        "tags": [
+          "chatkit",
+          "v1"
+        ],
+        "summary": "Report a ChatKit compaction lifecycle event",
+        "description": "Lets the active agent participant report its own context-compaction lifecycle. ChatKit persists and streams the event while the agent owns compaction policy and execution.",
+        "operationId": "chatkit-report-compaction-event",
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/WrappedUuidV4"
+            }
+          },
+          {
+            "name": "team_id",
+            "in": "path",
+            "description": "Team ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReportChatKitCompactionEventInner"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReportChatKitCompactionEventResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {},
+          {
+            "api_key": []
+          },
+          {
+            "bearer_token": []
+          }
+        ]
+      }
+    },
+    "/api/v1/team/{team_id}/chatkit/sessions/{session_id}/compaction-events/latest": {
+      "get": {
+        "tags": [
+          "chatkit",
+          "v1"
+        ],
+        "summary": "Get the latest successful ChatKit compaction",
+        "description": "Returns only the newest successful checkpoint for the authenticated active session agent.",
+        "operationId": "chatkit-get-latest-compaction",
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/WrappedUuidV4"
+            }
+          },
+          {
+            "name": "agent_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "team_id",
+            "in": "path",
+            "description": "Team ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "type": "null"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ChatKitCompactionCheckpoint"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {},
+          {
+            "api_key": []
+          },
+          {
+            "bearer_token": []
+          }
+        ]
+      }
+    },
     "/api/v1/team/{team_id}/chatkit/sessions/{session_id}/invitations": {
       "get": {
         "tags": [
@@ -13767,6 +15841,113 @@
             }
           },
           "500": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {},
+          {
+            "api_key": []
+          },
+          {
+            "bearer_token": []
+          }
+        ]
+      }
+    },
+    "/api/v1/team/{team_id}/chatkit/sessions/{session_id}/messages/from-last-compaction": {
+      "get": {
+        "tags": [
+          "chatkit",
+          "v1"
+        ],
+        "summary": "List ChatKit history from the latest successful compaction",
+        "description": "Returns the authenticated agent's byte-stable checkpoint separately from messages after its transcript boundary.",
+        "operationId": "chatkit-get-compacted-history",
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/WrappedUuidV4"
+            }
+          },
+          {
+            "name": "agent_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "next_page_token",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "name": "team_id",
+            "in": "path",
+            "description": "Team ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChatKitCompactedHistoryResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
             "description": "",
             "content": {
               "application/json": {
@@ -26137,6 +28318,8 @@
           "memory",
           "v1"
         ],
+        "summary": "Delete memory during background synthesis",
+        "description": "Deletes an unprotected memory only when the assigned synthesizer supplies the exact active batch, evidence set, and issuing worker lease. Successful deletion records a durable per-operation idempotency receipt.",
         "operationId": "delete-synthesis-session-memory",
         "parameters": [
           {
@@ -26169,7 +28352,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/DeleteMemoryDocumentBody"
+                "$ref": "#/components/schemas/DeleteSynthesisMemoryDocumentBody"
               }
             }
           },
@@ -41700,6 +43883,211 @@
           "details"
         ]
       },
+      "AgentJob": {
+        "type": "object",
+        "description": "One provider-neutral child execution correlated to a parent conversation.",
+        "required": [
+          "id",
+          "org_id",
+          "team_id",
+          "parent_session_id",
+          "parent_agent_id",
+          "child_agent_id",
+          "objective",
+          "status",
+          "created_at",
+          "updated_at"
+        ],
+        "properties": {
+          "artifacts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AgentJobArtifact"
+            }
+          },
+          "budget": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/AgentJobBudget"
+              }
+            ]
+          },
+          "child_agent_id": {
+            "type": "string"
+          },
+          "child_session_id": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/WrappedUuidV4"
+              }
+            ]
+          },
+          "created_at": {
+            "$ref": "#/components/schemas/WrappedChronoDateTime"
+          },
+          "error": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "$ref": "#/components/schemas/WrappedUuidV4"
+          },
+          "metadata": {
+            "type": "object",
+            "additionalProperties": {},
+            "propertyNames": {
+              "type": "string"
+            }
+          },
+          "model_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "objective": {
+            "type": "string"
+          },
+          "org_id": {
+            "type": "string"
+          },
+          "parent_agent_id": {
+            "type": "string"
+          },
+          "parent_session_id": {
+            "$ref": "#/components/schemas/WrappedUuidV4"
+          },
+          "result": {},
+          "status": {
+            "$ref": "#/components/schemas/AgentJobStatus"
+          },
+          "team_id": {
+            "type": "string"
+          },
+          "transcript_message_ids": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WrappedUuidV4"
+            }
+          },
+          "updated_at": {
+            "$ref": "#/components/schemas/WrappedChronoDateTime"
+          }
+        }
+      },
+      "AgentJobArtifact": {
+        "type": "object",
+        "description": "Durable reference to a child-produced artifact.",
+        "required": [
+          "id"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "media_type": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "metadata": {
+            "type": "object",
+            "additionalProperties": {},
+            "propertyNames": {
+              "type": "string"
+            }
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "uri": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "AgentJobBudget": {
+        "type": "object",
+        "description": "Caller-selected hard limits for one child execution.",
+        "properties": {
+          "max_cost_microusd": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "minimum": 0
+          },
+          "max_duration_seconds": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "minimum": 0
+          },
+          "max_input_tokens": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "minimum": 0
+          },
+          "max_output_tokens": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "minimum": 0
+          }
+        }
+      },
+      "AgentJobPaginatedResponse": {
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AgentJob"
+            }
+          },
+          "next_page_token": {
+            "type": "string"
+          }
+        }
+      },
+      "AgentJobStatus": {
+        "type": "string",
+        "description": "Durable lifecycle of one delegated child-agent job.",
+        "enum": [
+          "queued",
+          "running",
+          "input-required",
+          "paused",
+          "completed",
+          "failed",
+          "stopped"
+        ]
+      },
       "AgentMultiplayerPermissions": {
         "type": "object",
         "description": "Who an agent may pull into a session it creates.",
@@ -41933,6 +44321,236 @@
         ],
         "description": "Who an agent may reach for one kind of action."
       },
+      "AgentRun": {
+        "type": "object",
+        "required": [
+          "id",
+          "org_id",
+          "team_id",
+          "session_id",
+          "agent_id",
+          "objective",
+          "status",
+          "budget",
+          "step_count",
+          "continuation_count",
+          "no_progress_count",
+          "repeated_pattern_count",
+          "input_tokens",
+          "output_tokens",
+          "cost_microusd",
+          "elapsed_ms",
+          "generation",
+          "created_at",
+          "updated_at"
+        ],
+        "properties": {
+          "agent_id": {
+            "type": "string"
+          },
+          "budget": {
+            "$ref": "#/components/schemas/AgentRunBudget"
+          },
+          "continuation_count": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "cost_microusd": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "created_at": {
+            "$ref": "#/components/schemas/WrappedChronoDateTime"
+          },
+          "elapsed_ms": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "error": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "generation": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "goal_id": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/WrappedUuidV4"
+              }
+            ]
+          },
+          "id": {
+            "$ref": "#/components/schemas/WrappedUuidV4"
+          },
+          "input_tokens": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "lease_expires_at": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/WrappedChronoDateTime"
+              }
+            ]
+          },
+          "lease_owner": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "no_progress_count": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "objective": {
+            "type": "string"
+          },
+          "org_id": {
+            "type": "string"
+          },
+          "output_tokens": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "repeated_pattern_count": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "result": {},
+          "session_id": {
+            "$ref": "#/components/schemas/WrappedUuidV4"
+          },
+          "status": {
+            "$ref": "#/components/schemas/AgentRunStatus"
+          },
+          "step_count": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "team_id": {
+            "type": "string"
+          },
+          "updated_at": {
+            "$ref": "#/components/schemas/WrappedChronoDateTime"
+          }
+        }
+      },
+      "AgentRunBudget": {
+        "type": "object",
+        "properties": {
+          "max_cost_microusd": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "minimum": 0
+          },
+          "max_duration_seconds": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "minimum": 0
+          },
+          "max_input_tokens": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "minimum": 0
+          },
+          "max_output_tokens": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "minimum": 0
+          },
+          "max_steps": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "minimum": 0
+          }
+        }
+      },
+      "AgentRunEffectReceipt": {
+        "type": "object",
+        "required": [
+          "run_id",
+          "step_id",
+          "tool_call_id",
+          "tool_name",
+          "input_fingerprint",
+          "idempotency_key",
+          "created_at"
+        ],
+        "properties": {
+          "created_at": {
+            "$ref": "#/components/schemas/WrappedChronoDateTime"
+          },
+          "idempotency_key": {
+            "type": "string"
+          },
+          "input_fingerprint": {
+            "type": "string"
+          },
+          "output": {},
+          "run_id": {
+            "$ref": "#/components/schemas/WrappedUuidV4"
+          },
+          "status": {
+            "type": "string"
+          },
+          "step_id": {
+            "type": "string"
+          },
+          "tool_call_id": {
+            "type": "string"
+          },
+          "tool_name": {
+            "type": "string"
+          }
+        }
+      },
+      "AgentRunStatus": {
+        "type": "string",
+        "enum": [
+          "active",
+          "waiting",
+          "paused",
+          "stalled",
+          "completed",
+          "failed",
+          "canceled"
+        ]
+      },
       "AgentSpec": {
         "type": "object",
         "required": [
@@ -42122,6 +44740,71 @@
           },
           "status": {
             "type": "string"
+          }
+        }
+      },
+      "AppendAgentRunStepInner": {
+        "type": "object",
+        "required": [
+          "step_id",
+          "continuation",
+          "tool_call_count",
+          "input_tokens",
+          "output_tokens",
+          "cost_microusd",
+          "elapsed_ms",
+          "outcome",
+          "payload"
+        ],
+        "properties": {
+          "continuation": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "cost_microusd": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "elapsed_ms": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "input_tokens": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "outcome": {
+            "type": "string"
+          },
+          "output_tokens": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "payload": {},
+          "progress_fingerprint": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "response_fingerprint": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "step_id": {
+            "type": "string"
+          },
+          "tool_call_count": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
           }
         }
       },
@@ -43304,6 +45987,201 @@
             "type": "boolean"
           }
         }
+      },
+      "ChatKitCompactedHistoryResponse": {
+        "type": "object",
+        "description": "Checkpoint metadata plus only messages after its durable transcript boundary.",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "checkpoint": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ChatKitCompactionCheckpoint"
+              }
+            ]
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Message"
+            }
+          },
+          "next_page_token": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "ChatKitCompactionCheckpoint": {
+        "type": "object",
+        "description": "Durable checkpoint used to resume an agent request without replaying compacted context.",
+        "required": [
+          "event_id",
+          "revision",
+          "compaction_id",
+          "session_id",
+          "agent_id",
+          "summary",
+          "compacted_through_message_id",
+          "input_tokens",
+          "output_tokens",
+          "ended_at"
+        ],
+        "properties": {
+          "agent_id": {
+            "type": "string"
+          },
+          "compacted_message_ids": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WrappedUuidV4"
+            }
+          },
+          "compacted_through_message_id": {
+            "$ref": "#/components/schemas/WrappedUuidV4"
+          },
+          "compaction_id": {
+            "$ref": "#/components/schemas/WrappedUuidV4"
+          },
+          "ended_at": {
+            "$ref": "#/components/schemas/WrappedChronoDateTime"
+          },
+          "event_id": {
+            "$ref": "#/components/schemas/WrappedUuidV4"
+          },
+          "input_tokens": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "output_tokens": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "retained_message_ids": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WrappedUuidV4"
+            }
+          },
+          "revision": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "session_id": {
+            "$ref": "#/components/schemas/WrappedUuidV4"
+          },
+          "summary": {
+            "type": "string"
+          }
+        }
+      },
+      "ChatKitCompactionLifecycleInput": {
+        "oneOf": [
+          {
+            "type": "object",
+            "required": [
+              "input_message_count",
+              "estimated_input_tokens",
+              "compacted_through_message_id",
+              "status"
+            ],
+            "properties": {
+              "compacted_through_message_id": {
+                "$ref": "#/components/schemas/WrappedUuidV4"
+              },
+              "estimated_input_tokens": {
+                "type": "integer",
+                "format": "int64",
+                "minimum": 0
+              },
+              "input_message_count": {
+                "type": "integer",
+                "format": "int64",
+                "minimum": 0
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "started"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "summary",
+              "input_tokens",
+              "output_tokens",
+              "status"
+            ],
+            "properties": {
+              "compacted_message_ids": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/WrappedUuidV4"
+                }
+              },
+              "input_tokens": {
+                "type": "integer",
+                "format": "int64",
+                "minimum": 0
+              },
+              "output_tokens": {
+                "type": "integer",
+                "format": "int64",
+                "minimum": 0
+              },
+              "retained_message_ids": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/WrappedUuidV4"
+                }
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "ended"
+                ]
+              },
+              "summary": {
+                "type": "string"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "error",
+              "retryable",
+              "status"
+            ],
+            "properties": {
+              "error": {
+                "type": "string"
+              },
+              "retryable": {
+                "type": "boolean"
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "failed"
+                ]
+              }
+            }
+          }
+        ],
+        "description": "Agent-authored lifecycle payload for one context compaction attempt."
       },
       "ChatKitIdentityKind": {
         "type": "string",
@@ -44525,6 +47403,29 @@
           "output-denied"
         ]
       },
+      "ClaimAgentRunsInner": {
+        "type": "object",
+        "required": [
+          "worker_id",
+          "limit",
+          "lease_seconds"
+        ],
+        "properties": {
+          "lease_seconds": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "limit": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "worker_id": {
+            "type": "string"
+          }
+        }
+      },
       "ClaimTemporaryAccountRequest": {
         "type": "object",
         "required": [
@@ -45119,6 +48020,52 @@
           }
         }
       },
+      "ControlAgentRunInner": {
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "properties": {
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "result": {},
+          "status": {
+            "$ref": "#/components/schemas/AgentRunStatus"
+          }
+        }
+      },
+      "CreateAgentRunInner": {
+        "type": "object",
+        "required": [
+          "objective",
+          "idempotency_key"
+        ],
+        "properties": {
+          "budget": {
+            "$ref": "#/components/schemas/AgentRunBudget"
+          },
+          "goal_id": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/WrappedUuidV4"
+              }
+            ]
+          },
+          "idempotency_key": {
+            "type": "string"
+          },
+          "objective": {
+            "type": "string"
+          }
+        }
+      },
       "CreateAiCreditTopupBody": {
         "type": "object",
         "description": "Public body for creating an organization AI-credit checkout.",
@@ -45466,6 +48413,18 @@
           },
           "tool_group_instance": {
             "$ref": "#/components/schemas/ToolGroupInstanceSerialized"
+          }
+        }
+      },
+      "CreateGoalRequestInner": {
+        "type": "object",
+        "description": "Fields accepted when an agent creates a goal in its current conversation.",
+        "required": [
+          "objective"
+        ],
+        "properties": {
+          "objective": {
+            "type": "string"
           }
         }
       },
@@ -46663,6 +49622,65 @@
           }
         }
       },
+      "CreateTaskRequestInner": {
+        "type": "object",
+        "description": "Fields accepted when an agent creates a task in its current conversation.",
+        "required": [
+          "summary"
+        ],
+        "properties": {
+          "context_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "dependency_task_ids": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WrappedUuidV4"
+            }
+          },
+          "goal_id": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/WrappedUuidV4"
+              }
+            ]
+          },
+          "inbox_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "metadata": {
+            "type": "object",
+            "additionalProperties": {},
+            "propertyNames": {
+              "type": "string"
+            }
+          },
+          "parent_task_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "plan": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "summary": {
+            "type": "string"
+          }
+        }
+      },
       "CreateTeamGroupBody": {
         "type": "object",
         "description": "Request to create a user-managed group inside one team.",
@@ -47781,6 +50799,49 @@
           }
         }
       },
+      "DelegateAgentJobRequestInner": {
+        "type": "object",
+        "description": "Fields accepted when delegating a child job.",
+        "required": [
+          "child_agent_id",
+          "objective",
+          "idempotency_key"
+        ],
+        "properties": {
+          "budget": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/AgentJobBudget"
+              }
+            ]
+          },
+          "child_agent_id": {
+            "type": "string"
+          },
+          "idempotency_key": {
+            "type": "string"
+          },
+          "metadata": {
+            "type": "object",
+            "additionalProperties": {},
+            "propertyNames": {
+              "type": "string"
+            }
+          },
+          "model_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "objective": {
+            "type": "string"
+          }
+        }
+      },
       "DeleteChatKitAgentTurnQueueItemResponse": {
         "type": "object",
         "required": [
@@ -47846,6 +50907,34 @@
         "properties": {
           "success": {
             "type": "boolean"
+          }
+        }
+      },
+      "DeleteSynthesisMemoryDocumentBody": {
+        "type": "object",
+        "description": "Delete request available only to a bank's assigned background synthesizer.\n\nThe batch identity and complete evidence set bind the mutation to one active\nprocessing lease. They are deliberately absent from owner-initiated deletes.",
+        "required": [
+          "document_id",
+          "batch_id",
+          "evidence_ids",
+          "lease_owner"
+        ],
+        "properties": {
+          "batch_id": {
+            "type": "string"
+          },
+          "document_id": {
+            "type": "string"
+          },
+          "evidence_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "lease_owner": {
+            "type": "string",
+            "description": "Exact durable worker lease that issued this synthesis turn."
           }
         }
       },
@@ -48343,6 +51432,97 @@
             "$ref": "#/components/schemas/WrappedChronoDateTime"
           }
         }
+      },
+      "Goal": {
+        "type": "object",
+        "description": "Durable desired outcome owned by one explicit agent in one conversation.",
+        "required": [
+          "id",
+          "org_id",
+          "team_id",
+          "session_id",
+          "agent_id",
+          "objective",
+          "status",
+          "created_at",
+          "updated_at"
+        ],
+        "properties": {
+          "agent_id": {
+            "type": "string"
+          },
+          "created_at": {
+            "$ref": "#/components/schemas/WrappedChronoDateTime"
+          },
+          "id": {
+            "$ref": "#/components/schemas/WrappedUuidV4"
+          },
+          "objective": {
+            "type": "string"
+          },
+          "org_id": {
+            "type": "string"
+          },
+          "progress_note": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "progress_percent": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "minimum": 0
+          },
+          "session_id": {
+            "$ref": "#/components/schemas/WrappedUuidV4"
+          },
+          "status": {
+            "$ref": "#/components/schemas/GoalStatus"
+          },
+          "status_reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "team_id": {
+            "type": "string"
+          },
+          "updated_at": {
+            "$ref": "#/components/schemas/WrappedChronoDateTime"
+          }
+        }
+      },
+      "GoalPaginatedResponse": {
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Goal"
+            }
+          },
+          "next_page_token": {
+            "type": "string"
+          }
+        }
+      },
+      "GoalStatus": {
+        "type": "string",
+        "description": "Lifecycle state for a durable agent goal.",
+        "enum": [
+          "active",
+          "completed",
+          "failed",
+          "canceled"
+        ]
       },
       "GrepWikiPagesBody": {
         "type": "object",
@@ -50978,6 +54158,13 @@
               "string",
               "null"
             ]
+          },
+          "synthesizer_agent_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Stable same-team agent key that should process this bank's synthesis queue.\n\nOmitting this field preserves the bank's existing or server-default assignment."
           }
         }
       },
@@ -54102,6 +57289,48 @@
           }
         }
       },
+      "RecordAgentRunEffectInner": {
+        "type": "object",
+        "required": [
+          "generation",
+          "worker_id",
+          "step_id",
+          "tool_call_id",
+          "tool_name",
+          "input_fingerprint",
+          "idempotency_key",
+          "status"
+        ],
+        "properties": {
+          "generation": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "idempotency_key": {
+            "type": "string"
+          },
+          "input_fingerprint": {
+            "type": "string"
+          },
+          "output": {},
+          "status": {
+            "type": "string"
+          },
+          "step_id": {
+            "type": "string"
+          },
+          "tool_call_id": {
+            "type": "string"
+          },
+          "tool_name": {
+            "type": "string"
+          },
+          "worker_id": {
+            "type": "string"
+          }
+        }
+      },
       "ReflectMemoryBody": {
         "type": "object",
         "required": [
@@ -54764,6 +57993,38 @@
           }
         }
       },
+      "ReportChatKitCompactionEventInner": {
+        "type": "object",
+        "description": "Public request body for reporting an agent-owned compaction lifecycle event.",
+        "required": [
+          "agent_id",
+          "compaction_id",
+          "lifecycle"
+        ],
+        "properties": {
+          "agent_id": {
+            "type": "string"
+          },
+          "compaction_id": {
+            "$ref": "#/components/schemas/WrappedUuidV4"
+          },
+          "lifecycle": {
+            "$ref": "#/components/schemas/ChatKitCompactionLifecycleInput"
+          }
+        }
+      },
+      "ReportChatKitCompactionEventResponse": {
+        "type": "object",
+        "description": "Accepted durable compaction lifecycle event.",
+        "required": [
+          "event_id"
+        ],
+        "properties": {
+          "event_id": {
+            "$ref": "#/components/schemas/WrappedUuidV4"
+          }
+        }
+      },
       "ReportToolExecutionRequestInner": {
         "type": "object",
         "required": [
@@ -55342,6 +58603,18 @@
           },
           "next_page_token": {
             "type": "string"
+          }
+        }
+      },
+      "ResumeAgentJobRequestInner": {
+        "type": "object",
+        "description": "Optional instruction supplied when resuming a stopped or paused child.",
+        "properties": {
+          "instruction": {
+            "type": [
+              "string",
+              "null"
+            ]
           }
         }
       },
@@ -58631,6 +61904,22 @@
           "string"
         ]
       },
+      "SteerAgentJobRequestInner": {
+        "type": "object",
+        "description": "New instruction durably appended to a running child job.",
+        "required": [
+          "instruction",
+          "idempotency_key"
+        ],
+        "properties": {
+          "idempotency_key": {
+            "type": "string"
+          },
+          "instruction": {
+            "type": "string"
+          }
+        }
+      },
       "SteerChatKitAgentTurnQueueItemResponse": {
         "type": "object",
         "required": [
@@ -58654,6 +61943,18 @@
               {
                 "$ref": "#/components/schemas/WrappedJsonValue"
               }
+            ]
+          }
+        }
+      },
+      "StopAgentJobRequestInner": {
+        "type": "object",
+        "description": "Optional owner-supplied reason for stopping a child.",
+        "properties": {
+          "reason": {
+            "type": [
+              "string",
+              "null"
             ]
           }
         }
@@ -58802,6 +62103,155 @@
             "$ref": "#/components/schemas/ProxyCredentialTemplate"
           }
         }
+      },
+      "Task": {
+        "type": "object",
+        "description": "Executable work item owned by one explicit agent in one conversation.",
+        "required": [
+          "id",
+          "org_id",
+          "team_id",
+          "session_id",
+          "agent_id",
+          "status",
+          "status_timestamp",
+          "created_at",
+          "updated_at"
+        ],
+        "properties": {
+          "agent_id": {
+            "type": "string"
+          },
+          "context_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "created_at": {
+            "$ref": "#/components/schemas/WrappedChronoDateTime"
+          },
+          "dependency_task_ids": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WrappedUuidV4"
+            }
+          },
+          "goal_id": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/WrappedUuidV4"
+              }
+            ]
+          },
+          "id": {
+            "$ref": "#/components/schemas/WrappedUuidV4"
+          },
+          "inbox_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "metadata": {
+            "type": "object",
+            "additionalProperties": {},
+            "propertyNames": {
+              "type": "string"
+            }
+          },
+          "org_id": {
+            "type": "string"
+          },
+          "parent_task_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "plan": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "progress_note": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "progress_percent": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "minimum": 0
+          },
+          "session_id": {
+            "$ref": "#/components/schemas/WrappedUuidV4"
+          },
+          "status": {
+            "$ref": "#/components/schemas/TaskStatus"
+          },
+          "status_reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "status_timestamp": {
+            "$ref": "#/components/schemas/WrappedChronoDateTime"
+          },
+          "summary": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "team_id": {
+            "type": "string"
+          },
+          "updated_at": {
+            "$ref": "#/components/schemas/WrappedChronoDateTime"
+          }
+        }
+      },
+      "TaskPaginatedResponse": {
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Task"
+            }
+          },
+          "next_page_token": {
+            "type": "string"
+          }
+        }
+      },
+      "TaskStatus": {
+        "type": "string",
+        "description": "Task lifecycle states retained for ChatKit and A2A interoperability.",
+        "enum": [
+          "submitted",
+          "working",
+          "input-required",
+          "completed",
+          "canceled",
+          "failed",
+          "rejected",
+          "auth-required",
+          "unknown"
+        ]
       },
       "Team": {
         "type": "object",
@@ -59842,6 +63292,34 @@
           }
         }
       },
+      "TransitionAgentRunInner": {
+        "type": "object",
+        "required": [
+          "status",
+          "expected_generation",
+          "worker_id"
+        ],
+        "properties": {
+          "expected_generation": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "result": {},
+          "status": {
+            "$ref": "#/components/schemas/AgentRunStatus"
+          },
+          "worker_id": {
+            "type": "string"
+          }
+        }
+      },
       "TriggerFakeSignalRequest": {
         "type": "object",
         "properties": {
@@ -60420,6 +63898,48 @@
           }
         }
       },
+      "UpdateGoalRequestInner": {
+        "type": "object",
+        "description": "Mutable goal fields. Omitted fields retain their current value.",
+        "properties": {
+          "objective": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "progress_note": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "progress_percent": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "minimum": 0
+          },
+          "status": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/GoalStatus"
+              }
+            ]
+          },
+          "status_reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
       "UpdateHostedOpenBotComputerImageRequest": {
         "type": "object",
         "required": [
@@ -60992,6 +64512,73 @@
             "items": {
               "$ref": "#/components/schemas/WrappedUuidV4"
             }
+          }
+        }
+      },
+      "UpdateTaskRequestInner": {
+        "type": "object",
+        "description": "Mutable task fields. Omitted fields retain their current value.",
+        "properties": {
+          "dependency_task_ids": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/WrappedUuidV4"
+            }
+          },
+          "metadata": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "additionalProperties": {},
+            "propertyNames": {
+              "type": "string"
+            }
+          },
+          "plan": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "progress_note": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "progress_percent": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "minimum": 0
+          },
+          "status": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/TaskStatus"
+              }
+            ]
+          },
+          "status_reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "summary": {
+            "type": [
+              "string",
+              "null"
+            ]
           }
         }
       },

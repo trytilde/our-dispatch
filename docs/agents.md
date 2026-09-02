@@ -18,6 +18,28 @@ Generated agents use `context.mcp.connect(...)`; Tilde resolves accounts
 and brokers credentials per request, while user IDs and opaque capabilities
 remain outside model arguments and portable agent configuration.
 
+Authored agents also own context compaction. The default template composes a
+request-scoped ChatKit compaction controller into Vercel AI SDK `prepareStep`,
+reports its lifecycle with the agent and session IDs, and leaves the canonical
+ChatKit transcript untouched. Configure the model's context size with
+`OPENBOT_AGENT_CONTEXT_WINDOW_TOKENS`; replace the controller in authored code
+when a model needs another policy. Tilde persists lifecycle events but does not
+run the compaction loop. See ADR-0033 and the
+[AI SDK compaction guide](https://ai-sdk.dev/cookbook/guides/agent-context-compaction).
+
+Automatic memory is owner-selectable and defaults off. Set
+`OPENBOT_AUTOMATIC_MEMORY_MODE` to `personal`, `personal_plus_agent`, or `team`,
+or use `AGENT_<ID>_AUTOMATIC_MEMORY_MODE` for one bot. Enabled ordinary agents
+recall automatic memory before inference. Stable
+instructions remain the provider-cache prefix; the bounded provenance-bearing
+projection follows them and any compaction checkpoint, before the mutable
+conversation tail. Tilde derives actor and bank access from the durable trigger
+message and performs idempotent post-turn enqueueing. Memory Catcher is the
+least-privilege background synthesizer under
+`configuration/agent/subagents/memory-catcher/`; it receives only bank-bound
+synthesis tools, uses the installation's selected inference provider, never
+sends human messages, and owns no memory bank itself. See ADR-0034.
+
 All agents share one OpenBot Computer, filesystem, and process identity. If an agent's authored `sandbox/workspace/**` contains files, deployment seeds them once into `/workspace/<id>`. The computer service uses the fixed agent ID to choose that default directory, but it is not a security boundary: agents can use absolute paths, see sibling directories, and administer the shared machine. Changes to authored seed files do not update an already deployed agent directory.
 
 Run `pnpm openbot new-agent` and enter the display name to scaffold a complete subagent safely; then edit its ordinary source files in the fork. The command loads every `configuration/templates/agent/**/*.hbs` file, preserves its relative path, removes the `.hbs` suffix, and renders strict agent values. Init seeds that fork-owned template when it is missing and uses it for the primary Factory agent; factory-only skills render from `configuration/templates/factory/**/*.hbs` into the primary agent alone. Later init runs preserve template changes, and template edits affect only future agents. This command only changes the authored filesystem before invoking normal idempotent development reconciliation.

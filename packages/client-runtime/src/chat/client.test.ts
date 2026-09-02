@@ -545,6 +545,61 @@ describe("OpenBot client", () => {
     expect(calls[1]?.body).toMatchObject({ invitee_user_id: "user-two" });
     expect(calls[2]?.body).toEqual({ decision: "accept" });
   });
+
+  it("loads one durable work snapshot and steers a child through same-origin ChatKit", async () => {
+    const calls: Array<{ url: string; method: string; body?: unknown }> = [];
+    const job = {
+      id: "job-one",
+      child_agent_id: "researcher",
+      objective: "Compare competitors",
+      status: "running",
+      transcript_message_ids: [],
+      artifacts: [],
+      created_at: "2026-09-01T10:00:00Z",
+      updated_at: "2026-09-01T10:00:00Z",
+    };
+    const client = createOpenBotClient({
+      fetch: async (input, init) => {
+        const url = requestUrl(input);
+        calls.push({
+          url,
+          method: init?.method ?? "GET",
+          ...(typeof init?.body === "string" ? { body: JSON.parse(init.body) } : {}),
+        });
+        if (url.includes("/goals"))
+          return Response.json({
+            items: [
+              {
+                id: "goal-one",
+                objective: "Ship launch",
+                status: "active",
+                updated_at: "2026-09-01T10:00:00Z",
+              },
+            ],
+          });
+        if (url.includes("/tasks")) return Response.json({ items: [] });
+        if (url.endsWith("/jobs?page_size=100")) return Response.json({ items: [job] });
+        return Response.json(job);
+      },
+    });
+
+    await expect(client.getWork("factory", "session-one")).resolves.toMatchObject({
+      goals: [{ objective: "Ship launch" }],
+      jobs: [{ child_agent_id: "researcher" }],
+    });
+    await client.steerBackgroundJob("factory", "session-one", "job-one", "Focus on pricing");
+
+    expect(calls.slice(0, 3).map((call) => call.url)).toEqual([
+      "/api/chat/agents/factory/sessions/session-one/goals?page_size=100",
+      "/api/chat/agents/factory/sessions/session-one/tasks?page_size=100",
+      "/api/chat/agents/factory/sessions/session-one/jobs?page_size=100",
+    ]);
+    expect(calls[3]).toMatchObject({
+      method: "POST",
+      url: "/api/chat/agents/factory/sessions/session-one/jobs/job-one/steer",
+      body: { instruction: "Focus on pricing" },
+    });
+  });
 });
 
 function socketTicket(): ChatKitRealtimeSocketTicket {

@@ -29,8 +29,8 @@ The package root exports the complete workspace surface:
   `ConnectionCard`, `FileCard`, `FileViewer`, `MediaViewer`, `AudioPlayer`,
   `LinkPreviewCard`, `LinkHoverPreview`, `DiagramCard`, `CodeBlock`,
   `DiffBlock`, `CitationLink`, and `InlinePath`.
-- Agent activity: `AgentActivity`, `ActivityQueue`, `ActivityTimeline`,
-  `AsyncTasksPanel`, and `ConversationOutlinePanel`.
+- Agent activity: `AgentActivity`, `ActivityQueue`, `ActivityTimeline`, and
+  `WorkOverview` for durable goals, tasks, and background-agent controls.
 - Computer: `AgentWorkspacePanel`, `ComputerStagePlaceholder`,
   `ComputerMonitorStrip`, `ComputerReconnectBanner`, `ComputerRebuildBanner`,
   `ComputerRebuildDialog`, `ComputerFailureDialog`, and the remaining Computer

@@ -24,6 +24,7 @@ import type {
 } from "../contracts/workspace.js";
 import { QueuedTurnSchema, type QueuedTurn } from "../contracts/queue.js";
 import type { CreateRoutineInput, Routine, UpdateRoutineInput } from "../contracts/routines.js";
+import type { WorkSnapshot } from "../contracts/work.js";
 import type {
   CreateSignalInstanceInput,
   SignalDelivery,
@@ -92,6 +93,12 @@ export interface RoutinesState {
   error: string;
 }
 
+export interface WorkState {
+  byConversation: Record<string, WorkSnapshot>;
+  loadingByConversation: Record<string, boolean>;
+  error: string;
+}
+
 export interface SignalsState {
   providers: SignalProvider[];
   instances: SignalInstance[];
@@ -114,6 +121,7 @@ export interface OpenBotState {
   conversation: ConversationState;
   agentSetup: AgentSetupState;
   routines: RoutinesState;
+  work: WorkState;
   signals: SignalsState;
   search: SearchState;
 }
@@ -157,6 +165,22 @@ export interface OpenBotActions {
   runRoutine(groupId: string, agentId: string): Promise<string>;
   startRoutinePolling(agentId: string): void;
   stopRoutinePolling(): void;
+  refreshWork(agentId: string, sessionId: string): Promise<void>;
+  steerBackgroundJob(
+    agentId: string,
+    sessionId: string,
+    jobId: string,
+    instruction: string,
+  ): Promise<void>;
+  stopBackgroundJob(agentId: string, sessionId: string, jobId: string): Promise<void>;
+  resumeBackgroundJob(
+    agentId: string,
+    sessionId: string,
+    jobId: string,
+    instruction?: string,
+  ): Promise<void>;
+  startWorkPolling(agentId: string, sessionId: string): void;
+  stopWorkPolling(): void;
   refreshSignalProviders(): Promise<void>;
   refreshSignalInstances(): Promise<void>;
   createSignalInstance(input: CreateSignalInstanceInput): Promise<SignalInstance>;
@@ -193,6 +217,7 @@ const optimisticQueuePrefix = "optimistic-queue-";
 const optimisticQueueGraceMs = 5_000;
 const agentSetupPollMs = 500;
 const routinePollMs = 30_000;
+const workPollMs = 2_000;
 
 const idleAgentSetup: AgentSetupState = {
   status: "idle",
@@ -227,6 +252,7 @@ const initialState: OpenBotState = {
   },
   agentSetup: idleAgentSetup,
   routines: { byAgentId: {}, status: "idle", error: "" },
+  work: { byConversation: {}, loadingByConversation: {}, error: "" },
   signals: {
     providers: [],
     instances: [],
@@ -288,6 +314,8 @@ export function createOpenBotRuntime(options: OpenBotRuntimeOptions): OpenBotRun
   };
   const updateRoutines = (patch: Partial<RoutinesState>) =>
     store.setState((state) => ({ routines: { ...state.routines, ...patch } }));
+  const updateWork = (patch: Partial<WorkState>) =>
+    store.setState((state) => ({ work: { ...state.work, ...patch } }));
   const updateSignals = (patch: Partial<SignalsState>) =>
     store.setState((state) => ({ signals: { ...state.signals, ...patch } }));
   const updateSearch = (patch: Partial<SearchState>) =>
@@ -316,6 +344,8 @@ export function createOpenBotRuntime(options: OpenBotRuntimeOptions): OpenBotRun
   };
   let routinePollTimer: ReturnType<typeof setTimeout> | undefined;
   let routinePollGeneration = 0;
+  let workPollTimer: ReturnType<typeof setTimeout> | undefined;
+  let workPollGeneration = 0;
   let workspaceInitialized = false;
 
   async function checkAuthentication(): Promise<void> {
@@ -1061,6 +1091,87 @@ export function createOpenBotRuntime(options: OpenBotRuntimeOptions): OpenBotRun
     scheduleNext();
   }
 
+  async function refreshWork(agentId: string, sessionId: string): Promise<void> {
+    const key = workConversationKey(agentId, sessionId);
+    updateWork({
+      loadingByConversation: { ...store.getState().work.loadingByConversation, [key]: true },
+      error: "",
+    });
+    try {
+      const snapshot = await options.client.getWork(agentId, sessionId);
+      updateWork({
+        byConversation: { ...store.getState().work.byConversation, [key]: snapshot },
+        loadingByConversation: {
+          ...store.getState().work.loadingByConversation,
+          [key]: false,
+        },
+        error: "",
+      });
+    } catch (error) {
+      updateWork({
+        loadingByConversation: {
+          ...store.getState().work.loadingByConversation,
+          [key]: false,
+        },
+        error: errorMessage(error),
+      });
+      throw error;
+    }
+  }
+
+  async function steerBackgroundJob(
+    agentId: string,
+    sessionId: string,
+    jobId: string,
+    instruction: string,
+  ): Promise<void> {
+    await options.client.steerBackgroundJob(agentId, sessionId, jobId, instruction);
+    await refreshWork(agentId, sessionId);
+  }
+
+  async function stopBackgroundJob(
+    agentId: string,
+    sessionId: string,
+    jobId: string,
+  ): Promise<void> {
+    await options.client.stopBackgroundJob(agentId, sessionId, jobId);
+    await refreshWork(agentId, sessionId);
+  }
+
+  async function resumeBackgroundJob(
+    agentId: string,
+    sessionId: string,
+    jobId: string,
+    instruction?: string,
+  ): Promise<void> {
+    await options.client.resumeBackgroundJob(agentId, sessionId, jobId, instruction);
+    await refreshWork(agentId, sessionId);
+  }
+
+  function stopWorkPolling(): void {
+    workPollGeneration += 1;
+    if (workPollTimer !== undefined) {
+      cancelScheduled(workPollTimer);
+      workPollTimer = undefined;
+    }
+  }
+
+  function startWorkPolling(agentId: string, sessionId: string): void {
+    stopWorkPolling();
+    const generation = workPollGeneration;
+    const scheduleNext = (): void => {
+      workPollTimer = schedule(() => {
+        void refreshWork(agentId, sessionId)
+          .catch(() => undefined)
+          .finally(() => {
+            if (generation === workPollGeneration) scheduleNext();
+          });
+      }, workPollMs);
+    };
+    void refreshWork(agentId, sessionId).catch(() => undefined);
+    scheduleNext();
+  }
+
   async function refreshSignalProviders(): Promise<void> {
     updateSignals({ status: "loading" });
     try {
@@ -1161,6 +1272,7 @@ export function createOpenBotRuntime(options: OpenBotRuntimeOptions): OpenBotRun
       chatKitRealtimeObserver?.abort();
       agentSetupObserver?.abort();
       stopRoutinePolling();
+      stopWorkPolling();
       clearSignalErrors();
       busySessionIds.clear();
       liveMessagesBySession.clear();
@@ -1200,6 +1312,12 @@ export function createOpenBotRuntime(options: OpenBotRuntimeOptions): OpenBotRun
     runRoutine,
     startRoutinePolling,
     stopRoutinePolling,
+    refreshWork,
+    steerBackgroundJob,
+    stopBackgroundJob,
+    resumeBackgroundJob,
+    startWorkPolling,
+    stopWorkPolling,
     refreshSignalProviders,
     refreshSignalInstances,
     createSignalInstance,
@@ -1220,10 +1338,15 @@ export function createOpenBotRuntime(options: OpenBotRuntimeOptions): OpenBotRun
       chatKitRealtimeObserver?.abort();
       agentSetupObserver?.abort();
       stopRoutinePolling();
+      stopWorkPolling();
       if (sidebarRefreshTimer) cancelScheduled(sidebarRefreshTimer);
       queueRefreshes.clear();
     },
   };
+}
+
+export function workConversationKey(agentId: string, sessionId: string): string {
+  return JSON.stringify([agentId, sessionId]);
 }
 
 function rememberChatKitRealtimeEvent(id: string | undefined, seenEventIds: Set<string>): void {

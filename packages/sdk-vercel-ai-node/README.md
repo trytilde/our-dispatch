@@ -41,8 +41,35 @@ pnpm add @trytilde/sdk @trytilde/sdk-vercel-ai-node zod
 - `LinqSignalType`, `LinqSignalByType`, and `LinqWebhookEnvelope` strongly type every supported Linq
   webhook event. Register event-specific conversion handlers under `onUnprocessed.linq`.
 - `createChatKitAttachmentFilePartHandler(options)` resolves ChatKit attachments for model input.
+- `HostedInferenceBillingController` reserves organization AI credits before every managed model
+  call, settles authoritative Gateway generation receipts, releases excluded BYOK calls, and
+  blocks provider replay while a durable AgentRun effect outcome is uncertain. All Gateway calls
+  reserve before inference because BYOK can fall back to charged system credentials; an
+  authoritative BYOK receipt releases the reservation. Callers must terminally
+  fail a reconciled run when no model response can be recovered; replaying the
+  same step is unsafe.
+- `createChatKitCompactionController(options)` implements an agent-owned `prepareStep` compaction
+  loop; compose it after provider preparation with `composeChatKitCompactionPrepareStep`.
+- `runAgentObjective(options)` and `runAgentHostOnce(options)` continue durable objectives across
+  request and deployment boundaries with loop and budget guards.
+- `executeRunEffect(options)` records effect intent before execution and reuses committed outputs;
+  unsupported uncertain outcomes are never automatically repeated.
+- `createChatKitAutomaticMemoryController(options)` converts server-authorized
+  recall into a deterministic dynamic system suffix for insertion after stable
+  instructions and any compaction checkpoint.
+- `composeChatKitAutomaticMemoryMessages(options)` preserves checkpoint →
+  memory → mutable-tail ordering without moving stable instructions out of the
+  model call's cacheable `instructions` field.
+- `createMemorySynthesisTools(session)` creates bank-free tools for a Tilde
+  synthesis session; `context.session.memorySynthesisTools()` supplies the
+  request-bound form inside a ChatKit endpoint. Upsert, supersede, forget, and
+  finish tools require the current job's exact batch, evidence set, and lease owner.
 - `verifyWebhookRequest`, `signBody`, and `WebhookVerificationError` implement signed webhook
   verification.
+
+Compaction is request-scoped and never rewrites ChatKit history. The active agent reports start,
+completion, or failure through `context.session`; ChatKit persists those events while authored
+code controls thresholds, prompts, retries, and retained context.
 
 ```ts
 import { convertToAiSdkMessage, type LinqSignalByType } from "@trytilde/sdk-vercel-ai-node";

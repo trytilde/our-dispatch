@@ -48,6 +48,12 @@ _Avoid_: agent in owner-facing UI and copy
 A Tilde-owned conversation between an owner and a **Tilde Agent**.
 _Avoid_: local chat, thread
 
+**Context Compaction**:
+An agent-owned replacement of older model input with a durable handoff summary
+and recent complete conversation tail; it never deletes or rewrites the
+canonical **ChatKit Session** transcript.
+_Avoid_: ChatKit summarization
+
 **OpenBot Computer**:
 The isolated, resumable computer an agent can use for files, commands, browser work, and desktop interaction.
 _Avoid_: host, server

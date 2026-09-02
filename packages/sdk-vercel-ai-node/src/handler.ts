@@ -1,4 +1,11 @@
-import type { JsonObject, JsonValue, SkillsClient } from "@trytilde/sdk";
+import type {
+  ChatKitCompactionCheckpoint,
+  ChatKitCompactionLifecycle,
+  ChatKitAutomaticMemoryProjection,
+  JsonObject,
+  JsonValue,
+  SkillsClient,
+} from "@trytilde/sdk";
 import { isJsonObject } from "@trytilde/sdk/json";
 import {
   type ChatKitContextClient,
@@ -21,6 +28,7 @@ import type { Client } from "./client";
 import type { ToolSet } from "ai";
 import { createMCPClient, type CreateMCPClientOptions, type TildeMCPClientHandle } from "./mcp";
 import { createChatKitSessionTools, type ChatKitToolSession } from "./chatkit-session-tools";
+import { createMemorySynthesisTools } from "./memory-synthesis-tools";
 import {
   type VerifiedWebhookRequest,
   type VerifyWebhookOptions,
@@ -48,11 +56,14 @@ export type { ChatKitContextClient, ChatKitConvertedMessage };
 export type ChatKitSessionHistoryOptions = {
   nextPageToken?: string;
   pageSize?: number;
+  fromLastCompaction?: boolean;
+  agentId?: string;
 };
 
 export type ChatKitSessionHistory = {
   items: ChatKitHistoryMessage[];
   nextPageToken?: string;
+  checkpoint?: ChatKitCompactionCheckpoint;
 };
 
 export type ChatKitSessionClient = {
@@ -63,6 +74,16 @@ export type ChatKitSessionClient = {
     options: Omit<CreateMCPClientOptions, "client" | "chatkit">,
   ): Promise<TildeMCPClientHandle>;
   history(options?: ChatKitSessionHistoryOptions): Promise<ChatKitSessionHistory>;
+  reportCompaction(input: {
+    agentId: string;
+    compactionId: string;
+    lifecycle: ChatKitCompactionLifecycle;
+  }): Promise<{ eventId: string }>;
+  memorySynthesisTools(): ToolSet;
+  recallAutomaticMemory(input: {
+    messageId: string;
+    maxTokens?: number;
+  }): Promise<ChatKitAutomaticMemoryProjection>;
 };
 
 export type ChatKitEndpointContext = ChatKitEndpointProviderContext & {
@@ -279,6 +300,18 @@ export function chatKitEndpoint(
     const currentRequestMessageIds = messageIds(body.messages);
     const session: ChatKitSessionClient = {
       id: sessionId.value,
+      memorySynthesisTools() {
+        return createMemorySynthesisTools(client.memory.synthesisSession(sessionId.value));
+      },
+      recallAutomaticMemory(input) {
+        const agentId = body.agent?.id;
+        if (!agentId) throw new TypeError("Automatic memory requires the verified receiving agent");
+        return client.chatkit.recallAutomaticMemory({
+          sessionId: sessionId.value,
+          agentId,
+          ...input,
+        });
+      },
       ...(toolSession && sessionTools
         ? {
             providerId: toolSession.providerId,
@@ -293,7 +326,39 @@ export function chatKitEndpoint(
               }),
           }
         : {}),
+      reportCompaction(input) {
+        return client.chatkit.reportCompactionEvent({
+          sessionId: sessionId.value,
+          ...input,
+        });
+      },
       async history(historyOptions = {}) {
+        if (
+          historyOptions.fromLastCompaction &&
+          (historyOptions.pageSize !== undefined || historyOptions.nextPageToken !== undefined)
+        ) {
+          throw new TypeError("fromLastCompaction requires the unpaginated history helper");
+        }
+        if (historyOptions.fromLastCompaction) {
+          if (!historyOptions.agentId?.trim())
+            throw new TypeError("fromLastCompaction requires agentId");
+          const items: JsonValue[] = [];
+          let checkpoint: ChatKitCompactionCheckpoint | undefined;
+          let nextPageToken: string | undefined;
+          do {
+            const page = await client.chatkit.getCompactedHistory<JsonValue>({
+              sessionId: sessionId.value,
+              agentId: historyOptions.agentId,
+              pageSize: 100,
+              ...(nextPageToken ? { nextPageToken } : {}),
+            });
+            checkpoint ??= page.checkpoint;
+            items.push(...page.items);
+            nextPageToken = page.nextPageToken;
+          } while (nextPageToken);
+          const normalized = normalizeHistoryItems(items, currentRequestMessageIds);
+          return checkpoint ? { checkpoint, items: normalized } : { items: normalized };
+        }
         if (historyOptions.pageSize === undefined && historyOptions.nextPageToken === undefined) {
           const items: JsonValue[] = [];
           let nextPageToken: string | undefined;

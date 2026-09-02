@@ -1,0 +1,69 @@
+import { tool } from "ai";
+import { z } from "zod";
+
+interface TaskToolOptions {
+  baseUrl: string;
+  headers: () => Record<string, string>;
+  sessionId: string;
+  teamId: string;
+}
+
+const taskStatus = z.enum([
+  "submitted",
+  "working",
+  "input-required",
+  "completed",
+  "canceled",
+  "failed",
+  "rejected",
+  "auth-required",
+]);
+
+export default function createManageTasksTool(options: TaskToolOptions) {
+  const root = `${options.baseUrl}/api/v1/team/${encodeURIComponent(options.teamId)}/chatkit/agents/${encodeURIComponent({{{AGENT_ID_JSON}}})}/sessions/${encodeURIComponent(options.sessionId)}/tasks`;
+  return tool({
+    description:
+      "Manage your durable execution queue for this conversation. Record each non-trivial requested work item, keep independent work in progress concurrently, link dependencies, and close items immediately when delivered, failed, or canceled.",
+    inputSchema: z.object({
+      action: z.enum(["create", "list", "get", "update"]),
+      task_id: z.string().uuid().optional(),
+      goal_id: z.string().uuid().optional(),
+      summary: z.string().min(1).optional(),
+      plan: z.string().min(1).optional(),
+      status: taskStatus.optional(),
+      dependency_task_ids: z.array(z.string().uuid()).optional(),
+      progress_percent: z.number().int().min(0).max(100).optional(),
+      progress_note: z.string().min(1).optional(),
+      status_reason: z.string().min(1).optional(),
+    }),
+    async execute(input) {
+      const taskUrl = input.task_id ? `${root}/${encodeURIComponent(input.task_id)}` : root;
+      const method = input.action === "create" ? "POST" : input.action === "update" ? "PATCH" : "GET";
+      if ((input.action === "get" || input.action === "update") && !input.task_id)
+        throw new Error(`manage_tasks ${input.action} requires task_id`);
+      if (input.action === "create" && !input.summary)
+        throw new Error("manage_tasks create requires summary");
+      const body =
+        method === "GET"
+          ? undefined
+          : JSON.stringify({
+              goal_id: input.goal_id,
+              summary: input.summary,
+              plan: input.plan,
+              status: input.status,
+              dependency_task_ids: input.dependency_task_ids,
+              progress_percent: input.progress_percent,
+              progress_note: input.progress_note,
+              status_reason: input.status_reason,
+            });
+      const response = await fetch(taskUrl, {
+        method,
+        headers: { ...options.headers(), ...(body ? { "content-type": "application/json" } : {}) },
+        body,
+      });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(`Task operation failed (${response.status}): ${JSON.stringify(payload)}`);
+      return payload;
+    },
+  });
+}
