@@ -87,6 +87,9 @@ export default chatKitEndpoint({
       });
       const closeMcp = () => void mcp.closeMcp();
       const inference = await prepareInference(tools as ToolSet, request.signal);
+      const modelMessages = (await convertToModelMessages(messages)).filter(
+        (message) => message.role !== "system",
+      );
       try {
         await synthesisRun.billing.preflight(inferenceModelId);
       } catch (error) {
@@ -108,7 +111,7 @@ export default chatKitEndpoint({
       const result = streamText({
         ...inference,
         instructions,
-        messages: await convertToModelMessages(messages),
+        messages: modelMessages,
         stopWhen: stepCountIs(50),
         abortSignal: request.signal,
         onLanguageModelCallStart: synthesisRun.billing.onLanguageModelCallStart,
