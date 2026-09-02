@@ -89,4 +89,4 @@
 - [ ] The PR title uses Conventional Commits style and is under 72 characters.
 - [ ] The PR remains draft until checks and accepted feedback are current.
 - [ ] Current PR checks and unresolved review feedback were inspected after the latest push.
-- [ ] No optional review bot was triggered unless the user explicitly requested it.
+- [ ] The `no-greptile` label was present when the PR was created; no external review bot was triggered.

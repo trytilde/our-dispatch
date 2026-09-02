@@ -206,6 +206,7 @@ For browser-visible changes, verify the real route, console, network, and visibl
 - Production deployment uses `pnpm deploy:prod -- --dry-run --json`, then `pnpm deploy:prod -- --yes` only when explicitly requested.
 - The deploy script coordinates Vercel, Tilde API reconciliation, encrypted environment, Sandbox snapshot, and smoke tests. Do not replace it with a raw production deploy.
 - Commit, push, open a PR, merge, or deploy only when requested.
+- Create every PR with the `no-greptile` label. Never tag, request, or wait for Greptile or another external review bot.
 - Before creating or updating a PR, always review the full diff for major architecture, strongly opinionated code, or durable code/product design decisions. If found, pause and prompt the user through an ADR under `docs/adrs/`; do not silently invent or skip the decision.
 - Keep ADRs concise. Start with caveman-style `In brief` bullets and add a small Mermaid diagram when it clarifies a real relationship or flow. When amending a governing ADR, append a chronological ISO-8601 timestamped bullet under `Updates` and preserve older entries.
 - Before handoff, review the diff for secrets, generated noise, unrelated changes, and the exact checks run.
