@@ -6720,6 +6720,24 @@ export type ValidateStateResponse = {
     valid: boolean;
 };
 
+/**
+ * Exact active synthesis claim that an assigned synthesizer must prove before work.
+ */
+export type ValidateSynthesisBatchBody = {
+    /**
+     * Deterministic digest of the ordered evidence IDs and their stored checksums.
+     */
+    batch_id: string;
+    /**
+     * Complete duplicate-free evidence set issued for this synthesis turn.
+     */
+    evidence_ids: Array<string>;
+    /**
+     * Fresh worker lease that currently owns every supplied evidence row.
+     */
+    lease_owner: string;
+};
+
 export type Vec = Array<{
     agent_id?: string | null;
     authorization?: ResourceAuthorizationModes;
@@ -18195,6 +18213,28 @@ export type RetainSynthesisSessionMemoryResponses = {
 };
 
 export type RetainSynthesisSessionMemoryResponse = RetainSynthesisSessionMemoryResponses[keyof RetainSynthesisSessionMemoryResponses];
+
+export type ValidateSynthesisSessionBatchData = {
+    body: ValidateSynthesisBatchBody;
+    path: {
+        /**
+         * Team ID
+         */
+        team_id: string;
+        session_id: WrappedUuidV4;
+    };
+    query?: never;
+    url: '/api/v1/team/{team_id}/memory/synthesis-sessions/{session_id}/validate-batch';
+};
+
+export type ValidateSynthesisSessionBatchResponses = {
+    /**
+     * The complete evidence set is owned by the exact active worker lease
+     */
+    204: void;
+};
+
+export type ValidateSynthesisSessionBatchResponse = ValidateSynthesisSessionBatchResponses[keyof ValidateSynthesisSessionBatchResponses];
 
 export type ReconcileOpenbotAgentBundleData = {
     body: ReconcileOpenBotAgentBundleBody;

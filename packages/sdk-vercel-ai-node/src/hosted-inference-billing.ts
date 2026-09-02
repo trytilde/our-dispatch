@@ -32,6 +32,8 @@ export type HostedInferenceBillingControllerOptions = {
   runGeneration: number;
   workerId: string;
   stepId: string;
+  /** Stable semantic call scope; unlike stepId, this must survive lease-generation reclaim. */
+  effectScope: string;
   estimatedCostMicrousd: number;
   tags?: string[];
   generationInfo?: (generationId: string) => Promise<GatewayGenerationReceipt>;
@@ -186,10 +188,10 @@ export class HostedInferenceBillingController {
   }
 
   async #begin(ordinal: number, modelId: string): Promise<ActiveCall> {
-    const toolCallId = `model-${ordinal}`;
-    const idempotencyKey = `${this.#options.runId}:${this.#options.stepId}:model:${ordinal}`;
+    const toolCallId = `model-${this.#options.effectScope}-${ordinal}`;
+    const idempotencyKey = `${this.#options.runId}:${this.#options.effectScope}:model:${ordinal}`;
     const inputFingerprint = await fingerprint(
-      JSON.stringify([this.#options.runId, this.#options.stepId, ordinal, modelId]),
+      JSON.stringify([this.#options.runId, this.#options.effectScope, ordinal, modelId]),
     );
     const existing = await this.#options.effects.getEffect({
       sessionId: this.#options.sessionId,

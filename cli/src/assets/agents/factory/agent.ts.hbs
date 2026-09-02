@@ -258,6 +258,7 @@ export default chatKitEndpoint({
       runGeneration: currentAgentRun.generation,
       workerId: runWorkerId,
       stepId: `${currentAgentRun.generation}:${currentAgentRun.continuationCount + 1}`,
+      effectScope: `continuation:${currentAgentRun.continuationCount + 1}`,
       estimatedCostMicrousd: positiveIntegerEnv(
         "OPENBOT_HOSTED_INFERENCE_RESERVE_MICROUSD",
         250_000,

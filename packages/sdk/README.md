@@ -45,6 +45,8 @@ pnpm add @trytilde/sdk
   source bindings, and bank-free synthesis-session operations. Synthesis
   mutations and completion require the exact current batch, complete evidence
   set, and fresh lease owner; synthesis forget is separate from owner deletion.
+  `MemorySynthesisSessionClient.validateBatch(input)` proves that exact digest,
+  complete evidence set, and current unexpired lease before external inference.
 - `MemoryClient.personalBanks(ownerUserId)` and
   `personalBank(ownerUserId, bankId)` use owner credentials to inspect, edit,
   or delete explicit personal facts; personal synthesizer assignment remains a

@@ -16,6 +16,8 @@ function harness(
     prepareFailure?: Error;
     releaseFailure?: Error;
     finishFailures?: number;
+    runGeneration?: number;
+    workerId?: string;
   } = {},
 ) {
   let effect = options.existing;
@@ -60,9 +62,10 @@ function harness(
     sessionId: "session",
     agentId: "factory",
     runId: "run",
-    runGeneration: 2,
-    workerId: "worker-1",
-    stepId: "2:3",
+    runGeneration: options.runGeneration ?? 2,
+    workerId: options.workerId ?? "worker-1",
+    stepId: `${options.runGeneration ?? 2}:3`,
+    effectScope: "continuation:3",
     estimatedCostMicrousd: 250_000,
     generationInfo: vi.fn(async (id) => ({
       id,
@@ -93,7 +96,7 @@ describe("HostedInferenceBillingController", () => {
     await h.controller.onLanguageModelCallEnd(endEvent());
 
     expect(h.reserve).toHaveBeenCalledWith({
-      idempotencyKey: "run:2:3:model:0",
+      idempotencyKey: "run:continuation:3:model:0",
       estimatedCostMicrousd: 250_000,
     });
     expect(h.prepareEffect).toHaveBeenCalledWith(
@@ -138,7 +141,7 @@ describe("HostedInferenceBillingController", () => {
     const retry = harness();
     await retry.controller.preflight("openai/gpt");
     const expected = {
-      idempotencyKey: "run:2:3:model:0",
+      idempotencyKey: "run:continuation:3:model:0",
       estimatedCostMicrousd: 250_000,
     };
     expect(first.reserve).toHaveBeenCalledWith(expected);
@@ -178,6 +181,44 @@ describe("HostedInferenceBillingController", () => {
       HostedInferenceReconciliationRequiredError,
     );
     expect(retry.reserve).not.toHaveBeenCalled();
+  });
+
+  it("finds a planned effect after reclaim advances generation but not continuation", async () => {
+    const first = harness({ runGeneration: 2, workerId: "worker-old" });
+    await first.controller.preflight("openai/gpt");
+    await first.controller.onLanguageModelCallStart(startEvent());
+
+    const reclaimed = harness({
+      existing: first.effect(),
+      runGeneration: 3,
+      workerId: "worker-new",
+    });
+    await expect(reclaimed.controller.preflight("openai/gpt")).rejects.toBeInstanceOf(
+      HostedInferenceReconciliationRequiredError,
+    );
+    expect(reclaimed.reserve).not.toHaveBeenCalled();
+    expect(reclaimed.prepareEffect).not.toHaveBeenCalled();
+  });
+
+  it("recovers a committed effect after reclaim advances generation", async () => {
+    const first = harness({ runGeneration: 2, workerId: "worker-old" });
+    await first.controller.preflight("openai/gpt");
+    await first.controller.onLanguageModelCallStart(startEvent());
+    await first.controller.onLanguageModelCallEnd(endEvent());
+
+    const reclaimed = harness({
+      existing: first.effect(),
+      runGeneration: 3,
+      workerId: "worker-new",
+    });
+    await expect(reclaimed.controller.preflight("openai/gpt")).rejects.toBeInstanceOf(
+      HostedInferenceReconciliationRequiredError,
+    );
+    expect(reclaimed.commit).toHaveBeenCalledWith(
+      expect.objectContaining({ idempotencyKey: "run:continuation:3:model:0:receipt" }),
+    );
+    expect(reclaimed.reserve).not.toHaveBeenCalled();
+    expect(reclaimed.prepareEffect).not.toHaveBeenCalled();
   });
 
   it("marks a missing generation uncertain and refuses provider replay", async () => {
@@ -228,7 +269,7 @@ describe("HostedInferenceBillingController", () => {
       expect.objectContaining({
         generationId: "gen_early",
         actualCostMicrousd: 1_234,
-        idempotencyKey: "run:2:3:model:0:receipt",
+        idempotencyKey: "run:continuation:3:model:0:receipt",
       }),
     );
     expect(retry.reserve).not.toHaveBeenCalled();
@@ -239,7 +280,7 @@ describe("HostedInferenceBillingController", () => {
     );
     expect(nextInvocation.reserve).not.toHaveBeenCalled();
     expect(nextInvocation.commit).toHaveBeenCalledWith(
-      expect.objectContaining({ idempotencyKey: "run:2:3:model:0:receipt" }),
+      expect.objectContaining({ idempotencyKey: "run:continuation:3:model:0:receipt" }),
     );
   });
 

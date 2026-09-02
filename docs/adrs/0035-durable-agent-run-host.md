@@ -26,3 +26,10 @@ uncertain and the run waits for explicit reconciliation.
 
 Compacted history remains the model-input source, so continuation preserves the
 stable provider cache prefix established by ADR-0033.
+
+## Updates
+
+- 2026-09-02: The durable run/effect boundary also covers Memory Catcher's
+  private synthesis turns. Its batch and API worker lease form the stable run
+  identity; hosted inference prepares generation-fenced effect intent before
+  the provider starts and fails closed when no response can be recovered.

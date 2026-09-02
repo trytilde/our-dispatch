@@ -365,6 +365,26 @@ export class MemorySynthesisSessionClient {
     return response.result;
   }
 
+  /** Prove this exact batch is the complete current lease before external inference begins. */
+  async validateBatch(input: {
+    batchId: string;
+    evidenceIds: string[];
+    leaseOwner: string;
+  }): Promise<void> {
+    if (!input.batchId.trim()) throw new TypeError("batchId is required");
+    if (!input.evidenceIds.length) throw new TypeError("evidenceIds are required");
+    if (!input.leaseOwner.trim()) throw new TypeError("leaseOwner is required");
+    await requestJson<void>(this.#config, {
+      method: "POST",
+      path: `${this.#root}/validate-batch`,
+      body: {
+        batch_id: input.batchId,
+        evidence_ids: input.evidenceIds,
+        lease_owner: input.leaseOwner,
+      },
+    });
+  }
+
   async forget(input: {
     documentId: string;
     batchId: string;

@@ -66,3 +66,12 @@ removed before inference.
 - The ordinary agent bundle names `memory-catcher` as the owned bank's
   synthesizer. Bundle reconciliation validates and converges that stable
   same-team reference on create, update, state import, and repeated deployment.
+
+## Updates
+
+- 2026-09-02: Memory Catcher now creates one durable AgentRun for each exact
+  synthesis batch and worker lease. Before inference, Tilde validates the exact
+  batch digest, complete evidence set, current unexpired lease, bound session,
+  and assigned synthesizer. Managed Gateway inference uses the shared hosted-
+  billing effect ledger, while redelivery of the same lease cannot repeat a
+  planned, uncertain, or settled provider call.

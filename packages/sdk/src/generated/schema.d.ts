@@ -5998,6 +5998,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/team/{team_id}/memory/synthesis-sessions/{session_id}/validate-batch": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Validate an active synthesis batch
+         * @description Authenticates the bank's assigned synthesizer and verifies that the supplied batch digest, complete evidence-ID set, and worker lease exactly match the session's current unexpired Postgres claim. This read-only check does not mutate memory or lease state.
+         */
+        post: operations["validate-synthesis-session-batch"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/team/{team_id}/openbot/agents/{agent_id}/bundle": {
         parameters: {
             query?: never;
@@ -15010,6 +15030,15 @@ export interface components {
             graph_component_count: number;
             resource_count: number;
             valid: boolean;
+        };
+        /** @description Exact active synthesis claim that an assigned synthesizer must prove before work. */
+        ValidateSynthesisBatchBody: {
+            /** @description Deterministic digest of the ordered evidence IDs and their stored checksums. */
+            batch_id: string;
+            /** @description Complete duplicate-free evidence set issued for this synthesis turn. */
+            evidence_ids: string[];
+            /** @description Fresh worker lease that currently owns every supplied evidence row. */
+            lease_owner: string;
         };
         Vec: {
             agent_id?: string | null;
@@ -29984,6 +30013,32 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["MemoryOperationResponse"];
                 };
+            };
+        };
+    };
+    "validate-synthesis-session-batch": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Team ID */
+                team_id: string;
+                session_id: components["schemas"]["WrappedUuidV4"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ValidateSynthesisBatchBody"];
+            };
+        };
+        responses: {
+            /** @description The complete evidence set is owned by the exact active worker lease */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };

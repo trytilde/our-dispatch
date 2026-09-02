@@ -28481,6 +28481,59 @@
         }
       }
     },
+    "/api/v1/team/{team_id}/memory/synthesis-sessions/{session_id}/validate-batch": {
+      "post": {
+        "tags": [
+          "memory",
+          "v1"
+        ],
+        "summary": "Validate an active synthesis batch",
+        "description": "Authenticates the bank's assigned synthesizer and verifies that the supplied batch digest, complete evidence-ID set, and worker lease exactly match the session's current unexpired Postgres claim. This read-only check does not mutate memory or lease state.",
+        "operationId": "validate-synthesis-session-batch",
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/WrappedUuidV4"
+            }
+          },
+          {
+            "name": "team_id",
+            "in": "path",
+            "description": "Team ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ValidateSynthesisBatchBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "The complete evidence set is owned by the exact active worker lease"
+          }
+        }
+      }
+    },
     "/api/v1/team/{team_id}/openbot/agents/{agent_id}/bundle": {
       "put": {
         "tags": [
@@ -65306,6 +65359,32 @@
           },
           "valid": {
             "type": "boolean"
+          }
+        }
+      },
+      "ValidateSynthesisBatchBody": {
+        "type": "object",
+        "description": "Exact active synthesis claim that an assigned synthesizer must prove before work.",
+        "required": [
+          "batch_id",
+          "evidence_ids",
+          "lease_owner"
+        ],
+        "properties": {
+          "batch_id": {
+            "type": "string",
+            "description": "Deterministic digest of the ordered evidence IDs and their stored checksums."
+          },
+          "evidence_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Complete duplicate-free evidence set issued for this synthesis turn."
+          },
+          "lease_owner": {
+            "type": "string",
+            "description": "Fresh worker lease that currently owns every supplied evidence row."
           }
         }
       },

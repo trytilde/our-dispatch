@@ -94,6 +94,7 @@ describe("agent scaffolding", () => {
     expect(agentSource).toContain("onLanguageModelCallEnd");
     expect(agentSource).toContain("inferenceBilling.preflight");
     expect(agentSource).toContain("inferenceBilling.fail");
+    expect(agentSource).toContain("effectScope: `continuation:");
     expect(agentSource).toContain("status: creditsExhausted ? 402 : 503");
     const costBudgetGate = agentSource.slice(
       agentSource.indexOf("jobBudget?.max_cost_microusd"),
@@ -229,6 +230,10 @@ describe("agent scaffolding", () => {
     ]);
     const catcherSource = await readFile(join(directory, "agent.ts"), "utf8");
     expect(catcherSource).toContain("prepareInference(tools as ToolSet, request.signal)");
+    expect(catcherSource).toContain("createMemorySynthesisInferenceRun");
+    expect(catcherSource).toContain("OPENBOT_HOSTED_INFERENCE_BILLING");
+    expect(catcherSource).toContain("onLanguageModelCallStart");
+    expect(catcherSource).toContain("failForReconciliation");
     expect(catcherSource).not.toContain('model: "zai/glm-5.3-flash"');
     expect(await readFile(join(directory, "instructions.ts"), "utf8")).toContain(
       "Never, ever invoke sendMessage",

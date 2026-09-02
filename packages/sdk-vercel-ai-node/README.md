@@ -47,7 +47,19 @@ pnpm add @trytilde/sdk @trytilde/sdk-vercel-ai-node zod
   reserve before inference because BYOK can fall back to charged system credentials; an
   authoritative BYOK receipt releases the reservation. Callers must terminally
   fail a reconciled run when no model response can be recovered; replaying the
-  same step is unsafe.
+  same step is unsafe. Supply an `effectScope` derived from the semantic
+  continuation or operation, not the lease generation: effect lookup must stay
+  stable when a reclaimed worker receives a new generation, while prepare and
+  finish writes remain fenced by the current `runGeneration`, `workerId`, and
+  `stepId`.
+- `createMemorySynthesisInferenceRun(options)` creates and claims one lease-fenced AgentRun per
+  Tilde synthesis batch and worker lease, then composes `HostedInferenceBillingController` with
+  that run. Redelivery within the same synthesis lease reuses the durable effect ledger; a newly
+  reclaimed API lease gets a distinct run and must satisfy its own mutation/completion fencing.
+  Failed commit or BYOK release boundaries leave the run waiting until preflight replays the
+  committed settlement, after which the unrecoverable provider response is terminalized without
+  another provider call.
+  `parseMemorySynthesisInvocation(messages, webhookId)` accepts only Tilde's exact batch prompt.
 - `createChatKitCompactionController(options)` implements an agent-owned `prepareStep` compaction
   loop; compose it after provider preparation with `composeChatKitCompactionPrepareStep`.
 - `runAgentObjective(options)` and `runAgentHostOnce(options)` continue durable objectives across

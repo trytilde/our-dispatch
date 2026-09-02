@@ -6,6 +6,18 @@ export {
   type HostedInferenceBillingControllerOptions,
 } from "./hosted-inference-billing";
 export {
+  type CreateMemorySynthesisInferenceRunOptions,
+  createMemorySynthesisInferenceRun,
+  didMemorySynthesisFinish,
+  InvalidMemorySynthesisInvocationError,
+  type MemorySynthesisInferenceRun,
+  type MemorySynthesisInvocation,
+  MemorySynthesisRunAlreadyClaimedError,
+  MemorySynthesisRunCompletedError,
+  MemorySynthesisRunTerminalError,
+  parseMemorySynthesisInvocation,
+} from "./memory-synthesis-inference";
+export {
   type AgentRunControllerOptions,
   type AgentRunControllerResult,
   type AgentRunStore,

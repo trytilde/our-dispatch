@@ -16,12 +16,13 @@ Use when the user asks to open, publish, prepare, or update a PR for the current
 5. Run the cross-client parity gate for `apps/desktop` and `apps/web`. Confirm the port/no-port decision with the user before publishing.
 6. Run the CLI ownership gate: every developer workflow and operator behavior belongs in the `openbot` CLI. Refactor before publishing.
 7. Run the external dependency gate: if a contributor must install something new or different, update the setup instructions in the same PR.
-8. Run the architecture and ADR gate. Resolve any user decision before publishing.
-9. Use a Conventional Commits title and intentional file selection; commit the validated implementation.
-10. Push the branch and open or update the draft PR so its stable PR number is known.
-11. Generate `docs/updates/<pr-number>.md`, commit it, and push it to the draft PR.
-12. Keep the update record current after every subsequent implementation, documentation, rebase, or conflict-resolution change.
-13. Re-read PR checks and review feedback before declaring completion.
+8. Run the metadata semantics gate. Internal behavior in metadata blocks publication.
+9. Run the architecture and ADR gate. Resolve any user decision before publishing.
+10. Use a Conventional Commits title and intentional file selection; commit the validated implementation.
+11. Push the branch and open or update the draft PR so its stable PR number is known.
+12. Generate `docs/updates/<pr-number>.md`, commit it, and push it to the draft PR.
+13. Keep the update record current after every subsequent implementation, documentation, rebase, or conflict-resolution change.
+14. Re-read PR checks and review feedback before declaring completion.
 
 ## Gather Context
 
@@ -151,6 +152,29 @@ When any apply, the same PR must:
 
 Record the result under an `External dependencies` heading. When nothing changed, record `External dependencies: unchanged`.
 
+## Metadata Semantics Gate
+
+Metadata is allowed only for provider-specific facts that cannot be normalized
+and opaque client extensions that OpenBot/Tilde never interpret. Inspect the
+full PR, generated agent templates, and upstream Tilde contract changes:
+
+```bash
+base="$(git merge-base HEAD origin/main)"
+git diff "$base"..HEAD -- '*.ts' '*.tsx' '*.hbs' '*.json' | \
+  rg -n 'metadata|providerMetadata|provider_metadata|Record<string, unknown>|\.pointer\(' || true
+```
+
+For each changed metadata field, record `provider-specific` or
+`client-opaque`, its sole adapter/client owner, and why no shared typed field is
+possible. Block publication when an agent template, SDK wrapper, control route,
+client runtime, UI, provider composition, or core module interprets metadata
+for authorization, identity, routing, lifecycle, retries, relationships,
+models, budgets, runs, jobs, compaction, memory, or other internal semantics.
+
+Do not accept runtime validation, namespaced keys, backward compatibility, or
+avoiding an upstream API/generated-client change as exceptions. Update the
+Tilde DTO/OpenAPI and refresh the generated client instead.
+
 ## Architecture And ADR Gate
 
 Always inspect the complete diff for major architecture, strongly opinionated code, or durable code/product design decisions. Compare it with `CONTEXT.md`, `AGENTS.md`, and relevant records under `docs/adrs/`.
@@ -183,6 +207,7 @@ Use the checked-in `.github/pull_request_template.md` when present and complete 
 - cross-client parity result: what was ported, what is deferred with its `<FOLLOW UP>` block, and what is not portable with the reason
 - external dependency result: what a contributor must now install, which setup instructions and doctor checks changed, and which platforms were verified
 - ADR review result and links to any new or governing ADRs
+- metadata classification, or `Metadata semantics: no metadata fields changed`
 - screenshots for user-visible changes when captured
 - known limitations or follow-ups
 - changeset added, or why none is required

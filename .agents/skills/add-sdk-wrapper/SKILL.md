@@ -12,8 +12,12 @@ description: Expose a Tilde OpenAPI operation through a stable hand-authored Typ
 3. Add or update a wrapper in `packages/tilde-sdk/src`.
 4. Map snake_case API fields to stable camelCase TypeScript inputs and outputs.
 5. Keep generated OpenAPI types internal.
-6. Add Vitest coverage for path, method, query, body, auth headers, success mapping, and error behavior.
-7. Update `README.md` if the wrapper is user-facing.
+6. Reject internal metadata protocols. If the wrapper would parse metadata for
+   Tilde-owned identity, audience, routing, lifecycle, retries, relationships,
+   models, budgets, runs, jobs, compaction, or memory, add a typed upstream
+   OpenAPI field instead.
+7. Add Vitest coverage for path, method, query, body, auth headers, success mapping, and error behavior.
+8. Update `README.md` if the wrapper is user-facing.
 
 ## Checklist
 
@@ -21,4 +25,6 @@ description: Expose a Tilde OpenAPI operation through a stable hand-authored Typ
 - [ ] Wrapper accepts a DTO object, not a long parameter list.
 - [ ] Non-2xx responses throw `ApiError`.
 - [ ] Tests use public SDK interfaces.
+- [ ] Metadata is provider-specific or client-opaque; no internal domain field
+      is decoded from a JSON metadata bag.
 - [ ] `pnpm check` passes.

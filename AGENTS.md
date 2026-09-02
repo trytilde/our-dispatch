@@ -86,6 +86,32 @@ Per ADR-0018, every developer workflow is an `openbot` command — repository ga
 - Preserve Web-standard `Request`/`Response` behavior so the same server works locally and in Vercel Functions.
 - Preserve raw request bodies and webhook verification on signed Tilde routes.
 
+### Metadata is extension data, not a control channel
+
+`metadata`, `providerMetadata`, and similarly named JSON objects are allowed
+only for provider-specific facts that cannot be normalized into a shared
+domain, or for opaque client extensions that OpenBot and Tilde store/forward
+without interpreting. A GitHub pull-request number or provider-native content
+fragment is valid provider metadata when the GitHub adapter alone owns it.
+
+Never read or write metadata for OpenBot/Tilde-owned authorization, identity,
+audience, routing, relationships, lifecycle, retries, state machines, models,
+budgets, runs, jobs, compaction, memory ownership/provenance, or other internal
+semantics. Those values require generated Tilde fields, shared client-runtime
+contracts, provider core contracts, or another typed interface.
+
+- Do not parse magic metadata keys in agent templates, SDK wrappers, control
+  routes, renderers, or provider composition.
+- Runtime validation around `Record<string, unknown>` does not make the wire
+  interface typed.
+- Do not use metadata to avoid a Tilde API/OpenAPI change, SDK refresh,
+  protobuf change, or cross-repository coordination.
+- Provider adapters may interpret only their own provider-specific metadata.
+  Promote values needed by core code, renderers, or a second provider.
+- Every PR that changes metadata must classify it as `provider-specific` or
+  `client-opaque`, name its sole interpreter, and prove internal behavior does
+  not depend on it. Otherwise the PR is blocked. See ADR-0038.
+
 ### Providers
 
 - Providers exist only for initialization and external provisioning or check/build/deploy lifecycles. Remove interface methods without one of those consumers; do not preserve speculative generic APIs.

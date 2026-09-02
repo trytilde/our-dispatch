@@ -3,6 +3,13 @@ import {
   convertToAiSdkMessages,
   createClient,
   createMCPClient,
+  createMemorySynthesisInferenceRun,
+  didMemorySynthesisFinish,
+  HostedInferenceCreditsExhaustedError,
+  HostedInferenceReconciliationRequiredError,
+  MemorySynthesisRunAlreadyClaimedError,
+  MemorySynthesisRunCompletedError,
+  MemorySynthesisRunTerminalError,
   restrictMemorySynthesisTools,
 } from "@trytilde/sdk-vercel-ai-node";
 import { consumeStream, convertToModelMessages, stepCountIs, streamText } from "ai";
@@ -35,6 +42,41 @@ export default chatKitEndpoint({
     // be used to reach a filtered communication or control-plane tool.
     const tools = restrictMemorySynthesisTools(await mcp.mcp.tools(), localTools);
     try {
+      const inferenceModelId = process.env.AI_MODEL ?? "openai/gpt-5.6-sol";
+      let synthesisRun;
+      try {
+        synthesisRun = await createMemorySynthesisInferenceRun({
+          runs: client.chatkit.runs,
+          credits: client.billing.aiCredits,
+          sessionId: context.sessionId,
+          agentId: {{{AGENT_ID_JSON}}},
+          webhookId: context.webhookId,
+          messages: context.messages,
+          billingEnabled: process.env.OPENBOT_HOSTED_INFERENCE_BILLING === "1",
+          validateBatch: (input) =>
+            client.memory.synthesisSession(context.sessionId).validateBatch(input),
+          estimatedCostMicrousd: positiveIntegerEnv(
+            "OPENBOT_HOSTED_INFERENCE_RESERVE_MICROUSD",
+            250_000,
+          ),
+          tags: ["hosted-openbot", "agent:memory-catcher", "purpose:memory-synthesis"],
+        });
+      } catch (error) {
+        await mcp.closeMcp();
+        if (error instanceof MemorySynthesisRunAlreadyClaimedError) {
+          return Response.json({ status: "run_already_claimed", run_id: error.runId }, { status: 202 });
+        }
+        if (error instanceof MemorySynthesisRunCompletedError) {
+          return Response.json({ status: "already_completed", run_id: error.runId });
+        }
+        if (error instanceof MemorySynthesisRunTerminalError) {
+          return Response.json(
+            { error: "inference_reconciliation_required", run_id: error.runId },
+            { status: 503 },
+          );
+        }
+        throw error;
+      }
       const history = await context.session.history();
       const messages = await convertToAiSdkMessages({
         messages: [...history.items, ...context.messages],
@@ -42,15 +84,68 @@ export default chatKitEndpoint({
       });
       const closeMcp = () => void mcp.closeMcp();
       const inference = await prepareInference(tools as ToolSet, request.signal);
+      try {
+        await synthesisRun.billing.preflight(inferenceModelId);
+      } catch (error) {
+        await mcp.closeMcp();
+        if (error instanceof HostedInferenceCreditsExhaustedError) {
+          await synthesisRun.pauseForCredits();
+          return Response.json(
+            { error: "ai_credits_exhausted", message: error.message },
+            { status: 402 },
+          );
+        }
+        if (error instanceof HostedInferenceReconciliationRequiredError) {
+          await synthesisRun.failForReconciliation();
+          return Response.json({ error: "inference_reconciliation_required" }, { status: 503 });
+        }
+        await synthesisRun.fail(error);
+        throw error;
+      }
       const result = streamText({
         ...inference,
         instructions,
         messages: await convertToModelMessages(messages),
         stopWhen: stepCountIs(50),
         abortSignal: request.signal,
-        onFinish: closeMcp,
-        onError: closeMcp,
-        onAbort: closeMcp,
+        onLanguageModelCallStart: synthesisRun.billing.onLanguageModelCallStart,
+        onLanguageModelCallEnd: synthesisRun.billing.onLanguageModelCallEnd,
+        onChunk: synthesisRun.billing.onChunk,
+        onFinish: async (finish) => {
+          try {
+            const synthesisFinished = didMemorySynthesisFinish({
+              batchId: synthesisRun.invocation.batchId,
+              text: finish.text,
+              steps: finish.steps,
+            });
+            await synthesisRun.complete({
+              inputTokens: finish.totalUsage.inputTokens ?? 0,
+              outputTokens: finish.totalUsage.outputTokens ?? 0,
+              toolCallCount: finish.steps.reduce(
+                (count, step) => count + step.toolCalls.length,
+                0,
+              ),
+              responseText: finish.text,
+              synthesisFinished,
+            });
+          } finally {
+            closeMcp();
+          }
+        },
+        onError: async ({ error }) => {
+          try {
+            await synthesisRun.fail(error);
+          } finally {
+            closeMcp();
+          }
+        },
+        onAbort: async () => {
+          try {
+            await synthesisRun.fail();
+          } finally {
+            closeMcp();
+          }
+        },
       });
       return result.toUIMessageStreamResponse({
         consumeSseStream: consumeStream,
@@ -62,3 +157,8 @@ export default chatKitEndpoint({
     }
   },
 });
+
+function positiveIntegerEnv(name: string, fallback: number): number {
+  const value = Number(process.env[name] ?? fallback);
+  return Number.isSafeInteger(value) && value > 0 ? value : fallback;
+}

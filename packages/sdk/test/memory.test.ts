@@ -149,6 +149,31 @@ describe("MemoryClient", () => {
     });
   });
 
+  it("validates the exact current synthesis lease before inference", async () => {
+    const fetchMock = vi.fn(async () => new Response(null, { status: 204 }));
+    const memory = createClient({
+      apiKey: "agent-key",
+      baseUrl: "https://api.example.test",
+      teamId: "team-one",
+      fetch: fetchMock,
+    }).memory.synthesisSession("session-one");
+
+    await memory.validateBatch({
+      batchId: "batch-one",
+      evidenceIds: [synthesisEvidenceId],
+      leaseOwner: "lease-one",
+    });
+
+    const calls = fetchMock.mock.calls as unknown as [string, RequestInit][];
+    expect(calls[0]?.[0]).toContain("/memory/synthesis-sessions/session-one/validate-batch");
+    expect(calls[0]?.[1].method).toBe("POST");
+    expect(JSON.parse(calls[0]?.[1].body as string)).toEqual({
+      batch_id: "batch-one",
+      evidence_ids: [synthesisEvidenceId],
+      lease_owner: "lease-one",
+    });
+  });
+
   it("lets an owner inspect, edit, and delete an attributed explicit fact", async () => {
     const explicit = {
       memory_id: "manual:fact-one",
