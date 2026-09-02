@@ -233,6 +233,7 @@ describe("agent scaffolding", () => {
     expect(catcherSource).not.toContain('responseMode: "tool"');
     expect(catcherSource).toContain("prepareInference(tools as ToolSet, request.signal)");
     expect(catcherSource).toContain("createMemorySynthesisInferenceRun");
+    expect(catcherSource).toContain('message.role !== "system"');
     expect(catcherSource).toContain("OPENBOT_HOSTED_INFERENCE_BILLING");
     expect(catcherSource).toContain("onLanguageModelCallStart");
     expect(catcherSource).toContain("failForReconciliation");
