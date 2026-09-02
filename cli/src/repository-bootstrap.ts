@@ -3,8 +3,8 @@ import { resolve } from "node:path";
 import { tmpdir } from "node:os";
 import type { InitializationCommandRunner, InitializationPrompts } from "./initialization.js";
 
-const canonicalRepository = "trytilde/openbot";
-const canonicalRepositoryUrl = "https://github.com/trytilde/openbot.git";
+const canonicalRepository = "trytilde/dispatch";
+const canonicalRepositoryUrl = "https://github.com/trytilde/dispatch.git";
 
 export const repositoryVisibilityChoices = [
   {

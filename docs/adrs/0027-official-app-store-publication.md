@@ -4,7 +4,7 @@
 
 ## In brief
 
-- One published mobile app. `trytilde/openbot` owns the EAS project, bundle identifier, and both store listings.
+- One published mobile app. `trytilde/dispatch` owns the EAS project, bundle identifier, and both store listings.
 - Tilde publishes, OpenBot is the app. EAS project `ace1107b-b007-451a-8e50-2b571c40593e`, owner `trytilde`, identifier `ai.trytilde.openbot`.
 - Forks cannot publish to it. The guard is code in the CLI, not a comment in a config file.
 - A fork releases its own app by setting `OPENBOT_EAS_PROJECT_ID`, `OPENBOT_APP_ID`, and `OPENBOT_EXPO_OWNER`.
@@ -40,7 +40,7 @@ question, an account, and a failure mode for something they will never use. Publ
 separate, upstream-only workflow reached through `openbot mobile release`; a fork that does want
 its own app opts in by setting the environment overrides, and only then.
 
-`trytilde/openbot` owns store publication. The official EAS project is
+`trytilde/dispatch` owns store publication. The official EAS project is
 `ace1107b-b007-451a-8e50-2b571c40593e` under owner `trytilde`, with identifier
 `ai.trytilde.openbot`, and `apps/mobile/eas.json` carries the development, preview, and
 production profiles. Production uses `appVersionSource: remote` with `autoIncrement`, so build
@@ -52,7 +52,7 @@ values as defaults, so a fork overrides `OPENBOT_EAS_PROJECT_ID`, `OPENBOT_APP_I
 `configuration/.env` without editing a file that upstream also owns.
 
 Publication runs through `openbot mobile release`, per ADR-0018. Its guard refuses when the
-resolved EAS project is the official one and `origin` is not `trytilde/openbot`, naming the
+resolved EAS project is the official one and `origin` is not `trytilde/dispatch`, naming the
 override a fork needs. This is deliberately narrow: a fork with its own EAS project is not
 blocked, because the thing being protected is the official identity, not the act of releasing.
 `build` and `submit` also require an explicit `--yes`, because both spend plan build minutes and
@@ -61,7 +61,7 @@ blocked, because the thing being protected is the official identity, not the act
 Releases are automated by tag rather than by branch. `.github/workflows/mobile-release.yml`
 runs on a `mobile-v*` tag or a manual dispatch, and it invokes `openbot mobile release build`
 rather than `eas-cli` directly, so CI and a human release through one code path with one guard.
-The job is additionally fenced to `github.repository == 'trytilde/openbot'`; a fork's Actions run
+The job is additionally fenced to `github.repository == 'trytilde/dispatch'`; a fork's Actions run
 would already fail the CLI guard and has no `EXPO_TOKEN`, but a public listing deserves a fence
 that is readable in the workflow file. `openbot check` runs first, because an iOS build costs
 plan minutes and a queue wait that a typecheck failure should not consume.
@@ -82,7 +82,7 @@ Apple and Google consoles. None of them enter this repository, `configuration/`,
 
 ```mermaid
 flowchart LR
-  U["trytilde/openbot"] -->|"openbot mobile release"| G["upstream guard"]
+  U["trytilde/dispatch"] -->|"openbot mobile release"| G["upstream guard"]
   F["a fork"] -->|"official project id"| G
   G -->|"refuse, name the override"| F
   G -->|"allow"| E["EAS project ace1107b"]

@@ -123,6 +123,53 @@ describe("parseChatKitRequestBody", () => {
     expect(body.session).toBeUndefined();
     expect(body.messages[0]?.identity).toBeUndefined();
   });
+
+  it("carries typed durable execution state outside message metadata", () => {
+    const body = parseChatKitRequestBody({
+      messages: [
+        {
+          id: "m1",
+          role: "system",
+          parts: [{ type: "text", text: "continue" }],
+          createdAt: "2026-09-02T14:00:00Z",
+        },
+      ],
+      execution: {
+        kind: "agent_job",
+        jobId: "23ab7000-0055-4ea4-bc52-062a9480610b",
+        generation: 4,
+        childSessionId: "278abf62-a7ce-48b2-8ffd-bbe9c6580be5",
+        modelId: "openai/gpt-5.6-sol",
+        budget: { max_duration_seconds: 120, max_cost_microusd: 75_000 },
+      },
+    });
+
+    expect(body.execution).toEqual({
+      kind: "agent_job",
+      jobId: "23ab7000-0055-4ea4-bc52-062a9480610b",
+      generation: 4,
+      childSessionId: "278abf62-a7ce-48b2-8ffd-bbe9c6580be5",
+      modelId: "openai/gpt-5.6-sol",
+      budget: { max_duration_seconds: 120, max_cost_microusd: 75_000 },
+    });
+    expect(body.messages[0]?.metadata).toBeUndefined();
+    expect(body.messages[0]?.createdAt).toBe("2026-09-02T14:00:00Z");
+  });
+
+  it("rejects malformed execution generations", () => {
+    expect(() =>
+      parseChatKitRequestBody({
+        messages: [],
+        execution: {
+          kind: "agent_run",
+          hidden: true,
+          runId: "7aae5f83-4ce2-487e-a951-f9400367b72c",
+          workerId: "worker-one",
+          generation: -1,
+        },
+      }),
+    ).toThrow("body.execution.generation must be a non-negative safe integer");
+  });
 });
 
 describe("convertToAiSdkMessage speaker prefixing", () => {

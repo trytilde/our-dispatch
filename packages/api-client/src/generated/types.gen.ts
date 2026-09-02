@@ -718,9 +718,30 @@ export type ChatKitAgentInvocationActor = {
     tilde_user_id?: string | null;
 };
 
+/**
+ * One generation of a durable delegated child-agent job.
+ */
+export type ChatKitAgentJobExecutionContext = {
+    budget?: null | AgentJobBudget;
+    childSessionId: WrappedUuidV4;
+    generation: number;
+    jobId: WrappedUuidV4;
+    modelId?: string | null;
+};
+
 export type ChatKitAgentPaginatedResponse = {
     items: Array<ChatKitAgent>;
     next_page_token?: string;
+};
+
+/**
+ * One generation of a provider-neutral durable AgentRun.
+ */
+export type ChatKitAgentRunExecutionContext = {
+    generation: number;
+    hidden: boolean;
+    runId: WrappedUuidV4;
+    workerId: string;
 };
 
 /**
@@ -736,6 +757,7 @@ export type ChatKitAgentTurnQueueItem = {
     created_at: WrappedChronoDateTime;
     error_message?: string | null;
     id: string;
+    missing_send_retry_count: number;
     org_id: string;
     queue_position: number;
     reply_to_inbox_id: string;
@@ -856,6 +878,17 @@ export type ChatKitCompactionLifecycleInput = {
     retryable: boolean;
     status: 'failed';
 };
+
+/**
+ * Trusted durable execution context supplied by ChatKit to an HTTP agent.
+ *
+ * This is Tilde-owned control state, not conversation or provider metadata.
+ */
+export type ChatKitExecutionContext = (ChatKitAgentRunExecutionContext & {
+    kind: 'agent_run';
+}) | (ChatKitAgentJobExecutionContext & {
+    kind: 'agent_job';
+});
 
 /**
  * Address scheme for a [`ChatKitIdentity`].
@@ -1209,11 +1242,25 @@ export type ChatKitWorkspaceSidebarResponse = {
  * A message sent to an HTTP agent.
  */
 export type ChatMessage = {
+    context?: null | ChatMessageContext;
+    createdAt?: null | WrappedChronoDateTime;
     id: string;
     identity?: null | ChatKitMessageIdentity;
     metadata?: null | WrappedJsonValue;
     parts: Array<ChatMessagePart>;
     role: MessageRole;
+};
+
+/**
+ * Server-authored context for a synthetic HTTP-agent message.
+ */
+export type ChatMessageContext = {
+    event_id: WrappedUuidV4;
+    event_type: string;
+    type: 'participant_lifecycle';
+} | {
+    attempt: number;
+    type: 'missing_send_retry';
 };
 
 /**
@@ -1265,6 +1312,7 @@ export type ChatMessagePart = {
 export type ChatRequest = {
     agent?: null | ChatKitRequestAgent;
     chatId?: string | null;
+    execution?: null | ChatKitExecutionContext;
     messages: Array<ChatMessage>;
     session?: null | ChatSessionContext;
 };
@@ -1663,6 +1711,10 @@ export type CreateHumanApprovalActionResponse = {
 };
 
 export type CreateManagedUserCredentialBody = {
+    /**
+     * Allow Browser form filling to enumerate this credential.
+     */
+    browser_password_manager_eligible?: boolean;
     dek_alias: string;
     metadata?: null | Metadata;
     secretValue: WrappedJsonValue;
@@ -2079,6 +2131,10 @@ export type CreateUiMessageRequest = {
 
 export type CreateUserCredentialParamsInner = {
     authorization?: ResourceAuthorizationModes;
+    /**
+     * Allow Browser form filling to enumerate this credential.
+     */
+    browser_password_manager_eligible?: boolean;
     dek_alias: string;
     initial_grants?: Array<ResourceGrantRequest>;
     metadata?: null | Metadata;
@@ -3135,6 +3191,7 @@ export type ManagedSkillSelection = {
 };
 
 export type ManagedUserCredentialSecretResponse = {
+    browser_password_manager_eligible: boolean;
     created_at: WrappedChronoDateTime;
     encryptedSecretValue: EncryptedTrustedRuntimePayload;
     id: WrappedUuidV4;
@@ -3144,6 +3201,7 @@ export type ManagedUserCredentialSecretResponse = {
 };
 
 export type ManagedUserCredentialSummary = {
+    browser_password_manager_eligible: boolean;
     created_at: WrappedChronoDateTime;
     id: WrappedUuidV4;
     metadata: Metadata;
@@ -3483,6 +3541,16 @@ export type Message = (TextMessage & {
 }) | (SignalMessage & {
     type: 'signal';
 });
+
+/**
+ * Trusted principal attached by ChatKit when a message enters the canonical log.
+ */
+export type MessageActorContext = {
+    external_user_id?: string | null;
+    external_user_provider?: string | null;
+    external_user_provider_account_id?: string | null;
+    tilde_user_id?: string | null;
+};
 
 /**
  * Message format that an inbox can consume or produce.
@@ -4708,6 +4776,13 @@ export enum ResourcePrincipalType {
     GROUP = 'group'
 }
 
+/**
+ * Tilde-owned purpose for a resource-server credential.
+ */
+export enum ResourceServerCredentialPurpose {
+    ORGANIZATION_AI_GATEWAY = 'organization_ai_gateway'
+}
+
 export type ResourceServerCredentialSerialized = {
     authorization?: ResourceAuthorizationModes;
     created_at: WrappedChronoDateTime;
@@ -4720,6 +4795,7 @@ export type ResourceServerCredentialSerialized = {
      * Tenant scope populated from the Postgres row.
      */
     org_id?: string;
+    purpose?: null | ResourceServerCredentialPurpose;
     team_id?: string;
     type_id: string;
     updated_at: WrappedChronoDateTime;
@@ -5113,6 +5189,7 @@ export type SendSessionMessageResponse = {
  */
 export type Session = {
     authorization: ResourceAuthorizationModes;
+    correlation: SessionCorrelation;
     created_at: WrappedChronoDateTime;
     created_by_user_id?: string | null;
     id: WrappedUuidV4;
@@ -5123,9 +5200,23 @@ export type Session = {
     metadata?: null | WrappedJsonValue;
     org_id: string;
     parent_session_id?: null | WrappedUuidV4;
+    purpose: SessionPurpose;
     team_id: string;
     title?: string | null;
     updated_at: WrappedChronoDateTime;
+};
+
+/**
+ * Typed server-owned lineage and source correlation for a session.
+ */
+export type SessionCorrelation = {
+    agent_job_id?: null | WrappedUuidV4;
+    memory_bank_id?: null | WrappedUuidV4;
+    parent_agent_id?: string | null;
+    source_namespace?: string | null;
+    source_session_key?: string | null;
+    source_signal_delivery_id?: null | WrappedUuidV4;
+    source_signal_trigger_id?: null | WrappedUuidV4;
 };
 
 export type SessionPaginatedResponse = {
@@ -5147,6 +5238,16 @@ export type SessionParticipantIdentity = {
     principal_user_id?: string | null;
     role?: ChatKitParticipantRole;
 };
+
+/**
+ * Server-owned lifecycle purpose for a ChatKit session.
+ */
+export enum SessionPurpose {
+    CONVERSATION = 'conversation',
+    MEMORY_SYNTHESIS = 'memory_synthesis',
+    SIGNAL_DELIVERY = 'signal_delivery',
+    AGENT_JOB = 'agent_job'
+}
 
 /**
  * Authorization principal attached to a private ChatKit session.
@@ -5257,6 +5358,8 @@ export type SignalInterpolationVariable = {
  * A machine-readable external signal message.
  */
 export type SignalMessage = {
+    actor?: null | MessageActorContext;
+    audience_user_id?: string | null;
     cached_agent_representation?: null | WrappedJsonValue;
     created_at: WrappedChronoDateTime;
     data?: null | WrappedJsonValue;
@@ -5869,6 +5972,11 @@ export type TeamPaginatedResponse = {
  * A simple text message with raw text content
  */
 export type TextMessage = {
+    actor?: null | MessageActorContext;
+    /**
+     * Optional disclosure boundary for a response that used one user's personal tools.
+     */
+    audience_user_id?: string | null;
     cached_agent_representation?: null | WrappedJsonValue;
     created_at: WrappedChronoDateTime;
     from_inbox_instance_id?: string | null;
@@ -5955,11 +6063,14 @@ export type ToolConfigPaginatedResponse = {
 };
 
 export type ToolDeploymentWithGroupSerialized = {
+    annotations?: null | WrappedJsonValue;
     categories: Array<string>;
     created_at: WrappedChronoDateTime;
     documentation: string;
+    input_schema: WrappedJsonValue;
     metadata: Metadata;
     name: string;
+    output_schema?: null | WrappedJsonValue;
     tool_group_categories: Array<string>;
     tool_group_deployment_deployment_id: string;
     tool_group_deployment_type_id: string;
@@ -6054,6 +6165,7 @@ export type ToolGroupInstanceSerializedWithEverything = ToolGroupInstanceSeriali
 };
 
 export type ToolGroupSourceSerialized = {
+    catalog_provider_id?: string | null;
     categories: Array<string>;
     credential_sources: Array<CredentialSourceSerialized>;
     documentation: string;
@@ -6105,6 +6217,7 @@ export enum ToolInvocationState {
 }
 
 export type ToolSourceSerialized = {
+    annotations?: null | WrappedJsonValue;
     categories: Array<string>;
     documentation: string;
     name: string;
@@ -6189,6 +6302,8 @@ export type TupleUnit = unknown;
  * A UI message following the Vercel AI SDK specification
  */
 export type UiMessage = {
+    actor?: null | MessageActorContext;
+    audience_user_id?: string | null;
     cached_agent_representation?: null | WrappedJsonValue;
     created_at: WrappedChronoDateTime;
     from_inbox_instance_id?: string | null;
@@ -6326,6 +6441,10 @@ export type UpdateHttpVercelAiSdkAgentRequestInner = {
 };
 
 export type UpdateManagedUserCredentialBody = {
+    /**
+     * Allow Browser form filling to enumerate this credential.
+     */
+    browser_password_manager_eligible?: boolean | null;
     dek_alias: string;
     metadata?: null | Metadata;
     secretValue: WrappedJsonValue;
@@ -6618,6 +6737,10 @@ export type UserCredentialBrokeringResponse = (BrokerState & {
 
 export type UserCredentialSerialized = {
     authorization?: ResourceAuthorizationModes;
+    /**
+     * Whether this credential can be offered to Browser form filling.
+     */
+    browser_password_manager_eligible?: boolean;
     created_at: WrappedChronoDateTime;
     created_by_user_id?: string | null;
     dek_alias: string;

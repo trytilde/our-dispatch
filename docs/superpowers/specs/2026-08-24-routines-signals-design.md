@@ -40,7 +40,7 @@ deployment cannot hide provisioning behind a managed dashboard.
   `signals` rules; accepted on create/update, returned on read, no semantics server-side.
 - Regenerate `openapi.cloud.json`.
 
-### Phase 1 — Tilde SDK packages in `trytilde/openbot`
+### Phase 1 — Tilde SDK packages in `trytilde/dispatch`
 
 - Refresh the generated `packages/api-client` from the new spec so routines and
   metadata remain typed, and expose stable hand-authored behavior from `packages/sdk`.

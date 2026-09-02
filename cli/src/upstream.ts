@@ -1,10 +1,10 @@
 // Identifies the canonical OpenBot repository.
 //
-// Official publication targets belong to trytilde/openbot. A fork inherits tracked
+// Official publication targets belong to trytilde/dispatch. A fork inherits tracked
 // configuration, so publication guards must live in code.
 import { spawnSync } from "node:child_process";
 
-export const upstreamRepository = "trytilde/openbot";
+export const upstreamRepository = "trytilde/dispatch";
 
 /** `owner/name` for a remote, from either an SSH or HTTPS URL. Undefined when unknown. */
 export function remoteRepository(cwd: string, remote = "origin"): string | undefined {

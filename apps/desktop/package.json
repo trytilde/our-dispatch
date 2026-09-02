@@ -7,7 +7,7 @@
     "name": "OpenBot contributors",
     "email": "opensource@trytilde.ai"
   },
-  "repository": "https://github.com/trytilde/openbot",
+  "repository": "https://github.com/trytilde/dispatch",
   "files": [
     "dist",
     "README.md"

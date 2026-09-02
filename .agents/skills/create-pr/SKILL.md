@@ -70,9 +70,9 @@ Classify each changed field as repository configuration, secret material, contro
 
 ## Configuration Ownership Gate
 
-Determine the PR's base repository from the existing or newly opened GitHub PR, not from `origin`: a contributor may push from a personal fork while targeting `trytilde/openbot`.
+Determine the PR's base repository from the existing or newly opened GitHub PR, not from `origin`: a contributor may push from a personal fork while targeting `trytilde/dispatch`.
 
-- PR targets `trytilde/openbot`: the final tracked `configuration/` tree must contain exactly `configuration/.gitignore`, whose contents are `*` followed by `!.gitignore`. Block any agent, provider, SOPS, environment, secret, update-note, or other fork-owned configuration content from the contribution. `configuration/.env` and root environment or SOPS files are always forbidden.
+- PR targets `trytilde/dispatch`: the final tracked `configuration/` tree must contain exactly `configuration/.gitignore`, whose contents are `*` followed by `!.gitignore`. Block any agent, provider, SOPS, environment, secret, update-note, or other fork-owned configuration content from the contribution. `configuration/.env` and root environment or SOPS files are always forbidden.
 - PR targets any fork: successful init must have removed the upstream `configuration/.gitignore` sentinel. Require the fork's generated `configuration/index.ts`, instrumentation, encrypted SOPS files, agent trees, and intentional custom providers to be tracked. Keep `configuration/.env` ignored and untracked. Treat an empty configuration tree or a restored sentinel as blocking because the fork would not contain its behavior.
 
 After the draft PR exists, verify the target and tracked state again. Suggested checks:

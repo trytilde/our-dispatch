@@ -91,6 +91,7 @@ export type ChatKitRequestMessage = {
   id: string;
   role: ChatKitRequestMessageRole;
   parts: ChatKitRequestMessagePart[];
+  createdAt?: string;
   metadata?: JsonValue;
   /** Who sent the message, when Tilde could attribute it. */
   identity?: ChatKitMessageIdentity;
@@ -101,7 +102,7 @@ export type ChatKitRequestAgentAvatar = {
   url: string;
 };
 
-/** Canonical public metadata for the agent receiving this turn. */
+/** Canonical public profile for the agent receiving this turn. */
 export type ChatKitRequestAgent = {
   id: string;
   displayName: string;
@@ -113,6 +114,35 @@ export type ChatKitRequestAgent = {
   updatedAt: string;
 };
 
+export type ChatKitAgentRunExecutionContext = {
+  kind: "agent_run";
+  hidden: boolean;
+  runId: string;
+  workerId: string;
+  generation: number;
+};
+
+export type ChatKitAgentJobBudget = {
+  max_duration_seconds?: number;
+  max_input_tokens?: number;
+  max_output_tokens?: number;
+  max_cost_microusd?: number;
+};
+
+export type ChatKitAgentJobExecutionContext = {
+  kind: "agent_job";
+  jobId: string;
+  generation: number;
+  childSessionId: string;
+  modelId?: string;
+  budget?: ChatKitAgentJobBudget;
+};
+
+/** Trusted durable control state authored by Tilde for this invocation. */
+export type ChatKitExecutionContext =
+  | ChatKitAgentRunExecutionContext
+  | ChatKitAgentJobExecutionContext;
+
 export type ChatKitRequestBody = {
   chatId?: string | null;
   messages: ChatKitRequestMessage[];
@@ -120,6 +150,8 @@ export type ChatKitRequestBody = {
   session?: ChatKitSessionContext;
   /** The canonical Tilde agent receiving this turn, when supplied. */
   agent?: ChatKitRequestAgent;
+  /** Trusted durable execution state, separate from message metadata. */
+  execution?: ChatKitExecutionContext;
 };
 
 export class ChatKitRequestValidationError extends Error {
@@ -156,7 +188,61 @@ export function parseChatKitRequestBody(value: JsonValue): ChatKitRequestBody {
   if (agent) {
     body.agent = agent;
   }
+  const execution = parseChatKitExecutionContext(value.execution as JsonValue | undefined);
+  if (execution) {
+    body.execution = execution;
+  }
   return body;
+}
+
+/** Validate and normalize Tilde-authored durable execution context. */
+export function parseChatKitExecutionContext(
+  value: JsonValue | undefined,
+): ChatKitExecutionContext | undefined {
+  if (value === undefined || value === null) return undefined;
+  if (!isJsonObject(value)) throw invalid("body.execution", "must be an object or null");
+  const kind = requiredString(value, "kind", "body.execution");
+  if (kind === "agent_run") {
+    if (typeof value.hidden !== "boolean") {
+      throw invalid("body.execution.hidden", "must be a boolean");
+    }
+    return {
+      kind,
+      hidden: value.hidden,
+      runId: requiredString(value, "runId", "body.execution"),
+      workerId: requiredString(value, "workerId", "body.execution"),
+      generation: requiredNonnegativeInteger(value, "generation", "body.execution"),
+    };
+  }
+  if (kind === "agent_job") {
+    const execution: ChatKitAgentJobExecutionContext = {
+      kind,
+      jobId: requiredString(value, "jobId", "body.execution"),
+      generation: requiredNonnegativeInteger(value, "generation", "body.execution"),
+      childSessionId: requiredString(value, "childSessionId", "body.execution"),
+    };
+    optionalString(value, "modelId", "body.execution");
+    if (typeof value.modelId === "string") execution.modelId = value.modelId;
+    if (value.budget !== undefined && value.budget !== null) {
+      execution.budget = parseAgentJobBudget(value.budget, "body.execution.budget");
+    }
+    return execution;
+  }
+  throw invalid("body.execution.kind", 'must be "agent_run" or "agent_job"');
+}
+
+function parseAgentJobBudget(value: JsonValue, path: string): ChatKitAgentJobBudget {
+  if (!isJsonObject(value)) throw invalid(path, "must be an object or null");
+  const budget: ChatKitAgentJobBudget = {};
+  for (const key of [
+    "max_duration_seconds",
+    "max_input_tokens",
+    "max_output_tokens",
+    "max_cost_microusd",
+  ] as const) {
+    if (value[key] !== undefined) budget[key] = requiredNonnegativeInteger(value, key, path);
+  }
+  return budget;
 }
 
 export function parseChatKitRequestAgent(
@@ -216,6 +302,8 @@ function parseMessage(value: JsonValue, path: string): ChatKitRequestMessage {
     role: value.role,
     parts: value.parts.map((part, index) => parsePart(part, `${path}.parts[${index}]`)),
   };
+  optionalString(value, "createdAt", path);
+  if (typeof value.createdAt === "string") message.createdAt = value.createdAt;
   if (value.metadata !== undefined) {
     message.metadata = value.metadata;
   }
@@ -313,6 +401,14 @@ function requiredString(value: JsonObject, key: string, path: string): string {
   const field = value[key];
   if (typeof field !== "string") {
     throw invalid(`${path}.${key}`, "must be a string");
+  }
+  return field;
+}
+
+function requiredNonnegativeInteger(value: JsonObject, key: string, path: string): number {
+  const field = value[key];
+  if (typeof field !== "number" || !Number.isSafeInteger(field) || field < 0) {
+    throw invalid(`${path}.${key}`, "must be a non-negative safe integer");
   }
   return field;
 }

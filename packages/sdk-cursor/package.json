@@ -2,14 +2,14 @@
   "name": "@trytilde/sdk-cursor",
   "version": "0.1.0",
   "description": "Cursor hook adapter for Tilde ChatKit coding-agent audit events.",
-  "homepage": "https://github.com/trytilde/openbot/tree/main/packages/sdk-cursor#readme",
+  "homepage": "https://github.com/trytilde/dispatch/tree/main/packages/sdk-cursor#readme",
   "bugs": {
-    "url": "https://github.com/trytilde/openbot/issues"
+    "url": "https://github.com/trytilde/dispatch/issues"
   },
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/trytilde/openbot.git",
+    "url": "git+https://github.com/trytilde/dispatch.git",
     "directory": "packages/sdk-cursor"
   },
   "files": [

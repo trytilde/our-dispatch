@@ -322,7 +322,7 @@ describe("chatKitEndpoint", () => {
     expect(response.status).toBe(200);
   });
 
-  it("exposes canonical receiving-agent metadata on the endpoint context", async () => {
+  it("exposes the canonical receiving-agent profile on the endpoint context", async () => {
     const agent = {
       id: "agent-one",
       displayName: "Agent One",
@@ -349,6 +349,31 @@ describe("chatKitEndpoint", () => {
 
     const response = await endpoint(signedRequest({ messages: [], agent }));
 
+    expect(response.status).toBe(200);
+    expect(handler).toHaveBeenCalledOnce();
+  });
+
+  it("exposes typed durable execution state on the endpoint context", async () => {
+    const execution = {
+      kind: "agent_run",
+      hidden: true,
+      runId: "7aae5f83-4ce2-487e-a951-f9400367b72c",
+      workerId: "worker-one",
+      generation: 9,
+    } as const;
+    const handler = vi.fn(async (request: Request, context) => {
+      expect(context.execution).toEqual(execution);
+      expect(context.body.execution).toEqual(execution);
+      expect(await request.json()).toEqual({ messages: [], execution });
+      return new Response("ok");
+    });
+    const endpoint = testChatKitEndpoint({
+      webhookSigningKey: key,
+      client: { apiKey: "test-key" },
+      handler,
+    });
+
+    const response = await endpoint(signedRequest({ messages: [], execution }));
     expect(response.status).toBe(200);
     expect(handler).toHaveBeenCalledOnce();
   });
@@ -1499,7 +1524,7 @@ describe("ChatKit AI SDK converters", () => {
             type: "signal",
             data: {
               action: "opened",
-              repository: { full_name: "trytilde/openbot" },
+              repository: { full_name: "trytilde/dispatch" },
               issue: { number: 42, title: "Add GitHub signal handlers" },
             },
             metadata: { signal_type: "github.issue.opened" },
@@ -1510,7 +1535,7 @@ describe("ChatKit AI SDK converters", () => {
             type: "signal",
             data: {
               action: "closed",
-              repository: { full_name: "trytilde/openbot" },
+              repository: { full_name: "trytilde/dispatch" },
               pull_request: {
                 number: 21,
                 title: "Add remote tool endpoint helper",
@@ -1525,7 +1550,7 @@ describe("ChatKit AI SDK converters", () => {
             type: "signal",
             data: {
               action: "completed",
-              repository: { full_name: "trytilde/openbot" },
+              repository: { full_name: "trytilde/dispatch" },
               check_run: {
                 name: "test",
                 status: "completed",
@@ -1550,7 +1575,7 @@ describe("ChatKit AI SDK converters", () => {
         parts: [
           {
             type: "text",
-            text: "trytilde/openbot#42: Add GitHub signal handlers",
+            text: "trytilde/dispatch#42: Add GitHub signal handlers",
           },
         ],
       },
@@ -1838,7 +1863,7 @@ describe("ChatKit AI SDK converters", () => {
             type: "signal",
             data: {
               action: "closed",
-              repository: { full_name: "trytilde/openbot" },
+              repository: { full_name: "trytilde/dispatch" },
               issue: { number: 42, title: "Handled elsewhere" },
             },
             metadata: { signal_type: "github.issue.closed" },
@@ -1849,7 +1874,7 @@ describe("ChatKit AI SDK converters", () => {
             type: "signal",
             data: {
               action: "opened",
-              repository: { full_name: "trytilde/openbot" },
+              repository: { full_name: "trytilde/dispatch" },
               issue: { number: 43 },
             },
             metadata: { signal_type: "github.issue.opened" },
@@ -2128,7 +2153,7 @@ describe("ChatKit AI SDK converters", () => {
             type: "signal",
             data: {
               action: "closed",
-              repository: { full_name: "trytilde/openbot" },
+              repository: { full_name: "trytilde/dispatch" },
               issue: { number: 7, title: "closed issue" },
             },
             metadata: { signal_type: "github.issue.closed" },

@@ -58,7 +58,7 @@ if [ -n "${GIT_GITHUB_GIT_PROXY_PROFILE_ID:-}" ] && [ -n "${GIT_GITHUB_REPOSITOR
   git -C "$source_directory" remote get-url origin >/dev/null 2>&1 \
     || git -C "$source_directory" remote add origin "https://github.com/${GIT_GITHUB_REPOSITORY}.git"
   git -C "$source_directory" remote get-url upstream >/dev/null 2>&1 \
-    || git -C "$source_directory" remote add upstream "https://github.com/trytilde/openbot.git"
+    || git -C "$source_directory" remote add upstream "https://github.com/trytilde/dispatch.git"
   # Tolerate a still-pending GitHub authorization; the next deployment retries the fetch.
   git -C "$source_directory" fetch --quiet origin || true
 fi

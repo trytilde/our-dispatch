@@ -2,14 +2,14 @@
   "name": "@trytilde/api-client",
   "version": "0.1.2",
   "description": "Generated Tilde API client and helpers.",
-  "homepage": "https://github.com/trytilde/openbot/tree/main/packages/api-client#readme",
+  "homepage": "https://github.com/trytilde/dispatch/tree/main/packages/api-client#readme",
   "bugs": {
-    "url": "https://github.com/trytilde/openbot/issues"
+    "url": "https://github.com/trytilde/dispatch/issues"
   },
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/trytilde/openbot.git",
+    "url": "git+https://github.com/trytilde/dispatch.git",
     "directory": "packages/api-client"
   },
   "files": [

@@ -2,7 +2,7 @@
 
 ## In brief
 
-- One published desktop app. `trytilde/openbot` owns the artifacts and the update feed.
+- One published desktop app. `trytilde/dispatch` owns the artifacts and the update feed.
 - Artifacts go to the existing shared bucket `tilde-app-updates-prod` under `desktop/openbot/<channel>/`.
 - No new bucket. Tilde's own Electrobun feed already lives at `desktop/`, and public read is granted to `desktop/*`, so the nested prefix inherits it.
 - Forks cannot publish there. The guard is code in the CLI, and a scoped GitHub OIDC role is the backstop.
@@ -44,10 +44,10 @@ bucket costs one shared blast radius and saves a near-duplicate Terraform module
 prefix inherits both the public-read statement and the lifecycle rule without editing either.
 
 `cli/src/commands/desktop/release.ts` holds `officialUpdatesBucket` as a constant and refuses
-when the resolved bucket is the official one and `origin` is not `trytilde/openbot`, reusing
+when the resolved bucket is the official one and `origin` is not `trytilde/dispatch`, reusing
 `isUpstreamRepository` from ADR-0027 verbatim. The bucket name being tracked is exactly why the
 refusal must be code. A new GitHub OIDC provider in the shared account, with a role whose trust
-policy names `repo:trytilde/openbot:*`, is the backstop: a fork cannot assume it regardless of
+policy names `repo:trytilde/dispatch:*`, is the backstop: a fork cannot assume it regardless of
 what the CLI does. Neither workflow carries an `if: github.repository ==` guard, so a fork with
 its own bucket and its own role runs both unmodified.
 
@@ -86,7 +86,7 @@ this decision and additionally releases from a `mobile-v*` tag; this ADR does no
 
 ```mermaid
 flowchart LR
-  U["trytilde/openbot"] -->|"workflow_dispatch"| C["openbot desktop release"]
+  U["trytilde/dispatch"] -->|"workflow_dispatch"| C["openbot desktop release"]
   F["a fork"] -->|"official bucket"| C
   C -->|"refuse, name the override"| F
   C -->|"allow"| O["GitHub OIDC role"]

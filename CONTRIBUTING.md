@@ -35,7 +35,7 @@ curl -fsSL https://fnm.vercel.app/install | bash && exec "$SHELL" && fnm install
 corepack enable pnpm
 
 # repository
-gh repo clone trytilde/openbot && cd openbot
+gh repo clone trytilde/dispatch && cd dispatch
 pnpm install
 pnpm openbot check
 ```
@@ -51,7 +51,7 @@ brew install fnm && exec "$SHELL" && fnm install 24 && fnm use 24
 corepack enable pnpm
 
 # repository
-gh repo clone trytilde/openbot && cd openbot
+gh repo clone trytilde/dispatch && cd dispatch
 pnpm install
 pnpm openbot check
 ```

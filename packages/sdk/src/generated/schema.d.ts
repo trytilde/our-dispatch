@@ -10210,9 +10210,26 @@ export interface components {
             external_user_provider_account_id?: string | null;
             tilde_user_id?: string | null;
         };
+        /** @description One generation of a durable delegated child-agent job. */
+        ChatKitAgentJobExecutionContext: {
+            budget?: null | components["schemas"]["AgentJobBudget"];
+            childSessionId: components["schemas"]["WrappedUuidV4"];
+            /** Format: int64 */
+            generation: number;
+            jobId: components["schemas"]["WrappedUuidV4"];
+            modelId?: string | null;
+        };
         ChatKitAgentPaginatedResponse: {
             items: components["schemas"]["ChatKitAgent"][];
             next_page_token?: string;
+        };
+        /** @description One generation of a provider-neutral durable AgentRun. */
+        ChatKitAgentRunExecutionContext: {
+            /** Format: int64 */
+            generation: number;
+            hidden: boolean;
+            runId: components["schemas"]["WrappedUuidV4"];
+            workerId: string;
         };
         /** @description Persisted queued agent turn. */
         ChatKitAgentTurnQueueItem: {
@@ -10225,6 +10242,8 @@ export interface components {
             created_at: components["schemas"]["WrappedChronoDateTime"];
             error_message?: string | null;
             id: string;
+            /** Format: int64 */
+            missing_send_retry_count: number;
             org_id: string;
             /** Format: int64 */
             queue_position: number;
@@ -10327,6 +10346,18 @@ export interface components {
             /** @enum {string} */
             status: "failed";
         };
+        /**
+         * @description Trusted durable execution context supplied by ChatKit to an HTTP agent.
+         *
+         *     This is Tilde-owned control state, not conversation or provider metadata.
+         */
+        ChatKitExecutionContext: (components["schemas"]["ChatKitAgentRunExecutionContext"] & {
+            /** @enum {string} */
+            kind: "agent_run";
+        }) | (components["schemas"]["ChatKitAgentJobExecutionContext"] & {
+            /** @enum {string} */
+            kind: "agent_job";
+        });
         /**
          * @description Address scheme for a [`ChatKitIdentity`].
          * @enum {string}
@@ -10576,11 +10607,25 @@ export interface components {
         };
         /** @description A message sent to an HTTP agent. */
         ChatMessage: {
+            context?: null | components["schemas"]["ChatMessageContext"];
+            createdAt?: null | components["schemas"]["WrappedChronoDateTime"];
             id: string;
             identity?: null | components["schemas"]["ChatKitMessageIdentity"];
             metadata?: null | components["schemas"]["WrappedJsonValue"];
             parts: components["schemas"]["ChatMessagePart"][];
             role: components["schemas"]["MessageRole"];
+        };
+        /** @description Server-authored context for a synthetic HTTP-agent message. */
+        ChatMessageContext: {
+            event_id: components["schemas"]["WrappedUuidV4"];
+            event_type: string;
+            /** @enum {string} */
+            type: "participant_lifecycle";
+        } | {
+            /** Format: int64 */
+            attempt: number;
+            /** @enum {string} */
+            type: "missing_send_retry";
         };
         /** @description A typed part of an HTTP agent message. */
         ChatMessagePart: {
@@ -10634,6 +10679,7 @@ export interface components {
         ChatRequest: {
             agent?: null | components["schemas"]["ChatKitRequestAgent"];
             chatId?: string | null;
+            execution?: null | components["schemas"]["ChatKitExecutionContext"];
             messages: components["schemas"]["ChatMessage"][];
             session?: null | components["schemas"]["ChatSessionContext"];
         };
@@ -10955,6 +11001,8 @@ export interface components {
             token: string;
         };
         CreateManagedUserCredentialBody: {
+            /** @description Allow Browser form filling to enumerate this credential. */
+            browser_password_manager_eligible?: boolean;
             dek_alias: string;
             metadata?: null | components["schemas"]["Metadata"];
             secretValue: components["schemas"]["WrappedJsonValue"];
@@ -11297,6 +11345,8 @@ export interface components {
         };
         CreateUserCredentialParamsInner: {
             authorization?: components["schemas"]["ResourceAuthorizationModes"];
+            /** @description Allow Browser form filling to enumerate this credential. */
+            browser_password_manager_eligible?: boolean;
             dek_alias: string;
             initial_grants?: components["schemas"]["ResourceGrantRequest"][];
             metadata?: null | components["schemas"]["Metadata"];
@@ -12137,6 +12187,7 @@ export interface components {
             skill_ids: string[];
         };
         ManagedUserCredentialSecretResponse: {
+            browser_password_manager_eligible: boolean;
             created_at: components["schemas"]["WrappedChronoDateTime"];
             encryptedSecretValue: components["schemas"]["EncryptedTrustedRuntimePayload"];
             id: components["schemas"]["WrappedUuidV4"];
@@ -12145,6 +12196,7 @@ export interface components {
             updated_at: components["schemas"]["WrappedChronoDateTime"];
         };
         ManagedUserCredentialSummary: {
+            browser_password_manager_eligible: boolean;
             created_at: components["schemas"]["WrappedChronoDateTime"];
             id: components["schemas"]["WrappedUuidV4"];
             metadata: components["schemas"]["Metadata"];
@@ -12425,6 +12477,13 @@ export interface components {
             /** @enum {string} */
             type: "signal";
         });
+        /** @description Trusted principal attached by ChatKit when a message enters the canonical log. */
+        MessageActorContext: {
+            external_user_id?: string | null;
+            external_user_provider?: string | null;
+            external_user_provider_account_id?: string | null;
+            tilde_user_id?: string | null;
+        };
         /**
          * @description Message format that an inbox can consume or produce.
          * @enum {string}
@@ -13439,6 +13498,11 @@ export interface components {
          * @enum {string}
          */
         ResourcePrincipalType: "user" | "group";
+        /**
+         * @description Tilde-owned purpose for a resource-server credential.
+         * @enum {string}
+         */
+        ResourceServerCredentialPurpose: "organization_ai_gateway";
         ResourceServerCredentialSerialized: {
             authorization?: components["schemas"]["ResourceAuthorizationModes"];
             created_at: components["schemas"]["WrappedChronoDateTime"];
@@ -13449,6 +13513,7 @@ export interface components {
             next_rotation_time?: null | components["schemas"]["WrappedChronoDateTime"];
             /** @description Tenant scope populated from the Postgres row. */
             org_id?: string;
+            purpose?: null | components["schemas"]["ResourceServerCredentialPurpose"];
             team_id?: string;
             type_id: string;
             updated_at: components["schemas"]["WrappedChronoDateTime"];
@@ -13751,6 +13816,7 @@ export interface components {
         /** @description A session represents a conversation containing related messages. */
         Session: {
             authorization: components["schemas"]["ResourceAuthorizationModes"];
+            correlation: components["schemas"]["SessionCorrelation"];
             created_at: components["schemas"]["WrappedChronoDateTime"];
             created_by_user_id?: string | null;
             id: components["schemas"]["WrappedUuidV4"];
@@ -13761,9 +13827,20 @@ export interface components {
             metadata?: null | components["schemas"]["WrappedJsonValue"];
             org_id: string;
             parent_session_id?: null | components["schemas"]["WrappedUuidV4"];
+            purpose: components["schemas"]["SessionPurpose"];
             team_id: string;
             title?: string | null;
             updated_at: components["schemas"]["WrappedChronoDateTime"];
+        };
+        /** @description Typed server-owned lineage and source correlation for a session. */
+        SessionCorrelation: {
+            agent_job_id?: null | components["schemas"]["WrappedUuidV4"];
+            memory_bank_id?: null | components["schemas"]["WrappedUuidV4"];
+            parent_agent_id?: string | null;
+            source_namespace?: string | null;
+            source_session_key?: string | null;
+            source_signal_delivery_id?: null | components["schemas"]["WrappedUuidV4"];
+            source_signal_trigger_id?: null | components["schemas"]["WrappedUuidV4"];
         };
         SessionPaginatedResponse: {
             items: components["schemas"]["Session"][];
@@ -13781,6 +13858,11 @@ export interface components {
             principal_user_id?: string | null;
             role?: components["schemas"]["ChatKitParticipantRole"];
         };
+        /**
+         * @description Server-owned lifecycle purpose for a ChatKit session.
+         * @enum {string}
+         */
+        SessionPurpose: "conversation" | "memory_synthesis" | "signal_delivery" | "agent_job";
         /** @description Authorization principal attached to a private ChatKit session. */
         SessionUserMembership: {
             added_by_user_id: string;
@@ -13860,6 +13942,8 @@ export interface components {
         };
         /** @description A machine-readable external signal message. */
         SignalMessage: {
+            actor?: null | components["schemas"]["MessageActorContext"];
+            audience_user_id?: string | null;
             cached_agent_representation?: null | components["schemas"]["WrappedJsonValue"];
             created_at: components["schemas"]["WrappedChronoDateTime"];
             data?: null | components["schemas"]["WrappedJsonValue"];
@@ -14355,6 +14439,9 @@ export interface components {
         };
         /** @description A simple text message with raw text content */
         TextMessage: {
+            actor?: null | components["schemas"]["MessageActorContext"];
+            /** @description Optional disclosure boundary for a response that used one user's personal tools. */
+            audience_user_id?: string | null;
             cached_agent_representation?: null | components["schemas"]["WrappedJsonValue"];
             created_at: components["schemas"]["WrappedChronoDateTime"];
             from_inbox_instance_id?: string | null;
@@ -14420,11 +14507,14 @@ export interface components {
             next_page_token?: string;
         };
         ToolDeploymentWithGroupSerialized: {
+            annotations?: null | components["schemas"]["WrappedJsonValue"];
             categories: string[];
             created_at: components["schemas"]["WrappedChronoDateTime"];
             documentation: string;
+            input_schema: components["schemas"]["WrappedJsonValue"];
             metadata: components["schemas"]["Metadata"];
             name: string;
+            output_schema?: null | components["schemas"]["WrappedJsonValue"];
             tool_group_categories: string[];
             tool_group_deployment_deployment_id: string;
             tool_group_deployment_type_id: string;
@@ -14503,6 +14593,7 @@ export interface components {
             tools: components["schemas"]["ToolInstanceListItem"][];
         };
         ToolGroupSourceSerialized: {
+            catalog_provider_id?: string | null;
             categories: string[];
             credential_sources: components["schemas"]["CredentialSourceSerialized"][];
             documentation: string;
@@ -14541,6 +14632,7 @@ export interface components {
          */
         ToolInvocationState: "input-streaming" | "input-available" | "approval-requested" | "approval-responded" | "output-available" | "output-error" | "output-denied";
         ToolSourceSerialized: {
+            annotations?: null | components["schemas"]["WrappedJsonValue"];
             categories: string[];
             documentation: string;
             name: string;
@@ -14605,6 +14697,8 @@ export interface components {
         TupleUnit: unknown;
         /** @description A UI message following the Vercel AI SDK specification */
         UIMessage: {
+            actor?: null | components["schemas"]["MessageActorContext"];
+            audience_user_id?: string | null;
             cached_agent_representation?: null | components["schemas"]["WrappedJsonValue"];
             created_at: components["schemas"]["WrappedChronoDateTime"];
             from_inbox_instance_id?: string | null;
@@ -14721,6 +14815,8 @@ export interface components {
             timeout_ms?: number | null;
         };
         UpdateManagedUserCredentialBody: {
+            /** @description Allow Browser form filling to enumerate this credential. */
+            browser_password_manager_eligible?: boolean | null;
             dek_alias: string;
             metadata?: null | components["schemas"]["Metadata"];
             secretValue: components["schemas"]["WrappedJsonValue"];
@@ -14948,6 +15044,8 @@ export interface components {
         };
         UserCredentialSerialized: {
             authorization?: components["schemas"]["ResourceAuthorizationModes"];
+            /** @description Whether this credential can be offered to Browser form filling. */
+            browser_password_manager_eligible?: boolean;
             created_at: components["schemas"]["WrappedChronoDateTime"];
             created_by_user_id?: string | null;
             dek_alias: string;
