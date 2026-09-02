@@ -65,6 +65,18 @@ describe("agent scaffolding", () => {
     expect(agentSource).toContain("tools: await localTools(sessionId)");
     expect(agentSource).toContain("createCuaTools");
     expect(agentSource).toContain("existingToolNames: Object.keys(standardTools)");
+    expect(agentSource).toContain(
+      'import createProposeSelfExtensionTool from "./tools/propose_self_extension.js"',
+    );
+    expect(agentSource).toContain(
+      "propose_self_extension: createProposeSelfExtensionTool({ client, sessionId })",
+    );
+    const proposalToolSource = await readFile(
+      join(directory, "tools/propose_self_extension.ts"),
+      "utf8",
+    );
+    expect(proposalToolSource).toContain('requestingAgentId: "research-assistant"');
+    expect(proposalToolSource).toContain("options.client.selfExtension.propose");
     expect(agentSource).toContain("createTildeAttachmentMessageHandlers(client, context)");
     expect(agentSource).toContain("createTildeMediaUploader");
     expect(agentSource).toContain("createTildeMediaDownloader");
