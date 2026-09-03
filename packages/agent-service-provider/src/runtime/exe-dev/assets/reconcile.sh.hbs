@@ -7,6 +7,21 @@ unit_file={{{UNIT_FILE_SHELL}}}
 source_url={{{SOURCE_URL_SHELL}}}
 source_branch={{{SOURCE_BRANCH_SHELL}}}
 
+CODE_STORAGE_REPOSITORY_TOKEN="$(
+  # Read only the credential needed for source reconciliation into this subshell. The complete
+  # service environment remains confined to its mode-0600 file and the supervised runtime.
+  # shellcheck disable=SC1090
+  source "$environment_file"
+  printf '%s' "${CODE_STORAGE_REPOSITORY_TOKEN:-}"
+)"
+export CODE_STORAGE_REPOSITORY_TOKEN
+test -n "${CODE_STORAGE_REPOSITORY_TOKEN:-}"
+code_storage_git() {
+  git -c credential.helper= \
+    -c 'credential.helper=!f() { printf "%s\n" "username=t" "password=$CODE_STORAGE_REPOSITORY_TOKEN"; }; f' \
+    "$@"
+}
+
 # exe.dev's non-login SSH path puts Debian's /usr/bin ahead of the pinned toolchain.
 export PATH="/usr/local/bin:${PATH}"
 
@@ -74,12 +89,13 @@ mkdir -p "$(dirname "$remote_directory")" "$(dirname "$environment_file")" "$(di
 chmod 0700 "$(dirname "$environment_file")"
 
 if [[ ! -d "$remote_directory/.git" ]]; then
-  git clone --branch "$source_branch" --single-branch "$source_url" "$remote_directory"
+  code_storage_git clone --branch "$source_branch" --single-branch "$source_url" "$remote_directory"
 elif [[ -n "$(git -C "$remote_directory" status --porcelain --untracked-files=no)" ]]; then
+  git -C "$remote_directory" remote set-url origin "$source_url"
   echo "Preserving remote OpenBot edits; skipping source fast-forward"
 else
   git -C "$remote_directory" remote set-url origin "$source_url"
-  git -C "$remote_directory" fetch --no-tags origin \
+  code_storage_git -C "$remote_directory" fetch --no-tags origin \
     "refs/heads/$source_branch:refs/remotes/origin/$source_branch"
   if git -C "$remote_directory" show-ref --verify --quiet "refs/heads/$source_branch"; then
     git -C "$remote_directory" switch "$source_branch"
@@ -88,6 +104,11 @@ else
     git -C "$remote_directory" switch --create "$source_branch" --no-track "origin/$source_branch"
   fi
 fi
+credential_helper_key="credential.https://${CODE_STORAGE_ORGANIZATION}.code.storage.helper"
+git -C "$remote_directory" config --local --replace-all "$credential_helper_key" ''
+git -C "$remote_directory" config --local --add "$credential_helper_key" \
+  '!f() { printf "%s\n" "username=t" "password=$CODE_STORAGE_REPOSITORY_TOKEN"; }; f'
+unset CODE_STORAGE_REPOSITORY_TOKEN
 
 (
   cd "$remote_directory"

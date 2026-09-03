@@ -46,7 +46,9 @@ Code Storage setup accepts an organization signing key as transient input. It ma
 repository with GitHub App or public sync and then mints an effectively long-lived (100-year by
 default) JWT restricted to this repository,
 `git:read`, `git:write`, and no force pushes. Only that repository JWT is persisted through SOPS.
-The organization key is never written to `.env`, SOPS, the VM, or a Git remote.
+The organization key is never written to `.env`, SOPS, the VM, or a Git remote. The repository JWT
+reaches the trusted VM's mode-`0600` service environment, but the remote URL stays credential-free;
+a host-scoped helper reads it from that environment only when Git authenticates a fetch or push.
 
 ```mermaid
 flowchart LR
@@ -73,3 +75,9 @@ flowchart LR
 - Code Storage requires an `exp` claim, so the repository JWT cannot be literally indefinite. The
   100-year default avoids routine rotation; rerunning setup with a fresh organization key replaces it.
 - GitHub App sync must be configured in Code Storage before creating a private synced repository.
+
+## Updates
+
+- 2026-09-03T02:25:00+02:00: Stopped persisting the repository JWT in `.git/config`; exe.dev and
+  trusted Computer reconciliation now persist only a host-scoped helper that reads the managed
+  environment when Git authenticates.

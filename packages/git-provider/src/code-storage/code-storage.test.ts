@@ -89,11 +89,11 @@ describe("CodeStorageGitProvider", () => {
     expect(clientFactory).not.toHaveBeenCalled();
   });
 
-  it("configures and pushes origin using only the repository token", async () => {
-    const calls: string[][] = [];
+  it("keeps origin clean and supplies the repository token only to the push", async () => {
+    const calls: { args: string[]; environment?: NodeJS.ProcessEnv }[] = [];
     const provider = new CodeStorageGitProvider({
-      runGit: async (_cwd, args) => {
-        calls.push([...args]);
+      runGit: async (_cwd, args, environment) => {
+        calls.push({ args: [...args], environment });
         if (args.join(" ") === "remote get-url origin")
           return "https://github.com/acme/openbot.git\n";
         if (args.join(" ") === "remote get-url upstream") return "";
@@ -109,13 +109,25 @@ describe("CodeStorageGitProvider", () => {
 
     await provider.deployable.deploy(deployment);
 
-    expect(calls).toContainEqual([
+    expect(calls.map(({ args }) => args)).toContainEqual([
       "remote",
       "set-url",
       "origin",
-      "https://t:repository-jwt@tilde.code.storage/trytilde/dispatch.git",
+      "https://tilde.code.storage/trytilde/dispatch.git",
     ]);
-    expect(calls).toContainEqual(["push", "--set-upstream", "origin", "main"]);
+    const push = calls.find(({ args }) => args.includes("push"));
+    expect(push?.args).toContain("credential.helper=");
+    expect(push?.args.join(" ")).toContain("$CODE_STORAGE_REPOSITORY_TOKEN");
+    expect(push?.args.join(" ")).not.toContain("repository-jwt");
+    expect(push?.environment).toEqual({ CODE_STORAGE_REPOSITORY_TOKEN: "repository-jwt" });
+    expect(calls.map(({ args }) => args)).toContainEqual([
+      "config",
+      "--local",
+      "--add",
+      "credential.https://tilde.code.storage.helper",
+      expect.stringContaining("$CODE_STORAGE_REPOSITORY_TOKEN"),
+    ]);
+    expect(calls.flatMap(({ args }) => args).join(" ")).not.toContain("repository-jwt");
   });
 
   it("derives a repository path from the existing GitHub origin", async () => {
@@ -137,11 +149,41 @@ describe("CodeStorageGitProvider", () => {
     );
   });
 
+  it("removes a legacy credential from the Code Storage origin", async () => {
+    const calls: string[][] = [];
+    const provider = new CodeStorageGitProvider({
+      runGit: async (_cwd, args) => {
+        calls.push([...args]);
+        if (args.join(" ") === "remote get-url origin")
+          return "https://t:legacy-jwt@tilde.code.storage/our-dispatch.git\n";
+        if (args.join(" ") === "branch --show-current") return "main\n";
+        return "";
+      },
+    });
+
+    await provider.deployable.deploy(
+      context({
+        [codeStorageOrganizationEnvironmentName]: "tilde",
+        [codeStorageRepositoryEnvironmentName]: "our-dispatch",
+        [codeStorageRepositoryTokenSecretName]: "current-jwt",
+      }),
+    );
+
+    expect(calls).toContainEqual([
+      "remote",
+      "set-url",
+      "origin",
+      "https://tilde.code.storage/our-dispatch.git",
+    ]);
+    expect(calls.some((args) => args.includes("upstream"))).toBe(false);
+    expect(calls.flat().join(" ")).not.toMatch(/legacy-jwt|current-jwt/);
+  });
+
   it("never includes the repository credential in provider failures", async () => {
     const provider = new CodeStorageGitProvider({
       runGit: async (_cwd, args) => {
         if (args.join(" ") === "remote get-url origin") return "";
-        throw new Error("failed https://t:repository-jwt@tilde.code.storage/openbot.git");
+        throw new Error("failed with repository-jwt");
       },
     });
 

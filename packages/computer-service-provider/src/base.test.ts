@@ -840,6 +840,9 @@ describe("trusted development sandbox", () => {
     const developmentSetup = await readFile(computerImageAssets.developmentSetup, "utf8");
     expect(developmentSetup).toContain('if [ -L "$source_directory" ]');
     expect(developmentSetup).toContain('pkill -f "$state_directory/orchestrator-supervisor.sh"');
+    expect(developmentSetup).toContain("code_storage_git -C");
+    expect(developmentSetup).toContain("$CODE_STORAGE_REPOSITORY_TOKEN");
+    expect(developmentSetup).not.toContain("https://t:${CODE_STORAGE_REPOSITORY_TOKEN}@");
   });
 });
 
