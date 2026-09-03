@@ -98,6 +98,8 @@ export {
   type MemoryDocumentInput,
   type MemoryDocumentRecord,
   type MemorySourceBindingInput,
+  type MemorySynthesisMutationBindingInput,
+  type MemorySynthesisUpsertInput,
   type MemoryType,
 } from "./memory";
 export { isJsonObject, isRecord, parseJsonValue, stringField, trimmedStringField } from "./json.js";

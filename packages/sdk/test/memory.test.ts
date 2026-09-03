@@ -21,7 +21,11 @@ describe("MemoryClient", () => {
       documentId: "preference:coffee",
       content: "Prefers pour-over coffee.",
       memoryType: "preferences",
+      title: "Coffee preference",
+      importance: 0.8,
+      metadata: { client_note: "captured during onboarding" },
       evidenceIds: ["event-one"],
+      subjects: ["beverage:coffee"],
     });
     await memory.recall("coffee");
     await memory.forget("preference:coffee");
@@ -29,10 +33,16 @@ describe("MemoryClient", () => {
     const calls = fetchMock.mock.calls as unknown as [string, RequestInit][];
     expect(calls.every(([url]) => url.includes("/memory/banks/bank-one/"))).toBe(true);
     const mutationBody = JSON.parse(calls[0]?.[1].body as string);
-    expect(mutationBody.document.metadata).toMatchObject({
+    expect(mutationBody.document).toMatchObject({
       memory_type: "preferences",
-      supersedes_memory_id: "old-memory",
-      evidence_ids: ["event-one"],
+      title: "Coffee preference",
+      importance: 0.8,
+      metadata: { client_note: "captured during onboarding" },
+      relations: {
+        supersedes_memory_id: "old-memory",
+        evidence_ids: ["event-one"],
+        subjects: ["beverage:coffee"],
+      },
     });
     expect(JSON.stringify(mutationBody)).not.toContain("bank_id");
   });
@@ -84,6 +94,7 @@ describe("MemoryClient", () => {
   it("binds synthesis mutations only to the ChatKit session path", async () => {
     const fetchMock = vi
       .fn()
+      .mockResolvedValueOnce(Response.json({ result: { retained: true } }))
       .mockResolvedValueOnce(Response.json({ result: { ok: true } }))
       .mockResolvedValueOnce(new Response(null, { status: 204 }));
     const memory = createClient({
@@ -109,6 +120,16 @@ describe("MemoryClient", () => {
         leaseOwner: "",
       }),
     ).rejects.toThrow("leaseOwner is required");
+    await memory.upsert({
+      document: {
+        documentId: "preference-one",
+        content: "Prefers tea.",
+        memoryType: "preferences",
+      },
+      batchId: "batch-one",
+      evidenceIds: [synthesisEvidenceId],
+      leaseOwner: "lease-one",
+    });
     await memory.finish({
       batchId: "batch-one",
       evidenceIds: [synthesisEvidenceId],
@@ -124,28 +145,44 @@ describe("MemoryClient", () => {
     });
     const calls = fetchMock.mock.calls as unknown as [string, RequestInit][];
     expect(calls[0]?.[0]).toContain("/memory/synthesis-sessions/session-one/retain");
-    const finishBody = JSON.parse(calls[0]?.[1].body as string);
-    expect(finishBody.document).toMatchObject({
-      document_id: "synthesis-receipt:batch-one",
-      metadata: {
+    const retainBody = JSON.parse(calls[0]?.[1].body as string);
+    expect(retainBody).toMatchObject({
+      operation: "retain",
+      document: {
+        document_id: "preference-one",
+        memory_type: "preferences",
+        metadata: {},
+        relations: {
+          evidence_ids: [synthesisEvidenceId],
+        },
+      },
+      binding: {
+        batch_id: "batch-one",
         evidence_ids: [synthesisEvidenceId],
-        synthesis_batch_id: "batch-one",
-        synthesis_lease_owner: "lease-one",
+        lease_owner: "lease-one",
       },
     });
-    expect(JSON.parse(finishBody.document.content)).toMatchObject({
-      batch_id: "batch-one",
-      evidence_ids: [synthesisEvidenceId],
-      lease_owner: "lease-one",
+    const finishBody = JSON.parse(calls[1]?.[1].body as string);
+    expect(finishBody).toEqual({
+      operation: "complete",
+      binding: {
+        batch_id: "batch-one",
+        evidence_ids: [synthesisEvidenceId],
+        lease_owner: "lease-one",
+      },
       outcome: "noop",
+      reason: "duplicate evidence",
     });
+    expect(JSON.stringify(finishBody)).not.toContain("metadata");
     expect(JSON.stringify(finishBody)).not.toContain("bank_id");
-    expect(calls[1]?.[0]).toContain("/memory/synthesis-sessions/session-one/documents");
-    expect(JSON.parse(calls[1]?.[1].body as string)).toEqual({
+    expect(calls[2]?.[0]).toContain("/memory/synthesis-sessions/session-one/documents");
+    expect(JSON.parse(calls[2]?.[1].body as string)).toEqual({
       document_id: "obsolete-memory",
-      batch_id: "batch-one",
-      evidence_ids: [synthesisEvidenceId],
-      lease_owner: "lease-one",
+      binding: {
+        batch_id: "batch-one",
+        evidence_ids: [synthesisEvidenceId],
+        lease_owner: "lease-one",
+      },
     });
   });
 

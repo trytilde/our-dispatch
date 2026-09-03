@@ -1,4 +1,4 @@
-import type { JsonObject, MemorySynthesisSessionClient } from "@trytilde/sdk";
+import type { MemorySynthesisSessionClient } from "@trytilde/sdk";
 import { tool, type ToolSet } from "ai";
 import { z } from "zod";
 
@@ -57,24 +57,22 @@ export function createMemorySynthesisTools(memory: MemorySynthesisSessionClient)
         content: z.string().min(1),
         memory_type: z.enum(memoryTypes),
         title: z.string().optional(),
-        metadata: z.record(z.string(), z.unknown()).optional(),
         tags: z.array(z.string()).optional(),
         evidence_ids: evidenceIdsSchema,
         lease_owner: z.string().min(1),
       }),
       execute: (input) =>
         memory.upsert({
-          documentId: input.document_id,
-          content: input.content,
-          memoryType: input.memory_type,
-          ...(input.title === undefined ? {} : { title: input.title }),
-          metadata: {
-            ...(input.metadata as JsonObject | undefined),
-            synthesis_batch_id: input.batch_id,
-            synthesis_lease_owner: input.lease_owner,
+          document: {
+            documentId: input.document_id,
+            content: input.content,
+            memoryType: input.memory_type,
+            ...(input.title === undefined ? {} : { title: input.title }),
+            ...(input.tags === undefined ? {} : { tags: input.tags }),
           },
-          ...(input.tags === undefined ? {} : { tags: input.tags }),
+          batchId: input.batch_id,
           evidenceIds: input.evidence_ids,
+          leaseOwner: input.lease_owner,
         }),
     }),
     memory_supersede: tool({
@@ -90,15 +88,15 @@ export function createMemorySynthesisTools(memory: MemorySynthesisSessionClient)
       }),
       execute: (input) =>
         memory.upsert({
-          documentId: input.document_id,
-          content: input.content,
-          memoryType: input.memory_type,
-          supersedesMemoryId: input.previous_memory_id,
-          metadata: {
-            synthesis_batch_id: input.batch_id,
-            synthesis_lease_owner: input.lease_owner,
+          document: {
+            documentId: input.document_id,
+            content: input.content,
+            memoryType: input.memory_type,
+            supersedesMemoryId: input.previous_memory_id,
           },
+          batchId: input.batch_id,
           evidenceIds: input.evidence_ids,
+          leaseOwner: input.lease_owner,
         }),
     }),
     memory_forget: tool({

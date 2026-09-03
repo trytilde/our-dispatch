@@ -54,10 +54,22 @@ export interface MemoryDocumentInput {
   content: string;
   memoryType: MemoryType;
   title?: string;
+  importance?: number;
   metadata?: JsonObject;
   tags?: string[];
   supersedesMemoryId?: string;
   evidenceIds?: string[];
+  subjects?: string[];
+}
+
+export interface MemorySynthesisMutationBindingInput {
+  batchId: string;
+  evidenceIds: string[];
+  leaseOwner: string;
+}
+
+export interface MemorySynthesisUpsertInput extends MemorySynthesisMutationBindingInput {
+  document: MemoryDocumentInput;
 }
 
 export interface MemorySourceBindingInput {
@@ -346,11 +358,16 @@ export class MemorySynthesisSessionClient {
     );
   }
 
-  async upsert(document: MemoryDocumentInput): Promise<JsonValue> {
+  async upsert(input: MemorySynthesisUpsertInput): Promise<JsonValue> {
+    const binding = encodeSynthesisBinding(input);
     const response = await requestJson<{ result: JsonValue }>(this.#config, {
       method: "POST",
       path: `${this.#root}/retain`,
-      body: { document: encodeDocument(document) },
+      body: {
+        operation: "retain",
+        document: encodeDocument({ ...input.document, evidenceIds: input.evidenceIds }),
+        binding,
+      },
     });
     return response.result;
   }
@@ -371,16 +388,14 @@ export class MemorySynthesisSessionClient {
     evidenceIds: string[];
     leaseOwner: string;
   }): Promise<void> {
-    if (!input.batchId.trim()) throw new TypeError("batchId is required");
-    if (!input.evidenceIds.length) throw new TypeError("evidenceIds are required");
-    if (!input.leaseOwner.trim()) throw new TypeError("leaseOwner is required");
+    const binding = encodeSynthesisBinding(input);
     await requestJson<void>(this.#config, {
       method: "POST",
       path: `${this.#root}/validate-batch`,
       body: {
-        batch_id: input.batchId,
-        evidence_ids: input.evidenceIds,
-        lease_owner: input.leaseOwner,
+        batch_id: binding.batch_id,
+        evidence_ids: binding.evidence_ids,
+        lease_owner: binding.lease_owner,
       },
     });
   }
@@ -392,17 +407,13 @@ export class MemorySynthesisSessionClient {
     leaseOwner: string;
   }): Promise<void> {
     requireDocumentId(input.documentId);
-    if (!input.batchId.trim()) throw new TypeError("batchId is required");
-    if (!input.evidenceIds.length) throw new TypeError("evidenceIds are required");
-    if (!input.leaseOwner.trim()) throw new TypeError("leaseOwner is required");
+    const binding = encodeSynthesisBinding(input);
     await requestJson<void>(this.#config, {
       method: "DELETE",
       path: `${this.#root}/documents`,
       body: {
         document_id: input.documentId,
-        batch_id: input.batchId,
-        evidence_ids: input.evidenceIds,
-        lease_owner: input.leaseOwner,
+        binding,
       },
     });
   }
@@ -414,29 +425,19 @@ export class MemorySynthesisSessionClient {
     outcome: "mutated" | "noop";
     reason: string;
   }): Promise<JsonValue> {
-    if (!input.evidenceIds.length) throw new TypeError("evidenceIds are required");
-    if (!input.leaseOwner.trim()) throw new TypeError("leaseOwner is required");
+    const binding = encodeSynthesisBinding(input);
     if (input.outcome === "noop" && !input.reason.trim())
       throw new TypeError("noop synthesis requires a reason");
-    return this.upsert({
-      documentId: `synthesis-receipt:${input.batchId}`,
-      content: JSON.stringify({
-        batch_id: input.batchId,
-        evidence_ids: input.evidenceIds,
-        lease_owner: input.leaseOwner,
+    return requestJson<{ result: JsonValue }>(this.#config, {
+      method: "POST",
+      path: `${this.#root}/retain`,
+      body: {
+        operation: "complete",
+        binding,
         outcome: input.outcome,
         reason: input.reason,
-      }),
-      memoryType: "events",
-      metadata: {
-        internal: true,
-        synthesis_receipt: true,
-        synthesis_batch_id: input.batchId,
-        synthesis_lease_owner: input.leaseOwner,
       },
-      evidenceIds: input.evidenceIds,
-      tags: ["tilde-internal:synthesis-receipt"],
-    });
+    }).then((response) => response.result);
   }
 }
 
@@ -485,17 +486,36 @@ function decodeBank(bank: RawMemoryBank): MemoryBankSummary {
 function encodeDocument(document: MemoryDocumentInput): JsonObject {
   requireDocumentId(document.documentId);
   if (!document.content.trim()) throw new TypeError("content is required");
+  if (
+    document.importance !== undefined &&
+    (!Number.isFinite(document.importance) || document.importance < 0 || document.importance > 1)
+  ) {
+    throw new TypeError("importance must be between 0 and 1");
+  }
   return {
     document_id: document.documentId,
     content: document.content,
-    metadata: {
-      ...document.metadata,
-      memory_type: document.memoryType,
-      ...(document.title ? { title: document.title } : {}),
+    ...(document.title === undefined ? {} : { title: document.title }),
+    memory_type: document.memoryType,
+    ...(document.importance === undefined ? {} : { importance: document.importance }),
+    relations: {
       ...(document.supersedesMemoryId ? { supersedes_memory_id: document.supersedesMemoryId } : {}),
-      ...(document.evidenceIds ? { evidence_ids: document.evidenceIds } : {}),
+      evidence_ids: document.evidenceIds ?? [],
+      subjects: document.subjects ?? [],
     },
+    metadata: document.metadata ?? {},
     tags: document.tags ?? [],
+  };
+}
+
+function encodeSynthesisBinding(input: MemorySynthesisMutationBindingInput): JsonObject {
+  if (!input.batchId.trim()) throw new TypeError("batchId is required");
+  if (!input.evidenceIds.length) throw new TypeError("evidenceIds are required");
+  if (!input.leaseOwner.trim()) throw new TypeError("leaseOwner is required");
+  return {
+    batch_id: input.batchId,
+    evidence_ids: input.evidenceIds,
+    lease_owner: input.leaseOwner,
   };
 }
 
