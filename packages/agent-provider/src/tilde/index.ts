@@ -577,7 +577,9 @@ export class TildeAgentProvider implements AgentProvider {
 
 /** Return whether Tilde reported the one known worker checkpoint that can heal while polling. */
 function isRetryableProvisioningError(errorMessage: string | null | undefined): boolean {
-  return errorMessage?.trim().toLowerCase() === "memory bindings are still synchronizing";
+  const message = errorMessage?.trim().toLowerCase();
+  const checkpoint = "memory bindings are still synchronizing";
+  return message === checkpoint || message === `service unavailable: ${checkpoint}`;
 }
 
 function requireAgent(context: DeploymentContext): { id: string; path: string } {

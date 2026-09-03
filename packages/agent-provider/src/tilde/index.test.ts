@@ -64,7 +64,7 @@ describe("TildeAgentProvider", () => {
       unsetSecret: async () => undefined,
     };
     let channelCreated = false;
-    let polled = false;
+    let polls = 0;
     let removedMappedTools = false;
     const requests: Request[] = [];
     vi.stubGlobal(
@@ -101,11 +101,16 @@ describe("TildeAgentProvider", () => {
           expect(body.memory?.wiki).toBeUndefined();
           return Response.json({
             ...operation("error", false),
-            error_message: "  Memory bindings are still synchronizing  ",
+            error_message: "service unavailable: memory bindings are still synchronizing",
           });
         }
         if (request.method === "GET" && path.endsWith("/agents/scout/provision")) {
-          polled = true;
+          polls += 1;
+          if (polls === 1)
+            return Response.json({
+              ...operation("error", false),
+              error_message: "  Memory bindings are still synchronizing  ",
+            });
           return Response.json(operation("active", true));
         }
         if (request.method === "POST" && path.endsWith("/provision/outputs/claim"))
@@ -222,7 +227,7 @@ describe("TildeAgentProvider", () => {
       }),
     }).deployable.deploy(context);
 
-    expect(polled).toBe(true);
+    expect(polls).toBe(2);
     expect(skills).not.toHaveBeenCalled();
     expect(external).not.toHaveBeenCalled();
     expect(removedMappedTools).toBe(true);
