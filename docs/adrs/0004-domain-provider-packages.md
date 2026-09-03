@@ -65,6 +65,9 @@ flowchart LR
 
 ## Updates
 
+- 2026-09-03T10:00:00+02:00: Removed the separate per-bank memory entitlement.
+  Memory remains opt-in because agent creation must not silently change a
+  user's memory policy, not because creating a bank incurs a subscription.
 - 2026-09-02T12:45:00+02:00: Kept hosted-inference metering outside the
   inference provider. Provider initialization only classifies managed project
   OIDC versus direct-key/subscription inference; the authored agent composes
@@ -76,7 +79,7 @@ flowchart LR
   recoverable model response terminally fails its AgentRun; automatic replay is
   forbidden and a later owner request starts a new run.
 - 2026-08-29T14:55:00Z: Made the Agent Provider omit memory from new bundle
-  requests. Tilde memory banks are paid, opt-in resources; agent creation must
+  requests. Tilde memory banks require an explicit opt-in; agent creation must
   not enroll or fail on them implicitly. Bundle omission preserves an existing
   agent-owned bank, so users can enable memory explicitly without OpenBot
   deleting it on later reconciliation.

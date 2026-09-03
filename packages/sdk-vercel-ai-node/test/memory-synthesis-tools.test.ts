@@ -109,22 +109,27 @@ describe("createMemorySynthesisTools", () => {
     expect(upsertMemory).toHaveBeenNthCalledWith(
       1,
       expect.objectContaining({
-        metadata: expect.objectContaining({
-          synthesis_batch_id: "batch-one",
-          synthesis_lease_owner: "lease-one",
+        document: expect.objectContaining({
+          documentId: "preference-one",
+          memoryType: "preferences",
         }),
+        batchId: "batch-one",
         evidenceIds: [evidenceId],
+        leaseOwner: "lease-one",
       }),
     );
     expect(upsertMemory).toHaveBeenNthCalledWith(
       2,
       expect.objectContaining({
-        supersedesMemoryId: "preference-old",
-        metadata: {
-          synthesis_batch_id: "batch-one",
-          synthesis_lease_owner: "lease-one",
+        document: {
+          content: "Prefers green tea",
+          documentId: "preference-new",
+          memoryType: "preferences",
+          supersedesMemoryId: "preference-old",
         },
+        batchId: "batch-one",
         evidenceIds: [evidenceId],
+        leaseOwner: "lease-one",
       }),
     );
 
