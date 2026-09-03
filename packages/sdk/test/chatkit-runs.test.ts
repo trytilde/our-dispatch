@@ -2,6 +2,47 @@ import { describe, expect, it, vi } from "vite-plus/test";
 import { createClient } from "../src";
 
 describe("AgentRunsClient", () => {
+  it("treats a missing active run as no active run", async () => {
+    const fetch = vi.fn(async () =>
+      Response.json(
+        { name: "NotFound", message: "not found: Resource not found" },
+        { status: 404 },
+      ),
+    );
+    const runs = createClient({
+      baseUrl: "https://api.example.test",
+      orgId: "org",
+      teamId: "team",
+      apiKey: "key",
+      fetch: fetch as typeof globalThis.fetch,
+    }).chatkit.runs;
+
+    await expect(
+      runs.getActive({ sessionId: "session", agentId: "factory" }),
+    ).resolves.toBeUndefined();
+    expect(fetch).toHaveBeenCalledOnce();
+  });
+
+  it("does not hide failures while loading the active run", async () => {
+    const fetch = vi.fn(async () =>
+      Response.json(
+        { name: "ServiceUnavailable", message: "service unavailable" },
+        { status: 503 },
+      ),
+    );
+    const runs = createClient({
+      baseUrl: "https://api.example.test",
+      orgId: "org",
+      teamId: "team",
+      apiKey: "key",
+      fetch: fetch as typeof globalThis.fetch,
+    }).chatkit.runs;
+
+    await expect(
+      runs.getActive({ sessionId: "session", agentId: "factory" }),
+    ).rejects.toMatchObject({ status: 503 });
+  });
+
   it("separates lease-fenced worker transitions from owner control", async () => {
     const requests: Array<{ url: string; body: unknown }> = [];
     const fetch = vi.fn(

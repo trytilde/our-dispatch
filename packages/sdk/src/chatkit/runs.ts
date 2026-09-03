@@ -92,7 +92,9 @@ export class AgentRunsClient {
 
   async getActive(input: { sessionId: string; agentId: string }): Promise<AgentRun | undefined> {
     return (
-      (await this.#request<AgentRun | null>("/active", input.sessionId, input.agentId)) ?? undefined
+      (await this.#request<AgentRun | null>("/active", input.sessionId, input.agentId, {
+        allowNotFound: true,
+      })) ?? undefined
     );
   }
 
