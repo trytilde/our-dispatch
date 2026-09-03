@@ -95,6 +95,8 @@ describe("ExeDevRuntimeServiceProvider", () => {
     expect(calls.at(-1)?.input).toContain("$CODE_STORAGE_REPOSITORY_TOKEN");
     expect(calls.at(-1)?.input).not.toContain("repository-only-token");
     expect(calls.at(-1)?.input).toContain("credential_helper_key=");
+    expect(calls.at(-1)?.input).toContain('code_storage_host="${source_url#https://}"');
+    expect(calls.at(-1)?.input).not.toContain("$CODE_STORAGE_ORGANIZATION");
     expect(calls.at(-1)?.input).toContain("sha256sum --check --strict");
     expect(deployment.environment.PUBLIC_ORIGIN).toBe("https://openbot.exe.xyz");
   });

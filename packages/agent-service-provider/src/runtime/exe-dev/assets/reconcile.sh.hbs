@@ -104,7 +104,10 @@ else
     git -C "$remote_directory" switch --create "$source_branch" --no-track "origin/$source_branch"
   fi
 fi
-credential_helper_key="credential.https://${CODE_STORAGE_ORGANIZATION}.code.storage.helper"
+code_storage_host="${source_url#https://}"
+code_storage_host="${code_storage_host%%/*}"
+test -n "$code_storage_host"
+credential_helper_key="credential.https://${code_storage_host}.helper"
 git -C "$remote_directory" config --local --replace-all "$credential_helper_key" ''
 git -C "$remote_directory" config --local --add "$credential_helper_key" \
   '!f() { printf "%s\n" "username=t" "password=$CODE_STORAGE_REPOSITORY_TOKEN"; }; f'
