@@ -1,6 +1,6 @@
 {
   "name": "@tryopenbot/ui",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "files": [
     "dist",
     "README.md"
@@ -99,7 +99,7 @@
     "vite-plus": "catalog:"
   },
   "peerDependencies": {
-    "@tryopenbot/client-runtime": "0.1.0",
+    "@tryopenbot/client-runtime": "1.0.0",
     "react": ">=19",
     "react-dom": ">=19"
   },

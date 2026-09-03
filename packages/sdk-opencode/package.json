@@ -1,6 +1,6 @@
 {
   "name": "@trytilde/sdk-opencode",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "OpenCode plugin adapter for Tilde ChatKit coding-agent audit events.",
   "homepage": "https://github.com/trytilde/dispatch/tree/main/packages/sdk-opencode#readme",
   "bugs": {

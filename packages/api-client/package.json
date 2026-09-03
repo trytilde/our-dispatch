@@ -1,6 +1,6 @@
 {
   "name": "@trytilde/api-client",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "description": "Generated Tilde API client and helpers.",
   "homepage": "https://github.com/trytilde/dispatch/tree/main/packages/api-client#readme",
   "bugs": {

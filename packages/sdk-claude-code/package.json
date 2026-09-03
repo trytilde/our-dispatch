@@ -1,6 +1,6 @@
 {
   "name": "@trytilde/sdk-claude-code",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Claude Code hook adapter for Tilde ChatKit coding-agent audit events.",
   "homepage": "https://github.com/trytilde/dispatch/tree/main/packages/sdk-claude-code#readme",
   "bugs": {

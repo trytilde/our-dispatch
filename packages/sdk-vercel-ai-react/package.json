@@ -1,6 +1,6 @@
 {
   "name": "@trytilde/sdk-vercel-ai-react",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "React helpers for Tilde ChatKit Vercel AI SDK applications.",
   "license": "MIT",
   "repository": {
@@ -50,8 +50,8 @@
     "vitest": "4.1.10"
   },
   "peerDependencies": {
-    "@trytilde/sdk": "^0.1.0",
-    "@trytilde/sdk-react": "^0.1.0",
+    "@trytilde/sdk": "^0.2.0",
+    "@trytilde/sdk-react": "^1.0.0",
     "ai": ">=5 || >=6 || >=7",
     "react": ">=18 || >=19"
   },

@@ -1,6 +1,6 @@
 {
   "name": "@trytilde/sdk",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Core TypeScript SDK for Tilde APIs.",
   "homepage": "https://github.com/trytilde/dispatch/tree/main/packages/sdk#readme",
   "bugs": {
