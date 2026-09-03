@@ -34,8 +34,9 @@ Reconciliation now submits one typed Tilde Agent Resource Bundle and polls its
 durable status. Tilde owns the agent, dynamic MCP server, control-plane toolkit,
 exact managed/custom skill registry, memory bank, credential rotation, and
 cleanup. A reported `memory bindings are still synchronizing` checkpoint remains
-pollable within the existing bounded provisioning deadline; every other reported
-error fails immediately. Ordinary OpenBot bots default automatic memory to `none`.
+pollable within the existing bounded provisioning deadline, including Tilde's
+`service unavailable` display prefix; every other reported error fails immediately.
+Ordinary OpenBot bots default automatic memory to `none`.
 `OPENBOT_AUTOMATIC_MEMORY_MODE` and the per-agent
 `AGENT_<ID>_AUTOMATIC_MEMORY_MODE` override select an explicit mode;
 `personal_plus_agent` alone provisions one agent-owned bank. The synthesis-only
