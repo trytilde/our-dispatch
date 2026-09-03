@@ -64,12 +64,17 @@ if [ -n "${GIT_GITHUB_GIT_PROXY_PROFILE_ID:-}" ] && [ -n "${GIT_GITHUB_REPOSITOR
 fi
 
 # Code Storage uses a repository-scoped JWT persisted by its Git Provider. The organization API
-# key is setup-only and never reaches this Computer. Reconstruct real history after the seed copy so
-# the background SDLC can create and push ordinary fast-forward branches.
+# key is setup-only and never reaches this Computer. Supply the JWT only to each Git process; keep
+# the checkout remote credential-free while preserving unattended background reconciliation.
 if [ -n "${CODE_STORAGE_ORGANIZATION:-}" ] \
   && [ -n "${CODE_STORAGE_REPOSITORY:-}" ] \
   && [ -n "${CODE_STORAGE_REPOSITORY_TOKEN:-}" ]; then
-  code_storage_url="https://t:${CODE_STORAGE_REPOSITORY_TOKEN}@${CODE_STORAGE_ORGANIZATION}.code.storage/${CODE_STORAGE_REPOSITORY}.git"
+  code_storage_url="https://${CODE_STORAGE_ORGANIZATION}.code.storage/${CODE_STORAGE_REPOSITORY}.git"
+  code_storage_git() {
+    git -c credential.helper= \
+      -c 'credential.helper=!f() { printf "%s\n" "username=t" "password=$CODE_STORAGE_REPOSITORY_TOKEN"; }; f' \
+      "$@"
+  }
   source_branch="${OPENBOT_SOURCE_BRANCH:-main}"
   if [ ! -d "$source_directory/.git" ]; then
     git -C "$source_directory" init --initial-branch="$source_branch" --quiet
@@ -79,10 +84,14 @@ if [ -n "${CODE_STORAGE_ORGANIZATION:-}" ] \
   git -C "$source_directory" remote get-url origin >/dev/null 2>&1 \
     && git -C "$source_directory" remote set-url origin "$code_storage_url" \
     || git -C "$source_directory" remote add origin "$code_storage_url"
-  git -C "$source_directory" fetch --quiet origin "$source_branch"
+  code_storage_git -C "$source_directory" fetch --quiet origin "$source_branch"
   git -C "$source_directory" reset --hard --quiet FETCH_HEAD
   git -C "$source_directory" branch --set-upstream-to="origin/$source_branch" "$source_branch" \
     2>/dev/null || true
+  credential_helper_key="credential.https://${CODE_STORAGE_ORGANIZATION}.code.storage.helper"
+  git -C "$source_directory" config --local --replace-all "$credential_helper_key" ''
+  git -C "$source_directory" config --local --add "$credential_helper_key" \
+    '!f() { printf "%s\n" "username=t" "password=$CODE_STORAGE_REPOSITORY_TOKEN"; }; f'
   chmod 0600 "$source_directory/.git/config"
 fi
 

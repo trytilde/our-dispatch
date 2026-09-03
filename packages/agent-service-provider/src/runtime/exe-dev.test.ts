@@ -91,8 +91,11 @@ describe("ExeDevRuntimeServiceProvider", () => {
     expect(calls.at(-1)?.input).toContain(
       'switch --create "$source_branch" --no-track "origin/$source_branch"',
     );
+    expect(calls.at(-1)?.input).toContain("code_storage_git clone");
+    expect(calls.at(-1)?.input).toContain("$CODE_STORAGE_REPOSITORY_TOKEN");
+    expect(calls.at(-1)?.input).not.toContain("repository-only-token");
+    expect(calls.at(-1)?.input).toContain("credential_helper_key=");
     expect(calls.at(-1)?.input).toContain("sha256sum --check --strict");
-    expect(calls.at(-1)?.input).toContain("repository-only-token");
     expect(deployment.environment.PUBLIC_ORIGIN).toBe("https://openbot.exe.xyz");
   });
 });

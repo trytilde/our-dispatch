@@ -70,8 +70,9 @@ Custom fork-owned providers may live under `configuration/providers/`, but they 
 `CodeStorageGitProvider` uses the organization PKCS8 API key only during interactive initialization.
 It creates or finds the configured repository, optionally links it to GitHub at creation, and mints
 a repository-only credential with `git:read`, `git:write`, and force-push rejection. Initialization
-persists that JWT through SOPS and discards the organization key. Deployment rotates only the
-untracked Git remote URL and pushes the named current branch.
+persists that JWT through SOPS and discards the organization key. Deployment keeps the Git remote
+credential-free and configures a host-scoped helper that reads the managed environment only when
+Git authenticates a fetch or push of the named current branch.
 
 For continuous private GitHub sync, configure the Code Storage GitHub App integration first:
 

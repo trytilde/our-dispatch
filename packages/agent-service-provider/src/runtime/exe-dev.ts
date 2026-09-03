@@ -264,10 +264,7 @@ function codeStorageSourceUrl(environment: NodeJS.ProcessEnv): string {
     throw new Error(
       "exe.dev deployment requires CodeStorageGitProvider to reconcile CODE_STORAGE_ORGANIZATION, CODE_STORAGE_REPOSITORY, and CODE_STORAGE_REPOSITORY_TOKEN",
     );
-  const url = new URL(`https://${organization}.code.storage/${repository}.git`);
-  url.username = "t";
-  url.password = token;
-  return url.toString();
+  return `https://${organization}.code.storage/${repository}.git`;
 }
 
 function renderRemoteEnvironment(

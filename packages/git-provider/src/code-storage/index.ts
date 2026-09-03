@@ -112,12 +112,16 @@ export interface CodeStorageGitProviderOptions {
   /** Repository-only credential lifetime. Setup rotates it before expiry. */
   repositoryTokenTtlSeconds?: number;
   clientFactory?: (options: { name: string; key: string }) => CodeStorageClient;
-  runGit?: (cwd: string, args: readonly string[]) => Promise<string>;
+  runGit?: (
+    cwd: string,
+    args: readonly string[],
+    environment?: NodeJS.ProcessEnv,
+  ) => Promise<string>;
 }
 
 /**
  * Reconciles a Code Storage repository and configures standard Git-over-HTTPS access. The scoped
- * JWT lives only in the checkout's untracked .git/config and is rotated on every lifecycle run.
+ * JWT is supplied to Git only for the command that needs it and never enters the checkout config.
  */
 export class CodeStorageGitProvider implements GitProvider {
   readonly initialization = codeStorageGitProviderInitialization;
@@ -136,8 +140,11 @@ export class CodeStorageGitProvider implements GitProvider {
       options.clientFactory ?? ((clientOptions) => new GitStorage(clientOptions));
     this.#runGit =
       options.runGit ??
-      (async (cwd, args) => {
-        const result = await execFileAsync("git", [...args], { cwd });
+      (async (cwd, args, environment) => {
+        const result = await execFileAsync("git", [...args], {
+          cwd,
+          env: { ...process.env, ...environment },
+        });
         return result.stdout;
       });
   }
@@ -210,18 +217,16 @@ export class CodeStorageGitProvider implements GitProvider {
       summary: `Reconcile ${organization}.code.storage/${repository}`,
       steps: [
         "Use the persisted repository-only read/write credential",
-        "Rotate the untracked origin credential and push the current branch",
+        "Keep origin credential-free and authenticate only the current push",
       ],
     };
   }
 
   async #deploy(context: DeploymentContext): Promise<void> {
     const { organization, repository, repositoryToken } = configuration(context.environment);
-    let authenticatedUrl: string | undefined;
     try {
-      authenticatedUrl = authenticatedGitUrl(organization, repository, repositoryToken);
       const cleanUrl = `https://${organization}.code.storage/${repository}.git`;
-      await this.#configureOrigin(context.repositoryRoot, cleanUrl, authenticatedUrl);
+      await this.#configureOrigin(context.repositoryRoot, cleanUrl, organization);
       const branch = (
         await this.#runGit(context.repositoryRoot, ["branch", "--show-current"])
       ).trim();
@@ -230,7 +235,11 @@ export class CodeStorageGitProvider implements GitProvider {
           "invalid_configuration",
           "Code Storage deployment requires a named current branch",
         );
-      await this.#runGit(context.repositoryRoot, ["push", "--set-upstream", "origin", branch]);
+      await this.#runGit(
+        context.repositoryRoot,
+        authenticatedGitArguments(["push", "--set-upstream", "origin", branch]),
+        { [codeStorageRepositoryTokenSecretName]: repositoryToken },
+      );
       await persistEnvironment(
         context,
         codeStorageRepositoryEnvironmentName,
@@ -245,7 +254,7 @@ export class CodeStorageGitProvider implements GitProvider {
       if (error instanceof GitProviderError) throw error;
       throw new GitProviderError(
         "provider_unavailable",
-        `Unable to reconcile Code Storage: ${redactedError(error, authenticatedUrl)}`,
+        `Unable to reconcile Code Storage: ${redactedError(error, repositoryToken)}`,
         true,
       );
     }
@@ -254,16 +263,30 @@ export class CodeStorageGitProvider implements GitProvider {
   async #configureOrigin(
     repositoryRoot: string,
     cleanUrl: string,
-    authenticatedUrl: string,
+    organization: string,
   ): Promise<void> {
     const current = await this.#optionalGit(repositoryRoot, ["remote", "get-url", "origin"]);
     if (current && stripCredentials(current) !== cleanUrl) {
       const upstream = await this.#optionalGit(repositoryRoot, ["remote", "get-url", "upstream"]);
-      if (!upstream) await this.#runGit(repositoryRoot, ["remote", "add", "upstream", current]);
+      if (!upstream)
+        await this.#runGit(repositoryRoot, [
+          "remote",
+          "add",
+          "upstream",
+          stripCredentials(current),
+        ]);
     }
-    if (current)
-      await this.#runGit(repositoryRoot, ["remote", "set-url", "origin", authenticatedUrl]);
-    else await this.#runGit(repositoryRoot, ["remote", "add", "origin", authenticatedUrl]);
+    if (current) await this.#runGit(repositoryRoot, ["remote", "set-url", "origin", cleanUrl]);
+    else await this.#runGit(repositoryRoot, ["remote", "add", "origin", cleanUrl]);
+    const helperKey = `credential.https://${organization}.code.storage.helper`;
+    await this.#runGit(repositoryRoot, ["config", "--local", "--replace-all", helperKey, ""]);
+    await this.#runGit(repositoryRoot, [
+      "config",
+      "--local",
+      "--add",
+      helperKey,
+      ephemeralCredentialHelper,
+    ]);
   }
 
   async #repositoryFromOrigin(repositoryRoot: string): Promise<string | undefined> {
@@ -361,13 +384,6 @@ function syncMode(environment: NodeJS.ProcessEnv): "github-app" | "public" | "no
   );
 }
 
-function authenticatedGitUrl(organization: string, repository: string, token: string): string {
-  const url = new URL(`https://${organization}.code.storage/${repository}.git`);
-  url.username = "t";
-  url.password = token;
-  return url.toString();
-}
-
 function stripCredentials(value: string): string {
   try {
     const url = new URL(value);
@@ -379,12 +395,22 @@ function stripCredentials(value: string): string {
   }
 }
 
-function redactedError(error: unknown, authenticatedUrl: string | undefined): string {
+const ephemeralCredentialHelper =
+  "!f() { printf '%s\\n' 'username=t' \"password=$CODE_STORAGE_REPOSITORY_TOKEN\"; }; f";
+
+function authenticatedGitArguments(args: readonly string[]): string[] {
+  return [
+    "-c",
+    "credential.helper=",
+    "-c",
+    `credential.helper=${ephemeralCredentialHelper}`,
+    ...args,
+  ];
+}
+
+function redactedError(error: unknown, repositoryToken: string): string {
   let message = error instanceof Error ? error.message : String(error);
-  if (!authenticatedUrl) return message;
-  const url = new URL(authenticatedUrl);
-  const password = url.password;
-  message = message.replaceAll(authenticatedUrl, "[REDACTED_CODE_STORAGE_URL]");
-  if (password) message = message.replaceAll(password, "[REDACTED_CODE_STORAGE_TOKEN]");
+  if (repositoryToken)
+    message = message.replaceAll(repositoryToken, "[REDACTED_CODE_STORAGE_TOKEN]");
   return message;
 }
