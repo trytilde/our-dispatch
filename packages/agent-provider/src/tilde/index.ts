@@ -255,7 +255,10 @@ export class TildeAgentProvider implements AgentProvider {
       }),
     );
     for (let attempt = 0; operation.status !== AgentProvisioningStatus.ACTIVE; attempt += 1) {
-      if (operation.status === AgentProvisioningStatus.ERROR)
+      if (
+        operation.status === AgentProvisioningStatus.ERROR &&
+        !isRetryableProvisioningError(operation.error_message)
+      )
         throw new AgentProviderError(
           "provider_unavailable",
           operation.error_message || `Tilde could not provision ${slug}`,
@@ -570,6 +573,11 @@ export class TildeAgentProvider implements AgentProvider {
       );
     }
   }
+}
+
+/** Return whether Tilde reported the one known worker checkpoint that can heal while polling. */
+function isRetryableProvisioningError(errorMessage: string | null | undefined): boolean {
+  return errorMessage?.trim().toLowerCase() === "memory bindings are still synchronizing";
 }
 
 function requireAgent(context: DeploymentContext): { id: string; path: string } {

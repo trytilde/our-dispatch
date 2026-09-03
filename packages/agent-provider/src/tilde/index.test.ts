@@ -35,7 +35,7 @@ describe("TildeAgentProvider", () => {
     );
   });
 
-  it("provisions a resource-constrained agent with only a fixed MCP server", async () => {
+  it("polls through memory-binding synchronization for a resource-constrained agent", async () => {
     const skills = vi.spyOn(TildeSkillReconciler.prototype, "bundleSkills").mockResolvedValue({
       custom: [
         {
@@ -99,7 +99,10 @@ describe("TildeAgentProvider", () => {
             },
           });
           expect(body.memory?.wiki).toBeUndefined();
-          return Response.json(operation("queued", false));
+          return Response.json({
+            ...operation("error", false),
+            error_message: "  Memory bindings are still synchronizing  ",
+          });
         }
         if (request.method === "GET" && path.endsWith("/agents/scout/provision")) {
           polled = true;
